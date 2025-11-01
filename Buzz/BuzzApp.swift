@@ -18,11 +18,14 @@ struct BuzzApp: App {
                 if authService.isAuthenticated {
                     MainTabView()
                         .environmentObject(authService)
+                        .transition(.opacity)
                 } else {
                     AuthenticationView()
                         .environmentObject(authService)
+                        .transition(.opacity)
                 }
             }
+            .animation(.easeInOut(duration: 0.3), value: authService.isAuthenticated)
             .onOpenURL { url in
                 GIDSignIn.sharedInstance.handle(url)
             }

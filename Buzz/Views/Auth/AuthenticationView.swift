@@ -62,6 +62,12 @@ struct AuthenticationView: View {
             .sheet(isPresented: $showSignUp) {
                 SignUpView()
             }
+            .onChange(of: authService.isAuthenticated) { _, isAuth in
+                // Dismiss signup sheet when authentication succeeds
+                if isAuth {
+                    showSignUp = false
+                }
+            }
         }
     }
 }
@@ -74,6 +80,7 @@ struct EmailSignInView: View {
     @State private var password = ""
     @State private var showError = false
     @State private var errorMessage = ""
+    @State private var isSigningIn = false
     
     var body: some View {
         VStack(spacing: 20) {
@@ -101,10 +108,16 @@ struct EmailSignInView: View {
             CustomButton(
                 title: "Sign In",
                 action: signIn,
-                isLoading: authService.isLoading,
+                isLoading: authService.isLoading || isSigningIn,
                 isDisabled: !isFormValid
             )
             .padding(.horizontal)
+            
+            if isSigningIn {
+                Text("Signing in...")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
         }
         .alert("Error", isPresented: $showError) {
             Button("OK", role: .cancel) {}
@@ -118,10 +131,14 @@ struct EmailSignInView: View {
     }
     
     private func signIn() {
+        isSigningIn = true
         Task {
             do {
                 try await authService.signInWithEmail(email: email, password: password)
+                // Success - AuthService will handle navigation
+                isSigningIn = false
             } catch {
+                isSigningIn = false
                 errorMessage = error.localizedDescription
                 showError = true
             }

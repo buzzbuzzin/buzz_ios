@@ -18,6 +18,7 @@ struct SignUpView: View {
     @State private var callSign = ""
     @State private var showError = false
     @State private var errorMessage = ""
+    @State private var isSigningUp = false
     
     var body: some View {
         NavigationView {
@@ -105,10 +106,20 @@ struct SignUpView: View {
                     CustomButton(
                         title: "Sign Up",
                         action: signUp,
-                        isLoading: authService.isLoading,
+                        isLoading: authService.isLoading || isSigningUp,
                         isDisabled: !isFormValid
                     )
                     .padding(.horizontal)
+                    
+                    if isSigningUp {
+                        VStack(spacing: 8) {
+                            ProgressView()
+                            Text("Creating your account...")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(.top, 8)
+                    }
                     
                     // Sign In Link
                     HStack {
@@ -129,6 +140,12 @@ struct SignUpView: View {
             } message: {
                 Text(errorMessage)
             }
+            .onChange(of: authService.isAuthenticated) { _, isAuthenticated in
+                if isAuthenticated {
+                    // User is now authenticated, dismiss the signup view
+                    dismiss()
+                }
+            }
         }
     }
     
@@ -141,6 +158,7 @@ struct SignUpView: View {
     }
     
     private func signUp() {
+        isSigningUp = true
         Task {
             do {
                 try await authService.signUpWithEmail(
@@ -149,7 +167,13 @@ struct SignUpView: View {
                     userType: userType,
                     callSign: userType == .pilot ? callSign : nil
                 )
+                
+                // Success! The app will automatically navigate to main view
+                // because authService.isAuthenticated is now true
+                isSigningUp = false
+                
             } catch {
+                isSigningUp = false
                 errorMessage = error.localizedDescription
                 showError = true
             }
