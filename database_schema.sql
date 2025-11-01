@@ -13,6 +13,7 @@ CREATE TABLE profiles (
     call_sign TEXT UNIQUE,
     email TEXT,
     phone TEXT,
+    profile_picture_url TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc', NOW()) NOT NULL
 );
 
@@ -154,6 +155,38 @@ CREATE POLICY "Pilots can delete their own licenses"
     TO authenticated
     USING (
         bucket_id = 'pilot-licenses' 
+        AND auth.uid()::text = (storage.foldername(name))[1]
+    );
+
+-- Storage Buckets for Profile Pictures
+-- Create the profile-pictures bucket
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('profile-pictures', 'profile-pictures', true)
+ON CONFLICT (id) DO NOTHING;
+
+-- Profile Pictures Storage Policies
+CREATE POLICY "Users can view all profile pictures"
+    ON storage.objects FOR SELECT
+    USING (bucket_id = 'profile-pictures');
+
+CREATE POLICY "Users can upload their own profile picture"
+    ON storage.objects FOR INSERT
+    WITH CHECK (
+        bucket_id = 'profile-pictures' 
+        AND auth.uid()::text = (storage.foldername(name))[1]
+    );
+
+CREATE POLICY "Users can update their own profile picture"
+    ON storage.objects FOR UPDATE
+    USING (
+        bucket_id = 'profile-pictures' 
+        AND auth.uid()::text = (storage.foldername(name))[1]
+    );
+
+CREATE POLICY "Users can delete their own profile picture"
+    ON storage.objects FOR DELETE
+    USING (
+        bucket_id = 'profile-pictures' 
         AND auth.uid()::text = (storage.foldername(name))[1]
     );
 

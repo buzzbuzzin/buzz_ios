@@ -7,11 +7,17 @@
 
 import SwiftUI
 import Auth
+import PhotosUI
 
 struct ProfileView: View {
     @EnvironmentObject var authService: AuthService
     @StateObject private var rankingService = RankingService()
+    @StateObject private var profilePictureService = ProfilePictureService()
     @State private var showSignOutAlert = false
+    @State private var showImagePicker = false
+    @State private var showImageSourceSheet = false
+    @State private var imageSourceType: UIImagePickerController.SourceType = .photoLibrary
+    @State private var profileImage: UIImage?
     
     var body: some View {
         NavigationView {
@@ -19,9 +25,53 @@ struct ProfileView: View {
                 // Profile Header
                 Section {
                     HStack(spacing: 16) {
-                        Image(systemName: authService.userProfile?.userType == .pilot ? "airplane.circle.fill" : "person.circle.fill")
-                            .font(.system(size: 60))
-                            .foregroundColor(.blue)
+                        // Profile Picture (clickable to upload)
+                        Button(action: {
+                            showImageSourceSheet = true
+                        }) {
+                            Group {
+                                if let pictureUrl = authService.userProfile?.profilePictureUrl,
+                                   let url = URL(string: pictureUrl) {
+                                    AsyncImage(url: url) { phase in
+                                        switch phase {
+                                        case .empty:
+                                            ProgressView()
+                                                .frame(width: 70, height: 70)
+                                        case .success(let image):
+                                            image
+                                                .resizable()
+                                                .scaledToFill()
+                                                .frame(width: 70, height: 70)
+                                                .clipShape(Circle())
+                                        case .failure:
+                                            Image(systemName: authService.userProfile?.userType == .pilot ? "airplane.circle.fill" : "person.circle.fill")
+                                                .font(.system(size: 70))
+                                                .foregroundColor(.blue)
+                                        @unknown default:
+                                            EmptyView()
+                                        }
+                                    }
+                                } else {
+                                    Image(systemName: authService.userProfile?.userType == .pilot ? "airplane.circle.fill" : "person.circle.fill")
+                                        .font(.system(size: 70))
+                                        .foregroundColor(.blue)
+                                }
+                            }
+                            .overlay(
+                                Circle()
+                                    .stroke(Color.blue.opacity(0.3), lineWidth: 2)
+                            )
+                            .overlay(
+                                Image(systemName: "camera.fill")
+                                    .font(.system(size: 16))
+                                    .foregroundColor(.white)
+                                    .padding(6)
+                                    .background(Color.blue)
+                                    .clipShape(Circle())
+                                    .offset(x: 25, y: 25)
+                            )
+                        }
+                        .buttonStyle(PlainButtonStyle())
                         
                         VStack(alignment: .leading, spacing: 4) {
                             Text(authService.userProfile?.fullName ?? "User")
@@ -141,11 +191,63 @@ struct ProfileView: View {
             } message: {
                 Text("Are you sure you want to sign out?")
             }
+            .confirmationDialog("Choose Photo Source", isPresented: $showImageSourceSheet, titleVisibility: .visible) {
+                Button("Take Photo") {
+                    imageSourceType = .camera
+                    showImagePicker = true
+                }
+                Button("Choose from Library") {
+                    imageSourceType = .photoLibrary
+                    showImagePicker = true
+                }
+                if authService.userProfile?.profilePictureUrl != nil {
+                    Button("Remove Photo", role: .destructive) {
+                        removeProfilePicture()
+                    }
+                }
+                Button("Cancel", role: .cancel) {}
+            }
+            .sheet(isPresented: $showImagePicker) {
+                ImagePicker(image: $profileImage, sourceType: imageSourceType)
+            }
+            .onChange(of: profileImage) { _, newImage in
+                if let image = newImage {
+                    uploadProfilePicture(image: image)
+                }
+            }
         }
         .task {
             if authService.userProfile?.userType == .pilot,
                let currentUser = authService.currentUser {
                 try? await rankingService.getPilotStats(pilotId: currentUser.id)
+            }
+        }
+    }
+    
+    private func uploadProfilePicture(image: UIImage) {
+        guard let currentUser = authService.currentUser else { return }
+        
+        Task {
+            do {
+                _ = try await profilePictureService.uploadProfilePicture(userId: currentUser.id, image: image)
+                // Refresh profile to show new picture
+                await authService.checkAuthStatus()
+            } catch {
+                print("Error uploading profile picture: \(error)")
+            }
+        }
+    }
+    
+    private func removeProfilePicture() {
+        guard let currentUser = authService.currentUser else { return }
+        
+        Task {
+            do {
+                try await profilePictureService.deleteProfilePicture(userId: currentUser.id)
+                // Refresh profile to remove picture
+                await authService.checkAuthStatus()
+            } catch {
+                print("Error removing profile picture: \(error)")
             }
         }
     }

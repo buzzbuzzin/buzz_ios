@@ -20,6 +20,7 @@ struct UserProfile: Codable, Identifiable {
     let callSign: String?
     let email: String?
     let phone: String?
+    let profilePictureUrl: String?
     let createdAt: Date
     
     enum CodingKeys: String, CodingKey {
@@ -30,6 +31,7 @@ struct UserProfile: Codable, Identifiable {
         case callSign = "call_sign"
         case email
         case phone
+        case profilePictureUrl = "profile_picture_url"
         case createdAt = "created_at"
     }
     
