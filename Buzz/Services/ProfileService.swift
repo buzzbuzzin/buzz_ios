@@ -25,9 +25,15 @@ class ProfileService: ObservableObject {
         return profile
     }
     
-    func updateProfile(userId: UUID, callSign: String?, email: String?, phone: String?) async throws {
+    func updateProfile(userId: UUID, firstName: String?, lastName: String?, callSign: String?, email: String?, phone: String?) async throws {
         var updates: [String: AnyJSON] = [:]
         
+        if let firstName = firstName {
+            updates["first_name"] = .string(firstName)
+        }
+        if let lastName = lastName {
+            updates["last_name"] = .string(lastName)
+        }
         if let callSign = callSign {
             updates["call_sign"] = .string(callSign)
         }

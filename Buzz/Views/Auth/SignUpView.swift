@@ -11,6 +11,8 @@ struct SignUpView: View {
     @EnvironmentObject var authService: AuthService
     @Environment(\.dismiss) var dismiss
     
+    @State private var firstName = ""
+    @State private var lastName = ""
     @State private var email = ""
     @State private var password = ""
     @State private var confirmPassword = ""
@@ -67,6 +69,18 @@ struct SignUpView: View {
                     
                     // Form Fields
                     VStack(spacing: 16) {
+                        TextField("First Name", text: $firstName)
+                            .textContentType(.givenName)
+                            .padding()
+                            .background(Color(.systemGray6))
+                            .cornerRadius(10)
+                        
+                        TextField("Last Name", text: $lastName)
+                            .textContentType(.familyName)
+                            .padding()
+                            .background(Color(.systemGray6))
+                            .cornerRadius(10)
+                        
                         TextField("Email", text: $email)
                             .textContentType(.emailAddress)
                             .autocapitalization(.none)
@@ -150,6 +164,8 @@ struct SignUpView: View {
     }
     
     private var isFormValid: Bool {
+        !firstName.isEmpty &&
+        !lastName.isEmpty &&
         !email.isEmpty &&
         !password.isEmpty &&
         password == confirmPassword &&
@@ -165,6 +181,8 @@ struct SignUpView: View {
                     email: email,
                     password: password,
                     userType: userType,
+                    firstName: firstName,
+                    lastName: lastName,
                     callSign: userType == .pilot ? callSign : nil
                 )
                 

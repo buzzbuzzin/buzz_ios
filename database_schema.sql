@@ -8,6 +8,8 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE TABLE profiles (
     id UUID REFERENCES auth.users ON DELETE CASCADE PRIMARY KEY,
     user_type TEXT NOT NULL CHECK (user_type IN ('pilot', 'customer')),
+    first_name TEXT,
+    last_name TEXT,
     call_sign TEXT UNIQUE,
     email TEXT,
     phone TEXT,

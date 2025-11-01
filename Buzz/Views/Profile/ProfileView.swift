@@ -24,10 +24,14 @@ struct ProfileView: View {
                             .foregroundColor(.blue)
                         
                         VStack(alignment: .leading, spacing: 4) {
+                            Text(authService.userProfile?.fullName ?? "User")
+                                .font(.title2)
+                                .fontWeight(.bold)
+                            
                             if let callSign = authService.userProfile?.callSign {
-                                Text(callSign)
-                                    .font(.title2)
-                                    .fontWeight(.bold)
+                                Text("@\(callSign)")
+                                    .font(.subheadline)
+                                    .foregroundColor(.blue)
                             }
                             
                             Text(authService.userProfile?.userType == .pilot ? "Pilot" : "Customer")
@@ -154,6 +158,8 @@ struct EditProfileView: View {
     @StateObject private var profileService = ProfileService()
     @Environment(\.dismiss) var dismiss
     
+    @State private var firstName = ""
+    @State private var lastName = ""
     @State private var callSign = ""
     @State private var email = ""
     @State private var phone = ""
@@ -165,6 +171,12 @@ struct EditProfileView: View {
     var body: some View {
         Form {
             Section("Profile Information") {
+                TextField("First Name", text: $firstName)
+                    .textContentType(.givenName)
+                
+                TextField("Last Name", text: $lastName)
+                    .textContentType(.familyName)
+                
                 if authService.userProfile?.userType == .pilot {
                     TextField("Call Sign", text: $callSign)
                         .autocapitalization(.allCharacters)
@@ -208,6 +220,8 @@ struct EditProfileView: View {
     }
     
     private func loadCurrentProfile() {
+        firstName = authService.userProfile?.firstName ?? ""
+        lastName = authService.userProfile?.lastName ?? ""
         callSign = authService.userProfile?.callSign ?? ""
         email = authService.userProfile?.email ?? ""
         phone = authService.userProfile?.phone ?? ""
@@ -222,6 +236,8 @@ struct EditProfileView: View {
             do {
                 try await profileService.updateProfile(
                     userId: userId,
+                    firstName: firstName,
+                    lastName: lastName,
                     callSign: authService.userProfile?.userType == .pilot ? callSign : nil,
                     email: email,
                     phone: phone

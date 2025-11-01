@@ -15,6 +15,8 @@ enum UserType: String, Codable {
 struct UserProfile: Codable, Identifiable {
     let id: UUID
     let userType: UserType
+    let firstName: String?
+    let lastName: String?
     let callSign: String?
     let email: String?
     let phone: String?
@@ -23,10 +25,17 @@ struct UserProfile: Codable, Identifiable {
     enum CodingKeys: String, CodingKey {
         case id
         case userType = "user_type"
+        case firstName = "first_name"
+        case lastName = "last_name"
         case callSign = "call_sign"
         case email
         case phone
         case createdAt = "created_at"
+    }
+    
+    var fullName: String {
+        let components = [firstName, lastName].compactMap { $0 }
+        return components.isEmpty ? "User" : components.joined(separator: " ")
     }
 }
 

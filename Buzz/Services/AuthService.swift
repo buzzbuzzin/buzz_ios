@@ -68,7 +68,7 @@ class AuthService: ObservableObject {
     
     // MARK: - Email/Password Auth
     
-    func signUpWithEmail(email: String, password: String, userType: UserType, callSign: String?) async throws {
+    func signUpWithEmail(email: String, password: String, userType: UserType, firstName: String, lastName: String, callSign: String?) async throws {
         isLoading = true
         errorMessage = nil
         
@@ -82,7 +82,7 @@ class AuthService: ObservableObject {
             let userId = response.user.id
             
             // Create profile
-            try await createProfile(userId: userId, userType: userType, callSign: callSign, email: email)
+            try await createProfile(userId: userId, userType: userType, firstName: firstName, lastName: lastName, callSign: callSign, email: email)
             
             // Supabase creates a session automatically after signup
             // Even if email is unconfirmed, user can still login
@@ -295,13 +295,19 @@ class AuthService: ObservableObject {
         }
     }
     
-    private func createProfile(userId: UUID, userType: UserType, callSign: String?, email: String? = nil, phone: String? = nil) async throws {
+    private func createProfile(userId: UUID, userType: UserType, firstName: String? = nil, lastName: String? = nil, callSign: String?, email: String? = nil, phone: String? = nil) async throws {
         var profile: [String: AnyJSON] = [
             "id": .string(userId.uuidString),
             "user_type": .string(userType.rawValue),
             "created_at": .string(ISO8601DateFormatter().string(from: Date()))
         ]
         
+        if let firstName = firstName {
+            profile["first_name"] = .string(firstName)
+        }
+        if let lastName = lastName {
+            profile["last_name"] = .string(lastName)
+        }
         if let callSign = callSign {
             profile["call_sign"] = .string(callSign)
         }
