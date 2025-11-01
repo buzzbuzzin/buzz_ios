@@ -10,6 +10,7 @@ import AuthenticationServices
 
 struct AuthenticationView: View {
     @EnvironmentObject var authService: AuthService
+    @Environment(\.dismiss) var dismiss
     @State private var showSignUp = false
     @State private var selectedTab = 0
     
@@ -23,13 +24,12 @@ struct AuthenticationView: View {
                         .scaledToFit()
                         .frame(width: 90, height: 90)
                     
-                    Text("Buzz")
-                        .font(.system(size: 42, weight: .bold))
+                    Text("Welcome aboard")
+                        .font(.system(size: 32, weight: .semibold))
                     
-                    Text("Connecting Drone Pilots with Opportunities")
-                        .font(.subheadline)
+                    Text("or back")
+                        .font(.system(size: 32, weight: .semibold))
                         .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
                 }
                 .padding(.top, 60)
                 .padding(.bottom, 40)
@@ -59,6 +59,18 @@ struct AuthenticationView: View {
                 }
                 .font(.subheadline)
                 .padding(.bottom, 40)
+            }
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button(action: {
+                        dismiss()
+                    }) {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(.primary)
+                    }
+                }
             }
             .sheet(isPresented: $showSignUp) {
                 SignUpView()

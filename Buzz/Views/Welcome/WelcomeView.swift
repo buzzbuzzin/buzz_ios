@@ -49,14 +49,6 @@ struct WelcomeView: View {
                     }
                     .multilineTextAlignment(.center)
                     .shadow(color: .black.opacity(0.3), radius: 5, x: 0, y: 2)
-                    
-                    // Subtitle
-                    Text("Connect with opportunities, grow your skills, and soar to new heights")
-                        .font(.system(size: 16, weight: .regular))
-                        .foregroundColor(.white.opacity(0.9))
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 40)
-                        .padding(.top, 8)
                 }
                 
                 Spacer()

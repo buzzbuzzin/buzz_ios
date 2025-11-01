@@ -55,7 +55,12 @@ struct CustomerTabView: View {
         TabView {
             CustomerBookingView()
                 .tabItem {
-                    Label("Bookings", systemImage: "doc.text.fill")
+                    Label("Home", systemImage: "house.fill")
+                }
+            
+            CustomerActivityView()
+                .tabItem {
+                    Label("Activity", systemImage: "clock.fill")
                 }
             
             ProfileView()
