@@ -12,12 +12,17 @@ import PhotosUI
 struct ProfileView: View {
     @EnvironmentObject var authService: AuthService
     @StateObject private var rankingService = RankingService()
+    @StateObject private var ratingService = RatingService()
+    @StateObject private var bookingService = BookingService()
     @StateObject private var profilePictureService = ProfilePictureService()
     @State private var showSignOutAlert = false
     @State private var showImagePicker = false
     @State private var showImageSourceSheet = false
     @State private var imageSourceType: UIImagePickerController.SourceType = .photoLibrary
     @State private var profileImage: UIImage?
+    @State private var ratingSummary: UserRatingSummary?
+    @State private var completedBookingsCount = 0
+    @State private var isLoadingRatings = false
     
     var body: some View {
         NavigationView {
@@ -98,9 +103,9 @@ struct ProfileView: View {
                     .padding(.vertical, 8)
                 }
                 
-                // Pilot Stats (if user is pilot)
-                if authService.userProfile?.userType == .pilot {
-                    Section("Statistics") {
+                // Statistics Section
+                Section("Statistics") {
+                    if authService.userProfile?.userType == .pilot {
                         if let stats = rankingService.pilotStats {
                             HStack {
                                 VStack(alignment: .leading) {
@@ -129,7 +134,7 @@ struct ProfileView: View {
                             HStack {
                                 Text("Completed Bookings")
                                 Spacer()
-                                Text("\(stats.completedBookings)")
+                                Text("\(completedBookingsCount)")
                                     .fontWeight(.semibold)
                             }
                             
@@ -144,6 +149,56 @@ struct ProfileView: View {
                                 Spacer()
                                 ProgressView()
                                 Spacer()
+                            }
+                        }
+                    } else {
+                        // Customer stats
+                        HStack {
+                            Text("Completed Bookings")
+                            Spacer()
+                            if isLoadingRatings {
+                                ProgressView()
+                            } else {
+                                Text("\(completedBookingsCount)")
+                                    .fontWeight(.semibold)
+                            }
+                        }
+                    }
+                    
+                    // Ratings Summary (for both pilots and customers)
+                    if isLoadingRatings && ratingSummary == nil {
+                        HStack {
+                            Text("Ratings")
+                            Spacer()
+                            ProgressView()
+                        }
+                    } else if let summary = ratingSummary {
+                        HStack {
+                            Text("Ratings")
+                            Spacer()
+                            HStack(spacing: 4) {
+                                StarRatingView(rating: summary.averageRating)
+                                Text("(\(summary.totalRatings))")
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    } else {
+                        HStack {
+                            Text("Ratings")
+                            Spacer()
+                            Text("No ratings yet")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    
+                    // View All Ratings Link
+                    if let summary = ratingSummary, summary.totalRatings > 0, let currentUser = authService.currentUser {
+                        NavigationLink(destination: RatingsListView(userId: currentUser.id)) {
+                            HStack {
+                                Image(systemName: "star.fill")
+                                Text("View All Reviews")
                             }
                         }
                     }
@@ -217,10 +272,31 @@ struct ProfileView: View {
             }
         }
         .task {
-            if authService.userProfile?.userType == .pilot,
-               let currentUser = authService.currentUser {
-                try? await rankingService.getPilotStats(pilotId: currentUser.id)
+            guard let currentUser = authService.currentUser else { return }
+            
+            let userId = currentUser.id
+            let isPilot = authService.userProfile?.userType == .pilot
+            
+            // Load pilot stats if pilot
+            if isPilot {
+                try? await rankingService.getPilotStats(pilotId: userId)
             }
+            
+            // Load ratings summary
+            isLoadingRatings = true
+            do {
+                ratingSummary = try await ratingService.getUserRatingSummary(userId: userId)
+            } catch {
+                print("Error loading rating summary: \(error)")
+            }
+            
+            // Load completed bookings count
+            do {
+                completedBookingsCount = try await bookingService.getCompletedBookingsCount(userId: userId, isPilot: isPilot)
+            } catch {
+                print("Error loading completed bookings count: \(error)")
+            }
+            isLoadingRatings = false
         }
     }
     

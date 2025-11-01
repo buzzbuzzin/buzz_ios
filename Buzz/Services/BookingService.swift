@@ -172,6 +172,82 @@ class BookingService: ObservableObject {
         }
     }
     
+    // MARK: - Add Tip to Booking
+    
+    func addTip(bookingId: UUID, tipAmount: Decimal) async throws {
+        isLoading = true
+        errorMessage = nil
+        
+        do {
+            let updateData: [String: AnyJSON] = [
+                "tip_amount": .double(NSDecimalNumber(decimal: tipAmount).doubleValue)
+            ]
+            try await supabase
+                .from("bookings")
+                .update(updateData)
+                .eq("id", value: bookingId.uuidString)
+                .execute()
+            
+            isLoading = false
+        } catch {
+            isLoading = false
+            errorMessage = error.localizedDescription
+            throw error
+        }
+    }
+    
+    // MARK: - Mark Rating Status
+    
+    func markRatingStatus(bookingId: UUID, isPilot: Bool, hasRated: Bool) async throws {
+        isLoading = true
+        errorMessage = nil
+        
+        do {
+            let updateData: [String: AnyJSON] = [
+                isPilot ? "pilot_rated" : "customer_rated": .bool(hasRated)
+            ]
+            try await supabase
+                .from("bookings")
+                .update(updateData)
+                .eq("id", value: bookingId.uuidString)
+                .execute()
+            
+            isLoading = false
+        } catch {
+            isLoading = false
+            errorMessage = error.localizedDescription
+            throw error
+        }
+    }
+    
+    // MARK: - Get Completed Bookings Count
+    
+    func getCompletedBookingsCount(userId: UUID, isPilot: Bool) async throws -> Int {
+        do {
+            let query = supabase
+                .from("bookings")
+                .select("id", count: .exact)
+                .eq("status", value: BookingStatus.completed.rawValue)
+            
+            let result: Int
+            if isPilot {
+                result = try await query
+                    .eq("pilot_id", value: userId.uuidString)
+                    .execute()
+                    .count ?? 0
+            } else {
+                result = try await query
+                    .eq("customer_id", value: userId.uuidString)
+                    .execute()
+                    .count ?? 0
+            }
+            
+            return result
+        } catch {
+            throw error
+        }
+    }
+    
     // MARK: - Cancel Booking
     
     func cancelBooking(bookingId: UUID) async throws {

@@ -13,14 +13,17 @@ struct BookingDetailView: View {
     @EnvironmentObject var authService: AuthService
     @StateObject private var bookingService = BookingService()
     @StateObject private var rankingService = RankingService()
+    @StateObject private var ratingService = RatingService()
     @Environment(\.dismiss) var dismiss
     
     let booking: Booking
     @State private var region: MKCoordinateRegion
     @State private var showAcceptAlert = false
     @State private var showCompleteAlert = false
+    @State private var showRatingSheet = false
     @State private var showError = false
     @State private var errorMessage = ""
+    @State private var customerName = "Customer"
     
     init(booking: Booking) {
         self.booking = booking
@@ -138,6 +141,13 @@ struct BookingDetailView: View {
                                 isLoading: bookingService.isLoading
                             )
                             .padding(.horizontal)
+                        } else if booking.status == .completed && booking.pilotId == authService.currentUser?.id && booking.pilotRated != true {
+                            CustomButton(
+                                title: "Rate Customer",
+                                action: { showRatingSheet = true },
+                                style: .primary
+                            )
+                            .padding(.horizontal)
                         }
                     }
                 }
@@ -167,6 +177,25 @@ struct BookingDetailView: View {
         } message: {
             Text(errorMessage)
         }
+        .sheet(isPresented: $showRatingSheet) {
+            RatingView(
+                userName: customerName,
+                isPilotRatingCustomer: true,
+                onRatingSubmitted: { rating, comment, _ in
+                    submitRating(rating: rating, comment: comment)
+                }
+            )
+        }
+        .task {
+            // Load customer name for rating
+            await loadCustomerName()
+        }
+    }
+    
+    private func loadCustomerName() async {
+        // Fetch customer profile name
+        // For now, use placeholder
+        customerName = "Customer"
     }
     
     private var statusColor: Color {
@@ -210,7 +239,35 @@ struct BookingDetailView: View {
                     try await rankingService.updateFlightHours(pilotId: userId, additionalHours: hours)
                 }
                 
-                dismiss()
+                // Show rating sheet after completion
+                showRatingSheet = true
+            } catch {
+                errorMessage = error.localizedDescription
+                showError = true
+            }
+        }
+    }
+    
+    private func submitRating(rating: Int, comment: String?) {
+        guard let currentUser = authService.currentUser else { return }
+        let customerId = booking.customerId
+        
+        Task {
+            do {
+                try await ratingService.submitRating(
+                    bookingId: booking.id,
+                    fromUserId: currentUser.id,
+                    toUserId: customerId,
+                    rating: rating,
+                    comment: comment
+                )
+                
+                // Mark as rated
+                try await bookingService.markRatingStatus(
+                    bookingId: booking.id,
+                    isPilot: true,
+                    hasRated: true
+                )
             } catch {
                 errorMessage = error.localizedDescription
                 showError = true

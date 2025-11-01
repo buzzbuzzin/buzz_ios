@@ -66,9 +66,12 @@ struct Booking: Codable, Identifiable {
     let specialization: BookingSpecialization?
     let description: String
     let paymentAmount: Decimal
+    var tipAmount: Decimal?
     var status: BookingStatus
     let createdAt: Date
     var estimatedFlightHours: Double?
+    var pilotRated: Bool?
+    var customerRated: Bool?
     
     enum CodingKeys: String, CodingKey {
         case id
@@ -81,9 +84,12 @@ struct Booking: Codable, Identifiable {
         case specialization
         case description
         case paymentAmount = "payment_amount"
+        case tipAmount = "tip_amount"
         case status
         case createdAt = "created_at"
         case estimatedFlightHours = "estimated_flight_hours"
+        case pilotRated = "pilot_rated"
+        case customerRated = "customer_rated"
     }
     
     var coordinate: CLLocationCoordinate2D {

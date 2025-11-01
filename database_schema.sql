@@ -72,8 +72,11 @@ CREATE TABLE bookings (
     specialization TEXT CHECK (specialization IN ('automotive', 'motion_picture', 'real_estate', 'agriculture', 'inspections', 'search_rescue', 'logistics', 'drone_art', 'surveillance_security')),
     description TEXT NOT NULL,
     payment_amount DECIMAL(10, 2) NOT NULL,
+    tip_amount DECIMAL(10, 2) DEFAULT 0,
     status TEXT NOT NULL DEFAULT 'available' CHECK (status IN ('available', 'accepted', 'completed', 'cancelled')),
     estimated_flight_hours DOUBLE PRECISION,
+    pilot_rated BOOLEAN DEFAULT FALSE,
+    customer_rated BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc', NOW()) NOT NULL
 );
 
@@ -192,6 +195,32 @@ CREATE POLICY "Users can delete their own profile picture"
         AND auth.uid()::text = (storage.foldername(name))[1]
     );
 
+-- Ratings Table
+CREATE TABLE ratings (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    booking_id UUID REFERENCES bookings(id) ON DELETE CASCADE NOT NULL,
+    from_user_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
+    to_user_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
+    rating INTEGER NOT NULL CHECK (rating >= 0 AND rating <= 5),
+    comment TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc', NOW()) NOT NULL,
+    UNIQUE(booking_id, from_user_id)
+);
+
+-- Enable Row Level Security
+ALTER TABLE ratings ENABLE ROW LEVEL SECURITY;
+
+-- Ratings Policies
+CREATE POLICY "Ratings are viewable by authenticated users"
+    ON ratings FOR SELECT
+    TO authenticated
+    USING (true);
+
+CREATE POLICY "Users can insert their own ratings"
+    ON ratings FOR INSERT
+    TO authenticated
+    WITH CHECK (auth.uid() = from_user_id);
+
 -- Create indexes for better performance
 CREATE INDEX idx_bookings_status ON bookings(status);
 CREATE INDEX idx_bookings_customer_id ON bookings(customer_id);
@@ -199,4 +228,6 @@ CREATE INDEX idx_bookings_pilot_id ON bookings(pilot_id);
 CREATE INDEX idx_pilot_licenses_pilot_id ON pilot_licenses(pilot_id);
 CREATE INDEX idx_pilot_stats_tier ON pilot_stats(tier);
 CREATE INDEX idx_pilot_stats_flight_hours ON pilot_stats(total_flight_hours DESC);
+CREATE INDEX idx_ratings_to_user_id ON ratings(to_user_id);
+CREATE INDEX idx_ratings_booking_id ON ratings(booking_id);
 

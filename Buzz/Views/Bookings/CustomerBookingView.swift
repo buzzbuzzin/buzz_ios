@@ -258,12 +258,16 @@ struct CreateBookingView: View {
 // MARK: - Customer Booking Detail View
 
 struct CustomerBookingDetailView: View {
+    @EnvironmentObject var authService: AuthService
     @StateObject private var bookingService = BookingService()
+    @StateObject private var ratingService = RatingService()
     let booking: Booking
     @State private var region: MKCoordinateRegion
     @State private var showCancelAlert = false
+    @State private var showRatingSheet = false
     @State private var showError = false
     @State private var errorMessage = ""
+    @State private var pilotName = "Pilot"
     
     init(booking: Booking) {
         self.booking = booking
@@ -351,6 +355,42 @@ struct CustomerBookingDetailView: View {
                 }
                 .padding(.horizontal)
                 
+                // Tip Display
+                if let tip = booking.tipAmount, tip > 0 {
+                    HStack {
+                        Label("Tip Added", systemImage: "heart.fill")
+                            .font(.subheadline)
+                            .foregroundColor(.pink)
+                        Spacer()
+                        Text(String(format: "+$%.2f", NSDecimalNumber(decimal: tip).doubleValue))
+                            .font(.title3)
+                            .fontWeight(.bold)
+                            .foregroundColor(.pink)
+                    }
+                    .padding(.horizontal)
+                    
+                    Divider()
+                        .padding(.horizontal)
+                }
+                
+                // Total Payment
+                if booking.status == .completed || booking.tipAmount != nil {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Label("Total Payment", systemImage: "creditcard.fill")
+                            .font(.headline)
+                        
+                        let total = booking.paymentAmount + (booking.tipAmount ?? 0)
+                        Text(String(format: "$%.2f", NSDecimalNumber(decimal: total).doubleValue))
+                            .font(.title2)
+                            .fontWeight(.bold)
+                            .foregroundColor(.green)
+                    }
+                    .padding(.horizontal)
+                    
+                    Divider()
+                        .padding(.horizontal)
+                }
+                
                 // Cancel Button
                 if booking.status == .available {
                     CustomButton(
@@ -358,6 +398,16 @@ struct CustomerBookingDetailView: View {
                         action: { showCancelAlert = true },
                         style: .destructive,
                         isLoading: bookingService.isLoading
+                    )
+                    .padding(.horizontal)
+                }
+                
+                // Rate Pilot Button (for completed bookings)
+                if booking.status == .completed && booking.customerRated != true {
+                    CustomButton(
+                        title: "Rate Pilot",
+                        action: { showRatingSheet = true },
+                        style: .primary
                     )
                     .padding(.horizontal)
                 }
@@ -379,12 +429,64 @@ struct CustomerBookingDetailView: View {
         } message: {
             Text(errorMessage)
         }
+        .sheet(isPresented: $showRatingSheet) {
+            RatingView(
+                userName: pilotName,
+                isPilotRatingCustomer: false,
+                onRatingSubmitted: { rating, comment, tip in
+                    submitRating(rating: rating, comment: comment, tip: tip)
+                }
+            )
+        }
+        .task {
+            // Load pilot name for rating
+            await loadPilotName()
+        }
+    }
+    
+    private func loadPilotName() async {
+        // Fetch pilot profile name
+        // For now, use placeholder
+        pilotName = "Pilot"
     }
     
     private func cancelBooking() {
         Task {
             do {
                 try await bookingService.cancelBooking(bookingId: booking.id)
+            } catch {
+                errorMessage = error.localizedDescription
+                showError = true
+            }
+        }
+    }
+    
+    private func submitRating(rating: Int, comment: String?, tip: Decimal?) {
+        guard let currentUser = authService.currentUser,
+              let pilotId = booking.pilotId else { return }
+        
+        Task {
+            do {
+                // Submit rating
+                try await ratingService.submitRating(
+                    bookingId: booking.id,
+                    fromUserId: currentUser.id,
+                    toUserId: pilotId,
+                    rating: rating,
+                    comment: comment
+                )
+                
+                // Add tip if provided
+                if let tipAmount = tip {
+                    try await bookingService.addTip(bookingId: booking.id, tipAmount: tipAmount)
+                }
+                
+                // Mark as rated
+                try await bookingService.markRatingStatus(
+                    bookingId: booking.id,
+                    isPilot: false,
+                    hasRated: true
+                )
             } catch {
                 errorMessage = error.localizedDescription
                 showError = true
