@@ -6,12 +6,26 @@
 //
 
 import SwiftUI
+import GoogleSignIn
 
 @main
 struct BuzzApp: App {
+    @StateObject private var authService = AuthService()
+    
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            Group {
+                if authService.isAuthenticated {
+                    MainTabView()
+                        .environmentObject(authService)
+                } else {
+                    AuthenticationView()
+                        .environmentObject(authService)
+                }
+            }
+            .onOpenURL { url in
+                GIDSignIn.sharedInstance.handle(url)
+            }
         }
     }
 }

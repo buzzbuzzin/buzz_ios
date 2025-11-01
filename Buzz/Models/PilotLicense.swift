@@ -1,0 +1,30 @@
+//
+//  PilotLicense.swift
+//  Buzz
+//
+//  Created by Xinyu Fang on 10/31/25.
+//
+
+import Foundation
+
+enum LicenseFileType: String, Codable {
+    case pdf
+    case image
+}
+
+struct PilotLicense: Codable, Identifiable {
+    let id: UUID
+    let pilotId: UUID
+    let fileUrl: String
+    let fileType: LicenseFileType
+    let uploadedAt: Date
+    
+    enum CodingKeys: String, CodingKey {
+        case id
+        case pilotId = "pilot_id"
+        case fileUrl = "file_url"
+        case fileType = "file_type"
+        case uploadedAt = "uploaded_at"
+    }
+}
+

@@ -6,6 +6,17 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		0BAC7F6F2EB5BD03009067B6 /* Auth in Frameworks */ = {isa = PBXBuildFile; productRef = 0BAC7F6E2EB5BD03009067B6 /* Auth */; };
+		0BAC7F712EB5BD03009067B6 /* Functions in Frameworks */ = {isa = PBXBuildFile; productRef = 0BAC7F702EB5BD03009067B6 /* Functions */; };
+		0BAC7F732EB5BD03009067B6 /* PostgREST in Frameworks */ = {isa = PBXBuildFile; productRef = 0BAC7F722EB5BD03009067B6 /* PostgREST */; };
+		0BAC7F752EB5BD03009067B6 /* Realtime in Frameworks */ = {isa = PBXBuildFile; productRef = 0BAC7F742EB5BD03009067B6 /* Realtime */; };
+		0BAC7F772EB5BD03009067B6 /* Storage in Frameworks */ = {isa = PBXBuildFile; productRef = 0BAC7F762EB5BD03009067B6 /* Storage */; };
+		0BAC7F792EB5BD03009067B6 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 0BAC7F782EB5BD03009067B6 /* Supabase */; };
+		0BAC7F7C2EB5BE95009067B6 /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = 0BAC7F7B2EB5BE95009067B6 /* GoogleSignIn */; };
+		0BAC7F7E2EB5BE95009067B6 /* GoogleSignInSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 0BAC7F7D2EB5BE95009067B6 /* GoogleSignInSwift */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		0BAC7F212EB5B021009067B6 /* Buzz.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Buzz.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -23,6 +34,14 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				0BAC7F732EB5BD03009067B6 /* PostgREST in Frameworks */,
+				0BAC7F712EB5BD03009067B6 /* Functions in Frameworks */,
+				0BAC7F792EB5BD03009067B6 /* Supabase in Frameworks */,
+				0BAC7F7E2EB5BE95009067B6 /* GoogleSignInSwift in Frameworks */,
+				0BAC7F6F2EB5BD03009067B6 /* Auth in Frameworks */,
+				0BAC7F772EB5BD03009067B6 /* Storage in Frameworks */,
+				0BAC7F752EB5BD03009067B6 /* Realtime in Frameworks */,
+				0BAC7F7C2EB5BE95009067B6 /* GoogleSignIn in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -65,6 +84,14 @@
 			);
 			name = Buzz;
 			packageProductDependencies = (
+				0BAC7F6E2EB5BD03009067B6 /* Auth */,
+				0BAC7F702EB5BD03009067B6 /* Functions */,
+				0BAC7F722EB5BD03009067B6 /* PostgREST */,
+				0BAC7F742EB5BD03009067B6 /* Realtime */,
+				0BAC7F762EB5BD03009067B6 /* Storage */,
+				0BAC7F782EB5BD03009067B6 /* Supabase */,
+				0BAC7F7B2EB5BE95009067B6 /* GoogleSignIn */,
+				0BAC7F7D2EB5BE95009067B6 /* GoogleSignInSwift */,
 			);
 			productName = Buzz;
 			productReference = 0BAC7F212EB5B021009067B6 /* Buzz.app */;
@@ -94,6 +121,10 @@
 			);
 			mainGroup = 0BAC7F182EB5B021009067B6;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				0BAC7F6D2EB5BC6D009067B6 /* XCRemoteSwiftPackageReference "supabase-swift" */,
+				0BAC7F7A2EB5BE95009067B6 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 0BAC7F222EB5B021009067B6 /* Products */;
 			projectDirPath = "";
@@ -332,6 +363,68 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		0BAC7F6D2EB5BC6D009067B6 /* XCRemoteSwiftPackageReference "supabase-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/supabase-community/supabase-swift.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.5.1;
+			};
+		};
+		0BAC7F7A2EB5BE95009067B6 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/google/GoogleSignIn-iOS";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 9.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		0BAC7F6E2EB5BD03009067B6 /* Auth */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 0BAC7F6D2EB5BC6D009067B6 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Auth;
+		};
+		0BAC7F702EB5BD03009067B6 /* Functions */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 0BAC7F6D2EB5BC6D009067B6 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Functions;
+		};
+		0BAC7F722EB5BD03009067B6 /* PostgREST */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 0BAC7F6D2EB5BC6D009067B6 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = PostgREST;
+		};
+		0BAC7F742EB5BD03009067B6 /* Realtime */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 0BAC7F6D2EB5BC6D009067B6 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Realtime;
+		};
+		0BAC7F762EB5BD03009067B6 /* Storage */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 0BAC7F6D2EB5BC6D009067B6 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Storage;
+		};
+		0BAC7F782EB5BD03009067B6 /* Supabase */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 0BAC7F6D2EB5BC6D009067B6 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Supabase;
+		};
+		0BAC7F7B2EB5BE95009067B6 /* GoogleSignIn */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 0BAC7F7A2EB5BE95009067B6 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
+			productName = GoogleSignIn;
+		};
+		0BAC7F7D2EB5BE95009067B6 /* GoogleSignInSwift */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 0BAC7F7A2EB5BE95009067B6 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
+			productName = GoogleSignInSwift;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 0BAC7F192EB5B021009067B6 /* Project object */;
 }
