@@ -21,7 +21,7 @@ struct BuzzApp: App {
                         .environmentObject(authService)
                         .transition(.opacity)
                 } else {
-                    AuthenticationView()
+                    WelcomeView()
                         .environmentObject(authService)
                         .transition(.opacity)
                 }

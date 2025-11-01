@@ -28,9 +28,10 @@ struct SignUpView: View {
                 VStack(spacing: 24) {
                     // Header
                     VStack(spacing: 8) {
-                        Image(systemName: "airplane.circle.fill")
-                            .font(.system(size: 60))
-                            .foregroundColor(.blue)
+                        Image("Logo")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 80, height: 80)
                         
                         Text("Join Buzz")
                             .font(.title)

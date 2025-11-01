@@ -18,9 +18,10 @@ struct AuthenticationView: View {
             VStack(spacing: 0) {
                 // Header
                 VStack(spacing: 16) {
-                    Image(systemName: "airplane.departure")
-                        .font(.system(size: 70))
-                        .foregroundColor(.blue)
+                    Image("Logo")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 90, height: 90)
                     
                     Text("Buzz")
                         .font(.system(size: 42, weight: .bold))
