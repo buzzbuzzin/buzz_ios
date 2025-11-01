@@ -218,10 +218,10 @@ struct ProfileView: View {
                 
                 // Account
                 Section("Account") {
-                    NavigationLink(destination: EditProfileView()) {
+                    NavigationLink(destination: SettingsView()) {
                         HStack {
-                            Image(systemName: "person.crop.circle")
-                            Text("Edit Profile")
+                            Image(systemName: "gearshape.fill")
+                            Text("Settings")
                         }
                     }
                     

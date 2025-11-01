@@ -12,6 +12,20 @@ enum UserType: String, Codable {
     case customer
 }
 
+enum CommunicationPreference: String, Codable {
+    case email = "email"
+    case text = "text"
+    case both = "both"
+    
+    var displayName: String {
+        switch self {
+        case .email: return "Email"
+        case .text: return "Text Message"
+        case .both: return "Both"
+        }
+    }
+}
+
 struct UserProfile: Codable, Identifiable {
     let id: UUID
     let userType: UserType
@@ -21,6 +35,7 @@ struct UserProfile: Codable, Identifiable {
     let email: String?
     let phone: String?
     let profilePictureUrl: String?
+    let communicationPreference: CommunicationPreference?
     let createdAt: Date
     
     enum CodingKeys: String, CodingKey {
@@ -32,6 +47,7 @@ struct UserProfile: Codable, Identifiable {
         case email
         case phone
         case profilePictureUrl = "profile_picture_url"
+        case communicationPreference = "communication_preference"
         case createdAt = "created_at"
     }
     

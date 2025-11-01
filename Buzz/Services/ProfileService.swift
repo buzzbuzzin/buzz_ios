@@ -51,6 +51,18 @@ class ProfileService: ObservableObject {
             .execute()
     }
     
+    func updateCommunicationPreference(userId: UUID, preference: CommunicationPreference) async throws {
+        let updates: [String: AnyJSON] = [
+            "communication_preference": .string(preference.rawValue)
+        ]
+        
+        try await supabase
+            .from("profiles")
+            .update(updates)
+            .eq("id", value: userId.uuidString)
+            .execute()
+    }
+    
     func checkCallSignAvailability(callSign: String) async throws -> Bool {
         do {
             let profiles: [UserProfile] = try await supabase

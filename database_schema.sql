@@ -14,6 +14,7 @@ CREATE TABLE profiles (
     email TEXT,
     phone TEXT,
     profile_picture_url TEXT,
+    communication_preference TEXT CHECK (communication_preference IN ('email', 'text', 'both')) DEFAULT 'email',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc', NOW()) NOT NULL
 );
 
