@@ -38,11 +38,29 @@ class RankingService: ObservableObject {
                 self.isLoading = false
             }
         } catch {
-            await MainActor.run {
-                self.isLoading = false
-                self.errorMessage = error.localizedDescription
+            // If stats don't exist, create them
+            do {
+                let newStats: [String: AnyJSON] = [
+                    "pilot_id": .string(pilotId.uuidString),
+                    "total_flight_hours": .double(0.0),
+                    "completed_bookings": .integer(0),
+                    "tier": .integer(0)
+                ]
+                
+                try await supabase
+                    .from("pilot_stats")
+                    .insert(newStats)
+                    .execute()
+                
+                // Retry fetching
+                try await getPilotStats(pilotId: pilotId)
+            } catch {
+                await MainActor.run {
+                    self.isLoading = false
+                    self.errorMessage = error.localizedDescription
+                }
+                throw error
             }
-            throw error
         }
     }
     

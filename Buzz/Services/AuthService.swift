@@ -43,7 +43,12 @@ class AuthService: ObservableObject {
     }
     
     private func loadUserProfile() async {
-        guard let userId = currentUser?.id else { return }
+        guard let userId = currentUser?.id else { 
+            print("🔴 No current user ID")
+            return 
+        }
+        
+        print("🔵 Loading profile for userId: \(userId)")
         
         do {
             let profile: UserProfile = try await supabase
@@ -54,9 +59,10 @@ class AuthService: ObservableObject {
                 .execute()
                 .value
             
+            print("🔵 Profile loaded: userType=\(profile.userType.rawValue), callSign=\(profile.callSign ?? "none")")
             userProfile = profile
         } catch {
-            print("Error loading profile: \(error)")
+            print("🔴 Error loading profile: \(error)")
         }
     }
     
@@ -67,20 +73,31 @@ class AuthService: ObservableObject {
         errorMessage = nil
         
         do {
+            print("🔵 Starting signup for userType: \(userType.rawValue)")
+            
             let response = try await supabase.auth.signUp(
                 email: email,
                 password: password
             )
             
             let userId = response.user.id
+            print("🔵 User created with ID: \(userId)")
             
             // Create profile
             try await createProfile(userId: userId, userType: userType, callSign: callSign, email: email)
+            print("🔵 Profile created successfully")
             
             currentUser = response.user
+            
+            // Wait a moment for database to commit
+            try await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+            
             await checkAuthStatus()
+            print("🔵 Final userProfile type: \(String(describing: userProfile?.userType))")
+            
             isLoading = false
         } catch {
+            print("🔴 Signup error: \(error)")
             isLoading = false
             errorMessage = error.localizedDescription
             throw error
@@ -267,6 +284,8 @@ class AuthService: ObservableObject {
     }
     
     private func createProfile(userId: UUID, userType: UserType, callSign: String?, email: String? = nil, phone: String? = nil) async throws {
+        print("🔵 Creating profile for userId: \(userId), userType: \(userType.rawValue), callSign: \(callSign ?? "none")")
+        
         var profile: [String: AnyJSON] = [
             "id": .string(userId.uuidString),
             "user_type": .string(userType.rawValue),
@@ -283,24 +302,51 @@ class AuthService: ObservableObject {
             profile["phone"] = .string(phone)
         }
         
-        try await supabase
-            .from("profiles")
-            .insert(profile)
-            .execute()
+        print("🔵 Profile data to insert: \(profile)")
+        
+        do {
+            let response = try await supabase
+                .from("profiles")
+                .insert(profile)
+                .execute()
+            
+            print("🔵 Profile insert response: \(response)")
+            print("🔵 Profile inserted successfully")
+        } catch let error as NSError {
+            print("🔴 Profile insert error: \(error)")
+            print("🔴 Error domain: \(error.domain)")
+            print("🔴 Error code: \(error.code)")
+            print("🔴 Error userInfo: \(error.userInfo)")
+            throw error
+        }
         
         // If pilot, create initial stats
         if userType == .pilot {
-            let stats: [String: AnyJSON] = [
-                "pilot_id": .string(userId.uuidString),
-                "total_flight_hours": .double(0.0),
-                "completed_bookings": .integer(0),
-                "tier": .integer(0)
-            ]
-            
-            try await supabase
-                .from("pilot_stats")
-                .insert(stats)
-                .execute()
+            print("🔵 Creating pilot stats...")
+            do {
+                let stats: [String: AnyJSON] = [
+                    "pilot_id": .string(userId.uuidString),
+                    "total_flight_hours": .double(0.0),
+                    "completed_bookings": .integer(0),
+                    "tier": .integer(0)
+                ]
+                
+                print("🔵 Pilot stats data to insert: \(stats)")
+                
+                let response = try await supabase
+                    .from("pilot_stats")
+                    .insert(stats)
+                    .execute()
+                
+                print("🔵 Pilot stats insert response: \(response)")
+                print("🔵 Pilot stats created successfully")
+            } catch let error as NSError {
+                // Log the error but don't fail signup - stats can be created later
+                print("🔴 Pilot stats insert error: \(error)")
+                print("🔴 Error domain: \(error.domain)")
+                print("🔴 Error code: \(error.code)")
+                print("🔴 Error userInfo: \(error.userInfo)")
+            }
         }
     }
 }
