@@ -142,8 +142,11 @@ struct CreateBookingView: View {
     @StateObject private var bookingService = BookingService()
     @Environment(\.dismiss) var dismiss
     
+    @State private var currentStep = 1
     @State private var selectedLocation: CLLocationCoordinate2D?
     @State private var locationName = ""
+    @State private var selectedDate = Date()
+    @State private var selectedSpecialization: BookingSpecialization?
     @State private var description = ""
     @State private var paymentAmount = ""
     @State private var estimatedHours = ""
@@ -153,48 +156,41 @@ struct CreateBookingView: View {
     
     var body: some View {
         NavigationView {
-            Form {
-                Section("Location") {
-                    if selectedLocation == nil {
-                        Text("Tap on the map to select a location")
-                            .foregroundColor(.secondary)
-                            .font(.subheadline)
-                    } else {
-                        Text(locationName.isEmpty ? "Location selected" : locationName)
-                            .font(.subheadline)
-                    }
-                    
-                    LocationPickerMap(selectedLocation: $selectedLocation, locationName: $locationName)
-                        .frame(height: 200)
-                        .cornerRadius(12)
-                }
-                
-                Section("Details") {
-                    TextField("Description", text: $description, axis: .vertical)
-                        .lineLimit(3...6)
-                    
-                    TextField("Payment Amount ($)", text: $paymentAmount)
-                        .keyboardType(.decimalPad)
-                    
-                    TextField("Estimated Flight Hours", text: $estimatedHours)
-                        .keyboardType(.decimalPad)
-                }
-                
-                Section {
-                    CustomButton(
-                        title: "Create Booking",
-                        action: createBooking,
+            Group {
+                if currentStep == 1 {
+                    CreateBookingStep1View(
+                        selectedLocation: $selectedLocation,
+                        locationName: $locationName,
+                        selectedDate: $selectedDate,
+                        selectedSpecialization: $selectedSpecialization,
+                        onNext: {
+                            if isStep1Valid {
+                                currentStep = 2
+                            }
+                        }
+                    )
+                } else {
+                    CreateBookingStep2View(
+                        description: $description,
+                        paymentAmount: $paymentAmount,
+                        estimatedHours: $estimatedHours,
+                        onBack: {
+                            currentStep = 1
+                        },
+                        onCreate: createBooking,
                         isLoading: bookingService.isLoading,
-                        isDisabled: !isFormValid
+                        isFormValid: isStep2Valid
                     )
                 }
             }
-            .navigationTitle("Create Booking")
+            .navigationTitle(currentStep == 1 ? "Create Booking" : "Booking Details")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Cancel") {
-                        dismiss()
+                    if currentStep == 1 {
+                        Button("Cancel") {
+                            dismiss()
+                        }
                     }
                 }
             }
@@ -213,8 +209,11 @@ struct CreateBookingView: View {
         }
     }
     
-    private var isFormValid: Bool {
-        selectedLocation != nil &&
+    private var isStep1Valid: Bool {
+        selectedLocation != nil && selectedSpecialization != nil
+    }
+    
+    private var isStep2Valid: Bool {
         !description.isEmpty &&
         !paymentAmount.isEmpty &&
         !estimatedHours.isEmpty &&
@@ -225,6 +224,7 @@ struct CreateBookingView: View {
     private func createBooking() {
         guard let currentUser = authService.currentUser,
               let location = selectedLocation,
+              let specialization = selectedSpecialization,
               let payment = Double(paymentAmount),
               let hours = Double(estimatedHours) else {
             errorMessage = "Please fill in all fields correctly"
@@ -240,6 +240,8 @@ struct CreateBookingView: View {
                     customerId: userId,
                     location: location,
                     locationName: locationName.isEmpty ? "Selected Location" : locationName,
+                    scheduledDate: selectedDate,
+                    specialization: specialization,
                     description: description,
                     paymentAmount: Decimal(payment),
                     estimatedFlightHours: hours

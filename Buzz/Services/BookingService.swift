@@ -25,6 +25,8 @@ class BookingService: ObservableObject {
         customerId: UUID,
         location: CLLocationCoordinate2D,
         locationName: String,
+        scheduledDate: Date?,
+        specialization: BookingSpecialization?,
         description: String,
         paymentAmount: Decimal,
         estimatedFlightHours: Double
@@ -33,7 +35,7 @@ class BookingService: ObservableObject {
         errorMessage = nil
         
         do {
-            let booking: [String: AnyJSON] = [
+            var booking: [String: AnyJSON] = [
                 "id": .string(UUID().uuidString),
                 "customer_id": .string(customerId.uuidString),
                 "location_lat": .double(location.latitude),
@@ -45,6 +47,14 @@ class BookingService: ObservableObject {
                 "created_at": .string(ISO8601DateFormatter().string(from: Date())),
                 "estimated_flight_hours": .double(estimatedFlightHours)
             ]
+            
+            if let scheduledDate = scheduledDate {
+                booking["scheduled_date"] = .string(ISO8601DateFormatter().string(from: scheduledDate))
+            }
+            
+            if let specialization = specialization {
+                booking["specialization"] = .string(specialization.rawValue)
+            }
             
             try await supabase
                 .from("bookings")
