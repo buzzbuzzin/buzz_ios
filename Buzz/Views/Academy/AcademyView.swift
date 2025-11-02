@@ -119,10 +119,12 @@ struct AcademyView: View {
                     List {
                         ForEach(filteredCourses) { course in
                             NavigationLink(destination: CourseDetailView(
-                                course: course,
-                                onEnrollmentChange: { toggleEnrollment(for: course.id) }
+                                course: courses.first(where: { $0.id == course.id }) ?? course,
+                                onEnrollmentChange: { 
+                                    toggleEnrollment(for: course.id)
+                                }
                             )) {
-                                CourseCard(course: course)
+                                CourseCard(course: courses.first(where: { $0.id == course.id }) ?? course)
                             }
                         }
                     }
@@ -372,9 +374,15 @@ struct CourseCard: View {
 struct CourseDetailView: View {
     let course: TrainingCourse
     let onEnrollmentChange: () -> Void
-    @State private var isEnrolled = false
+    @State private var isEnrolled: Bool
     @State private var showUnenrollConfirmation = false
     @Environment(\.dismiss) var dismiss
+    
+    init(course: TrainingCourse, onEnrollmentChange: @escaping () -> Void) {
+        self.course = course
+        self.onEnrollmentChange = onEnrollmentChange
+        _isEnrolled = State(initialValue: course.isEnrolled)
+    }
     
     var body: some View {
         ScrollView {
@@ -459,14 +467,15 @@ struct CourseDetailView: View {
         }
         .navigationTitle("Course Details")
         .navigationBarTitleDisplayMode(.inline)
-        .onAppear {
-            isEnrolled = course.isEnrolled
-        }
         .alert("Unenroll from Course", isPresented: $showUnenrollConfirmation) {
             Button("Cancel", role: .cancel) {}
             Button("Unenroll", role: .destructive) {
                 isEnrolled = false
                 onEnrollmentChange()
+                // Dismiss after unenrolling
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    dismiss()
+                }
             }
         } message: {
             Text("Are you sure you want to unenroll from \"\(course.title)\"? You will lose access to course materials and progress.")
