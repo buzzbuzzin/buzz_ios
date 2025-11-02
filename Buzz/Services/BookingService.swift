@@ -26,6 +26,7 @@ class BookingService: ObservableObject {
         location: CLLocationCoordinate2D,
         locationName: String,
         scheduledDate: Date?,
+        endDate: Date? = nil,
         specialization: BookingSpecialization?,
         description: String,
         paymentAmount: Decimal,
@@ -50,6 +51,10 @@ class BookingService: ObservableObject {
             
             if let scheduledDate = scheduledDate {
                 booking["scheduled_date"] = .string(ISO8601DateFormatter().string(from: scheduledDate))
+            }
+            
+            if let endDate = endDate {
+                booking["end_date"] = .string(ISO8601DateFormatter().string(from: endDate))
             }
             
             if let specialization = specialization {
@@ -243,6 +248,25 @@ class BookingService: ObservableObject {
             }
             
             return result
+        } catch {
+            throw error
+        }
+    }
+    
+    // MARK: - Get Revenue Data for Pilot
+    
+    func getPilotRevenue(pilotId: UUID) async throws -> [Booking] {
+        do {
+            let bookings: [Booking] = try await supabase
+                .from("bookings")
+                .select()
+                .eq("pilot_id", value: pilotId.uuidString)
+                .eq("status", value: BookingStatus.completed.rawValue)
+                .order("created_at", ascending: false)
+                .execute()
+                .value
+            
+            return bookings
         } catch {
             throw error
         }

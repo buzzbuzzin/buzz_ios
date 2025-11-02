@@ -63,6 +63,7 @@ struct Booking: Codable, Identifiable {
     let locationLng: Double
     let locationName: String
     let scheduledDate: Date?
+    let endDate: Date?
     let specialization: BookingSpecialization?
     let description: String
     let paymentAmount: Decimal
@@ -81,6 +82,7 @@ struct Booking: Codable, Identifiable {
         case locationLng = "location_lng"
         case locationName = "location_name"
         case scheduledDate = "scheduled_date"
+        case endDate = "end_date"
         case specialization
         case description
         case paymentAmount = "payment_amount"

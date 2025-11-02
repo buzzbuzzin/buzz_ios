@@ -12,6 +12,8 @@ struct CreateBookingStep1View: View {
     @Binding var selectedLocation: CLLocationCoordinate2D?
     @Binding var locationName: String
     @Binding var selectedDate: Date
+    @Binding var startTime: Date
+    @Binding var endTime: Date
     @Binding var selectedSpecialization: BookingSpecialization?
     
     @State private var showLocationSearch = false
@@ -32,11 +34,11 @@ struct CreateBookingStep1View: View {
                         showLocationSearch = true
                     }) {
                         HStack {
-                            Image(systemName: "mappin.circle.fill")
-                                .foregroundColor(.red)
+                            Image(systemName: "magnifyingglass")
+                                .foregroundColor(.blue)
                                 .font(.system(size: 20))
                             
-                            Text(locationName.isEmpty ? "Enter address" : locationName)
+                            Text(locationName.isEmpty ? "Where to?" : locationName)
                                 .foregroundColor(locationName.isEmpty ? .secondary : .primary)
                                 .font(.body)
                             
@@ -68,15 +70,57 @@ struct CreateBookingStep1View: View {
                     DatePicker(
                         "Booking Date",
                         selection: $selectedDate,
-                        displayedComponents: [.date, .hourAndMinute]
+                        displayedComponents: [.date]
                     )
                     .datePickerStyle(.compact)
                     .padding(.horizontal)
                 }
                 
+                // Time Section
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("3. Select Time")
+                        .font(.headline)
+                        .padding(.horizontal)
+                    
+                    VStack(spacing: 16) {
+                        HStack(spacing: 12) {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Start Time")
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                                
+                                DatePicker(
+                                    "",
+                                    selection: $startTime,
+                                    displayedComponents: [.hourAndMinute]
+                                )
+                                .datePickerStyle(.compact)
+                                .labelsHidden()
+                            }
+                            
+                            Spacer()
+                            
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("End Time")
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                                
+                                DatePicker(
+                                    "",
+                                    selection: $endTime,
+                                    displayedComponents: [.hourAndMinute]
+                                )
+                                .datePickerStyle(.compact)
+                                .labelsHidden()
+                            }
+                        }
+                    }
+                    .padding(.horizontal)
+                }
+                
                 // Specialization Section
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("3. Choose Specialization")
+                    Text("4. Choose Specialization")
                         .font(.headline)
                         .padding(.horizontal)
                     

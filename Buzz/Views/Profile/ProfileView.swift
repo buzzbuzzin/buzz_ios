@@ -125,6 +125,9 @@ struct ProfileView: View {
                             }
                             
                             HStack {
+                                Image(systemName: "clock.fill")
+                                    .foregroundColor(.blue)
+                                    .frame(width: 24)
                                 Text("Flight Hours")
                                 Spacer()
                                 Text(String(format: "%.1f hrs", stats.totalFlightHours))
@@ -132,10 +135,20 @@ struct ProfileView: View {
                             }
                             
                             HStack {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundColor(.green)
+                                    .frame(width: 24)
                                 Text("Completed Bookings")
                                 Spacer()
                                 Text("\(completedBookingsCount)")
                                     .fontWeight(.semibold)
+                            }
+                            
+                            NavigationLink(destination: RevenueDetailsView()) {
+                                HStack {
+                                    Image(systemName: "dollarsign.circle.fill")
+                                    Text("Revenue")
+                                }
                             }
                             
                             NavigationLink(destination: LeaderboardView()) {
@@ -154,6 +167,9 @@ struct ProfileView: View {
                     } else {
                         // Customer stats
                         HStack {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundColor(.green)
+                                .frame(width: 24)
                             Text("Completed Bookings")
                             Spacer()
                             if isLoadingRatings {
@@ -168,12 +184,18 @@ struct ProfileView: View {
                     // Ratings Summary (for both pilots and customers)
                     if isLoadingRatings && ratingSummary == nil {
                         HStack {
+                            Image(systemName: "star.fill")
+                                .foregroundColor(.yellow)
+                                .frame(width: 24)
                             Text("Ratings")
                             Spacer()
                             ProgressView()
                         }
                     } else if let summary = ratingSummary {
                         HStack {
+                            Image(systemName: "star.fill")
+                                .foregroundColor(.yellow)
+                                .frame(width: 24)
                             Text("Ratings")
                             Spacer()
                             HStack(spacing: 4) {
@@ -185,6 +207,9 @@ struct ProfileView: View {
                         }
                     } else {
                         HStack {
+                            Image(systemName: "star.fill")
+                                .foregroundColor(.yellow)
+                                .frame(width: 24)
                             Text("Ratings")
                             Spacer()
                             Text("No ratings yet")

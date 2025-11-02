@@ -40,6 +40,11 @@ struct PilotTabView: View {
                     Label("Rankings", systemImage: "chart.bar.fill")
                 }
             
+            AcademyView()
+                .tabItem {
+                    Label("Academy", systemImage: "book.fill")
+                }
+            
             ProfileView()
                 .tabItem {
                     Label("Profile", systemImage: "person.fill")

@@ -146,6 +146,8 @@ struct CreateBookingView: View {
     @State private var selectedLocation: CLLocationCoordinate2D?
     @State private var locationName = ""
     @State private var selectedDate = Date()
+    @State private var startTime = Calendar.current.date(bySettingHour: 9, minute: 0, second: 0, of: Date()) ?? Date()
+    @State private var endTime = Calendar.current.date(bySettingHour: 17, minute: 0, second: 0, of: Date()) ?? Date()
     @State private var selectedSpecialization: BookingSpecialization?
     @State private var description = ""
     @State private var paymentAmount = ""
@@ -162,6 +164,8 @@ struct CreateBookingView: View {
                         selectedLocation: $selectedLocation,
                         locationName: $locationName,
                         selectedDate: $selectedDate,
+                        startTime: $startTime,
+                        endTime: $endTime,
                         selectedSpecialization: $selectedSpecialization,
                         onNext: {
                             if isStep1Valid {
@@ -232,6 +236,30 @@ struct CreateBookingView: View {
             return
         }
         
+        // Combine date with start time
+        let calendar = Calendar.current
+        let dateComponents = calendar.dateComponents([.year, .month, .day], from: selectedDate)
+        let startTimeComponents = calendar.dateComponents([.hour, .minute], from: startTime)
+        let endTimeComponents = calendar.dateComponents([.hour, .minute], from: endTime)
+        
+        var startDateTimeComponents = DateComponents()
+        startDateTimeComponents.year = dateComponents.year
+        startDateTimeComponents.month = dateComponents.month
+        startDateTimeComponents.day = dateComponents.day
+        startDateTimeComponents.hour = startTimeComponents.hour
+        startDateTimeComponents.minute = startTimeComponents.minute
+        
+        let startDateTime = calendar.date(from: startDateTimeComponents) ?? selectedDate
+        
+        var endDateTimeComponents = DateComponents()
+        endDateTimeComponents.year = dateComponents.year
+        endDateTimeComponents.month = dateComponents.month
+        endDateTimeComponents.day = dateComponents.day
+        endDateTimeComponents.hour = endTimeComponents.hour
+        endDateTimeComponents.minute = endTimeComponents.minute
+        
+        let endDateTime = calendar.date(from: endDateTimeComponents) ?? startTime
+        
         let userId = currentUser.id
         
         Task {
@@ -240,7 +268,8 @@ struct CreateBookingView: View {
                     customerId: userId,
                     location: location,
                     locationName: locationName.isEmpty ? "Selected Location" : locationName,
-                    scheduledDate: selectedDate,
+                    scheduledDate: startDateTime,
+                    endDate: endDateTime,
                     specialization: specialization,
                     description: description,
                     paymentAmount: Decimal(payment),

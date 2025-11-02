@@ -70,6 +70,7 @@ CREATE TABLE bookings (
     location_lng DOUBLE PRECISION NOT NULL,
     location_name TEXT NOT NULL,
     scheduled_date TIMESTAMP WITH TIME ZONE,
+    end_date TIMESTAMP WITH TIME ZONE,
     specialization TEXT CHECK (specialization IN ('automotive', 'motion_picture', 'real_estate', 'agriculture', 'inspections', 'search_rescue', 'logistics', 'drone_art', 'surveillance_security')),
     description TEXT NOT NULL,
     payment_amount DECIMAL(10, 2) NOT NULL,
