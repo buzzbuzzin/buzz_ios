@@ -12,6 +12,7 @@ struct PilotBookingListView: View {
     @StateObject private var bookingService = BookingService()
     @State private var selectedBooking: Booking?
     @State private var showMapView = false
+    @State private var showConversations = false
     
     var body: some View {
         NavigationView {
@@ -39,6 +40,15 @@ struct PilotBookingListView: View {
             }
             .navigationTitle("Available Jobs")
             .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button {
+                        showConversations = true
+                    } label: {
+                        Image(systemName: "message.fill")
+                            .foregroundColor(.blue)
+                    }
+                }
+                
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button {
                         showMapView = true
@@ -46,6 +56,9 @@ struct PilotBookingListView: View {
                         Image(systemName: "map")
                     }
                 }
+            }
+            .sheet(isPresented: $showConversations) {
+                ConversationsListView()
             }
             .sheet(isPresented: $showMapView) {
                 NavigationView {
@@ -85,47 +98,96 @@ struct PilotBookingListView: View {
 
 struct BookingCard: View {
     let booking: Booking
+    @StateObject private var profileService = ProfileService()
+    @State private var customerProfile: UserProfile?
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Image(systemName: "mappin.circle.fill")
-                    .foregroundColor(.red)
-                Text(booking.locationName)
-                    .font(.headline)
-                Spacer()
-            }
-            
-            Text(booking.description)
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-                .lineLimit(2)
-            
-            HStack {
-                Label(
-                    String(format: "$%.2f", NSDecimalNumber(decimal: booking.paymentAmount).doubleValue),
-                    systemImage: "dollarsign.circle.fill"
-                )
-                .font(.subheadline)
-                .foregroundColor(.green)
-                
-                Spacer()
-                
-                if let hours = booking.estimatedFlightHours {
-                    Label(
-                        String(format: "%.1f hrs", hours),
-                        systemImage: "clock.fill"
-                    )
-                    .font(.subheadline)
-                    .foregroundColor(.blue)
+        HStack(spacing: 12) {
+            // Customer Profile Picture
+            Group {
+                if let profile = customerProfile,
+                   let pictureUrl = profile.profilePictureUrl,
+                   let url = URL(string: pictureUrl) {
+                    AsyncImage(url: url) { phase in
+                        switch phase {
+                        case .empty:
+                            ProgressView()
+                                .frame(width: 50, height: 50)
+                        case .success(let image):
+                            image
+                                .resizable()
+                                .scaledToFill()
+                                .frame(width: 50, height: 50)
+                                .clipShape(Circle())
+                        case .failure:
+                            Image(systemName: "person.circle.fill")
+                                .font(.system(size: 50))
+                                .foregroundColor(.blue)
+                        @unknown default:
+                            EmptyView()
+                        }
+                    }
+                } else {
+                    Image(systemName: "person.circle.fill")
+                        .font(.system(size: 50))
+                        .foregroundColor(.blue)
                 }
             }
+            .frame(width: 50, height: 50)
             
-            Text("Posted \(booking.createdAt.formatted(date: .abbreviated, time: .shortened))")
-                .font(.caption)
-                .foregroundColor(.secondary)
+            // Booking Info
+            VStack(alignment: .leading, spacing: 12) {
+                Text(booking.locationName)
+                    .font(.headline)
+                
+                Text(booking.description)
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .lineLimit(2)
+                
+                HStack {
+                    Label(
+                        String(format: "$%.2f", NSDecimalNumber(decimal: booking.paymentAmount).doubleValue),
+                        systemImage: "dollarsign.circle.fill"
+                    )
+                    .font(.subheadline)
+                    .foregroundColor(.green)
+                    
+                    Spacer()
+                    
+                    if let hours = booking.estimatedFlightHours {
+                        Label(
+                            String(format: "%.1f hrs", hours),
+                            systemImage: "clock.fill"
+                        )
+                        .font(.subheadline)
+                        .foregroundColor(.blue)
+                    }
+                }
+                
+                Text("Posted \(booking.createdAt.formatted(date: .abbreviated, time: .shortened))")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
         }
         .padding(.vertical, 8)
+        .task {
+            await loadCustomerProfile()
+        }
+    }
+    
+    private func loadCustomerProfile() async {
+        // Try to get sample customer profile first (for demo)
+        if let sampleProfile = profileService.getSampleCustomerProfile(customerId: booking.customerId) {
+            customerProfile = sampleProfile
+        } else {
+            // Fallback to real profile fetch
+            do {
+                customerProfile = try await profileService.getProfile(userId: booking.customerId)
+            } catch {
+                print("Error loading customer profile: \(error)")
+            }
+        }
     }
 }
 

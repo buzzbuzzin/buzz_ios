@@ -9,32 +9,68 @@ import SwiftUI
 
 struct LeaderboardView: View {
     @StateObject private var rankingService = RankingService()
+    @State private var showTierInfo = false
     
     var body: some View {
-        VStack {
-            if rankingService.isLoading {
-                LoadingView(message: "Loading leaderboard...")
-            } else if rankingService.leaderboard.isEmpty {
-                EmptyStateView(
-                    icon: "chart.bar",
-                    title: "No Rankings Yet",
-                    message: "Be the first pilot to complete a booking and appear on the leaderboard!"
-                )
-            } else {
-                List {
-                    ForEach(Array(rankingService.leaderboard.enumerated()), id: \.element.id) { index, stats in
-                        LeaderboardRow(rank: index + 1, stats: stats)
+        NavigationView {
+            VStack {
+                if rankingService.isLoading {
+                    LoadingView(message: "Loading leaderboard...")
+                } else if rankingService.leaderboard.isEmpty {
+                    EmptyStateView(
+                        icon: "chart.bar",
+                        title: "No Rankings Yet",
+                        message: "Be the first pilot to complete a booking and appear on the leaderboard!"
+                    )
+                } else {
+                    List {
+                        // Tier Information Section
+                        Section {
+                            Button(action: {
+                                withAnimation {
+                                    showTierInfo.toggle()
+                                }
+                            }) {
+                                HStack {
+                                    Image(systemName: "info.circle.fill")
+                                        .foregroundColor(.blue)
+                                    Text("Ranking System")
+                                        .font(.headline)
+                                    Spacer()
+                                    Image(systemName: showTierInfo ? "chevron.up" : "chevron.down")
+                                        .foregroundColor(.secondary)
+                                        .font(.caption)
+                                }
+                            }
+                            .buttonStyle(PlainButtonStyle())
+                            
+                            if showTierInfo {
+                                VStack(alignment: .leading, spacing: 16) {
+                                    ForEach(0..<5) { tier in
+                                        TierInfoRow(tier: tier)
+                                    }
+                                }
+                                .padding(.vertical, 8)
+                            }
+                        }
+                        
+                        // Leaderboard Section
+                        Section {
+                            ForEach(Array(rankingService.leaderboard.enumerated()), id: \.element.id) { index, stats in
+                                LeaderboardRow(rank: index + 1, stats: stats)
+                            }
+                        }
+                    }
+                    .refreshable {
+                        await loadLeaderboard()
                     }
                 }
-                .refreshable {
-                    await loadLeaderboard()
-                }
             }
-        }
-        .navigationTitle("Leaderboard")
-        .navigationBarTitleDisplayMode(.large)
-        .task {
-            await loadLeaderboard()
+            .navigationTitle("Rankings")
+            .navigationBarTitleDisplayMode(.large)
+            .task {
+                await loadLeaderboard()
+            }
         }
     }
     
@@ -81,21 +117,19 @@ struct LeaderboardRow: View {
                 }
                 
                 HStack {
-                    Label(
-                        String(format: "%.1f hrs", stats.totalFlightHours),
-                        systemImage: "clock.fill"
-                    )
-                    .font(.caption)
+                    HStack(spacing: 4) {
+                        Image(systemName: "clock.fill")
+                            .font(.caption)
+                        Text(String(format: "%.1f hrs", stats.totalFlightHours))
+                            .font(.caption)
+                    }
                     .foregroundColor(.secondary)
                     
                     Spacer()
                     
-                    Label(
-                        "\(stats.completedBookings) flights",
-                        systemImage: "airplane.departure"
-                    )
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                    Text("\(stats.completedBookings) flights")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
                 }
             }
         }
@@ -113,19 +147,66 @@ struct LeaderboardRow: View {
     
     private var tierColor: Color {
         switch stats.tier {
-        case 0: return .gray
-        case 1: return .brown
-        case 2: return .orange
-        case 3: return .yellow
-        case 4: return .green
-        case 5: return .mint
-        case 6: return .cyan
-        case 7: return .blue
-        case 8: return .indigo
-        case 9: return .purple
-        case 10: return .pink
+        case 0: return .gray      // Ensign
+        case 1: return .blue      // Sub Lieutenant
+        case 2: return .green     // Lieutenant
+        case 3: return .orange    // Commander
+        case 4: return .purple    // Captain
         default: return .gray
         }
+    }
+}
+
+// MARK: - Tier Info Row
+
+struct TierInfoRow: View {
+    let tier: Int
+    
+    private var tierInfo: (name: String, hours: String, color: Color) {
+        switch tier {
+        case 0:
+            return ("Ensign", "0 - 24.9 hrs", .gray)
+        case 1:
+            return ("Sub Lieutenant", "25 - 74.9 hrs", .blue)
+        case 2:
+            return ("Lieutenant", "75 - 199.9 hrs", .green)
+        case 3:
+            return ("Commander", "200 - 499.9 hrs", .orange)
+        case 4:
+            return ("Captain", "500+ hrs", .purple)
+        default:
+            return ("Unknown", "", .gray)
+        }
+    }
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            // Tier Badge
+            ZStack {
+                Circle()
+                    .fill(tierInfo.color.opacity(0.2))
+                    .frame(width: 40, height: 40)
+                
+                Text("\(tier)")
+                    .font(.headline)
+                    .fontWeight(.bold)
+                    .foregroundColor(tierInfo.color)
+            }
+            
+            // Tier Name
+            VStack(alignment: .leading, spacing: 4) {
+                Text(tierInfo.name)
+                    .font(.headline)
+                    .foregroundColor(.primary)
+                
+                Text(tierInfo.hours)
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+            }
+            
+            Spacer()
+        }
+        .padding(.vertical, 4)
     }
 }
 

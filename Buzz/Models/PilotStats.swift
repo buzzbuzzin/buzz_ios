@@ -23,35 +23,24 @@ struct PilotStats: Codable, Identifiable {
     }
     
     // Tier calculation based on flight hours
+    // Naval rank system: Ensign (0) -> Sub Lieutenant (1) -> Lieutenant (2) -> Commander (3) -> Captain (4)
     static func calculateTier(flightHours: Double) -> Int {
         switch flightHours {
-        case 0..<10: return 0
-        case 10..<25: return 1
-        case 25..<50: return 2
-        case 50..<100: return 3
-        case 100..<200: return 4
-        case 200..<350: return 5
-        case 350..<550: return 6
-        case 550..<800: return 7
-        case 800..<1100: return 8
-        case 1100..<1500: return 9
-        default: return 10
+        case 0..<25: return 0        // Ensign
+        case 25..<75: return 1      // Sub Lieutenant
+        case 75..<200: return 2      // Lieutenant
+        case 200..<500: return 3    // Commander
+        default: return 4            // Captain
         }
     }
     
     var tierName: String {
         switch tier {
-        case 0: return "Novice"
-        case 1: return "Apprentice"
-        case 2: return "Intermediate"
-        case 3: return "Skilled"
-        case 4: return "Advanced"
-        case 5: return "Expert"
-        case 6: return "Master"
-        case 7: return "Elite"
-        case 8: return "Legend"
-        case 9: return "Supreme"
-        case 10: return "Grand Master"
+        case 0: return "Ensign"
+        case 1: return "Sub Lieutenant"
+        case 2: return "Lieutenant"
+        case 3: return "Commander"
+        case 4: return "Captain"
         default: return "Unknown"
         }
     }

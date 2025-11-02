@@ -14,6 +14,7 @@ struct BookingDetailView: View {
     @StateObject private var bookingService = BookingService()
     @StateObject private var rankingService = RankingService()
     @StateObject private var ratingService = RatingService()
+    @StateObject private var profileService = ProfileService()
     @Environment(\.dismiss) var dismiss
     
     let booking: Booking
@@ -23,7 +24,8 @@ struct BookingDetailView: View {
     @State private var showRatingSheet = false
     @State private var showError = false
     @State private var errorMessage = ""
-    @State private var customerName = "Customer"
+    @State private var customerProfile: UserProfile?
+    @State private var showMessageSheet = false
     
     init(booking: Booking) {
         self.booking = booking
@@ -60,6 +62,77 @@ struct BookingDetailView: View {
                 
                 Divider()
                     .padding(.horizontal)
+                
+                // Customer Info Section (for pilots)
+                if authService.userProfile?.userType == .pilot {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Label("Posted by", systemImage: "person.fill")
+                            .font(.headline)
+                        
+                        HStack(spacing: 12) {
+                            // Customer Profile Picture
+                            Group {
+                                if let profile = customerProfile,
+                                   let pictureUrl = profile.profilePictureUrl,
+                                   let url = URL(string: pictureUrl) {
+                                    AsyncImage(url: url) { phase in
+                                        switch phase {
+                                        case .empty:
+                                            ProgressView()
+                                                .frame(width: 60, height: 60)
+                                        case .success(let image):
+                                            image
+                                                .resizable()
+                                                .scaledToFill()
+                                                .frame(width: 60, height: 60)
+                                                .clipShape(Circle())
+                                        case .failure:
+                                            Image(systemName: "person.circle.fill")
+                                                .font(.system(size: 60))
+                                                .foregroundColor(.blue)
+                                        @unknown default:
+                                            EmptyView()
+                                        }
+                                    }
+                                } else {
+                                    Image(systemName: "person.circle.fill")
+                                        .font(.system(size: 60))
+                                        .foregroundColor(.blue)
+                                }
+                            }
+                            .frame(width: 60, height: 60)
+                            
+                            // Customer Name
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(customerProfile?.fullName ?? "Customer")
+                                    .font(.headline)
+                            }
+                            
+                            Spacer()
+                            
+                            // Message Button
+                            Button(action: {
+                                showMessageSheet = true
+                            }) {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "message.fill")
+                                    Text("Message")
+                                }
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 8)
+                                .background(Color.blue)
+                                .cornerRadius(20)
+                            }
+                        }
+                    }
+                    .padding(.horizontal)
+                    
+                    Divider()
+                        .padding(.horizontal)
+                }
                 
                 // Description
                 VStack(alignment: .leading, spacing: 8) {
@@ -179,23 +252,36 @@ struct BookingDetailView: View {
         }
         .sheet(isPresented: $showRatingSheet) {
             RatingView(
-                userName: customerName,
+                userName: customerProfile?.fullName ?? "Customer",
                 isPilotRatingCustomer: true,
                 onRatingSubmitted: { rating, comment, _ in
                     submitRating(rating: rating, comment: comment)
                 }
             )
         }
+        .sheet(isPresented: $showMessageSheet) {
+            MessageView(
+                customerProfile: customerProfile,
+                booking: booking
+            )
+        }
         .task {
-            // Load customer name for rating
-            await loadCustomerName()
+            await loadCustomerProfile()
         }
     }
     
-    private func loadCustomerName() async {
-        // Fetch customer profile name
-        // For now, use placeholder
-        customerName = "Customer"
+    private func loadCustomerProfile() async {
+        // Try to get sample customer profile first (for demo)
+        if let sampleProfile = profileService.getSampleCustomerProfile(customerId: booking.customerId) {
+            customerProfile = sampleProfile
+        } else {
+            // Fallback to real profile fetch
+            do {
+                customerProfile = try await profileService.getProfile(userId: booking.customerId)
+            } catch {
+                print("Error loading customer profile: \(error)")
+            }
+        }
     }
     
     private var statusColor: Color {

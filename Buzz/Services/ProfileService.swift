@@ -77,5 +77,47 @@ class ProfileService: ObservableObject {
             throw error
         }
     }
+    
+    // MARK: - Sample Customer Profiles for Demo
+    // TODO: Remove this function when connecting to real backend
+    
+    func getSampleCustomerProfile(customerId: UUID) -> UserProfile? {
+        // Create a mapping of sample customer IDs to profiles with profile pictures
+        // In production, this would fetch from the database
+        let sampleCustomers: [String: (firstName: String, lastName: String, pictureUrl: String)] = [
+            // These will be matched by hashing the UUID to get consistent names and pictures
+            "customer1": ("Alex", "Martinez", "https://i.pravatar.cc/150?img=1"),
+            "customer2": ("Jessica", "Thompson", "https://i.pravatar.cc/150?img=5"),
+            "customer3": ("Michael", "Rodriguez", "https://i.pravatar.cc/150?img=12"),
+            "customer4": ("Sarah", "Williams", "https://i.pravatar.cc/150?img=9"),
+            "customer5": ("David", "Lee", "https://i.pravatar.cc/150?img=15"),
+            "customer6": ("Emily", "Brown", "https://i.pravatar.cc/150?img=20"),
+            "customer7": ("James", "Wilson", "https://i.pravatar.cc/150?img=33"),
+            "customer8": ("Olivia", "Garcia", "https://i.pravatar.cc/150?img=47"),
+            "customer9": ("Daniel", "Moore", "https://i.pravatar.cc/150?img=52"),
+            "customer10": ("Sophia", "Taylor", "https://i.pravatar.cc/150?img=68")
+        ]
+        
+        // Use a simple hash to get consistent customer names and pictures
+        let hash = abs(customerId.hashValue) % sampleCustomers.count
+        let customerKey = "customer\(hash + 1)"
+        
+        if let customerInfo = sampleCustomers[customerKey] {
+            return UserProfile(
+                id: customerId,
+                userType: .customer,
+                firstName: customerInfo.firstName,
+                lastName: customerInfo.lastName,
+                callSign: nil,
+                email: nil,
+                phone: nil,
+                profilePictureUrl: customerInfo.pictureUrl,
+                communicationPreference: nil,
+                createdAt: Date()
+            )
+        }
+        
+        return nil
+    }
 }
 

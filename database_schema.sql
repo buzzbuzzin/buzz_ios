@@ -115,7 +115,7 @@ CREATE TABLE pilot_stats (
     pilot_id UUID REFERENCES profiles(id) ON DELETE CASCADE PRIMARY KEY,
     total_flight_hours DOUBLE PRECISION DEFAULT 0.0 NOT NULL,
     completed_bookings INTEGER DEFAULT 0 NOT NULL,
-    tier INTEGER DEFAULT 0 NOT NULL CHECK (tier >= 0 AND tier <= 10)
+    tier INTEGER DEFAULT 0 NOT NULL CHECK (tier >= 0 AND tier <= 4)
 );
 
 -- Enable Row Level Security
