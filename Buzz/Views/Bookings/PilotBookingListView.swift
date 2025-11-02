@@ -137,8 +137,20 @@ struct BookingCard: View {
             
             // Booking Info
             VStack(alignment: .leading, spacing: 12) {
+                // Title
                 Text(booking.locationName)
                     .font(.headline)
+                
+                // Category badge below title
+                if let specialization = booking.specialization {
+                    Label(specialization.displayName, systemImage: specialization.icon)
+                        .font(.caption)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.blue.opacity(0.1))
+                        .foregroundColor(.blue)
+                        .cornerRadius(8)
+                }
                 
                 Text(booking.description)
                     .font(.subheadline)
@@ -200,8 +212,21 @@ struct BookingMapCard: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
+                    // Title
                     Text(booking.locationName)
                         .font(.headline)
+                    
+                    // Category badge below title
+                    if let specialization = booking.specialization {
+                        Label(specialization.displayName, systemImage: specialization.icon)
+                            .font(.caption2)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.blue.opacity(0.1))
+                            .foregroundColor(.blue)
+                            .cornerRadius(6)
+                    }
+                    
                     Text(booking.description)
                         .font(.subheadline)
                         .foregroundColor(.secondary)

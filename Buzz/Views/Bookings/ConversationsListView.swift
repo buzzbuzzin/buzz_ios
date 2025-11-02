@@ -65,21 +65,10 @@ struct ConversationsListView: View {
             // Create conversation items from bookings
             var items: [ConversationItem] = []
             
+            // Only include accepted or completed bookings (confirmed bookings)
             for booking in bookingService.myBookings {
-                if let customerProfile = profileService.getSampleCustomerProfile(customerId: booking.customerId) {
-                    items.append(ConversationItem(
-                        id: booking.id,
-                        booking: booking,
-                        customerProfile: customerProfile
-                    ))
-                }
-            }
-            
-            // Also add some available bookings for demo
-            try await bookingService.fetchAvailableBookings()
-            
-            for booking in bookingService.availableBookings.prefix(3) {
-                if let customerProfile = profileService.getSampleCustomerProfile(customerId: booking.customerId) {
+                if (booking.status == .accepted || booking.status == .completed),
+                   let customerProfile = profileService.getSampleCustomerProfile(customerId: booking.customerId) {
                     items.append(ConversationItem(
                         id: booking.id,
                         booking: booking,

@@ -290,6 +290,7 @@ struct CustomerBookingDetailView: View {
     @EnvironmentObject var authService: AuthService
     @StateObject private var bookingService = BookingService()
     @StateObject private var ratingService = RatingService()
+    @StateObject private var profileService = ProfileService()
     let booking: Booking
     @State private var region: MKCoordinateRegion
     @State private var showCancelAlert = false
@@ -297,6 +298,8 @@ struct CustomerBookingDetailView: View {
     @State private var showError = false
     @State private var errorMessage = ""
     @State private var pilotName = "Pilot"
+    @State private var pilotProfile: UserProfile?
+    @State private var showMessageSheet = false
     
     init(booking: Booking) {
         self.booking = booking
@@ -384,6 +387,80 @@ struct CustomerBookingDetailView: View {
                 }
                 .padding(.horizontal)
                 
+                Divider()
+                    .padding(.horizontal)
+                
+                // Pilot Info Section (for accepted/completed bookings)
+                if (booking.status == .accepted || booking.status == .completed), let pilotId = booking.pilotId {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Label("Pilot", systemImage: "airplane.circle.fill")
+                            .font(.headline)
+                        
+                        HStack(spacing: 12) {
+                            // Pilot Profile Picture
+                            Group {
+                                if let profile = pilotProfile,
+                                   let pictureUrl = profile.profilePictureUrl,
+                                   let url = URL(string: pictureUrl) {
+                                    AsyncImage(url: url) { phase in
+                                        switch phase {
+                                        case .empty:
+                                            ProgressView()
+                                                .frame(width: 60, height: 60)
+                                        case .success(let image):
+                                            image
+                                                .resizable()
+                                                .scaledToFill()
+                                                .frame(width: 60, height: 60)
+                                                .clipShape(Circle())
+                                        case .failure:
+                                            Image(systemName: "person.circle.fill")
+                                                .font(.system(size: 60))
+                                                .foregroundColor(.blue)
+                                        @unknown default:
+                                            EmptyView()
+                                        }
+                                    }
+                                } else {
+                                    Image(systemName: "person.circle.fill")
+                                        .font(.system(size: 60))
+                                        .foregroundColor(.blue)
+                                }
+                            }
+                            .frame(width: 60, height: 60)
+                            
+                            // Pilot Name
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(pilotProfile?.fullName ?? "Pilot")
+                                    .font(.headline)
+                            }
+                            
+                            Spacer()
+                            
+                            // Message Button (only for accepted/completed bookings)
+                            Button(action: {
+                                showMessageSheet = true
+                            }) {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "message.fill")
+                                    Text("Message")
+                                }
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 8)
+                                .background(Color.blue)
+                                .cornerRadius(20)
+                            }
+                        }
+                    }
+                    .padding(.horizontal)
+                    
+                    Divider()
+                        .padding(.horizontal)
+                }
+                
                 // Tip Display
                 if let tip = booking.tipAmount, tip > 0 {
                     HStack {
@@ -467,16 +544,28 @@ struct CustomerBookingDetailView: View {
                 }
             )
         }
+        .sheet(isPresented: $showMessageSheet) {
+            MessageView(
+                customerProfile: pilotProfile,
+                booking: booking
+            )
+        }
         .task {
-            // Load pilot name for rating
-            await loadPilotName()
+            // Load pilot profile
+            await loadPilotProfile()
         }
     }
     
-    private func loadPilotName() async {
-        // Fetch pilot profile name
-        // For now, use placeholder
-        pilotName = "Pilot"
+    private func loadPilotProfile() async {
+        guard let pilotId = booking.pilotId else { return }
+        
+        do {
+            pilotProfile = try await profileService.getProfile(userId: pilotId)
+            pilotName = pilotProfile?.fullName ?? "Pilot"
+        } catch {
+            print("Error loading pilot profile: \(error)")
+            pilotName = "Pilot"
+        }
     }
     
     private func cancelBooking() {

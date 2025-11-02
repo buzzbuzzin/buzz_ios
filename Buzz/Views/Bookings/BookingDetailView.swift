@@ -142,22 +142,50 @@ struct BookingDetailView: View {
                             
                             Spacer()
                             
-                            // Message Button
-                            Button(action: {
-                                showMessageSheet = true
-                            }) {
-                                HStack(spacing: 6) {
-                                    Image(systemName: "message.fill")
-                                    Text("Message")
+                            // Message Button (only for accepted/completed bookings)
+                            if booking.status == .accepted || booking.status == .completed {
+                                Button(action: {
+                                    showMessageSheet = true
+                                }) {
+                                    HStack(spacing: 6) {
+                                        Image(systemName: "message.fill")
+                                        Text("Message")
+                                    }
+                                    .font(.subheadline)
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 8)
+                                    .background(Color.blue)
+                                    .cornerRadius(20)
                                 }
-                                .font(.subheadline)
-                                .fontWeight(.semibold)
-                                .foregroundColor(.white)
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 8)
-                                .background(Color.blue)
-                                .cornerRadius(20)
+                            } else {
+                                Text("Message available after booking is accepted")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
                             }
+                        }
+                    }
+                    .padding(.horizontal)
+                    
+                    Divider()
+                        .padding(.horizontal)
+                }
+                
+                // Category
+                if let specialization = booking.specialization {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Label("Category", systemImage: "tag.fill")
+                            .font(.headline)
+                        
+                        HStack {
+                            Label(specialization.displayName, systemImage: specialization.icon)
+                                .font(.body)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(Color.blue.opacity(0.1))
+                                .foregroundColor(.blue)
+                                .cornerRadius(8)
                         }
                     }
                     .padding(.horizontal)
@@ -178,7 +206,7 @@ struct BookingDetailView: View {
                 .padding(.horizontal)
                 
                 Divider()
-                    .padding(.horizontal)
+                .padding(.horizontal)
                 
                 // Payment & Hours
                 HStack(spacing: 40) {

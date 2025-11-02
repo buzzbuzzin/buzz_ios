@@ -20,8 +20,28 @@ struct MessageView: View {
     var body: some View {
         NavigationView {
             VStack(spacing: 0) {
-                // Customer Info Header
-                if let profile = customerProfile {
+                // Check if booking is confirmed
+                if booking.status != .accepted && booking.status != .completed {
+                    VStack(spacing: 16) {
+                        Image(systemName: "lock.fill")
+                            .font(.system(size: 50))
+                            .foregroundColor(.gray)
+                        
+                        Text("Messaging Unavailable")
+                            .font(.title2)
+                            .fontWeight(.bold)
+                        
+                        Text("Messaging is only available after a booking has been accepted by the pilot.")
+                            .font(.body)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .padding()
+                } else {
+                    // Customer Info Header
+                    if let profile = customerProfile {
                     HStack(spacing: 12) {
                         Group {
                             if let pictureUrl = profile.profilePictureUrl,
@@ -140,6 +160,7 @@ struct MessageView: View {
                     .padding(.vertical, 8)
                     .background(Color(.systemBackground))
                 }
+                }
             }
             .navigationTitle("Message")
             .navigationBarTitleDisplayMode(.inline)
@@ -151,21 +172,33 @@ struct MessageView: View {
                 }
             }
             .task {
-                await loadMessages()
+                if booking.status == .accepted || booking.status == .completed {
+                    await loadMessages()
+                }
             }
         }
     }
     
     private func loadMessages() async {
         guard let currentUser = authService.currentUser,
-              let customerId = customerProfile?.id else {
+              let otherUserId = customerProfile?.id else {
             return
+        }
+        
+        // Determine pilot and customer IDs based on current user
+        let (pilotId, customerId): (UUID, UUID)
+        if authService.userProfile?.userType == .pilot {
+            pilotId = currentUser.id
+            customerId = otherUserId
+        } else {
+            pilotId = otherUserId
+            customerId = currentUser.id
         }
         
         do {
             try await messageService.fetchMessages(
                 bookingId: booking.id,
-                pilotId: currentUser.id,
+                pilotId: pilotId,
                 customerId: customerId
             )
         } catch {
@@ -174,8 +207,10 @@ struct MessageView: View {
     }
     
     private func sendMessage() {
-        guard let currentUser = authService.currentUser,
-              let customerId = customerProfile?.id,
+        // Only allow sending messages for confirmed bookings
+        guard booking.status == .accepted || booking.status == .completed,
+              let currentUser = authService.currentUser,
+              let toUserId = customerProfile?.id,
               !messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return
         }
@@ -189,7 +224,7 @@ struct MessageView: View {
                 try await messageService.sendMessage(
                     bookingId: booking.id,
                     fromUserId: currentUser.id,
-                    toUserId: customerId,
+                    toUserId: toUserId,
                     text: textToSend
                 )
             } catch {

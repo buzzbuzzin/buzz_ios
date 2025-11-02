@@ -13,6 +13,8 @@ struct MonthlyRevenue: Identifiable {
     let id = UUID()
     let month: Date
     let revenue: Decimal
+    let basePay: Decimal
+    let tips: Decimal
     let bookingCount: Int
     
     var monthName: String {
@@ -28,6 +30,12 @@ struct MonthlyRevenue: Identifiable {
     }
 }
 
+enum RevenueFilter: String, CaseIterable {
+    case total = "Total"
+    case basePay = "Base Pay"
+    case tips = "Tips"
+}
+
 struct RevenueDetailsView: View {
     @EnvironmentObject var authService: AuthService
     @StateObject private var bookingService = BookingService()
@@ -35,6 +43,7 @@ struct RevenueDetailsView: View {
     @State private var totalRevenue: Decimal = 0
     @State private var isLoading = false
     @State private var errorMessage: String?
+    @State private var selectedFilter: RevenueFilter = .total
     
     var body: some View {
         List {
@@ -59,11 +68,11 @@ struct RevenueDetailsView: View {
                 // Total Revenue Card
                 Section {
                     VStack(spacing: 12) {
-                        Text("Total Revenue")
+                        Text(filterTitle)
                             .font(.headline)
                             .foregroundColor(.secondary)
                         
-                        Text(formatCurrency(totalRevenue))
+                        Text(formatCurrency(displayTotal))
                             .font(.system(size: 36, weight: .bold))
                             .foregroundColor(.green)
                         
@@ -75,14 +84,24 @@ struct RevenueDetailsView: View {
                     .padding(.vertical, 20)
                 }
                 
+                // Filter Picker
+                Section {
+                    Picker("Revenue Filter", selection: $selectedFilter) {
+                        ForEach(RevenueFilter.allCases, id: \.self) { filter in
+                            Text(filter.rawValue).tag(filter)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                }
+                
                 // Chart Section
                 Section("Revenue Chart") {
-                    Chart(monthlyRevenues) { data in
+                    Chart(filteredMonthlyRevenues) { data in
                         BarMark(
                             x: .value("Month", data.shortMonthName),
-                            y: .value("Revenue", NSDecimalNumber(decimal: data.revenue).doubleValue)
+                            y: .value("Revenue", NSDecimalNumber(decimal: filteredRevenueValue(data)).doubleValue)
                         )
-                        .foregroundStyle(Color.green.gradient)
+                        .foregroundStyle(chartColor.gradient)
                         .cornerRadius(4)
                     }
                     .frame(height: 250)
@@ -91,7 +110,7 @@ struct RevenueDetailsView: View {
                 
                 // Monthly Breakdown
                 Section("Monthly Breakdown") {
-                    ForEach(monthlyRevenues) { monthData in
+                    ForEach(filteredMonthlyRevenues) { monthData in
                         HStack {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(monthData.monthName)
@@ -104,10 +123,10 @@ struct RevenueDetailsView: View {
                             
                             Spacer()
                             
-                            Text(formatCurrency(monthData.revenue))
+                            Text(formatCurrency(filteredRevenueValue(monthData)))
                                 .font(.title3)
                                 .fontWeight(.semibold)
-                                .foregroundColor(.green)
+                                .foregroundColor(chartColor)
                         }
                         .padding(.vertical, 4)
                     }
@@ -142,20 +161,26 @@ struct RevenueDetailsView: View {
             var total: Decimal = 0
             
             for (month, bookings) in groupedByMonth {
-                let monthRevenue = bookings.reduce(Decimal(0)) { sum, booking in
-                    sum + booking.paymentAmount + (booking.tipAmount ?? 0)
+                let monthBasePay = bookings.reduce(Decimal(0)) { sum, booking in
+                    sum + booking.paymentAmount
                 }
+                let monthTips = bookings.reduce(Decimal(0)) { sum, booking in
+                    sum + (booking.tipAmount ?? 0)
+                }
+                let monthRevenue = monthBasePay + monthTips
                 total += monthRevenue
                 
                 revenues.append(MonthlyRevenue(
                     month: month,
                     revenue: monthRevenue,
+                    basePay: monthBasePay,
+                    tips: monthTips,
                     bookingCount: bookings.count
                 ))
             }
             
-            // Sort by month (newest first)
-            revenues.sort { $0.month > $1.month }
+            // Sort by month (oldest first for chronological order)
+            revenues.sort { $0.month < $1.month }
             
             monthlyRevenues = revenues
             totalRevenue = total
@@ -172,6 +197,54 @@ struct RevenueDetailsView: View {
         formatter.numberStyle = .currency
         formatter.currencyCode = "USD"
         return formatter.string(from: NSDecimalNumber(decimal: amount)) ?? "$0.00"
+    }
+    
+    private var filterTitle: String {
+        switch selectedFilter {
+        case .total:
+            return "Total Revenue"
+        case .basePay:
+            return "Base Pay"
+        case .tips:
+            return "Tips"
+        }
+    }
+    
+    private var displayTotal: Decimal {
+        switch selectedFilter {
+        case .total:
+            return totalRevenue
+        case .basePay:
+            return monthlyRevenues.reduce(Decimal(0)) { $0 + $1.basePay }
+        case .tips:
+            return monthlyRevenues.reduce(Decimal(0)) { $0 + $1.tips }
+        }
+    }
+    
+    private var chartColor: Color {
+        switch selectedFilter {
+        case .total:
+            return .green
+        case .basePay:
+            return .blue
+        case .tips:
+            return .pink
+        }
+    }
+    
+    private var filteredMonthlyRevenues: [MonthlyRevenue] {
+        monthlyRevenues
+    }
+    
+    private func filteredRevenueValue(_ data: MonthlyRevenue) -> Decimal {
+        switch selectedFilter {
+        case .total:
+            return data.revenue
+        case .basePay:
+            return data.basePay
+        case .tips:
+            return data.tips
+        }
     }
 }
 
