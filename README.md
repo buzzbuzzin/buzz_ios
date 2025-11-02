@@ -1,240 +1,257 @@
-# Buzz - Drone Pilot Booking App
+# Buzz - Drone Pilot Booking Platform
 
-A comprehensive iOS application connecting drone pilots with customers who need drone services. Built with SwiftUI and Supabase.
+A comprehensive iOS application that connects certified drone pilots with customers who need professional drone services. Built with SwiftUI and Supabase.
 
-## Features
+## Overview
+
+Buzz is a modern marketplace platform designed for the drone industry. It provides booking management, pilot certification tracking, ranking systems, and communication tools for both pilots and customers.
+
+## Key Features
 
 ### For Pilots
-- Multi-method authentication (Email, Phone, Google Sign-In, Apple Sign-In)
-- Create unique call signs
-- Upload and manage drone pilot licenses (photos and PDFs)
-- Browse available bookings on a map
-- Accept and complete bookings
-- Track flight hours and rankings
-- Tier-based ranking system (Tier 0-10)
-- View leaderboard of top pilots
+
+**Authentication & Profile**
+- Multiple authentication methods (Email, Phone, Google Sign-In, Apple Sign-In)
+- Unique call sign creation and management
+- License upload and verification (photos and PDFs)
+- Profile customization with photo upload
+
+**Booking Management**
+- Browse available jobs on interactive map
+- List and map views with booking details
+- Accept and manage flight bookings
+- Track active and completed flights
+- Specialized booking categories (Real Estate, Cinematography, Inspections, etc.)
+
+**Ranking & Recognition**
+- 5-tier ranking system (Ensign → Captain)
+- Automatic tier progression based on flight hours
+- Real-time leaderboard with top pilots
+- Flight hour tracking
+
+**Education & Training**
+- Academy with specialized training courses
+- Course categories: Safety, Operations, Photography, Cinematography, etc.
+- Progress tracking and enrollment management
+
+**Revenue & Ratings**
+- Track payment amounts and tips
+- View revenue details and statistics
+- Two-way rating system (pilot ↔ customer)
+- Review management
+
+**Communication**
+- In-app messaging with customers
+- Conversation management
 
 ### For Customers
-- Multi-method authentication
-- Create drone service bookings
-- Set location, description, and payment amount
-- Track booking status
-- Manage active and completed bookings
+
+**Service Booking**
+- Create bookings with precise location selection
+- Interactive map for location picking
+- Detailed job descriptions and specifications
+- Flexible scheduling with date selection
+- Multiple specialization categories
+- Payment amount setting
+
+**Booking Management**
+- View all active and completed bookings
+- Track booking status in real-time
+- Cancel or modify bookings
+- View booking history and activity
+
+**Profile & Settings**
+- User profile management
+- App settings and preferences
+- Appearance mode (Light/Dark/System)
 
 ## Tech Stack
 
-- **Frontend**: SwiftUI (iOS 16+)
-- **Backend**: Supabase
-  - Authentication (Email, Phone, OAuth)
-  - PostgreSQL Database
-  - Storage (for license uploads)
-- **Map Integration**: MapKit
-- **Dependencies**:
-  - Supabase Swift SDK
-  - GoogleSignIn SDK
+**Frontend**
+- SwiftUI - Declarative UI framework
+- Combine - Reactive programming
+- MapKit - Map display and location services
+- CoreLocation - Location services
 
-## Prerequisites
+**Backend**
+- Supabase - Backend-as-a-Service
+  - PostgreSQL - Relational database with Row Level Security
+  - Supabase Auth - Authentication and session management
+  - Supabase Storage - File storage
+  - PostgREST - RESTful API layer
 
-- Xcode 15.0 or later
+**Third-Party**
+- Google Sign-In - OAuth authentication
+- Apple Sign-In - Native authentication
+
+**Architecture**
+- MVVM (Model-View-ViewModel) pattern
+- ObservableObject for state management
+- Async/await for asynchronous operations
+
+## Requirements
+
 - iOS 16.0 or later
-- Supabase account
+- Xcode 15.0 or later
+- Swift 5.9 or later
+
+## Quick Start
+
+### Prerequisites
+- Supabase account (sign up at https://supabase.com)
 - Google Cloud Console account (for Google Sign-In)
 - Apple Developer account (for Apple Sign-In)
 
-## Setup Instructions
+### Setup Instructions
 
-### 1. Supabase Setup
+1. **Clone the repository**
+   ```bash
+   git clone <repository-url>
+   cd Buzz
+   ```
 
-1. Create a new project at [Supabase](https://supabase.com)
-2. Navigate to SQL Editor in your Supabase dashboard
-3. Run the SQL script from `database_schema.sql` to create all tables and policies
-4. Enable authentication providers:
-   - Go to Authentication → Providers
-   - Enable Email, Phone, Google, and Apple providers
-   - Configure each provider with necessary credentials
+2. **Database Setup**
+   - Create a new project at Supabase
+   - Run `database_schema.sql` in SQL Editor
+   - Run `database_academy.sql` for Academy features (optional)
 
-### 2. Google Sign-In Setup
+3. **Configure Authentication**
+   - Enable Email, Phone, Google, and Apple providers in Supabase
+   - Configure with necessary credentials
 
-1. Go to [Google Cloud Console](https://console.cloud.google.com)
-2. Create a new project or select an existing one
-3. Enable Google Sign-In API
-4. Create OAuth 2.0 credentials
-5. Add your iOS Bundle ID
-6. Download the configuration and note your Client ID
+4. **Configure the App**
+   - Copy `Config.example.swift` to `Buzz/Config.swift`
+   - Update with your credentials:
+   ```swift
+   struct Config {
+       static let supabaseURL = "YOUR_SUPABASE_URL"
+       static let supabaseAnonKey = "YOUR_SUPABASE_ANON_KEY"
+       static let googleClientID = "YOUR_GOOGLE_CLIENT_ID"
+   }
+   ```
 
-### 3. Apple Sign-In Setup
+5. **Add Dependencies**
+   In Xcode → File → Add Package Dependencies:
+   - Supabase Swift SDK: https://github.com/supabase/supabase-swift
+   - Google Sign-In: https://github.com/google/GoogleSignIn-iOS
 
-1. Go to [Apple Developer Portal](https://developer.apple.com)
-2. Add "Sign in with Apple" capability to your app identifier
-3. Enable Sign in with Apple in your Supabase project settings
+6. **Build and Run**
+   - Open `Buzz.xcodeproj` in Xcode
+   - Build and run (Cmd + R)
 
-### 4. Configure the App
-
-1. Clone the repository
-2. Open `Buzz.xcodeproj` in Xcode
-3. Update `Buzz/Config.swift` with your credentials:
-
-```swift
-struct Config {
-    static let supabaseURL = "YOUR_SUPABASE_URL"
-    static let supabaseAnonKey = "YOUR_SUPABASE_ANON_KEY"
-    static let googleClientID = "YOUR_GOOGLE_CLIENT_ID"
-}
-```
-
-### 5. Add Swift Package Dependencies
-
-Add the following packages in Xcode (File → Add Package Dependencies):
-
-1. **Supabase Swift SDK**
-   - URL: `https://github.com/supabase/supabase-swift`
-   - Version: Latest
-
-2. **Google Sign-In**
-   - URL: `https://github.com/google/GoogleSignIn-iOS`
-   - Version: Latest
-
-### 6. Configure Info.plist
-
-Add the following to your `Info.plist`:
-
-```xml
-<!-- Google Sign-In URL Scheme -->
-<key>CFBundleURLTypes</key>
-<array>
-    <dict>
-        <key>CFBundleTypeRole</key>
-        <string>Editor</string>
-        <key>CFBundleURLSchemes</key>
-        <array>
-            <string>YOUR_REVERSED_CLIENT_ID</string>
-        </array>
-    </dict>
-</array>
-
-<!-- Google Client ID -->
-<key>GIDClientID</key>
-<string>YOUR_GOOGLE_CLIENT_ID</string>
-
-<!-- Camera and Photo Library Usage -->
-<key>NSCameraUsageDescription</key>
-<string>We need access to your camera to take photos of your pilot license.</string>
-<key>NSPhotoLibraryUsageDescription</key>
-<string>We need access to your photo library to upload your pilot license.</string>
-
-<!-- Location -->
-<key>NSLocationWhenInUseUsageDescription</key>
-<string>We need your location to show nearby drone pilot jobs.</string>
-```
-
-### 7. Build and Run
-
-1. Select your target device or simulator
-2. Build and run the app (Cmd + R)
+For detailed instructions, see SETUP_GUIDE.md. For a 30-minute setup, see QUICKSTART.md.
 
 ## Project Structure
 
 ```
 Buzz/
-├── Models/
+├── Config.swift                    # App configuration
+├── BuzzApp.swift                   # App entry point
+│
+├── Models/                         # Data models
 │   ├── UserProfile.swift
 │   ├── Booking.swift
 │   ├── PilotLicense.swift
-│   └── PilotStats.swift
-├── Services/
-│   ├── SupabaseClient.swift
-│   ├── AuthService.swift
-│   ├── ProfileService.swift
-│   ├── BookingService.swift
-│   ├── RankingService.swift
-│   └── LicenseUploadService.swift
-├── Views/
-│   ├── Auth/
-│   │   ├── AuthenticationView.swift
-│   │   └── SignUpView.swift
-│   ├── Bookings/
-│   │   ├── BookingMapView.swift
-│   │   ├── PilotBookingListView.swift
-│   │   ├── BookingDetailView.swift
-│   │   └── CustomerBookingView.swift
-│   ├── License/
-│   │   └── LicenseManagementView.swift
-│   ├── Profile/
-│   │   └── ProfileView.swift
-│   ├── Rankings/
-│   │   ├── RankingBadgeView.swift
-│   │   └── LeaderboardView.swift
-│   ├── Navigation/
-│   │   └── MainTabView.swift
-│   └── Components/
-│       ├── CustomButton.swift
-│       ├── LoadingView.swift
-│       ├── ErrorView.swift
-│       └── EmptyStateView.swift
-├── Config.swift
-└── BuzzApp.swift
+│   ├── PilotStats.swift
+│   ├── Rating.swift
+│   └── Message.swift
+│
+├── Services/                       # Business logic
+│   ├── SupabaseClient.swift       # Database connection
+│   ├── AuthService.swift          # Authentication
+│   ├── ProfileService.swift       # Profile management
+│   ├── BookingService.swift       # Booking operations
+│   ├── RankingService.swift       # Ranking system
+│   ├── LicenseUploadService.swift # File uploads
+│   ├── AcademyService.swift       # Training courses
+│   ├── RatingService.swift        # Ratings
+│   ├── MessageService.swift       # Messaging
+│   └── ProfilePictureService.swift # Profile images
+│
+├── Views/                          # UI Components
+│   ├── Auth/                      # Authentication
+│   ├── Welcome/                   # Onboarding
+│   ├── Bookings/                  # Booking views
+│   ├── Profile/                   # User profile
+│   ├── License/                   # License management
+│   ├── Rankings/                  # Ranking & leaderboard
+│   ├── Academy/                   # Training courses
+│   ├── Navigation/                # App navigation
+│   └── Components/                # Reusable UI
+│
+└── Assets.xcassets/               # App assets
 ```
 
 ## Database Schema
 
-### Tables
+**Core Tables**
+- profiles - User information and preferences
+- pilot_licenses - License documents for pilots
+- bookings - Job listings and assignments
+- pilot_stats - Flight hours and tier information
+- ratings - Two-way rating system
+- messages - In-app messaging
+- training_courses - Course catalog for Academy
+- course_enrollments - Pilot course enrollments
 
-- **profiles**: User profiles with user type (pilot/customer) and call signs
-- **pilot_licenses**: Uploaded license files for pilots
-- **bookings**: Drone service bookings with location, status, and payment info
-- **pilot_stats**: Pilot statistics including flight hours, completed bookings, and tier
+**Storage Buckets**
+- pilot-licenses: License document storage
+- profile-pictures: User profile images
 
-### Storage Buckets
-
-- **pilot-licenses**: Stores uploaded pilot license files (photos and PDFs)
+**Security**
+- Row Level Security (RLS) enabled on all tables
+- Users can only access their own data
+- Secure file access policies
 
 ## Ranking System
 
-Pilots are ranked into tiers (0-10) based on their total flight hours:
+Pilots progress through 5 tiers based on total flight hours:
 
-- **Tier 0 (Novice)**: 0-10 hours
-- **Tier 1 (Apprentice)**: 10-25 hours
-- **Tier 2 (Intermediate)**: 25-50 hours
-- **Tier 3 (Skilled)**: 50-100 hours
-- **Tier 4 (Advanced)**: 100-200 hours
-- **Tier 5 (Expert)**: 200-350 hours
-- **Tier 6 (Master)**: 350-550 hours
-- **Tier 7 (Elite)**: 550-800 hours
-- **Tier 8 (Legend)**: 800-1100 hours
-- **Tier 9 (Supreme)**: 1100-1500 hours
-- **Tier 10 (Grand Master)**: 1500+ hours
+| Tier | Name | Flight Hours |
+|------|------|--------------|
+| 0 | Ensign | 0 - 24 hours |
+| 1 | Sub Lieutenant | 25 - 74 hours |
+| 2 | Lieutenant | 75 - 199 hours |
+| 3 | Commander | 200 - 499 hours |
+| 4 | Captain | 500+ hours |
+
+Tier progression is automatic when pilots complete bookings. The leaderboard ranks all pilots by total flight hours.
 
 ## Security
 
-- Row Level Security (RLS) enabled on all tables
-- Users can only view and modify their own data
-- Pilots can only accept available bookings
-- Storage policies ensure users can only access their own files
+- Row Level Security (RLS) - Database-level access control
+- JWT Authentication - Secure session management
+- OAuth 2.0 - Google and Apple Sign-In
+- Secure File Storage - Encrypted bucket policies
 
-## Troubleshooting
+## Known Limitations
 
-### Build Errors
-- Make sure all Swift Package Dependencies are properly resolved
-- Clean build folder (Shift + Cmd + K) and rebuild
-
-### Authentication Issues
-- Verify Supabase credentials in Config.swift
-- Check that authentication providers are enabled in Supabase dashboard
-- For Google Sign-In, ensure the Client ID and reversed Client ID are correct
-
-### Database Errors
-- Verify that the database schema has been properly created
-- Check Row Level Security policies in Supabase dashboard
+1. Academy Courses: Currently uses hardcoded sample data. See ACADEMY_BACKEND_MIGRATION.md for backend migration.
+2. Phone Authentication: Requires Twilio configuration in Supabase.
+3. Push Notifications: Not yet implemented.
+4. Payment Processing: External for now.
+5. Offline Support: Requires network connection.
 
 ## Future Enhancements
 
 - Push notifications for booking updates
-- Real-time chat between pilots and customers
-- In-app payment processing
-- Pilot reviews and ratings
+- Real-time chat enhancements
+- In-app payment processing (Stripe)
 - Advanced search and filtering
-- Booking history and analytics
-- Weather integration for flight planning
+- Weather API integration
+- Flight path recording
+- Multi-language support
+- iPad optimization
+
+## Documentation
+
+- QUICKSTART.md - 30-minute setup guide
+- SETUP_GUIDE.md - Detailed setup instructions
+- ARCHITECTURE.md - Technical architecture
+- DEPENDENCIES.md - Package dependencies
+- PROJECT_SUMMARY.md - Feature overview
+- database_schema.sql - Database schema
+- database_academy.sql - Academy tables
 
 ## License
 
@@ -242,5 +259,13 @@ This project is for educational purposes.
 
 ## Support
 
-For issues and questions, please check the documentation or contact support.
+For issues or questions:
+1. Check the documentation files
+2. Review error messages in Xcode console
+3. Check Supabase logs
+4. Verify configuration settings
 
+**Current Version**: 1.0.0  
+**Status**: Production-ready MVP
+
+Built with SwiftUI and Supabase
