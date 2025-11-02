@@ -15,6 +15,7 @@ struct TrainingCourse: Identifiable {
     let level: CourseLevel
     let category: CourseCategory
     let instructor: String
+    let instructorPictureUrl: String?
     let rating: Double
     let studentsCount: Int
     var isEnrolled: Bool
@@ -155,6 +156,7 @@ struct AcademyView: View {
                 level: .beginner,
                 category: .safety,
                 instructor: "John Smith",
+                instructorPictureUrl: "https://i.pravatar.cc/150?img=11",
                 rating: 4.8,
                 studentsCount: 1250,
                 isEnrolled: false
@@ -166,6 +168,7 @@ struct AcademyView: View {
                 level: .advanced,
                 category: .operations,
                 instructor: "Sarah Johnson",
+                instructorPictureUrl: "https://i.pravatar.cc/150?img=47",
                 rating: 4.9,
                 studentsCount: 890,
                 isEnrolled: false
@@ -177,6 +180,7 @@ struct AcademyView: View {
                 level: .intermediate,
                 category: .photography,
                 instructor: "Mike Chen",
+                instructorPictureUrl: "https://i.pravatar.cc/150?img=13",
                 rating: 4.7,
                 studentsCount: 2100,
                 isEnrolled: true
@@ -188,6 +192,7 @@ struct AcademyView: View {
                 level: .intermediate,
                 category: .cinematography,
                 instructor: "Emily Davis",
+                instructorPictureUrl: "https://i.pravatar.cc/150?img=9",
                 rating: 4.9,
                 studentsCount: 1560,
                 isEnrolled: false
@@ -199,6 +204,7 @@ struct AcademyView: View {
                 level: .advanced,
                 category: .inspection,
                 instructor: "Robert Taylor",
+                instructorPictureUrl: "https://i.pravatar.cc/150?img=15",
                 rating: 4.6,
                 studentsCount: 750,
                 isEnrolled: false
@@ -210,6 +216,7 @@ struct AcademyView: View {
                 level: .advanced,
                 category: .mapping,
                 instructor: "Lisa Anderson",
+                instructorPictureUrl: "https://i.pravatar.cc/150?img=20",
                 rating: 4.8,
                 studentsCount: 920,
                 isEnrolled: false
@@ -221,6 +228,7 @@ struct AcademyView: View {
                 level: .beginner,
                 category: .safety,
                 instructor: "David Wilson",
+                instructorPictureUrl: "https://i.pravatar.cc/150?img=33",
                 rating: 4.5,
                 studentsCount: 1340,
                 isEnrolled: false
@@ -232,6 +240,7 @@ struct AcademyView: View {
                 level: .intermediate,
                 category: .operations,
                 instructor: "Jessica Martinez",
+                instructorPictureUrl: "https://i.pravatar.cc/150?img=22",
                 rating: 4.7,
                 studentsCount: 680,
                 isEnrolled: false
@@ -356,10 +365,33 @@ struct CourseCard: View {
                 }
             }
             
-            HStack {
-                Image(systemName: "person.circle.fill")
-                    .foregroundColor(.secondary)
-                    .font(.caption)
+            HStack(spacing: 4) {
+                if let pictureUrl = course.instructorPictureUrl,
+                   let url = URL(string: pictureUrl) {
+                    AsyncImage(url: url) { phase in
+                        switch phase {
+                        case .empty:
+                            ProgressView()
+                                .frame(width: 16, height: 16)
+                        case .success(let image):
+                            image
+                                .resizable()
+                                .scaledToFill()
+                                .frame(width: 16, height: 16)
+                                .clipShape(Circle())
+                        case .failure:
+                            Image(systemName: "person.circle.fill")
+                                .font(.caption)
+                                .foregroundColor(.blue)
+                        @unknown default:
+                            EmptyView()
+                        }
+                    }
+                } else {
+                    Image(systemName: "person.circle.fill")
+                        .font(.caption)
+                        .foregroundColor(.blue)
+                }
                 Text("Instructor: \(course.instructor)")
                     .font(.caption)
                     .foregroundColor(.secondary)
@@ -386,84 +418,163 @@ struct CourseDetailView: View {
     
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                // Header
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack {
-                        Image(systemName: course.category.icon)
-                            .foregroundColor(.blue)
-                            .font(.system(size: 32))
-                        
-                        Spacer()
-                        
-                        if isEnrolled {
-                            HStack(spacing: 4) {
-                                Image(systemName: "checkmark.circle.fill")
-                                    .foregroundColor(.green)
-                                Text("Enrolled")
-                                    .fontWeight(.semibold)
-                                    .foregroundColor(.green)
-                            }
+            VStack(alignment: .leading, spacing: 0) {
+                // Background Image
+                ZStack(alignment: .bottomLeading) {
+                    AsyncImage(url: URL(string: courseBackgroundImageUrl)) { phase in
+                        switch phase {
+                        case .empty:
+                            Color.blue.opacity(0.3)
+                                .frame(height: 200)
+                        case .success(let image):
+                            image
+                                .resizable()
+                                .scaledToFill()
+                                .frame(height: 200)
+                                .clipped()
+                        case .failure:
+                            Color.blue.opacity(0.3)
+                                .frame(height: 200)
+                        @unknown default:
+                            Color.blue.opacity(0.3)
+                                .frame(height: 200)
                         }
                     }
                     
-                    Text(course.title)
-                        .font(.title)
-                        .fontWeight(.bold)
+                    // Gradient overlay
+                    LinearGradient(
+                        gradient: Gradient(colors: [Color.clear, Color.black.opacity(0.6)]),
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .frame(height: 200)
                     
+                    // Title overlay
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Image(systemName: course.category.icon)
+                                .foregroundColor(.white)
+                                .font(.system(size: 24))
+                            
+                            Spacer()
+                            
+                            if isEnrolled {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .foregroundColor(.green)
+                                    Text("Enrolled")
+                                        .fontWeight(.semibold)
+                                        .foregroundColor(.white)
+                                }
+                            }
+                        }
+                        
+                        Text(course.title)
+                            .font(.title)
+                            .fontWeight(.bold)
+                            .foregroundColor(.white)
+                    }
+                    .padding()
+                }
+                
+                VStack(alignment: .leading, spacing: 24) {
+                    // Description
                     Text(course.description)
                         .font(.body)
                         .foregroundColor(.secondary)
-                }
-                .padding()
-                
-                // Course Info Cards
-                VStack(spacing: 12) {
-                    InfoRow(icon: "clock.fill", label: "Duration", value: course.duration)
-                    InfoRow(icon: "graduationcap.fill", label: "Level", value: course.level.rawValue)
-                    InfoRow(icon: "person.circle.fill", label: "Instructor", value: course.instructor)
-                    InfoRow(icon: "star.fill", label: "Rating", value: String(format: "%.1f / 5.0", course.rating))
-                    InfoRow(icon: "person.2.fill", label: "Students", value: "\(course.studentsCount)")
-                }
-                .padding(.horizontal)
-                
-                // Enroll/Unenroll Button
-                if isEnrolled {
+                        .padding(.horizontal)
+                        .padding(.top)
+                    
+                    // Course Info Cards
                     VStack(spacing: 12) {
+                        InfoRow(icon: "clock.fill", label: "Duration", value: course.duration)
+                        InfoRow(icon: "graduationcap.fill", label: "Level", value: course.level.rawValue)
+                        
+                        // Instructor with profile picture
+                        HStack {
+                            Image(systemName: "person.circle.fill")
+                                .foregroundColor(.blue)
+                                .frame(width: 24)
+                            Text("Instructor")
+                                .foregroundColor(.secondary)
+                            Spacer()
+                            HStack(spacing: 8) {
+                                if let pictureUrl = course.instructorPictureUrl,
+                                   let url = URL(string: pictureUrl) {
+                                    AsyncImage(url: url) { phase in
+                                        switch phase {
+                                        case .empty:
+                                            ProgressView()
+                                                .frame(width: 32, height: 32)
+                                        case .success(let image):
+                                            image
+                                                .resizable()
+                                                .scaledToFill()
+                                                .frame(width: 32, height: 32)
+                                                .clipShape(Circle())
+                                        case .failure:
+                                            Image(systemName: "person.circle.fill")
+                                                .font(.system(size: 32))
+                                                .foregroundColor(.blue)
+                                        @unknown default:
+                                            EmptyView()
+                                        }
+                                    }
+                                } else {
+                                    Image(systemName: "person.circle.fill")
+                                        .font(.system(size: 32))
+                                        .foregroundColor(.blue)
+                                }
+                                Text(course.instructor)
+                                    .fontWeight(.semibold)
+                            }
+                        }
+                        .padding()
+                        .background(Color(.systemGray6))
+                        .cornerRadius(10)
+                        
+                        InfoRow(icon: "star.fill", label: "Rating", value: String(format: "%.1f / 5.0", course.rating))
+                        InfoRow(icon: "person.2.fill", label: "Students", value: "\(course.studentsCount)")
+                    }
+                    .padding(.horizontal)
+                    
+                    // Enroll/Unenroll Button
+                    if isEnrolled {
+                        VStack(spacing: 12) {
+                            CustomButton(
+                                title: "Continue Learning",
+                                action: {
+                                    // Navigate to course content (future implementation)
+                                },
+                                isDisabled: false
+                            )
+                            
+                            Button(action: {
+                                showUnenrollConfirmation = true
+                            }) {
+                                Text("Unenroll from Course")
+                                    .font(.subheadline)
+                                    .foregroundColor(.red)
+                                    .frame(maxWidth: .infinity)
+                                    .padding()
+                                    .background(Color.red.opacity(0.1))
+                                    .cornerRadius(10)
+                            }
+                        }
+                        .padding(.horizontal)
+                    } else {
                         CustomButton(
-                            title: "Continue Learning",
+                            title: "Enroll Now",
                             action: {
-                                // Navigate to course content (future implementation)
+                                isEnrolled = true
+                                onEnrollmentChange()
                             },
                             isDisabled: false
                         )
-                        
-                        Button(action: {
-                            showUnenrollConfirmation = true
-                        }) {
-                            Text("Unenroll from Course")
-                                .font(.subheadline)
-                                .foregroundColor(.red)
-                                .frame(maxWidth: .infinity)
-                                .padding()
-                                .background(Color.red.opacity(0.1))
-                                .cornerRadius(10)
-                        }
+                        .padding(.horizontal)
                     }
-                    .padding(.horizontal)
-                } else {
-                    CustomButton(
-                        title: "Enroll Now",
-                        action: {
-                            isEnrolled = true
-                            onEnrollmentChange()
-                        },
-                        isDisabled: false
-                    )
-                    .padding(.horizontal)
                 }
             }
-            .padding(.vertical)
         }
         .navigationTitle("Course Details")
         .navigationBarTitleDisplayMode(.inline)
@@ -479,6 +590,24 @@ struct CourseDetailView: View {
             }
         } message: {
             Text("Are you sure you want to unenroll from \"\(course.title)\"? You will lose access to course materials and progress.")
+        }
+    }
+    
+    private var courseBackgroundImageUrl: String {
+        // Return relevant background images based on course category
+        switch course.category {
+        case .safety:
+            return "https://images.unsplash.com/photo-1518611012118-696072aa971a?w=800&h=400&fit=crop"
+        case .operations:
+            return "https://images.unsplash.com/photo-1473968512647-3e447244af8f?w=800&h=400&fit=crop"
+        case .photography:
+            return "https://images.unsplash.com/photo-1502920917128-1aa500764cbd?w=800&h=400&fit=crop"
+        case .cinematography:
+            return "https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?w=800&h=400&fit=crop"
+        case .inspection:
+            return "https://images.unsplash.com/photo-1581094794329-c8112a89af12?w=800&h=400&fit=crop"
+        case .mapping:
+            return "https://images.unsplash.com/photo-1559827260-dc66d52bef19?w=800&h=400&fit=crop"
         }
     }
 }

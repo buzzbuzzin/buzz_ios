@@ -26,6 +26,7 @@ struct BookingDetailView: View {
     @State private var errorMessage = ""
     @State private var customerProfile: UserProfile?
     @State private var showMessageSheet = false
+    @State private var showCopyConfirmation = false
     
     init(booking: Booking) {
         self.booking = booking
@@ -57,6 +58,37 @@ struct BookingDetailView: View {
                     Text(booking.locationName)
                         .font(.title3)
                         .fontWeight(.semibold)
+                    
+                    // Detailed Address with copy button
+                    HStack {
+                        Text(detailedAddress)
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                            .lineLimit(2)
+                        
+                        Spacer()
+                        
+                        Button(action: {
+                            UIPasteboard.general.string = detailedAddress
+                            showCopyConfirmation = true
+                            // Auto-dismiss after 2 seconds
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                                showCopyConfirmation = false
+                            }
+                        }) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "doc.on.doc")
+                                    .font(.caption)
+                                Text("Copy")
+                                    .font(.caption)
+                            }
+                            .foregroundColor(.blue)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(Color.blue.opacity(0.1))
+                            .cornerRadius(8)
+                        }
+                    }
                 }
                 .padding(.horizontal)
                 
@@ -281,6 +313,39 @@ struct BookingDetailView: View {
             } catch {
                 print("Error loading customer profile: \(error)")
             }
+        }
+    }
+    
+    private var detailedAddress: String {
+        // Return detailed street addresses for famous tourist locations
+        // These are actual addresses for demo purposes
+        switch booking.locationName {
+        case "Golden Gate Bridge, San Francisco":
+            return "Golden Gate Bridge, San Francisco, CA 94129"
+        case "Hollywood Hills, Los Angeles":
+            return "Hollywood Hills, Los Angeles, CA 90068"
+        case "Brooklyn Bridge, New York":
+            return "Brooklyn Bridge, New York, NY 10038"
+        case "Millennium Park, Chicago":
+            return "201 E Randolph St, Chicago, IL 60602"
+        case "Independence Hall, Philadelphia":
+            return "520 Chestnut St, Philadelphia, PA 19106"
+        case "Downtown Houston, Texas":
+            return "Downtown Houston, TX 77002"
+        case "Coit Tower, San Francisco":
+            return "1 Telegraph Hill Blvd, San Francisco, CA 94133"
+        case "Griffith Observatory, Los Angeles":
+            return "2800 E Observatory Rd, Los Angeles, CA 90027"
+        case "Central Park, New York":
+            return "Central Park, New York, NY 10024"
+        case "Navy Pier, Chicago":
+            return "600 E Grand Ave, Chicago, IL 60611"
+        case "South Beach, Miami":
+            return "South Beach, Miami Beach, FL 33139"
+        case "Space Needle, Seattle":
+            return "400 Broad St, Seattle, WA 98109"
+        default:
+            return booking.locationName
         }
     }
     
