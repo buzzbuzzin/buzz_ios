@@ -97,6 +97,16 @@ struct CockpitView: View {
                             )
                         }
                         .buttonStyle(PlainButtonStyle())
+                        
+                        // Weather Card
+                        NavigationLink(destination: WeatherView().environmentObject(authService)) {
+                            CockpitGridCard(
+                                title: "Weather",
+                                icon: "cloud.sun.fill",
+                                color: .cyan
+                            )
+                        }
+                        .buttonStyle(PlainButtonStyle())
                     }
                     .padding(.horizontal, 16)
                     .padding(.bottom)
