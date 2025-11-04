@@ -74,6 +74,17 @@ struct CockpitView: View {
                             )
                         }
                         .buttonStyle(PlainButtonStyle())
+                        
+                        // Progress Card
+                        NavigationLink(destination: PilotProgressView().environmentObject(authService)) {
+                            CockpitMenuCard(
+                                title: "Progress",
+                                description: "Track your progress to the next rank and view milestones",
+                                icon: "chart.line.uptrend.xyaxis",
+                                color: .indigo
+                            )
+                        }
+                        .buttonStyle(PlainButtonStyle())
                     }
                     .padding(.horizontal)
                     .padding(.bottom)
@@ -1107,5 +1118,402 @@ struct BookingCalendarCard: View {
         let formatter = DateFormatter()
         formatter.timeStyle = .short
         return formatter.string(from: date)
+    }
+}
+
+// MARK: - Pilot Progress View
+
+struct PilotProgressView: View {
+    @EnvironmentObject var authService: AuthService
+    @StateObject private var rankingService = RankingService()
+    @StateObject private var bookingService = BookingService()
+    @StateObject private var academyService = AcademyService()
+    @State private var completedCourses: Int = 0
+    @State private var noShowCount: Int = 0
+    @State private var lateCount: Int = 0
+    
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 24) {
+                if rankingService.isLoading {
+                    ProgressView()
+                        .padding(.top, 100)
+                } else if let stats = rankingService.pilotStats {
+                    // Current Rank Display
+                    VStack(spacing: 16) {
+                        Text("Current Rank")
+                            .font(.headline)
+                            .foregroundColor(.secondary)
+                        
+                        Text(stats.tierName)
+                            .font(.system(size: 32, weight: .bold))
+                            .foregroundColor(tierColor(for: stats.tier))
+                        
+                        if stats.tier < 4 {
+                            Text("Next Rank: \(nextRankName(for: stats.tier))")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        } else {
+                            Text("Maximum Rank Achieved!")
+                                .font(.subheadline)
+                                .foregroundColor(.green)
+                        }
+                    }
+                    .padding()
+                    .frame(maxWidth: .infinity)
+                    .background(Color(.systemBackground))
+                    .cornerRadius(16)
+                    .shadow(color: Color.black.opacity(0.05), radius: 8, x: 0, y: 2)
+                    .padding(.horizontal)
+                    
+                    // Progress to Next Rank
+                    if stats.tier < 4 {
+                        let progress = calculateRankProgress(stats: stats)
+                        
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack {
+                                Text("Progress to \(nextRankName(for: stats.tier))")
+                                    .font(.headline)
+                                Spacer()
+                                Text("\(Int(progress.percentage))%")
+                                    .font(.headline)
+                                    .foregroundColor(.blue)
+                            }
+                            
+                            // Progress Bar
+                            GeometryReader { geometry in
+                                ZStack(alignment: .leading) {
+                                    Rectangle()
+                                        .fill(Color(.systemGray5))
+                                        .frame(height: 12)
+                                        .cornerRadius(6)
+                                    
+                                    Rectangle()
+                                        .fill(
+                                            LinearGradient(
+                                                colors: [.blue, .blue.opacity(0.7)],
+                                                startPoint: .leading,
+                                                endPoint: .trailing
+                                            )
+                                        )
+                                        .frame(width: geometry.size.width * CGFloat(progress.percentage / 100), height: 12)
+                                        .cornerRadius(6)
+                                }
+                            }
+                            .frame(height: 12)
+                            
+                            // Requirements
+                            VStack(alignment: .leading, spacing: 8) {
+                                ProgressRequirementRow(
+                                    icon: "airplane.departure",
+                                    title: "Flight Hours",
+                                    current: String(format: "%.1f", stats.totalFlightHours),
+                                    required: String(format: "%.0f", progress.hoursNeeded),
+                                    unit: "hours",
+                                    isComplete: progress.hoursNeeded <= 0
+                                )
+                                
+                                ProgressRequirementRow(
+                                    icon: "checkmark.circle.fill",
+                                    title: "Completed Bookings",
+                                    current: "\(stats.completedBookings)",
+                                    required: "\(progress.bookingsRequired)",
+                                    unit: "bookings",
+                                    isComplete: stats.completedBookings >= progress.bookingsRequired
+                                )
+                                
+                                ProgressRequirementRow(
+                                    icon: "graduationcap.fill",
+                                    title: "Courses Completed",
+                                    current: "\(completedCourses)",
+                                    required: "\(progress.coursesRequired)",
+                                    unit: "courses",
+                                    isComplete: completedCourses >= progress.coursesRequired
+                                )
+                            }
+                        }
+                        .padding()
+                        .background(Color(.systemBackground))
+                        .cornerRadius(16)
+                        .shadow(color: Color.black.opacity(0.05), radius: 8, x: 0, y: 2)
+                        .padding(.horizontal)
+                    }
+                    
+                    // Penalties Section
+                    if noShowCount > 0 || lateCount > 0 {
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .foregroundColor(.orange)
+                                Text("Penalties")
+                                    .font(.headline)
+                            }
+                            
+                            VStack(spacing: 8) {
+                                if noShowCount > 0 {
+                                    HStack {
+                                        Text("No-Shows")
+                                            .foregroundColor(.secondary)
+                                        Spacer()
+                                        Text("\(noShowCount)")
+                                            .fontWeight(.semibold)
+                                            .foregroundColor(.red)
+                                    }
+                                }
+                                
+                                if lateCount > 0 {
+                                    HStack {
+                                        Text("Late Arrivals")
+                                            .foregroundColor(.secondary)
+                                        Spacer()
+                                        Text("\(lateCount)")
+                                            .fontWeight(.semibold)
+                                            .foregroundColor(.orange)
+                                    }
+                                }
+                            }
+                            
+                            Text("Having no penalties is required for rank progression")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        .padding()
+                        .background(Color.orange.opacity(0.1))
+                        .cornerRadius(12)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(Color.orange.opacity(0.3), lineWidth: 1)
+                        )
+                        .padding(.horizontal)
+                    } else {
+                        VStack(spacing: 8) {
+                            Image(systemName: "checkmark.shield.fill")
+                                .font(.system(size: 40))
+                                .foregroundColor(.green)
+                            Text("No Penalties")
+                                .font(.headline)
+                            Text("Great job maintaining your schedule!")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        }
+                        .padding()
+                        .frame(maxWidth: .infinity)
+                        .background(Color.green.opacity(0.1))
+                        .cornerRadius(12)
+                        .padding(.horizontal)
+                    }
+                } else {
+                    Text("Unable to load progress data")
+                        .foregroundColor(.secondary)
+                        .padding(.top, 100)
+                }
+            }
+            .padding(.vertical)
+        }
+        .navigationTitle("Progress")
+        .navigationBarTitleDisplayMode(.inline)
+        .task {
+            await loadData()
+        }
+        .refreshable {
+            await loadData()
+        }
+    }
+    
+    private func loadData() async {
+        guard let currentUser = authService.currentUser,
+              let userProfile = authService.userProfile,
+              userProfile.userType == .pilot else { return }
+        
+        // Load pilot stats
+        try? await rankingService.getPilotStats(pilotId: currentUser.id)
+        
+        // Load bookings to check for penalties
+        try? await bookingService.fetchMyBookings(userId: currentUser.id, isPilot: true)
+        
+        // Calculate penalties
+        calculatePenalties()
+        
+        // Load completed courses (for demo, we'll use a placeholder)
+        // In production, this would fetch from course_enrollments table
+        completedCourses = calculateCompletedCourses()
+    }
+    
+    private func calculateRankProgress(stats: PilotStats) -> RankProgress {
+        let currentTier = stats.tier
+        let currentHours = stats.totalFlightHours
+        
+        var hoursNeeded: Double = 0
+        var bookingsRequired: Int = 0
+        var coursesRequired: Int = 0
+        
+        switch currentTier {
+        case 0: // Ensign -> Sub Lieutenant
+            hoursNeeded = max(0, 25 - currentHours)
+            bookingsRequired = 5
+            coursesRequired = 1
+        case 1: // Sub Lieutenant -> Lieutenant
+            hoursNeeded = max(0, 75 - currentHours)
+            bookingsRequired = 15
+            coursesRequired = 2
+        case 2: // Lieutenant -> Commander
+            hoursNeeded = max(0, 200 - currentHours)
+            bookingsRequired = 30
+            coursesRequired = 3
+        case 3: // Commander -> Captain
+            hoursNeeded = max(0, 500 - currentHours)
+            bookingsRequired = 50
+            coursesRequired = 5
+        default: // Captain (max rank)
+            hoursNeeded = 0
+            bookingsRequired = 0
+            coursesRequired = 0
+        }
+        
+        let nextRankHours = nextRankFlightHoursRequirement(for: currentTier)
+        let percentage = nextRankHours > 0 ? min(100, (currentHours / nextRankHours) * 100) : 100
+        
+        return RankProgress(
+            hoursNeeded: hoursNeeded,
+            bookingsRequired: bookingsRequired,
+            coursesRequired: coursesRequired,
+            percentage: percentage
+        )
+    }
+    
+    private func nextRankFlightHoursRequirement(for tier: Int) -> Double {
+        switch tier {
+        case 0: return 25
+        case 1: return 75
+        case 2: return 200
+        case 3: return 500
+        default: return 500
+        }
+    }
+    
+    private func nextRankName(for tier: Int) -> String {
+        switch tier {
+        case 0: return "Sub Lieutenant"
+        case 1: return "Lieutenant"
+        case 2: return "Commander"
+        case 3: return "Captain"
+        default: return "N/A"
+        }
+    }
+    
+    private func tierColor(for tier: Int) -> Color {
+        switch tier {
+        case 0: return .gray
+        case 1: return .blue
+        case 2: return .green
+        case 3: return .orange
+        case 4: return .purple
+        default: return .gray
+        }
+    }
+    
+    private func calculatePenalties() {
+        var noShows = 0
+        var late = 0
+        
+        let now = Date()
+        
+        for booking in bookingService.myBookings {
+            // No-show: Booking was accepted but cancelled after scheduled date
+            // Only count if pilot was assigned (accepted the booking)
+            if booking.status == .cancelled,
+               booking.pilotId != nil,
+               let scheduledDate = booking.scheduledDate,
+               scheduledDate < now {
+                noShows += 1
+            }
+            
+            // Late: Booking completed significantly after scheduled date
+            // Check if completion happened well after the scheduled time
+            if booking.status == .completed,
+               booking.pilotId != nil,
+               let scheduledDate = booking.scheduledDate,
+               let endDate = booking.endDate {
+                // If there's an estimated flight hours, use that to determine if late
+                if let estimatedHours = booking.estimatedFlightHours {
+                    let expectedEndTime = scheduledDate.addingTimeInterval(estimatedHours * 3600)
+                    let hoursLate = max(0, endDate.timeIntervalSince(expectedEndTime) / 3600)
+                    // Consider late if completed more than 1 hour after expected completion
+                    if hoursLate > 1 {
+                        late += 1
+                    }
+                } else {
+                    // Fallback: if no estimated hours, check if end date is significantly after scheduled date
+                    let hoursBetween = endDate.timeIntervalSince(scheduledDate) / 3600
+                    // If booking took more than 6 hours, might be late (depending on context)
+                    // This is a simple heuristic
+                    if hoursBetween > 6 {
+                        late += 1
+                    }
+                }
+            }
+        }
+        
+        noShowCount = noShows
+        lateCount = late
+    }
+    
+    private func calculateCompletedCourses() -> Int {
+        // For demo purposes, return a placeholder
+        // In production, this would query course_enrollments with completion status
+        // For now, we'll return 0 as courses aren't fully implemented yet
+        return 0
+    }
+}
+
+// MARK: - Rank Progress Model
+
+struct RankProgress {
+    let hoursNeeded: Double
+    let bookingsRequired: Int
+    let coursesRequired: Int
+    let percentage: Double
+}
+
+// MARK: - Progress Requirement Row
+
+struct ProgressRequirementRow: View {
+    let icon: String
+    let title: String
+    let current: String
+    let required: String
+    let unit: String
+    let isComplete: Bool
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .foregroundColor(isComplete ? .green : .blue)
+                .frame(width: 24)
+            
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                
+                HStack(spacing: 4) {
+                    Text(current)
+                        .font(.headline)
+                        .foregroundColor(isComplete ? .green : .primary)
+                    
+                    Text("/ \(required) \(unit)")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+            }
+            
+            Spacer()
+            
+            if isComplete {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundColor(.green)
+            }
+        }
+        .padding(.vertical, 4)
     }
 }
