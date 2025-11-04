@@ -468,6 +468,8 @@ struct EditTransponderSheet: View {
                             lastLocationLat: transponder.lastLocationLat,
                             lastLocationLng: transponder.lastLocationLng,
                             lastLocationUpdate: transponder.lastLocationUpdate,
+                            speed: transponder.speed,
+                            altitude: transponder.altitude,
                             createdAt: transponder.createdAt
                         )
                         onSave(edited)

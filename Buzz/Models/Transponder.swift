@@ -17,6 +17,8 @@ struct Transponder: Codable, Identifiable, Equatable {
     let lastLocationLat: Double?
     let lastLocationLng: Double?
     let lastLocationUpdate: Date?
+    let speed: Double? // Speed in meters per second
+    let altitude: Double? // Altitude in meters
     let createdAt: Date
     
     enum CodingKeys: String, CodingKey {
@@ -28,6 +30,8 @@ struct Transponder: Codable, Identifiable, Equatable {
         case lastLocationLat = "last_location_lat"
         case lastLocationLng = "last_location_lng"
         case lastLocationUpdate = "last_location_update"
+        case speed
+        case altitude
         case createdAt = "created_at"
     }
     
@@ -47,6 +51,8 @@ struct Transponder: Codable, Identifiable, Equatable {
                lhs.lastLocationLat == rhs.lastLocationLat &&
                lhs.lastLocationLng == rhs.lastLocationLng &&
                lhs.lastLocationUpdate == rhs.lastLocationUpdate &&
+               lhs.speed == rhs.speed &&
+               lhs.altitude == rhs.altitude &&
                lhs.createdAt == rhs.createdAt
     }
 }
