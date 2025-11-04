@@ -29,13 +29,19 @@ struct CockpitView: View {
                     .padding(.horizontal)
                     .padding(.top)
                     
-                    // Menu Cards
-                    VStack(spacing: 16) {
+                    // Menu Cards Grid
+                    let columns = [
+                        GridItem(.flexible(), spacing: 8),
+                        GridItem(.flexible(), spacing: 8),
+                        GridItem(.flexible(), spacing: 8),
+                        GridItem(.flexible(), spacing: 8)
+                    ]
+                    
+                    LazyVGrid(columns: columns, spacing: 12) {
                         // Leaderboard Card
                         NavigationLink(destination: LeaderboardView()) {
-                            CockpitMenuCard(
+                            CockpitGridCard(
                                 title: "Leaderboard",
-                                description: "View rankings and compare your performance with other pilots",
                                 icon: "chart.bar.fill",
                                 color: .blue
                             )
@@ -44,9 +50,8 @@ struct CockpitView: View {
                         
                         // Revenue Card
                         NavigationLink(destination: RevenueDetailsView().environmentObject(authService)) {
-                            CockpitMenuCard(
+                            CockpitGridCard(
                                 title: "Revenue",
-                                description: "Track your earnings, tips, and revenue trends",
                                 icon: "dollarsign.circle.fill",
                                 color: .green
                             )
@@ -55,9 +60,8 @@ struct CockpitView: View {
                         
                         // Industry News Card
                         NavigationLink(destination: IndustryNewsView()) {
-                            CockpitMenuCard(
-                                title: "Industry News",
-                                description: "Stay updated with the latest drone industry news and regulations",
+                            CockpitGridCard(
+                                title: "News",
                                 icon: "newspaper.fill",
                                 color: .orange
                             )
@@ -66,9 +70,8 @@ struct CockpitView: View {
                         
                         // Availability Card
                         NavigationLink(destination: AvailabilityView().environmentObject(authService)) {
-                            CockpitMenuCard(
+                            CockpitGridCard(
                                 title: "Availability",
-                                description: "View your schedule and bookings in calendar format",
                                 icon: "calendar",
                                 color: .purple
                             )
@@ -77,16 +80,25 @@ struct CockpitView: View {
                         
                         // Progress Card
                         NavigationLink(destination: PilotProgressView().environmentObject(authService)) {
-                            CockpitMenuCard(
+                            CockpitGridCard(
                                 title: "Progress",
-                                description: "Track your progress to the next rank and view milestones",
                                 icon: "chart.line.uptrend.xyaxis",
                                 color: .indigo
                             )
                         }
                         .buttonStyle(PlainButtonStyle())
+                        
+                        // Transponder Card
+                        NavigationLink(destination: TransponderView().environmentObject(authService)) {
+                            CockpitGridCard(
+                                title: "Transponder",
+                                icon: "antenna.radiowaves.left.and.right",
+                                color: .teal
+                            )
+                        }
+                        .buttonStyle(PlainButtonStyle())
                     }
-                    .padding(.horizontal)
+                    .padding(.horizontal, 16)
                     .padding(.bottom)
                 }
             }
@@ -96,53 +108,45 @@ struct CockpitView: View {
     }
 }
 
-// MARK: - Cockpit Menu Card
+// MARK: - Cockpit Grid Card
 
-struct CockpitMenuCard: View {
+struct CockpitGridCard: View {
     let title: String
-    let description: String
     let icon: String
     let color: Color
     
     var body: some View {
-        HStack(spacing: 16) {
+        VStack(spacing: 8) {
             // Icon
             ZStack {
                 Circle()
-                    .fill(color.opacity(0.1))
-                    .frame(width: 60, height: 60)
+                    .fill(color.opacity(0.15))
+                    .frame(width: 50, height: 50)
                 
                 Image(systemName: icon)
-                    .font(.system(size: 28))
+                    .font(.system(size: 24, weight: .medium))
                     .foregroundColor(color)
             }
             
-            // Content
-            VStack(alignment: .leading, spacing: 6) {
-                Text(title)
-                    .font(.headline)
-                    .foregroundColor(.primary)
-                
-                Text(description)
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                    .lineLimit(2)
-            }
-            
-            Spacer()
-            
-            // Chevron
-            Image(systemName: "chevron.right")
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundColor(.secondary)
+            // Title
+            Text(title)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(.primary)
+                .multilineTextAlignment(.center)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+                .fixedSize(horizontal: false, vertical: true)
         }
-        .padding()
-        .background(Color(.systemBackground))
-        .cornerRadius(16)
-        .shadow(color: Color.black.opacity(0.05), radius: 8, x: 0, y: 2)
+        .frame(maxWidth: .infinity)
+        .frame(height: 90)
+        .padding(.vertical, 10)
+        .padding(.horizontal, 6)
+        .background(Color(.secondarySystemBackground))
+        .cornerRadius(12)
+        .shadow(color: Color.black.opacity(0.06), radius: 4, x: 0, y: 2)
         .overlay(
-            RoundedRectangle(cornerRadius: 16)
-                .stroke(Color(.separator).opacity(0.1), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color(.separator).opacity(0.15), lineWidth: 0.5)
         )
     }
 }
