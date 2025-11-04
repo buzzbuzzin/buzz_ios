@@ -13,21 +13,70 @@ struct PilotBookingListView: View {
     @State private var selectedBooking: Booking?
     @State private var showMapView = false
     @State private var showConversations = false
+    @State private var selectedCategory: BookingSpecialization? = nil
+    
+    var filteredBookings: [Booking] {
+        if let category = selectedCategory {
+            return bookingService.availableBookings.filter { $0.specialization == category }
+        }
+        return bookingService.availableBookings
+    }
     
     var body: some View {
         NavigationView {
-            VStack {
+            VStack(spacing: 0) {
+                // Category Filter
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 12) {
+                        // All Categories button
+                        Button(action: {
+                            selectedCategory = nil
+                        }) {
+                            Text("All")
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 8)
+                                .background(selectedCategory == nil ? Color.blue : Color(.systemGray5))
+                                .foregroundColor(selectedCategory == nil ? .white : .primary)
+                                .cornerRadius(20)
+                        }
+                        
+                        // Category buttons
+                        ForEach(BookingSpecialization.allCases, id: \.self) { category in
+                            Button(action: {
+                                selectedCategory = category
+                            }) {
+                                Label(category.displayName, systemImage: category.icon)
+                                    .font(.subheadline)
+                                    .fontWeight(.medium)
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 8)
+                                    .background(selectedCategory == category ? Color.blue : Color(.systemGray5))
+                                    .foregroundColor(selectedCategory == category ? .white : .primary)
+                                    .cornerRadius(20)
+                            }
+                        }
+                    }
+                    .padding(.horizontal)
+                    .padding(.vertical, 12)
+                }
+                .background(Color(.systemBackground))
+                
+                Divider()
+                
+                // Bookings List
                 if bookingService.isLoading {
                     LoadingView(message: "Loading bookings...")
-                } else if bookingService.availableBookings.isEmpty {
+                } else if filteredBookings.isEmpty {
                     EmptyStateView(
                         icon: "airplane.departure",
-                        title: "No Available Bookings",
-                        message: "Check back later for new drone pilot opportunities"
+                        title: selectedCategory == nil ? "No Available Bookings" : "No \(selectedCategory?.displayName ?? "") Jobs",
+                        message: selectedCategory == nil ? "Check back later for new drone pilot opportunities" : "Try selecting a different category"
                     )
                 } else {
                     List {
-                        ForEach(bookingService.availableBookings) { booking in
+                        ForEach(filteredBookings) { booking in
                             NavigationLink(destination: BookingDetailView(booking: booking)) {
                                 BookingCard(booking: booking)
                             }
@@ -63,7 +112,7 @@ struct PilotBookingListView: View {
             .sheet(isPresented: $showMapView) {
                 NavigationView {
                     BookingMapView(
-                        bookings: bookingService.availableBookings,
+                        bookings: filteredBookings,
                         selectedBooking: $selectedBooking
                     )
                     .navigationTitle("Map View")

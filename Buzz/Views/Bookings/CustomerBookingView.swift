@@ -13,35 +13,52 @@ struct CustomerBookingView: View {
     @EnvironmentObject var authService: AuthService
     @StateObject private var bookingService = BookingService()
     @State private var showCreateBooking = false
+    @State private var showConversations = false
     
     var body: some View {
         NavigationView {
             VStack {
                 if bookingService.isLoading {
                     LoadingView(message: "Loading bookings...")
-                } else if bookingService.myBookings.isEmpty {
-                    EmptyStateView(
-                        icon: "doc.text.magnifyingglass",
-                        title: "No Bookings Yet",
-                        message: "Create your first drone pilot booking",
-                        actionTitle: "Create Booking",
-                        action: { showCreateBooking = true }
-                    )
                 } else {
-                    List {
-                        ForEach(bookingService.myBookings) { booking in
-                            NavigationLink(destination: CustomerBookingDetailView(booking: booking)) {
-                                CustomerBookingCard(booking: booking)
+                    // Filter: Only show available, accepted, and cancelled bookings (not completed)
+                    let filteredBookings = bookingService.myBookings.filter { booking in
+                        booking.status == .available || booking.status == .accepted || booking.status == .cancelled
+                    }
+                    
+                    if filteredBookings.isEmpty {
+                        EmptyStateView(
+                            icon: "doc.text.magnifyingglass",
+                            title: "No Active Bookings",
+                            message: "Create your first drone pilot booking",
+                            actionTitle: "Create Booking",
+                            action: { showCreateBooking = true }
+                        )
+                    } else {
+                        List {
+                            ForEach(filteredBookings) { booking in
+                                NavigationLink(destination: CustomerBookingDetailView(booking: booking)) {
+                                    CustomerBookingCard(booking: booking)
+                                }
                             }
                         }
-                    }
-                    .refreshable {
-                        await loadBookings()
+                        .refreshable {
+                            await loadBookings()
+                        }
                     }
                 }
             }
             .navigationTitle("My Bookings")
             .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button {
+                        showConversations = true
+                    } label: {
+                        Image(systemName: "message.fill")
+                            .foregroundColor(.blue)
+                    }
+                }
+                
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button {
                         showCreateBooking = true
@@ -52,6 +69,9 @@ struct CustomerBookingView: View {
             }
             .sheet(isPresented: $showCreateBooking) {
                 CreateBookingView()
+            }
+            .sheet(isPresented: $showConversations) {
+                ConversationsListView()
             }
         }
         .task {
@@ -69,17 +89,56 @@ struct CustomerBookingView: View {
 
 struct CustomerBookingCard: View {
     let booking: Booking
+    @StateObject private var profileService = ProfileService()
+    @State private var pilotProfile: UserProfile?
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Image(systemName: "mappin.circle.fill")
-                    .foregroundColor(.red)
-                Text(booking.locationName)
-                    .font(.headline)
-                Spacer()
-                StatusBadge(status: booking.status)
-            }
+                HStack {
+                    Text(booking.locationName)
+                        .font(.headline)
+                    Spacer()
+                    StatusBadge(status: booking.status)
+                }
+                
+                // Show pilot name if assigned (text only, no picture)
+                if let profile = pilotProfile,
+                   booking.status == .accepted || booking.status == .completed {
+                    HStack(spacing: 4) {
+                        Image(systemName: "airplane.fill")
+                            .font(.caption)
+                            .foregroundColor(.blue)
+                        Text(profile.fullName)
+                            .font(.subheadline)
+                            .foregroundColor(.blue)
+                        if let callSign = profile.callSign {
+                            Text("(\(callSign))")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+                
+                // Category badge
+                if let specialization = booking.specialization {
+                    Label(specialization.displayName, systemImage: specialization.icon)
+                        .font(.caption)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.blue.opacity(0.1))
+                        .foregroundColor(.blue)
+                        .cornerRadius(8)
+                }
+                
+                // Required Minimum Rank
+                HStack(spacing: 4) {
+                    Image(systemName: "star.fill")
+                        .font(.caption)
+                        .foregroundColor(.orange)
+                    Text("Min Rank: \(booking.rankName)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
             
             Text(booking.description)
                 .font(.subheadline)
@@ -95,13 +154,37 @@ struct CustomerBookingCard: View {
                 .foregroundColor(.green)
                 
                 Spacer()
-                
-                Text("Created \(booking.createdAt.formatted(date: .abbreviated, time: .omitted))")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
+                    
+                    if let hours = booking.estimatedFlightHours {
+                        Label(
+                            String(format: "%.1f hrs", hours),
+                            systemImage: "clock.fill"
+                        )
+                        .font(.subheadline)
+                        .foregroundColor(.blue)
+                    }
+                }
         }
         .padding(.vertical, 8)
+        .task {
+            await loadPilotProfile()
+        }
+    }
+    
+    private func loadPilotProfile() async {
+        guard let pilotId = booking.pilotId else { return }
+        
+        // Try to get sample pilot profile first (for demo)
+        if let sampleProfile = profileService.getSamplePilotProfile(pilotId: pilotId) {
+            pilotProfile = sampleProfile
+        } else {
+            // Fallback to real profile fetch
+            do {
+                pilotProfile = try await profileService.getProfile(userId: pilotId)
+            } catch {
+                print("Error loading pilot profile: \(error)")
+            }
+        }
     }
 }
 
@@ -149,6 +232,7 @@ struct CreateBookingView: View {
     @State private var startTime = Calendar.current.date(bySettingHour: 9, minute: 0, second: 0, of: Date()) ?? Date()
     @State private var endTime = Calendar.current.date(bySettingHour: 17, minute: 0, second: 0, of: Date()) ?? Date()
     @State private var selectedSpecialization: BookingSpecialization?
+    @State private var requiredMinimumRank: Int = 0 // Default to lowest rank (Ensign)
     @State private var description = ""
     @State private var paymentAmount = ""
     @State private var estimatedHours = ""
@@ -167,6 +251,7 @@ struct CreateBookingView: View {
                         startTime: $startTime,
                         endTime: $endTime,
                         selectedSpecialization: $selectedSpecialization,
+                        requiredMinimumRank: $requiredMinimumRank,
                         onNext: {
                             if isStep1Valid {
                                 currentStep = 2
@@ -273,7 +358,8 @@ struct CreateBookingView: View {
                     specialization: specialization,
                     description: description,
                     paymentAmount: Decimal(payment),
-                    estimatedFlightHours: hours
+                    estimatedFlightHours: hours,
+                    requiredMinimumRank: requiredMinimumRank
                 )
                 showSuccess = true
             } catch {
@@ -300,6 +386,7 @@ struct CustomerBookingDetailView: View {
     @State private var pilotName = "Pilot"
     @State private var pilotProfile: UserProfile?
     @State private var showMessageSheet = false
+    @State private var showEditSheet = false
     
     init(booking: Booking) {
         self.booking = booking
@@ -384,6 +471,20 @@ struct CustomerBookingDetailView: View {
                         .font(.headline)
                     
                     StatusBadge(status: booking.status)
+                }
+                .padding(.horizontal)
+                
+                Divider()
+                    .padding(.horizontal)
+                
+                // Created Date
+                VStack(alignment: .leading, spacing: 8) {
+                    Label("Created", systemImage: "calendar")
+                        .font(.headline)
+                    
+                    Text(booking.createdAt.formatted(date: .long, time: .shortened))
+                        .font(.body)
+                        .foregroundColor(.secondary)
                 }
                 .padding(.horizontal)
                 
@@ -497,14 +598,23 @@ struct CustomerBookingDetailView: View {
                         .padding(.horizontal)
                 }
                 
-                // Cancel Button
-                if booking.status == .available {
-                    CustomButton(
-                        title: "Cancel Booking",
-                        action: { showCancelAlert = true },
-                        style: .destructive,
-                        isLoading: bookingService.isLoading
-                    )
+                // Edit and Cancel Buttons (for available and accepted bookings)
+                if booking.status == .available || booking.status == .accepted {
+                    VStack(spacing: 12) {
+                        CustomButton(
+                            title: "Edit Booking",
+                            action: { showEditSheet = true },
+                            style: .primary,
+                            isLoading: false
+                        )
+                        
+                        CustomButton(
+                            title: "Cancel Booking",
+                            action: { showCancelAlert = true },
+                            style: .destructive,
+                            isLoading: bookingService.isLoading
+                        )
+                    }
                     .padding(.horizontal)
                 }
                 
@@ -528,7 +638,11 @@ struct CustomerBookingDetailView: View {
                 cancelBooking()
             }
         } message: {
-            Text("Are you sure you want to cancel this booking?")
+            if booking.status == .accepted {
+                Text("A pilot has already accepted this booking. Are you sure you want to cancel? This will notify the pilot.")
+            } else {
+                Text("Are you sure you want to cancel this booking?")
+            }
         }
         .alert("Error", isPresented: $showError) {
             Button("OK", role: .cancel) {}
@@ -550,6 +664,9 @@ struct CustomerBookingDetailView: View {
                 booking: booking
             )
         }
+        .sheet(isPresented: $showEditSheet) {
+            EditBookingView(booking: booking)
+        }
         .task {
             // Load pilot profile
             await loadPilotProfile()
@@ -559,12 +676,19 @@ struct CustomerBookingDetailView: View {
     private func loadPilotProfile() async {
         guard let pilotId = booking.pilotId else { return }
         
+        // Try to get sample pilot profile first (for demo)
+        if let sampleProfile = profileService.getSamplePilotProfile(pilotId: pilotId) {
+            pilotProfile = sampleProfile
+            pilotName = sampleProfile.fullName
+        } else {
+            // Fallback to real profile fetch
         do {
             pilotProfile = try await profileService.getProfile(userId: pilotId)
             pilotName = pilotProfile?.fullName ?? "Pilot"
         } catch {
             print("Error loading pilot profile: \(error)")
             pilotName = "Pilot"
+            }
         }
     }
     
@@ -605,6 +729,316 @@ struct CustomerBookingDetailView: View {
                     isPilot: false,
                     hasRated: true
                 )
+            } catch {
+                errorMessage = error.localizedDescription
+                showError = true
+            }
+        }
+    }
+}
+
+// MARK: - Edit Booking View
+
+struct EditBookingView: View {
+    @EnvironmentObject var authService: AuthService
+    @Environment(\.dismiss) var dismiss
+    @StateObject private var bookingService = BookingService()
+    
+    let booking: Booking
+    
+    @State private var selectedLocation: CLLocationCoordinate2D?
+    @State private var locationName: String
+    @State private var selectedDate: Date
+    @State private var startTime: Date
+    @State private var endTime: Date
+    @State private var selectedSpecialization: BookingSpecialization?
+    @State private var requiredMinimumRank: Int
+    @State private var description: String
+    @State private var paymentAmount: String
+    @State private var estimatedHours: String
+    @State private var showError = false
+    @State private var errorMessage = ""
+    @State private var showSuccess = false
+    @State private var showRankInfo = false
+    
+    init(booking: Booking) {
+        self.booking = booking
+        _locationName = State(initialValue: booking.locationName)
+        _selectedLocation = State(initialValue: CLLocationCoordinate2D(latitude: booking.locationLat, longitude: booking.locationLng))
+        _selectedDate = State(initialValue: booking.scheduledDate ?? Date())
+        _startTime = State(initialValue: booking.scheduledDate ?? Date())
+        _endTime = State(initialValue: booking.endDate ?? Date())
+        _selectedSpecialization = State(initialValue: booking.specialization)
+        _requiredMinimumRank = State(initialValue: booking.requiredMinimumRank ?? 0)
+        _description = State(initialValue: booking.description)
+        _paymentAmount = State(initialValue: String(format: "%.2f", NSDecimalNumber(decimal: booking.paymentAmount).doubleValue))
+        _estimatedHours = State(initialValue: booking.estimatedFlightHours.map { String(format: "%.1f", $0) } ?? "")
+    }
+    
+    var body: some View {
+        NavigationView {
+            ScrollView {
+                VStack(spacing: 24) {
+                    // Location Section
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Location")
+                            .font(.headline)
+                            .padding(.horizontal)
+                        
+                        HStack {
+                            Image(systemName: "mappin.circle.fill")
+                                .foregroundColor(.red)
+                            Text(locationName)
+                                .foregroundColor(.primary)
+                            Spacer()
+                        }
+                        .padding()
+                        .background(Color(.systemGray6))
+                        .cornerRadius(10)
+                        .padding(.horizontal)
+                    }
+                    
+                    // Date Section
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Select Date")
+                            .font(.headline)
+                            .padding(.horizontal)
+                        
+                        DatePicker(
+                            "Booking Date",
+                            selection: $selectedDate,
+                            displayedComponents: [.date]
+                        )
+                        .datePickerStyle(.compact)
+                        .padding(.horizontal)
+                    }
+                    
+                    // Time Section
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Select Time")
+                            .font(.headline)
+                            .padding(.horizontal)
+                        
+                        HStack(spacing: 12) {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Start Time")
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                                
+                                DatePicker("", selection: $startTime, displayedComponents: [.hourAndMinute])
+                                    .datePickerStyle(.compact)
+                                    .labelsHidden()
+                            }
+                            
+                            Spacer()
+                            
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("End Time")
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                                
+                                DatePicker("", selection: $endTime, displayedComponents: [.hourAndMinute])
+                                    .datePickerStyle(.compact)
+                                    .labelsHidden()
+                            }
+                        }
+                        .padding(.horizontal)
+                    }
+                    
+                    // Required Minimum Rank Section
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack {
+                            Text("Required Minimum Pilot Rank")
+                                .font(.headline)
+                            Spacer()
+                            Button(action: {
+                                showRankInfo = true
+                            }) {
+                                Image(systemName: "info.circle")
+                                    .foregroundColor(.blue)
+                                    .font(.subheadline)
+                            }
+                        }
+                        .padding(.horizontal)
+                        
+                        HStack {
+                            Text("Minimum Rank")
+                                .font(.subheadline)
+                            Spacer()
+                            Picker("", selection: $requiredMinimumRank) {
+                                ForEach(0...4, id: \.self) { rank in
+                                    Text(PilotStats(pilotId: UUID(), totalFlightHours: 0, completedBookings: 0, tier: rank).tierName)
+                                        .tag(rank)
+                                }
+                            }
+                            .pickerStyle(.menu)
+                            .frame(width: 120, alignment: .trailing)
+                        }
+                        .padding(.horizontal)
+                    }
+                    
+                    // Specialization Section
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Specialization")
+                            .font(.headline)
+                            .padding(.horizontal)
+                        
+                        LazyVGrid(columns: [
+                            GridItem(.flexible(), spacing: 12),
+                            GridItem(.flexible(), spacing: 12)
+                        ], spacing: 12) {
+                            ForEach(BookingSpecialization.allCases, id: \.self) { specialization in
+                                SpecializationCard(
+                                    specialization: specialization,
+                                    isSelected: selectedSpecialization == specialization
+                                ) {
+                                    selectedSpecialization = specialization
+                                }
+                            }
+                        }
+                        .padding(.horizontal)
+                    }
+                    
+                    // Description Section
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Description")
+                            .font(.headline)
+                            .padding(.horizontal)
+                        
+                        TextEditor(text: $description)
+                            .frame(height: 100)
+                            .padding(8)
+                            .background(Color(.systemGray6))
+                            .cornerRadius(10)
+                            .padding(.horizontal)
+                    }
+                    
+                    // Payment & Hours Section
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Payment & Duration")
+                            .font(.headline)
+                            .padding(.horizontal)
+                        
+                        VStack(spacing: 12) {
+                            HStack {
+                                Text("Payment Amount ($)")
+                                    .font(.subheadline)
+                                Spacer()
+                                TextField("0.00", text: $paymentAmount)
+                                    .keyboardType(.decimalPad)
+                                    .textFieldStyle(.roundedBorder)
+                                    .frame(width: 120)
+                            }
+                            
+                            HStack {
+                                Text("Estimated Hours")
+                                    .font(.subheadline)
+                                Spacer()
+                                TextField("0.0", text: $estimatedHours)
+                                    .keyboardType(.decimalPad)
+                                    .textFieldStyle(.roundedBorder)
+                                    .frame(width: 120)
+                            }
+                        }
+                        .padding(.horizontal)
+                    }
+                    
+                    // Save Button
+                    CustomButton(
+                        title: "Save Changes",
+                        action: saveBooking,
+                        isLoading: bookingService.isLoading,
+                        isDisabled: !isFormValid
+                    )
+                    .padding(.horizontal)
+                    .padding(.bottom, 20)
+                }
+                .padding(.vertical)
+            }
+            .navigationTitle("Edit Booking")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+            }
+            .alert("Error", isPresented: $showError) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(errorMessage)
+            }
+            .alert("Success", isPresented: $showSuccess) {
+                Button("OK") {
+                    dismiss()
+                }
+            } message: {
+                Text("Booking updated successfully!")
+            }
+            .sheet(isPresented: $showRankInfo) {
+                RankInfoView()
+            }
+        }
+    }
+    
+    private var isFormValid: Bool {
+        !description.isEmpty &&
+        !paymentAmount.isEmpty &&
+        !estimatedHours.isEmpty &&
+        Double(paymentAmount) != nil &&
+        Double(estimatedHours) != nil &&
+        selectedSpecialization != nil
+    }
+    
+    private func saveBooking() {
+        guard let specialization = selectedSpecialization,
+              let payment = Double(paymentAmount),
+              let hours = Double(estimatedHours) else {
+            errorMessage = "Please fill in all fields correctly"
+            showError = true
+            return
+        }
+        
+        // Combine date with start time
+        let calendar = Calendar.current
+        let dateComponents = calendar.dateComponents([.year, .month, .day], from: selectedDate)
+        let startTimeComponents = calendar.dateComponents([.hour, .minute], from: startTime)
+        let endTimeComponents = calendar.dateComponents([.hour, .minute], from: endTime)
+        
+        var startDateTimeComponents = DateComponents()
+        startDateTimeComponents.year = dateComponents.year
+        startDateTimeComponents.month = dateComponents.month
+        startDateTimeComponents.day = dateComponents.day
+        startDateTimeComponents.hour = startTimeComponents.hour
+        startDateTimeComponents.minute = startTimeComponents.minute
+        
+        let startDateTime = calendar.date(from: startDateTimeComponents) ?? selectedDate
+        
+        var endDateTimeComponents = DateComponents()
+        endDateTimeComponents.year = dateComponents.year
+        endDateTimeComponents.month = dateComponents.month
+        endDateTimeComponents.day = dateComponents.day
+        endDateTimeComponents.hour = endTimeComponents.hour
+        endDateTimeComponents.minute = endTimeComponents.minute
+        
+        let endDateTime = calendar.date(from: endDateTimeComponents) ?? startTime
+        
+        Task {
+            do {
+                try await bookingService.updateBooking(
+                    bookingId: booking.id,
+                    location: selectedLocation ?? booking.coordinate,
+                    locationName: locationName,
+                    scheduledDate: startDateTime,
+                    endDate: endDateTime,
+                    specialization: specialization,
+                    description: description,
+                    paymentAmount: Decimal(payment),
+                    estimatedFlightHours: hours,
+                    requiredMinimumRank: requiredMinimumRank
+                )
+                showSuccess = true
             } catch {
                 errorMessage = error.localizedDescription
                 showError = true

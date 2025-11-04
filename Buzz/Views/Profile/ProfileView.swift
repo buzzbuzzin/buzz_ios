@@ -15,6 +15,7 @@ struct ProfileView: View {
     @StateObject private var ratingService = RatingService()
     @StateObject private var bookingService = BookingService()
     @StateObject private var profilePictureService = ProfilePictureService()
+    @StateObject private var badgeService = BadgeService()
     @State private var showSignOutAlert = false
     @State private var showImagePicker = false
     @State private var showImageSourceSheet = false
@@ -79,28 +80,118 @@ struct ProfileView: View {
                         .buttonStyle(PlainButtonStyle())
                         
                         VStack(alignment: .leading, spacing: 4) {
-                            Text(authService.userProfile?.fullName ?? "User")
-                                .font(.title2)
-                                .fontWeight(.bold)
-                            
-                            if let callSign = authService.userProfile?.callSign {
-                                Text("@\(callSign)")
-                                    .font(.subheadline)
-                                    .foregroundColor(.blue)
-                            }
-                            
-                            Text(authService.userProfile?.userType == .pilot ? "Pilot" : "Customer")
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
-                            
-                            if let email = authService.userProfile?.email {
-                                Text(email)
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
+                            HStack {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(authService.userProfile?.fullName ?? "User")
+                                        .font(.title2)
+                                        .fontWeight(.bold)
+                                    
+                                    if let callSign = authService.userProfile?.callSign {
+                                        Text("@\(callSign)")
+                                            .font(.subheadline)
+                                            .foregroundColor(.blue)
+                                    }
+                                    
+                                    Text(authService.userProfile?.userType == .pilot ? "Pilot" : "Customer")
+                                        .font(.subheadline)
+                                        .foregroundColor(.secondary)
+                                    
+                                    if let email = authService.userProfile?.email {
+                                        Text(email)
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                    }
+                                }
+                                
+                                Spacer()
+                                
+                                // Ratings display on the right
+                                VStack(alignment: .trailing, spacing: 4) {
+                                    if isLoadingRatings && ratingSummary == nil {
+                                        ProgressView()
+                                    } else if let summary = ratingSummary {
+                                        HStack(spacing: 4) {
+                                            Image(systemName: "star.fill")
+                                                .foregroundColor(.yellow)
+                                                .font(.subheadline)
+                                            Text(String(format: "%.1f", summary.averageRating))
+                                                .font(.title3)
+                                                .fontWeight(.bold)
+                                        }
+                                        Text("(\(summary.totalRatings))")
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                    } else {
+                                        HStack(spacing: 4) {
+                                            Image(systemName: "star.fill")
+                                                .foregroundColor(.gray)
+                                                .font(.subheadline)
+                                            Text("—")
+                                                .font(.title3)
+                                                .fontWeight(.bold)
+                                                .foregroundColor(.secondary)
+                                        }
+                                        Text("No ratings")
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                    }
+                                }
                             }
                         }
                     }
                     .padding(.vertical, 8)
+                }
+                
+                // Badges Section (Pilot only)
+                if authService.userProfile?.userType == .pilot {
+                    Section {
+                        NavigationLink(destination: BadgesView()) {
+                            VStack(alignment: .leading, spacing: 12) {
+                                HStack {
+                                    Text("Badges")
+                                        .font(.headline)
+                                    Spacer()
+                                    if !badgeService.badges.isEmpty {
+                                        Text("\(badgeService.badges.count)")
+                                            .font(.subheadline)
+                                            .foregroundColor(.secondary)
+                                    }
+                                    Image(systemName: "chevron.right")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                                
+                                if badgeService.badges.isEmpty {
+                                    Text("Complete courses to earn badges")
+                                        .font(.subheadline)
+                                        .foregroundColor(.secondary)
+                                        .padding(.vertical, 4)
+                                } else {
+                                    ScrollView(.horizontal, showsIndicators: false) {
+                                        HStack(spacing: 12) {
+                                            ForEach(badgeService.badges.prefix(5)) { badge in
+                                                BadgePreviewCard(badge: badge)
+                                            }
+                                            
+                                            if badgeService.badges.count > 5 {
+                                                VStack {
+                                                    Image(systemName: "ellipsis")
+                                                        .font(.title2)
+                                                        .foregroundColor(.secondary)
+                                                    Text("+\(badgeService.badges.count - 5)")
+                                                        .font(.caption)
+                                                        .foregroundColor(.secondary)
+                                                }
+                                                .frame(width: 50, height: 50)
+                                            }
+                                        }
+                                        .padding(.vertical, 4)
+                                    }
+                                }
+                            }
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                    }
                 }
                 
                 // Statistics Section
@@ -178,43 +269,6 @@ struct ProfileView: View {
                                 Text("\(completedBookingsCount)")
                                     .fontWeight(.semibold)
                             }
-                        }
-                    }
-                    
-                    // Ratings Summary (for both pilots and customers)
-                    if isLoadingRatings && ratingSummary == nil {
-                        HStack {
-                            Image(systemName: "star.fill")
-                                .foregroundColor(.yellow)
-                                .frame(width: 24)
-                            Text("Ratings")
-                            Spacer()
-                            ProgressView()
-                        }
-                    } else if let summary = ratingSummary {
-                        HStack {
-                            Image(systemName: "star.fill")
-                                .foregroundColor(.yellow)
-                                .frame(width: 24)
-                            Text("Ratings")
-                            Spacer()
-                            HStack(spacing: 4) {
-                                StarRatingView(rating: summary.averageRating)
-                                Text("(\(summary.totalRatings))")
-                                    .font(.subheadline)
-                                    .foregroundColor(.secondary)
-                            }
-                        }
-                    } else {
-                        HStack {
-                            Image(systemName: "star.fill")
-                                .foregroundColor(.yellow)
-                                .frame(width: 24)
-                            Text("Ratings")
-                            Spacer()
-                            Text("No ratings yet")
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
                         }
                     }
                     
@@ -321,6 +375,12 @@ struct ProfileView: View {
             } catch {
                 print("Error loading completed bookings count: \(error)")
             }
+            
+            // Load badges if pilot
+            if isPilot {
+                try? await badgeService.fetchPilotBadges(pilotId: userId)
+            }
+            
             isLoadingRatings = false
         }
     }

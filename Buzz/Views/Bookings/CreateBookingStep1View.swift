@@ -15,8 +15,10 @@ struct CreateBookingStep1View: View {
     @Binding var startTime: Date
     @Binding var endTime: Date
     @Binding var selectedSpecialization: BookingSpecialization?
+    @Binding var requiredMinimumRank: Int
     
     @State private var showLocationSearch = false
+    @State private var showRankInfo = false
     
     let onNext: () -> Void
     
@@ -78,7 +80,7 @@ struct CreateBookingStep1View: View {
                 
                 // Time Section
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("3. Select Time")
+                    Text("4. Select Time")
                         .font(.headline)
                         .padding(.horizontal)
                     
@@ -118,9 +120,40 @@ struct CreateBookingStep1View: View {
                     .padding(.horizontal)
                 }
                 
+                // Required Minimum Rank Section
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        Text("3. Required Minimum Pilot Rank")
+                            .font(.headline)
+                        Spacer()
+                        Button(action: {
+                            showRankInfo = true
+                        }) {
+                            Image(systemName: "info.circle")
+                                .foregroundColor(.blue)
+                                .font(.subheadline)
+                        }
+                    }
+                    .padding(.horizontal)
+                    
+                    Text("Select the minimum rank required for this job")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .padding(.horizontal)
+                    
+                    Picker("Minimum Rank", selection: $requiredMinimumRank) {
+                        ForEach(0...4, id: \.self) { rank in
+                            Text(PilotStats(pilotId: UUID(), totalFlightHours: 0, completedBookings: 0, tier: rank).tierName)
+                                .tag(rank)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .padding(.horizontal)
+                }
+                
                 // Specialization Section
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("4. Choose Specialization")
+                    Text("5. Choose Specialization")
                         .font(.headline)
                         .padding(.horizontal)
                     
@@ -163,6 +196,85 @@ struct CreateBookingStep1View: View {
                 isPresented: $showLocationSearch
             )
         }
+        .sheet(isPresented: $showRankInfo) {
+            RankInfoView()
+        }
+    }
+}
+
+// MARK: - Rank Info View
+
+struct RankInfoView: View {
+    @Environment(\.dismiss) var dismiss
+    
+    var body: some View {
+        NavigationView {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    Text("Pilot Ranking System")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                        .padding(.horizontal)
+                    
+                    Text("Pilots are ranked based on their total flight hours. Higher ranks indicate more experience.")
+                        .font(.body)
+                        .foregroundColor(.secondary)
+                        .padding(.horizontal)
+                    
+                    VStack(spacing: 16) {
+                        RankInfoRow(rank: 0, name: "Ensign", hours: "0 - 24 hours", description: "Entry-level pilots just starting their career. Suitable for basic tasks and learning opportunities.")
+                        RankInfoRow(rank: 1, name: "Sub Lieutenant", hours: "25 - 74 hours", description: "Developed basic skills through initial flight experience. Can handle standard assignments.")
+                        RankInfoRow(rank: 2, name: "Lieutenant", hours: "75 - 199 hours", description: "Experienced pilots with solid track record. Capable of handling complex missions.")
+                        RankInfoRow(rank: 3, name: "Commander", hours: "200 - 499 hours", description: "Highly experienced pilots with extensive expertise. Suitable for critical and demanding projects.")
+                        RankInfoRow(rank: 4, name: "Captain", hours: "500+ hours", description: "Elite pilots with exceptional experience. Ideal for the most challenging and high-profile assignments.")
+                    }
+                    .padding(.horizontal)
+                }
+                .padding(.vertical)
+            }
+            .navigationTitle("Rank Information")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Rank Info Row
+
+struct RankInfoRow: View {
+    let rank: Int
+    let name: String
+    let hours: String
+    let description: String
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(name)
+                    .font(.headline)
+                Spacer()
+                Text(hours)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color(.systemGray5))
+                    .cornerRadius(6)
+            }
+            
+            Text(description)
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+        }
+        .padding()
+        .background(Color(.systemGray6))
+        .cornerRadius(12)
     }
 }
 

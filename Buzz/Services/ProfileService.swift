@@ -119,5 +119,47 @@ class ProfileService: ObservableObject {
         
         return nil
     }
+    
+    // MARK: - Sample Pilot Profiles for Demo
+    // TODO: Remove this function when connecting to real backend
+    
+    func getSamplePilotProfile(pilotId: UUID) -> UserProfile? {
+        // Create a mapping of sample pilot IDs to profiles with profile pictures
+        // In production, this would fetch from the database
+        let samplePilots: [String: (firstName: String, lastName: String, callSign: String, pictureUrl: String)] = [
+            // These will be matched by hashing the UUID to get consistent names and pictures
+            "pilot1": ("Captain", "James", "SkyHawk", "https://i.pravatar.cc/150?img=11"),
+            "pilot2": ("Major", "Sarah", "CloudRunner", "https://i.pravatar.cc/150?img=16"),
+            "pilot3": ("Lt.", "Michael", "DroneMaster", "https://i.pravatar.cc/150?img=25"),
+            "pilot4": ("Commander", "Emily", "AeroWave", "https://i.pravatar.cc/150?img=27"),
+            "pilot5": ("Captain", "David", "SkyLine", "https://i.pravatar.cc/150?img=35"),
+            "pilot6": ("Major", "Jessica", "WingShot", "https://i.pravatar.cc/150?img=41"),
+            "pilot7": ("Lt.", "Robert", "FlightPath", "https://i.pravatar.cc/150?img=45"),
+            "pilot8": ("Commander", "Amanda", "SkyView", "https://i.pravatar.cc/150?img=50"),
+            "pilot9": ("Captain", "Chris", "AirDash", "https://i.pravatar.cc/150?img=55"),
+            "pilot10": ("Major", "Laura", "CloudNine", "https://i.pravatar.cc/150?img=60")
+        ]
+        
+        // Use a simple hash to get consistent pilot names and pictures
+        let hash = abs(pilotId.hashValue) % samplePilots.count
+        let pilotKey = "pilot\(hash + 1)"
+        
+        if let pilotInfo = samplePilots[pilotKey] {
+            return UserProfile(
+                id: pilotId,
+                userType: .pilot,
+                firstName: pilotInfo.firstName,
+                lastName: pilotInfo.lastName,
+                callSign: pilotInfo.callSign,
+                email: nil,
+                phone: nil,
+                profilePictureUrl: pilotInfo.pictureUrl,
+                communicationPreference: nil,
+                createdAt: Date()
+            )
+        }
+        
+        return nil
+    }
 }
 

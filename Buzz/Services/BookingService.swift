@@ -30,7 +30,8 @@ class BookingService: ObservableObject {
         specialization: BookingSpecialization?,
         description: String,
         paymentAmount: Decimal,
-        estimatedFlightHours: Double
+        estimatedFlightHours: Double,
+        requiredMinimumRank: Int = 0
     ) async throws {
         isLoading = true
         errorMessage = nil
@@ -46,7 +47,8 @@ class BookingService: ObservableObject {
                 "payment_amount": .double(NSDecimalNumber(decimal: paymentAmount).doubleValue),
                 "status": .string(BookingStatus.available.rawValue),
                 "created_at": .string(ISO8601DateFormatter().string(from: Date())),
-                "estimated_flight_hours": .double(estimatedFlightHours)
+                "estimated_flight_hours": .double(estimatedFlightHours),
+                "required_minimum_rank": .integer(requiredMinimumRank)
             ]
             
             if let scheduledDate = scheduledDate {
@@ -64,6 +66,60 @@ class BookingService: ObservableObject {
             try await supabase
                 .from("bookings")
                 .insert(booking)
+                .execute()
+            
+            isLoading = false
+        } catch {
+            isLoading = false
+            errorMessage = error.localizedDescription
+            throw error
+        }
+    }
+    
+    // MARK: - Update Booking (Customer)
+    
+    func updateBooking(
+        bookingId: UUID,
+        location: CLLocationCoordinate2D,
+        locationName: String,
+        scheduledDate: Date?,
+        endDate: Date? = nil,
+        specialization: BookingSpecialization?,
+        description: String,
+        paymentAmount: Decimal,
+        estimatedFlightHours: Double,
+        requiredMinimumRank: Int = 0
+    ) async throws {
+        isLoading = true
+        errorMessage = nil
+        
+        do {
+            var updates: [String: AnyJSON] = [
+                "location_lat": .double(location.latitude),
+                "location_lng": .double(location.longitude),
+                "location_name": .string(locationName),
+                "description": .string(description),
+                "payment_amount": .double(NSDecimalNumber(decimal: paymentAmount).doubleValue),
+                "estimated_flight_hours": .double(estimatedFlightHours),
+                "required_minimum_rank": .integer(requiredMinimumRank)
+            ]
+            
+            if let scheduledDate = scheduledDate {
+                updates["scheduled_date"] = .string(ISO8601DateFormatter().string(from: scheduledDate))
+            }
+            
+            if let endDate = endDate {
+                updates["end_date"] = .string(ISO8601DateFormatter().string(from: endDate))
+            }
+            
+            if let specialization = specialization {
+                updates["specialization"] = .string(specialization.rawValue)
+            }
+            
+            try await supabase
+                .from("bookings")
+                .update(updates)
+                .eq("id", value: bookingId.uuidString)
                 .execute()
             
             isLoading = false
@@ -141,7 +197,8 @@ class BookingService: ObservableObject {
                 createdAt: calendar.date(byAdding: .hour, value: -2, to: now) ?? now,
                 estimatedFlightHours: 3.5,
                 pilotRated: nil,
-                customerRated: nil
+                customerRated: nil,
+                requiredMinimumRank: 1
             ),
             Booking(
                 id: UUID(),
@@ -160,7 +217,8 @@ class BookingService: ObservableObject {
                 createdAt: calendar.date(byAdding: .hour, value: -5, to: now) ?? now,
                 estimatedFlightHours: 6.0,
                 pilotRated: nil,
-                customerRated: nil
+                customerRated: nil,
+                requiredMinimumRank: 0
             ),
             Booking(
                 id: UUID(),
@@ -179,7 +237,8 @@ class BookingService: ObservableObject {
                 createdAt: calendar.date(byAdding: .hour, value: -1, to: now) ?? now,
                 estimatedFlightHours: 2.0,
                 pilotRated: nil,
-                customerRated: nil
+                customerRated: nil,
+                requiredMinimumRank: 0
             ),
             Booking(
                 id: UUID(),
@@ -198,7 +257,8 @@ class BookingService: ObservableObject {
                 createdAt: calendar.date(byAdding: .hour, value: -8, to: now) ?? now,
                 estimatedFlightHours: 3.0,
                 pilotRated: nil,
-                customerRated: nil
+                customerRated: nil,
+                requiredMinimumRank: 0
             ),
             Booking(
                 id: UUID(),
@@ -217,7 +277,8 @@ class BookingService: ObservableObject {
                 createdAt: calendar.date(byAdding: .hour, value: -12, to: now) ?? now,
                 estimatedFlightHours: 4.5,
                 pilotRated: nil,
-                customerRated: nil
+                customerRated: nil,
+                requiredMinimumRank: 0
             ),
             Booking(
                 id: UUID(),
@@ -323,7 +384,8 @@ class BookingService: ObservableObject {
                 createdAt: calendar.date(byAdding: .day, value: -5, to: now) ?? now,
                 estimatedFlightHours: 3.0,
                 pilotRated: nil,
-                customerRated: nil
+                customerRated: nil,
+                requiredMinimumRank: 0
             ),
             Booking(
                 id: UUID(),
@@ -342,7 +404,8 @@ class BookingService: ObservableObject {
                 createdAt: calendar.date(byAdding: .day, value: -3, to: now) ?? now,
                 estimatedFlightHours: 5.0,
                 pilotRated: nil,
-                customerRated: nil
+                customerRated: nil,
+                requiredMinimumRank: 0
             ),
             // Completed Bookings
             Booking(
@@ -362,7 +425,8 @@ class BookingService: ObservableObject {
                 createdAt: calendar.date(byAdding: .day, value: -15, to: now) ?? now,
                 estimatedFlightHours: 4.0,
                 pilotRated: true,
-                customerRated: true
+                customerRated: true,
+                requiredMinimumRank: 0
             ),
             Booking(
                 id: UUID(),
@@ -381,7 +445,8 @@ class BookingService: ObservableObject {
                 createdAt: calendar.date(byAdding: .day, value: -25, to: now) ?? now,
                 estimatedFlightHours: 2.0,
                 pilotRated: true,
-                customerRated: true
+                customerRated: true,
+                requiredMinimumRank: 0
             ),
             Booking(
                 id: UUID(),
@@ -400,7 +465,8 @@ class BookingService: ObservableObject {
                 createdAt: calendar.date(byAdding: .day, value: -35, to: now) ?? now,
                 estimatedFlightHours: 3.0,
                 pilotRated: true,
-                customerRated: true
+                customerRated: true,
+                requiredMinimumRank: 0
             ),
             Booking(
                 id: UUID(),
@@ -428,9 +494,221 @@ class BookingService: ObservableObject {
     // TODO: Remove this function when connecting to real backend
     
     private func createSampleCustomerBookings() -> [Booking] {
-        // For customer view, return empty or minimal sample data
-        // In production, this would fetch customer's own bookings
-        return []
+        let calendar = Calendar.current
+        let now = Date()
+        
+        // Create consistent pilot IDs for demo (these will map to different sample pilot profiles)
+        // The ProfileService will hash these UUIDs to select from 10 sample pilots
+        // Using fixed UUIDs ensures consistency across app sessions
+        let pilot1Id = UUID(uuidString: "11111111-1111-1111-1111-111111111111") ?? UUID()
+        let pilot2Id = UUID(uuidString: "22222222-2222-2222-2222-222222222222") ?? UUID()
+        let pilot3Id = UUID(uuidString: "33333333-3333-3333-3333-333333333333") ?? UUID()
+        
+        return [
+            // Available Bookings (No pilot assigned yet)
+            Booking(
+                id: UUID(),
+                customerId: UUID(), // Current customer
+                pilotId: nil,
+                locationLat: 37.7749,
+                locationLng: -122.4194,
+                locationName: "Golden Gate Bridge, San Francisco",
+                scheduledDate: calendar.date(byAdding: .day, value: 3, to: now),
+                endDate: calendar.date(byAdding: .day, value: 3, to: now)?.addingTimeInterval(3600 * 4),
+                specialization: .motionPicture,
+                description: "Aerial cinematography for tourism video. Need stunning shots of the bridge and surrounding bay area.",
+                paymentAmount: Decimal(1500.00),
+                tipAmount: nil,
+                status: .available,
+                createdAt: calendar.date(byAdding: .day, value: -2, to: now) ?? now,
+                estimatedFlightHours: 4.0,
+                pilotRated: nil,
+                customerRated: nil,
+                requiredMinimumRank: 0
+            ),
+            Booking(
+                id: UUID(),
+                customerId: UUID(), // Current customer
+                pilotId: nil,
+                locationLat: 40.7128,
+                locationLng: -74.0060,
+                locationName: "Brooklyn Bridge, New York",
+                scheduledDate: calendar.date(byAdding: .day, value: 7, to: now),
+                endDate: calendar.date(byAdding: .day, value: 7, to: now)?.addingTimeInterval(3600 * 3),
+                specialization: .realEstate,
+                description: "Real estate photography for luxury condominium project. Showcase views and architecture.",
+                paymentAmount: Decimal(1100.00),
+                tipAmount: nil,
+                status: .available,
+                createdAt: calendar.date(byAdding: .day, value: -1, to: now) ?? now,
+                estimatedFlightHours: 3.0,
+                pilotRated: nil,
+                customerRated: nil,
+                requiredMinimumRank: 0
+            ),
+            Booking(
+                id: UUID(),
+                customerId: UUID(), // Current customer
+                pilotId: nil,
+                locationLat: 41.8781,
+                locationLng: -87.6298,
+                locationName: "Millennium Park, Chicago",
+                scheduledDate: calendar.date(byAdding: .day, value: 10, to: now),
+                endDate: calendar.date(byAdding: .day, value: 10, to: now)?.addingTimeInterval(3600 * 2),
+                specialization: .droneArt,
+                description: "Creative aerial art project for public installation. Abstract patterns and geometric designs.",
+                paymentAmount: Decimal(800.00),
+                tipAmount: nil,
+                status: .available,
+                createdAt: now,
+                estimatedFlightHours: 2.0,
+                pilotRated: nil,
+                customerRated: nil,
+                requiredMinimumRank: 0
+            ),
+            
+            // Accepted Bookings (Pilot assigned, can message)
+            Booking(
+                id: UUID(),
+                customerId: UUID(), // Current customer
+                pilotId: pilot1Id,
+                locationLat: 34.0522,
+                locationLng: -118.2437,
+                locationName: "Hollywood Hills, Los Angeles",
+                scheduledDate: calendar.date(byAdding: .day, value: 1, to: now),
+                endDate: calendar.date(byAdding: .day, value: 1, to: now)?.addingTimeInterval(3600 * 5),
+                specialization: .motionPicture,
+                description: "Film production B-roll footage. Need dramatic landscape shots for opening sequence.",
+                paymentAmount: Decimal(1800.00),
+                tipAmount: nil,
+                status: .accepted,
+                createdAt: calendar.date(byAdding: .day, value: -5, to: now) ?? now,
+                estimatedFlightHours: 5.0,
+                pilotRated: nil,
+                customerRated: nil,
+                requiredMinimumRank: 0
+            ),
+            Booking(
+                id: UUID(),
+                customerId: UUID(), // Current customer
+                pilotId: pilot2Id,
+                locationLat: 39.9526,
+                locationLng: -75.1652,
+                locationName: "Independence Hall, Philadelphia",
+                scheduledDate: calendar.date(byAdding: .day, value: 5, to: now),
+                endDate: calendar.date(byAdding: .day, value: 5, to: now)?.addingTimeInterval(3600 * 3),
+                specialization: .realEstate,
+                description: "Historical building documentation for preservation project. Detailed architectural shots required.",
+                paymentAmount: Decimal(950.00),
+                tipAmount: nil,
+                status: .accepted,
+                createdAt: calendar.date(byAdding: .day, value: -4, to: now) ?? now,
+                estimatedFlightHours: 3.0,
+                pilotRated: nil,
+                customerRated: nil,
+                requiredMinimumRank: 0
+            ),
+            
+            // Completed Bookings (Finished, can rate pilot)
+            Booking(
+                id: UUID(),
+                customerId: UUID(), // Current customer
+                pilotId: pilot1Id,
+                locationLat: 40.7580,
+                locationLng: -73.9855,
+                locationName: "Central Park, New York",
+                scheduledDate: calendar.date(byAdding: .day, value: -7, to: now),
+                endDate: calendar.date(byAdding: .day, value: -7, to: now)?.addingTimeInterval(3600 * 4),
+                specialization: .motionPicture,
+                description: "Event coverage for outdoor concert. Multiple aerial angles and crowd shots.",
+                paymentAmount: Decimal(1200.00),
+                tipAmount: Decimal(150.00),
+                status: .completed,
+                createdAt: calendar.date(byAdding: .day, value: -12, to: now) ?? now,
+                estimatedFlightHours: 4.0,
+                pilotRated: nil,
+                customerRated: false, // Not rated yet - can rate
+                requiredMinimumRank: 0
+            ),
+            Booking(
+                id: UUID(),
+                customerId: UUID(), // Current customer
+                pilotId: pilot2Id,
+                locationLat: 41.8781,
+                locationLng: -87.6298,
+                locationName: "Navy Pier, Chicago",
+                scheduledDate: calendar.date(byAdding: .day, value: -15, to: now),
+                endDate: calendar.date(byAdding: .day, value: -15, to: now)?.addingTimeInterval(3600 * 2),
+                specialization: .realEstate,
+                description: "Waterfront property marketing video. Showcase pier attractions and lake views.",
+                paymentAmount: Decimal(900.00),
+                tipAmount: Decimal(100.00),
+                status: .completed,
+                createdAt: calendar.date(byAdding: .day, value: -20, to: now) ?? now,
+                estimatedFlightHours: 2.0,
+                pilotRated: nil,
+                customerRated: true // Already rated
+            ),
+            Booking(
+                id: UUID(),
+                customerId: UUID(), // Current customer
+                pilotId: pilot3Id,
+                locationLat: 29.7604,
+                locationLng: -95.3698,
+                locationName: "Downtown Houston, Texas",
+                scheduledDate: calendar.date(byAdding: .day, value: -25, to: now),
+                endDate: calendar.date(byAdding: .day, value: -25, to: now)?.addingTimeInterval(3600 * 3),
+                specialization: .inspections,
+                description: "Building inspection for insurance claim. Detailed roof and facade assessment.",
+                paymentAmount: Decimal(850.00),
+                tipAmount: nil,
+                status: .completed,
+                createdAt: calendar.date(byAdding: .day, value: -30, to: now) ?? now,
+                estimatedFlightHours: 3.0,
+                pilotRated: nil,
+                customerRated: true // Already rated
+            ),
+            Booking(
+                id: UUID(),
+                customerId: UUID(), // Current customer
+                pilotId: pilot1Id,
+                locationLat: 25.7617,
+                locationLng: -80.1918,
+                locationName: "South Beach, Miami",
+                scheduledDate: calendar.date(byAdding: .day, value: -35, to: now),
+                endDate: calendar.date(byAdding: .day, value: -35, to: now)?.addingTimeInterval(3600 * 3),
+                specialization: .motionPicture,
+                description: "Beachfront commercial photography. Lifestyle shots for resort marketing.",
+                paymentAmount: Decimal(1300.00),
+                tipAmount: Decimal(200.00),
+                status: .completed,
+                createdAt: calendar.date(byAdding: .day, value: -40, to: now) ?? now,
+                estimatedFlightHours: 3.0,
+                pilotRated: nil,
+                customerRated: true // Already rated
+            ),
+            
+            // Cancelled Booking
+            Booking(
+                id: UUID(),
+                customerId: UUID(), // Current customer
+                pilotId: nil,
+                locationLat: 47.6062,
+                locationLng: -122.3321,
+                locationName: "Space Needle, Seattle",
+                scheduledDate: calendar.date(byAdding: .day, value: -10, to: now),
+                endDate: calendar.date(byAdding: .day, value: -10, to: now)?.addingTimeInterval(3600 * 2),
+                specialization: .surveillanceSecurity,
+                description: "Security surveillance for event. Weather cancellation.",
+                paymentAmount: Decimal(700.00),
+                tipAmount: nil,
+                status: .cancelled,
+                createdAt: calendar.date(byAdding: .day, value: -18, to: now) ?? now,
+                estimatedFlightHours: 2.0,
+                pilotRated: nil,
+                customerRated: nil
+            )
+        ]
     }
     
     // MARK: - Accept Booking (Pilot)
@@ -612,7 +890,8 @@ class BookingService: ObservableObject {
                 createdAt: now,
                 estimatedFlightHours: 4.0,
                 pilotRated: true,
-                customerRated: true
+                customerRated: true,
+                requiredMinimumRank: 0
             ),
             Booking(
                 id: UUID(),
@@ -631,7 +910,8 @@ class BookingService: ObservableObject {
                 createdAt: calendar.date(byAdding: .day, value: -10, to: now) ?? now,
                 estimatedFlightHours: 2.0,
                 pilotRated: true,
-                customerRated: true
+                customerRated: true,
+                requiredMinimumRank: 0
             ),
             // Previous Month
             Booking(
@@ -651,7 +931,8 @@ class BookingService: ObservableObject {
                 createdAt: calendar.date(byAdding: .day, value: -40, to: now) ?? now,
                 estimatedFlightHours: 3.0,
                 pilotRated: true,
-                customerRated: true
+                customerRated: true,
+                requiredMinimumRank: 0
             ),
             Booking(
                 id: UUID(),
@@ -670,7 +951,8 @@ class BookingService: ObservableObject {
                 createdAt: calendar.date(byAdding: .day, value: -50, to: now) ?? now,
                 estimatedFlightHours: 2.0,
                 pilotRated: true,
-                customerRated: true
+                customerRated: true,
+                requiredMinimumRank: 0
             ),
             Booking(
                 id: UUID(),
@@ -689,7 +971,8 @@ class BookingService: ObservableObject {
                 createdAt: calendar.date(byAdding: .day, value: -60, to: now) ?? now,
                 estimatedFlightHours: 4.5,
                 pilotRated: true,
-                customerRated: true
+                customerRated: true,
+                requiredMinimumRank: 0
             ),
             // Two Months Ago
             Booking(
@@ -709,7 +992,8 @@ class BookingService: ObservableObject {
                 createdAt: calendar.date(byAdding: .day, value: -75, to: now) ?? now,
                 estimatedFlightHours: 3.0,
                 pilotRated: true,
-                customerRated: true
+                customerRated: true,
+                requiredMinimumRank: 0
             ),
             Booking(
                 id: UUID(),

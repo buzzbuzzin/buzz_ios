@@ -40,7 +40,7 @@ struct MessageView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .padding()
                 } else {
-                    // Customer Info Header
+                    // Other User Info Header (Customer for pilots, Pilot for customers)
                     if let profile = customerProfile {
                     HStack(spacing: 12) {
                         Group {
@@ -75,6 +75,13 @@ struct MessageView: View {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(profile.fullName)
                                 .font(.headline)
+                            
+                            // Show call sign for pilots
+                            if let callSign = profile.callSign {
+                                Text(callSign)
+                                    .font(.caption)
+                                    .foregroundColor(.blue)
+                            }
                             
                             Text(booking.locationName)
                                 .font(.caption)

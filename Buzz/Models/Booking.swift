@@ -73,6 +73,7 @@ struct Booking: Codable, Identifiable {
     var estimatedFlightHours: Double?
     var pilotRated: Bool?
     var customerRated: Bool?
+    var requiredMinimumRank: Int? // 0-4: Ensign, Sub Lieutenant, Lieutenant, Commander, Captain
     
     enum CodingKeys: String, CodingKey {
         case id
@@ -92,6 +93,12 @@ struct Booking: Codable, Identifiable {
         case estimatedFlightHours = "estimated_flight_hours"
         case pilotRated = "pilot_rated"
         case customerRated = "customer_rated"
+        case requiredMinimumRank = "required_minimum_rank"
+    }
+    
+    var rankName: String {
+        guard let rank = requiredMinimumRank else { return "Any Rank" }
+        return PilotStats(pilotId: UUID(), totalFlightHours: 0, completedBookings: 0, tier: rank).tierName
     }
     
     var coordinate: CLLocationCoordinate2D {

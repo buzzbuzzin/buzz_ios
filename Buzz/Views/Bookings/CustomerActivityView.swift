@@ -18,35 +18,21 @@ struct CustomerActivityView: View {
                 if bookingService.isLoading {
                     LoadingView(message: "Loading booking history...")
                 } else {
-                    let completedBookings = bookingService.myBookings.filter { $0.status == .completed || $0.status == .cancelled }
-                    let activeBookings = bookingService.myBookings.filter { $0.status == .accepted }
+                    // Only show completed bookings in Activity view
+                    let completedBookings = bookingService.myBookings.filter { $0.status == .completed }
                     
-                    if bookingService.myBookings.isEmpty {
+                    if completedBookings.isEmpty {
                         EmptyStateView(
                             icon: "clock.arrow.circlepath",
-                            title: "No Activity Yet",
-                            message: "Your booking history will appear here"
+                            title: "No Completed Bookings",
+                            message: "Your completed booking history will appear here"
                         )
                     } else {
                         List {
-                            // Active Bookings
-                            if !activeBookings.isEmpty {
-                                Section("Active") {
-                                    ForEach(activeBookings) { booking in
-                                        NavigationLink(destination: CustomerBookingDetailView(booking: booking)) {
-                                            CustomerBookingCard(booking: booking)
-                                        }
-                                    }
-                                }
-                            }
-                            
-                            // Completed Bookings
-                            if !completedBookings.isEmpty {
-                                Section("History") {
-                                    ForEach(completedBookings.sorted(by: { $0.createdAt > $1.createdAt })) { booking in
-                                        NavigationLink(destination: CustomerBookingDetailView(booking: booking)) {
-                                            CustomerBookingCard(booking: booking)
-                                        }
+                            Section("Completed") {
+                                ForEach(completedBookings.sorted(by: { $0.createdAt > $1.createdAt })) { booking in
+                                    NavigationLink(destination: CustomerBookingDetailView(booking: booking)) {
+                                        CustomerBookingCard(booking: booking)
                                     }
                                 }
                             }

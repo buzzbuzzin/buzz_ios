@@ -35,9 +35,9 @@ struct PilotTabView: View {
                     Label("My Flights", systemImage: "list.bullet")
                 }
             
-            LeaderboardView()
+            CockpitView()
                 .tabItem {
-                    Label("Rankings", systemImage: "chart.bar.fill")
+                    Label("Cockpit", systemImage: "airplane.circle.fill")
                 }
             
             AcademyView()
@@ -172,8 +172,20 @@ struct MyFlightsBookingCard: View {
             
             // Booking Info
             VStack(alignment: .leading, spacing: 12) {
+                // Title
                 Text(booking.locationName)
                     .font(.headline)
+                
+                // Category badge below title
+                if let specialization = booking.specialization {
+                    Label(specialization.displayName, systemImage: specialization.icon)
+                        .font(.caption)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.blue.opacity(0.1))
+                        .foregroundColor(.blue)
+                        .cornerRadius(8)
+                }
                 
                 Text(booking.description)
                     .font(.subheadline)
