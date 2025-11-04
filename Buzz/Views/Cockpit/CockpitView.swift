@@ -63,6 +63,17 @@ struct CockpitView: View {
                             )
                         }
                         .buttonStyle(PlainButtonStyle())
+                        
+                        // Availability Card
+                        NavigationLink(destination: AvailabilityView().environmentObject(authService)) {
+                            CockpitMenuCard(
+                                title: "Availability",
+                                description: "View your schedule and bookings in calendar format",
+                                icon: "calendar",
+                                color: .purple
+                            )
+                        }
+                        .buttonStyle(PlainButtonStyle())
                     }
                     .padding(.horizontal)
                     .padding(.bottom)
@@ -149,7 +160,7 @@ struct IndustryNewsView: View {
                     if let heroArticle = newsArticles.first {
                         HeroNewsCard(article: heroArticle)
                             .padding(.horizontal, 16)
-                            .padding(.bottom, 20)
+                            .padding(.bottom, 24)
                     }
                     
                     // Secondary Stories Grid
@@ -157,14 +168,14 @@ struct IndustryNewsView: View {
                         LazyVGrid(columns: [
                             GridItem(.flexible(), spacing: 12),
                             GridItem(.flexible(), spacing: 12)
-                        ], spacing: 16) {
+                        ], spacing: 12) {
                             ForEach(Array(newsArticles.dropFirst().prefix(4))) { article in
                                 SecondaryNewsCard(article: article)
                                     .frame(maxWidth: .infinity)
                             }
                         }
                         .padding(.horizontal, 16)
-                        .padding(.bottom, 20)
+                        .padding(.bottom, 24)
                         
                         // Additional Stories (if more than 5)
                         if newsArticles.count > 5 {
@@ -174,7 +185,7 @@ struct IndustryNewsView: View {
                                 }
                             }
                             .padding(.horizontal, 16)
-                            .padding(.bottom, 20)
+                            .padding(.bottom, 24)
                         }
                     }
                 } else {
@@ -342,17 +353,20 @@ struct HeroNewsCard: View {
                             Rectangle()
                                 .fill(Color.gray.opacity(0.2))
                                 .frame(height: 280)
+                                .frame(maxWidth: .infinity)
                                 .overlay(ProgressView())
                         case .success(let image):
                             image
                                 .resizable()
                                 .scaledToFill()
                                 .frame(height: 280)
+                                .frame(maxWidth: .infinity)
                                 .clipped()
                         case .failure:
                             Rectangle()
                                 .fill(Color.gray.opacity(0.2))
                                 .frame(height: 280)
+                                .frame(maxWidth: .infinity)
                                 .overlay(
                                     Image(systemName: "photo")
                                         .foregroundColor(.gray)
@@ -361,7 +375,7 @@ struct HeroNewsCard: View {
                             EmptyView()
                         }
                     }
-                    .cornerRadius(0)
+                    .clipShape(RoundedRectangle(cornerRadius: 16))
                 }
                 
                 // Content Section
@@ -384,7 +398,6 @@ struct HeroNewsCard: View {
                         .foregroundColor(.primary)
                         .fixedSize(horizontal: false, vertical: true)
                         .multilineTextAlignment(.leading)
-                        .lineLimit(nil)
                     
                     // Category Button
                     HStack {
@@ -402,12 +415,14 @@ struct HeroNewsCard: View {
                                 .padding(4)
                         }
                     }
-                    .padding(.bottom, 4)
+                    .padding(.bottom, 16)
                 }
                 .padding(.horizontal, 16)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color(.systemBackground))
+            .cornerRadius(16)
+            .shadow(color: Color.black.opacity(0.08), radius: 8, x: 0, y: 2)
         }
         .buttonStyle(PlainButtonStyle())
         .sheet(isPresented: $showDetail) {
@@ -434,18 +449,21 @@ struct SecondaryNewsCard: View {
                         case .empty:
                             Rectangle()
                                 .fill(Color.gray.opacity(0.2))
-                                .frame(height: 160)
+                                .frame(height: 140)
+                                .frame(maxWidth: .infinity)
                                 .overlay(ProgressView())
                         case .success(let image):
                             image
                                 .resizable()
                                 .scaledToFill()
-                                .frame(height: 160)
+                                .frame(height: 140)
+                                .frame(maxWidth: .infinity)
                                 .clipped()
                         case .failure:
                             Rectangle()
                                 .fill(Color.gray.opacity(0.2))
-                                .frame(height: 160)
+                                .frame(height: 140)
+                                .frame(maxWidth: .infinity)
                                 .overlay(
                                     Image(systemName: "photo")
                                         .foregroundColor(.gray)
@@ -454,7 +472,6 @@ struct SecondaryNewsCard: View {
                             EmptyView()
                         }
                     }
-                    .cornerRadius(0)
                 }
                 
                 // Content Section
@@ -474,11 +491,13 @@ struct SecondaryNewsCard: View {
                     
                     // Title
                     Text(article.title)
-                        .font(.system(size: 16, weight: .bold))
+                        .font(.system(size: 14, weight: .bold))
                         .foregroundColor(.primary)
                         .fixedSize(horizontal: false, vertical: true)
                         .multilineTextAlignment(.leading)
                         .lineLimit(3)
+                    
+                    Spacer(minLength: 4)
                     
                     // Timestamp and Author with Menu dots
                     HStack(spacing: 4) {
@@ -488,7 +507,7 @@ struct SecondaryNewsCard: View {
                         Text("•")
                             .font(.system(size: 11))
                             .foregroundColor(.gray)
-                        Text(article.author.prefix(8) + (article.author.count > 8 ? "..." : ""))
+                        Text(article.author.prefix(10) + (article.author.count > 10 ? "..." : ""))
                             .font(.system(size: 11))
                             .foregroundColor(.gray)
                             .lineLimit(1)
@@ -503,12 +522,14 @@ struct SecondaryNewsCard: View {
                                 .padding(4)
                         }
                     }
-                    .padding(.bottom, 10)
+                    .padding(.bottom, 8)
                 }
-                .padding(.horizontal, 12)
+                .padding(.horizontal, 10)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color(.systemBackground))
+            .cornerRadius(12)
+            .shadow(color: Color.black.opacity(0.06), radius: 6, x: 0, y: 2)
         }
         .buttonStyle(PlainButtonStyle())
         .sheet(isPresented: $showDetail) {
@@ -549,18 +570,18 @@ struct CompactNewsCard: View {
                         case .empty:
                             Rectangle()
                                 .fill(Color.gray.opacity(0.2))
-                                .frame(width: 100, height: 100)
+                                .frame(width: 90, height: 90)
                                 .overlay(ProgressView())
                         case .success(let image):
                             image
                                 .resizable()
                                 .scaledToFill()
-                                .frame(width: 100, height: 100)
+                                .frame(width: 90, height: 90)
                                 .clipped()
                         case .failure:
                             Rectangle()
                                 .fill(Color.gray.opacity(0.2))
-                                .frame(width: 100, height: 100)
+                                .frame(width: 90, height: 90)
                                 .overlay(
                                     Image(systemName: "photo")
                                         .foregroundColor(.gray)
@@ -594,27 +615,32 @@ struct CompactNewsCard: View {
                         .multilineTextAlignment(.leading)
                         .lineLimit(2)
                     
+                    Spacer(minLength: 2)
+                    
                     // Timestamp
                     Text(timeAgoString(from: article.publishedDate))
                         .font(.system(size: 11))
                         .foregroundColor(.gray)
-                    
-                    Spacer()
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 
-                Spacer()
-                
                 // Menu dots
-                Button(action: {}) {
-                    Image(systemName: "ellipsis")
-                        .font(.system(size: 12))
-                        .foregroundColor(.gray)
-                        .padding(6)
+                VStack {
+                    Button(action: {}) {
+                        Image(systemName: "ellipsis")
+                            .font(.system(size: 12))
+                            .foregroundColor(.gray)
+                            .padding(4)
+                    }
+                    Spacer()
                 }
             }
-            .frame(height: 100)
+            .padding(12)
+            .frame(minHeight: 90)
         }
+        .background(Color(.systemBackground))
+        .cornerRadius(12)
+        .shadow(color: Color.black.opacity(0.06), radius: 6, x: 0, y: 2)
         .buttonStyle(PlainButtonStyle())
         .sheet(isPresented: $showDetail) {
             NewsArticleDetailView(article: article)
@@ -681,7 +707,7 @@ struct NewsArticleDetailView: View {
                         HStack(spacing: 6) {
                             if let icon = article.sourceIcon {
                                 Text(icon)
-                                    .font(.caption)
+                            .font(.caption)
                             }
                             Text(article.source.uppercased())
                                 .font(.system(size: 12, weight: .medium))
@@ -736,5 +762,350 @@ struct NewsArticleDetailView: View {
                 }
             }
         }
+    }
+}
+
+// MARK: - Availability View
+
+struct AvailabilityView: View {
+    @EnvironmentObject var authService: AuthService
+    @StateObject private var bookingService = BookingService()
+    @State private var selectedDate = Date()
+    @State private var currentMonth = Date()
+    
+    private let calendar = Calendar.current
+    private let dateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMMM yyyy"
+        return formatter
+    }()
+    
+    private let dayFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEEE"
+        return formatter
+    }()
+    
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 24) {
+                // Month Navigation
+                HStack {
+                    Button(action: {
+                        withAnimation {
+                            currentMonth = calendar.date(byAdding: .month, value: -1, to: currentMonth) ?? currentMonth
+                        }
+                    }) {
+                        Image(systemName: "chevron.left")
+                            .font(.title3)
+                            .foregroundColor(.blue)
+                    }
+                    
+                    Spacer()
+                    
+                    Text(dateFormatter.string(from: currentMonth))
+                        .font(.title2)
+                        .fontWeight(.semibold)
+                    
+                    Spacer()
+                    
+                    Button(action: {
+                        withAnimation {
+                            currentMonth = calendar.date(byAdding: .month, value: 1, to: currentMonth) ?? currentMonth
+                        }
+                    }) {
+                        Image(systemName: "chevron.right")
+                            .font(.title3)
+                            .foregroundColor(.blue)
+                    }
+                }
+                .padding(.horizontal)
+                
+                // Calendar Grid
+                VStack(spacing: 0) {
+                    // Day Headers
+                    HStack(spacing: 0) {
+                        ForEach(["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"], id: \.self) { day in
+                            Text(day)
+                                .font(.caption)
+                                .fontWeight(.semibold)
+                                .foregroundColor(.secondary)
+                                .frame(maxWidth: .infinity)
+                        }
+                    }
+                    .padding(.vertical, 8)
+                    
+                    // Calendar Days
+                    let days = generateDaysForMonth()
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 7), spacing: 8) {
+                        ForEach(Array(days.enumerated()), id: \.offset) { index, date in
+                            if let date = date {
+                                CalendarDayView(
+                                    date: date,
+                                    isSelected: calendar.isDate(date, inSameDayAs: selectedDate),
+                                    hasBooking: hasBookingOnDate(date),
+                                    isCurrentMonth: calendar.isDate(date, equalTo: currentMonth, toGranularity: .month),
+                                    isToday: calendar.isDateInToday(date),
+                                    bookingCount: bookingCountForDate(date)
+                                )
+                                .onTapGesture {
+                                    selectedDate = date
+                                }
+                            } else {
+                                Color.clear
+                                    .frame(height: 44)
+                            }
+                        }
+                    }
+                    .padding(.horizontal)
+                }
+                
+                // Selected Date Details
+                if hasBookingOnDate(selectedDate) {
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text("Bookings on \(formatDate(selectedDate))")
+                            .font(.headline)
+                            .padding(.horizontal)
+                        
+                        ForEach(bookingsForDate(selectedDate)) { booking in
+                            NavigationLink(destination: BookingDetailView(booking: booking)) {
+                                BookingCalendarCard(booking: booking)
+                            }
+                            .buttonStyle(PlainButtonStyle())
+                        }
+                    }
+                    .padding(.top)
+                } else {
+                    VStack(spacing: 8) {
+                        Image(systemName: "calendar.badge.plus")
+                            .font(.system(size: 40))
+                            .foregroundColor(.secondary)
+                        Text("No bookings on \(formatDate(selectedDate))")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(.vertical, 40)
+                }
+            }
+            .padding(.vertical)
+        }
+        .navigationTitle("Availability")
+        .navigationBarTitleDisplayMode(.inline)
+        .task {
+            await loadBookings()
+        }
+        .refreshable {
+            await loadBookings()
+        }
+    }
+    
+    private func loadBookings() async {
+        guard let currentUser = authService.currentUser,
+              let userProfile = authService.userProfile,
+              userProfile.userType == .pilot else { return }
+        
+        try? await bookingService.fetchMyBookings(userId: currentUser.id, isPilot: true)
+    }
+    
+    private func generateDaysForMonth() -> [Date?] {
+        guard let monthInterval = calendar.dateInterval(of: .month, for: currentMonth),
+              let monthFirstWeek = calendar.dateInterval(of: .weekOfYear, for: monthInterval.start),
+              let monthLastWeek = calendar.dateInterval(of: .weekOfYear, for: monthInterval.end - 1) else {
+            return []
+        }
+        
+        var days: [Date?] = []
+        var currentDate = monthFirstWeek.start
+        
+        // Add days from previous month to fill first week
+        let firstWeekday = calendar.component(.weekday, from: monthInterval.start) - 1
+        for _ in 0..<firstWeekday {
+            days.append(nil)
+        }
+        
+        // Add days of current month
+        while currentDate < monthLastWeek.end {
+            if calendar.isDate(currentDate, equalTo: currentMonth, toGranularity: .month) {
+                days.append(currentDate)
+            } else {
+                days.append(nil)
+            }
+            currentDate = calendar.date(byAdding: .day, value: 1, to: currentDate) ?? currentDate
+        }
+        
+        return days
+    }
+    
+    private func hasBookingOnDate(_ date: Date) -> Bool {
+        return bookingService.myBookings.contains { booking in
+            guard let scheduledDate = booking.scheduledDate else { return false }
+            return calendar.isDate(scheduledDate, inSameDayAs: date) &&
+                   (booking.status == .accepted || booking.status == .completed)
+        }
+    }
+    
+    private func bookingCountForDate(_ date: Date) -> Int {
+        return bookingService.myBookings.filter { booking in
+            guard let scheduledDate = booking.scheduledDate else { return false }
+            return calendar.isDate(scheduledDate, inSameDayAs: date) &&
+                   (booking.status == .accepted || booking.status == .completed)
+        }.count
+    }
+    
+    private func bookingsForDate(_ date: Date) -> [Booking] {
+        return bookingService.myBookings.filter { booking in
+            guard let scheduledDate = booking.scheduledDate else { return false }
+            return calendar.isDate(scheduledDate, inSameDayAs: date) &&
+                   (booking.status == .accepted || booking.status == .completed)
+        }
+    }
+    
+    private func formatDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        return formatter.string(from: date)
+    }
+}
+
+// MARK: - Calendar Day View
+
+struct CalendarDayView: View {
+    let date: Date
+    let isSelected: Bool
+    let hasBooking: Bool
+    let isCurrentMonth: Bool
+    let isToday: Bool
+    let bookingCount: Int
+    
+    private let calendar = Calendar.current
+    
+    var body: some View {
+        VStack(spacing: 4) {
+            Text("\(calendar.component(.day, from: date))")
+                .font(.system(size: 16, weight: isToday ? .bold : .regular))
+                .foregroundColor(dayTextColor)
+            
+            if hasBooking {
+                HStack(spacing: 2) {
+                    ForEach(0..<min(bookingCount, 3), id: \.self) { _ in
+                        Circle()
+                            .fill(bookingDotColor)
+                            .frame(width: 4, height: 4)
+                    }
+                    if bookingCount > 3 {
+                        Text("+")
+                            .font(.system(size: 8, weight: .bold))
+                            .foregroundColor(bookingDotColor)
+                    }
+                }
+            }
+        }
+        .frame(width: 44, height: 60)
+        .background(backgroundColor)
+        .cornerRadius(8)
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(isSelected ? Color.blue : Color.clear, lineWidth: 2)
+        )
+    }
+    
+    private var dayTextColor: Color {
+        if isSelected {
+            return .white
+        } else if isToday {
+            return .blue
+        } else if isCurrentMonth {
+            return .primary
+        } else {
+            return .secondary.opacity(0.5)
+        }
+    }
+    
+    private var backgroundColor: Color {
+        if isSelected {
+            return .blue
+        } else if isToday {
+            return .blue.opacity(0.1)
+        } else {
+            return Color.clear
+        }
+    }
+    
+    private var bookingDotColor: Color {
+        if isSelected {
+            return .white
+        } else {
+            return .blue
+        }
+    }
+}
+
+// MARK: - Booking Calendar Card
+
+struct BookingCalendarCard: View {
+    let booking: Booking
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            // Status Indicator
+            Circle()
+                .fill(statusColor)
+                .frame(width: 8, height: 8)
+            
+            VStack(alignment: .leading, spacing: 4) {
+                Text(booking.locationName)
+                    .font(.headline)
+                    .foregroundColor(.primary)
+                
+                if let specialization = booking.specialization {
+                    Label(specialization.displayName, systemImage: specialization.icon)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                
+                HStack(spacing: 16) {
+                    if let scheduledDate = booking.scheduledDate {
+                        Label(formatTime(scheduledDate), systemImage: "clock.fill")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    Label(
+                        String(format: "$%.2f", NSDecimalNumber(decimal: booking.paymentAmount).doubleValue),
+                        systemImage: "dollarsign.circle.fill"
+                    )
+                    .font(.caption)
+                    .foregroundColor(.green)
+                }
+            }
+            
+            Spacer()
+            
+            Image(systemName: "chevron.right")
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+        .padding()
+        .background(Color(.systemBackground))
+        .cornerRadius(12)
+        .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 2)
+        .padding(.horizontal)
+    }
+    
+    private var statusColor: Color {
+        switch booking.status {
+        case .accepted:
+            return .blue
+        case .completed:
+            return .green
+        default:
+            return .gray
+        }
+    }
+    
+    private func formatTime(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.timeStyle = .short
+        return formatter.string(from: date)
     }
 }
