@@ -234,6 +234,7 @@ struct WeatherView: View {
 
 class WeatherLocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     private let manager = CLLocationManager()
+    private let locationHelper = LocationHelper.shared
     
     @Published var authorizationStatus: CLAuthorizationStatus = .notDetermined
     @Published var currentLocation: CLLocationCoordinate2D?
@@ -243,6 +244,11 @@ class WeatherLocationManager: NSObject, ObservableObject, CLLocationManagerDeleg
         manager.delegate = self
         manager.desiredAccuracy = kCLLocationAccuracyBest
         authorizationStatus = manager.authorizationStatus
+        
+        // Set default location for simulator if running in simulator
+        if locationHelper.isRunningInSimulator {
+            currentLocation = locationHelper.defaultSimulatorLocation
+        }
     }
     
     func requestPermission() {
@@ -250,7 +256,16 @@ class WeatherLocationManager: NSObject, ObservableObject, CLLocationManagerDeleg
     }
     
     func startLocationUpdates() {
+        // In simulator, use default location if no GPS available
+        if locationHelper.isRunningInSimulator && currentLocation == nil {
+            currentLocation = locationHelper.defaultSimulatorLocation
+        }
+        
         guard authorizationStatus == .authorizedWhenInUse || authorizationStatus == .authorizedAlways else {
+            // In simulator, still provide default location even without permission
+            if locationHelper.isRunningInSimulator && currentLocation == nil {
+                currentLocation = locationHelper.defaultSimulatorLocation
+            }
             return
         }
         manager.startUpdatingLocation()
@@ -264,6 +279,12 @@ class WeatherLocationManager: NSObject, ObservableObject, CLLocationManagerDeleg
     
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         authorizationStatus = manager.authorizationStatus
+        
+        // In simulator, set default location if permission not granted
+        if locationHelper.isRunningInSimulator && 
+           (authorizationStatus == .denied || authorizationStatus == .notDetermined) {
+            currentLocation = locationHelper.defaultSimulatorLocation
+        }
     }
     
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
@@ -273,6 +294,11 @@ class WeatherLocationManager: NSObject, ObservableObject, CLLocationManagerDeleg
     
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
         print("Location manager error: \(error.localizedDescription)")
+        
+        // In simulator, fallback to default location on error
+        if locationHelper.isRunningInSimulator && currentLocation == nil {
+            currentLocation = locationHelper.defaultSimulatorLocation
+        }
     }
 }
 

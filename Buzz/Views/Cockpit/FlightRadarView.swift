@@ -67,15 +67,7 @@ struct FlightRadarView: View {
             
             // Info Overlay
             VStack {
-                // Safety Notification Card (only show if pilot location is available)
-                if locationManager.currentLocation != nil {
-                    SafetyNotificationCard(status: safetyStatus, nearbyDroneCount: nearbyDrones.count)
-                        .padding(.horizontal)
-                        .padding(.top, 8)
-                        .transition(.move(edge: .top).combined(with: .opacity))
-                }
-                
-                // Header
+                // Header (Flight Radar title, buttons, and active drone count)
                 HStack {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Flight Radar")
@@ -121,6 +113,13 @@ struct FlightRadarView: View {
                 }
                 .padding()
                 .background(Color(.systemBackground).opacity(0.95))
+                
+                // Safety Notification Card (only show if pilot location is available)
+                if locationManager.currentLocation != nil {
+                    SafetyNotificationCard(status: safetyStatus, nearbyDroneCount: nearbyDrones.count)
+                        .padding(.horizontal)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                }
                 
                 Spacer()
                 
@@ -475,33 +474,29 @@ struct SafetyNotificationCard: View {
         HStack(spacing: 12) {
             Image(systemName: status.icon)
                 .font(.title3)
-                .foregroundColor(status.color)
+                .foregroundColor(.white)
             
             VStack(alignment: .leading, spacing: 4) {
                 Text(status.title)
                     .font(.headline)
-                    .foregroundColor(.primary)
+                    .foregroundColor(.white)
                 
                 Text(status.message)
                     .font(.subheadline)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(.white.opacity(0.9))
                 
                 if status == .caution && nearbyDroneCount > 0 {
                     Text("\(nearbyDroneCount) drone\(nearbyDroneCount == 1 ? "" : "s") within 1 km")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(.white.opacity(0.8))
                 }
             }
             
             Spacer()
         }
         .padding()
-        .background(status.color.opacity(0.1))
+        .background(status.color)
         .cornerRadius(12)
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(status.color.opacity(0.3), lineWidth: 1)
-        )
     }
 }
 
@@ -509,6 +504,7 @@ struct SafetyNotificationCard: View {
 
 class FlightRadarLocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     private let manager = CLLocationManager()
+    private let locationHelper = LocationHelper.shared
     
     @Published var authorizationStatus: CLAuthorizationStatus = .notDetermined
     @Published var currentLocation: CLLocationCoordinate2D?
@@ -518,6 +514,11 @@ class FlightRadarLocationManager: NSObject, ObservableObject, CLLocationManagerD
         manager.delegate = self
         manager.desiredAccuracy = kCLLocationAccuracyBest
         authorizationStatus = manager.authorizationStatus
+        
+        // Set default location for simulator if running in simulator
+        if locationHelper.isRunningInSimulator {
+            currentLocation = locationHelper.defaultSimulatorLocation
+        }
     }
     
     func requestPermission() {
@@ -525,7 +526,16 @@ class FlightRadarLocationManager: NSObject, ObservableObject, CLLocationManagerD
     }
     
     func startLocationUpdates() {
+        // In simulator, use default location if no GPS available
+        if locationHelper.isRunningInSimulator && currentLocation == nil {
+            currentLocation = locationHelper.defaultSimulatorLocation
+        }
+        
         guard authorizationStatus == .authorizedWhenInUse || authorizationStatus == .authorizedAlways else {
+            // In simulator, still provide default location even without permission
+            if locationHelper.isRunningInSimulator && currentLocation == nil {
+                currentLocation = locationHelper.defaultSimulatorLocation
+            }
             return
         }
         manager.startUpdatingLocation()
@@ -539,6 +549,12 @@ class FlightRadarLocationManager: NSObject, ObservableObject, CLLocationManagerD
     
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         authorizationStatus = manager.authorizationStatus
+        
+        // In simulator, set default location if permission not granted
+        if locationHelper.isRunningInSimulator && 
+           (authorizationStatus == .denied || authorizationStatus == .notDetermined) {
+            currentLocation = locationHelper.defaultSimulatorLocation
+        }
     }
     
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
@@ -548,6 +564,11 @@ class FlightRadarLocationManager: NSObject, ObservableObject, CLLocationManagerD
     
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
         print("Location manager error: \(error.localizedDescription)")
+        
+        // In simulator, fallback to default location on error
+        if locationHelper.isRunningInSimulator && currentLocation == nil {
+            currentLocation = locationHelper.defaultSimulatorLocation
+        }
     }
 }
 
