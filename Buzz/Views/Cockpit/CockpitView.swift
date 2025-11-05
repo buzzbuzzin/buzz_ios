@@ -37,88 +37,109 @@ struct CockpitView: View {
                         GridItem(.flexible(), spacing: 8)
                     ]
                     
-                    LazyVGrid(columns: columns, spacing: 12) {
-                        // Leaderboard Card
-                        NavigationLink(destination: LeaderboardView()) {
-                            CockpitGridCard(
-                                title: "Leaderboard",
-                                icon: "chart.bar.fill",
-                                color: .blue
-                            )
+                    VStack(alignment: .leading, spacing: 24) {
+                        // Flight Section
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Flight")
+                                .font(.title2)
+                                .fontWeight(.semibold)
+                                .padding(.horizontal, 16)
+                            
+                            LazyVGrid(columns: columns, spacing: 12) {
+                                // Weather Card
+                                NavigationLink(destination: WeatherView().environmentObject(authService)) {
+                                    CockpitGridCard(
+                                        title: "Weather",
+                                        icon: "cloud.sun.fill",
+                                        color: .cyan
+                                    )
+                                }
+                                .buttonStyle(PlainButtonStyle())
+                                
+                                // Transponder Card
+                                NavigationLink(destination: TransponderView().environmentObject(authService)) {
+                                    CockpitGridCard(
+                                        title: "Transponder",
+                                        icon: "antenna.radiowaves.left.and.right",
+                                        color: .teal
+                                    )
+                                }
+                                .buttonStyle(PlainButtonStyle())
+                                
+                                // Flight Radar Card
+                                NavigationLink(destination: FlightRadarView()) {
+                                    CockpitGridCard(
+                                        title: "Flight Radar",
+                                        icon: "airplane.departure",
+                                        color: .red
+                                    )
+                                }
+                                .buttonStyle(PlainButtonStyle())
+                            }
+                            .padding(.horizontal, 16)
                         }
-                        .buttonStyle(PlainButtonStyle())
                         
-                        // Revenue Card
-                        NavigationLink(destination: RevenueDetailsView().environmentObject(authService)) {
-                            CockpitGridCard(
-                                title: "Revenue",
-                                icon: "dollarsign.circle.fill",
-                                color: .green
-                            )
+                        // General Section
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("General")
+                                .font(.title2)
+                                .fontWeight(.semibold)
+                                .padding(.horizontal, 16)
+                            
+                            LazyVGrid(columns: columns, spacing: 12) {
+                                // Leaderboard Card
+                                NavigationLink(destination: LeaderboardView()) {
+                                    CockpitGridCard(
+                                        title: "Leaderboard",
+                                        icon: "chart.bar.fill",
+                                        color: .blue
+                                    )
+                                }
+                                .buttonStyle(PlainButtonStyle())
+                                
+                                // Revenue Card
+                                NavigationLink(destination: RevenueDetailsView().environmentObject(authService)) {
+                                    CockpitGridCard(
+                                        title: "Revenue",
+                                        icon: "dollarsign.circle.fill",
+                                        color: .green
+                                    )
+                                }
+                                .buttonStyle(PlainButtonStyle())
+                                
+                                // Industry News Card
+                                NavigationLink(destination: IndustryNewsView()) {
+                                    CockpitGridCard(
+                                        title: "News",
+                                        icon: "newspaper.fill",
+                                        color: .orange
+                                    )
+                                }
+                                .buttonStyle(PlainButtonStyle())
+                                
+                                // Availability Card
+                                NavigationLink(destination: AvailabilityView().environmentObject(authService)) {
+                                    CockpitGridCard(
+                                        title: "Availability",
+                                        icon: "calendar",
+                                        color: .purple
+                                    )
+                                }
+                                .buttonStyle(PlainButtonStyle())
+                                
+                                // Progress Card
+                                NavigationLink(destination: PilotProgressView().environmentObject(authService)) {
+                                    CockpitGridCard(
+                                        title: "Progress",
+                                        icon: "chart.line.uptrend.xyaxis",
+                                        color: .indigo
+                                    )
+                                }
+                                .buttonStyle(PlainButtonStyle())
+                            }
+                            .padding(.horizontal, 16)
                         }
-                        .buttonStyle(PlainButtonStyle())
-                        
-                        // Industry News Card
-                        NavigationLink(destination: IndustryNewsView()) {
-                            CockpitGridCard(
-                                title: "News",
-                                icon: "newspaper.fill",
-                                color: .orange
-                            )
-                        }
-                        .buttonStyle(PlainButtonStyle())
-                        
-                        // Availability Card
-                        NavigationLink(destination: AvailabilityView().environmentObject(authService)) {
-                            CockpitGridCard(
-                                title: "Availability",
-                                icon: "calendar",
-                                color: .purple
-                            )
-                        }
-                        .buttonStyle(PlainButtonStyle())
-                        
-                        // Progress Card
-                        NavigationLink(destination: PilotProgressView().environmentObject(authService)) {
-                            CockpitGridCard(
-                                title: "Progress",
-                                icon: "chart.line.uptrend.xyaxis",
-                                color: .indigo
-                            )
-                        }
-                        .buttonStyle(PlainButtonStyle())
-                        
-                        // Transponder Card
-                        NavigationLink(destination: TransponderView().environmentObject(authService)) {
-                            CockpitGridCard(
-                                title: "Transponder",
-                                icon: "antenna.radiowaves.left.and.right",
-                                color: .teal
-                            )
-                        }
-                        .buttonStyle(PlainButtonStyle())
-                        
-                        // Weather Card
-                        NavigationLink(destination: WeatherView().environmentObject(authService)) {
-                            CockpitGridCard(
-                                title: "Weather",
-                                icon: "cloud.sun.fill",
-                                color: .cyan
-                            )
-                        }
-                        .buttonStyle(PlainButtonStyle())
-                        
-                        // Flight Radar Card
-                        NavigationLink(destination: FlightRadarView()) {
-                            CockpitGridCard(
-                                title: "Flight Radar",
-                                icon: "airplane.departure",
-                                color: .red
-                            )
-                        }
-                        .buttonStyle(PlainButtonStyle())
                     }
-                    .padding(.horizontal, 16)
                     .padding(.bottom)
                 }
             }

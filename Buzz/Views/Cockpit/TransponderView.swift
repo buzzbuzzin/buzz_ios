@@ -18,7 +18,7 @@ struct TransponderView: View {
     @State private var showingAddDevice = false
     @State private var deviceName = ""
     @State private var remoteId = ""
-    @State private var isLocationTrackingEnabled = false
+    @State private var isLocationTrackingEnabled = true // Always enabled
     @State private var locationUpdateTimer: Timer?
     
     var body: some View {
@@ -79,18 +79,7 @@ struct TransponderView: View {
                             TransponderCard(
                                 transponder: transponder,
                                 locationManager: locationManager,
-                                onToggleLocationTracking: { isEnabled in
-                                    Task {
-                                        try? await transponderService.updateLocationTrackingStatus(
-                                            transponderId: transponder.id,
-                                            isEnabled: isEnabled
-                                        )
-                                        // Refresh to get updated location status
-                                        if let pilotId = authService.currentUser?.id {
-                                            try? await transponderService.fetchTransponders(pilotId: pilotId)
-                                        }
-                                    }
-                                },
+                                onToggleLocationTracking: { _ in },
                                 onEdit: { editedTransponder in
                                     Task {
                                         try? await transponderService.updateTransponder(
@@ -139,7 +128,7 @@ struct TransponderView: View {
                             // Reset form
                             deviceName = ""
                             remoteId = ""
-                            isLocationTrackingEnabled = false
+                            isLocationTrackingEnabled = true
                             showingAddDevice = false
                         }
                     }
@@ -216,8 +205,6 @@ struct TransponderCard: View {
     
     @State private var showingDeleteAlert = false
     @State private var showingEditSheet = false
-    @State private var isTrackingEnabled: Bool
-    @State private var pendingEnable: Bool = false
     
     init(transponder: Transponder, locationManager: LocationManager, onToggleLocationTracking: @escaping (Bool) -> Void, onEdit: @escaping (Transponder) -> Void, onDelete: @escaping () -> Void) {
         self.transponder = transponder
@@ -225,7 +212,6 @@ struct TransponderCard: View {
         self.onToggleLocationTracking = onToggleLocationTracking
         self.onEdit = onEdit
         self.onDelete = onDelete
-        _isTrackingEnabled = State(initialValue: transponder.isLocationTrackingEnabled)
     }
     
     var body: some View {
@@ -265,14 +251,13 @@ struct TransponderCard: View {
             
             Divider()
             
-            // Location Tracking Toggle
-            HStack {
+            // Location Status
+            if transponder.isLocationTrackingEnabled {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Location Tracking")
                         .font(.subheadline)
                         .fontWeight(.medium)
                     
-                    if transponder.isLocationTrackingEnabled {
                         if let updateTime = transponder.lastLocationUpdate {
                             Text("Last updated: \(formatTime(updateTime))")
                                 .font(.caption)
@@ -281,55 +266,6 @@ struct TransponderCard: View {
                             Text("Waiting for location...")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
-                        }
-                    } else {
-                        Text("Tracking disabled")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                }
-                
-                Spacer()
-                
-                Toggle("", isOn: Binding(
-                    get: { isTrackingEnabled },
-                    set: { newValue in
-                        if newValue {
-                            // Requesting to enable - check permission first
-                            if locationManager.authorizationStatus == .authorizedWhenInUse || locationManager.authorizationStatus == .authorizedAlways {
-                                // Permission already granted, enable tracking
-                                isTrackingEnabled = newValue
-                                pendingEnable = false
-                                onToggleLocationTracking(newValue)
-                            } else {
-                                // Request permission - mark as pending enable
-                                pendingEnable = true
-                                locationManager.requestPermission()
-                                // Don't update toggle yet - wait for permission
-                            }
-                        } else {
-                            // Disabling - always allow
-                            isTrackingEnabled = newValue
-                            pendingEnable = false
-                            onToggleLocationTracking(newValue)
-                        }
-                    }
-                ))
-                .disabled(locationManager.authorizationStatus != .authorizedWhenInUse && locationManager.authorizationStatus != .authorizedAlways && !isTrackingEnabled)
-                .onAppear {
-                    isTrackingEnabled = transponder.isLocationTrackingEnabled
-                    pendingEnable = false
-                }
-                .onChange(of: transponder.isLocationTrackingEnabled) { _, newValue in
-                    isTrackingEnabled = newValue
-                }
-                .onChange(of: locationManager.authorizationStatus.rawValue) { _, _ in
-                    // If permission was just granted and user wanted to enable tracking, enable it now
-                    if pendingEnable && (locationManager.authorizationStatus == .authorizedWhenInUse || locationManager.authorizationStatus == .authorizedAlways) {
-                        // User just granted permission, enable tracking
-                        isTrackingEnabled = true
-                        pendingEnable = false
-                        onToggleLocationTracking(true)
                     }
                 }
             }
@@ -389,64 +325,41 @@ struct EditTransponderSheet: View {
     let onSave: (Transponder) -> Void
     
     @Environment(\.dismiss) var dismiss
-    @State private var deviceName: String
+    @State private var make: String
+    @State private var model: String
     @State private var remoteId: String
-    @State private var isLocationTrackingEnabled: Bool
-    @State private var pendingEnable: Bool = false
     
     init(transponder: Transponder, locationManager: LocationManager, onSave: @escaping (Transponder) -> Void) {
         self.transponder = transponder
         self.locationManager = locationManager
         self.onSave = onSave
-        _deviceName = State(initialValue: transponder.deviceName)
+        
+        // Parse deviceName into make and model
+        // Assume format is "Make Model" or just use deviceName as model if no space
+        let components = transponder.deviceName.split(separator: " ", maxSplits: 1)
+        if components.count >= 2 {
+            _make = State(initialValue: String(components[0]))
+            _model = State(initialValue: String(components[1]))
+        } else {
+            _make = State(initialValue: "")
+            _model = State(initialValue: transponder.deviceName)
+        }
         _remoteId = State(initialValue: transponder.remoteId)
-        _isLocationTrackingEnabled = State(initialValue: transponder.isLocationTrackingEnabled)
     }
     
     var body: some View {
         NavigationView {
             Form {
                 Section(header: Text("Drone Information")) {
-                    TextField("Drone Name", text: $deviceName)
+                    TextField("Make", text: $make)
+                        .textInputAutocapitalization(.words)
+                    
+                    TextField("Model", text: $model)
                         .textInputAutocapitalization(.words)
                     
                     TextField("Remote ID", text: $remoteId)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
-                }
-                
-                Section(header: Text("Location Tracking")) {
-                    Toggle("Enable Location Tracking", isOn: Binding(
-                        get: { isLocationTrackingEnabled },
-                        set: { newValue in
-                            if newValue {
-                                if locationManager.authorizationStatus == .authorizedWhenInUse || locationManager.authorizationStatus == .authorizedAlways {
-                                    isLocationTrackingEnabled = newValue
-                                    pendingEnable = false
-                                } else {
-                                    // Request permission - mark as pending enable
-                                    pendingEnable = true
-                                    locationManager.requestPermission()
-                                }
-                            } else {
-                                isLocationTrackingEnabled = newValue
-                                pendingEnable = false
-                            }
-                        }
-                    ))
-                    .onChange(of: locationManager.authorizationStatus.rawValue) { _, _ in
-                        // If permission was just granted and user wanted to enable tracking, enable it now
-                        if pendingEnable && (locationManager.authorizationStatus == .authorizedWhenInUse || locationManager.authorizationStatus == .authorizedAlways) {
-                            isLocationTrackingEnabled = true
-                            pendingEnable = false
-                        }
-                    }
-                    
-                    if locationManager.authorizationStatus == .denied || locationManager.authorizationStatus == .restricted {
-                        Text("Location permission is required for tracking. Please enable it in Settings.")
-                            .font(.caption)
-                            .foregroundColor(.red)
-                    }
                 }
             }
             .navigationTitle("Edit Drone")
@@ -459,12 +372,13 @@ struct EditTransponderSheet: View {
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Save") {
+                        let deviceName = make.isEmpty ? model : "\(make) \(model)".trimmingCharacters(in: .whitespaces)
                         let edited = Transponder(
                             id: transponder.id,
                             pilotId: transponder.pilotId,
                             deviceName: deviceName,
                             remoteId: remoteId,
-                            isLocationTrackingEnabled: isLocationTrackingEnabled,
+                            isLocationTrackingEnabled: transponder.isLocationTrackingEnabled,
                             lastLocationLat: transponder.lastLocationLat,
                             lastLocationLng: transponder.lastLocationLng,
                             lastLocationUpdate: transponder.lastLocationUpdate,
@@ -474,7 +388,7 @@ struct EditTransponderSheet: View {
                         )
                         onSave(edited)
                     }
-                    .disabled(deviceName.isEmpty || remoteId.isEmpty)
+                    .disabled(model.isEmpty || remoteId.isEmpty)
                 }
             }
         }
@@ -491,52 +405,22 @@ struct AddTransponderSheet: View {
     let onSave: () -> Void
     
     @Environment(\.dismiss) var dismiss
-    @State private var pendingEnable: Bool = false
+    @State private var make: String = ""
+    @State private var model: String = ""
     
     var body: some View {
         NavigationView {
             Form {
                 Section(header: Text("Drone Information")) {
-                    TextField("Drone Name", text: $deviceName)
+                    TextField("Make", text: $make)
+                        .textInputAutocapitalization(.words)
+                    
+                    TextField("Model", text: $model)
                         .textInputAutocapitalization(.words)
                     
                     TextField("Remote ID", text: $remoteId)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
-                }
-                
-                Section(header: Text("Location Tracking")) {
-                    Toggle("Enable Location Tracking", isOn: Binding(
-                        get: { isLocationTrackingEnabled },
-                        set: { newValue in
-                            if newValue {
-                                if locationManager.authorizationStatus == .authorizedWhenInUse || locationManager.authorizationStatus == .authorizedAlways {
-                                    isLocationTrackingEnabled = newValue
-                                    pendingEnable = false
-                                } else {
-                                    // Request permission - mark as pending enable
-                                    pendingEnable = true
-                                    locationManager.requestPermission()
-                                }
-                            } else {
-                                isLocationTrackingEnabled = newValue
-                                pendingEnable = false
-                            }
-                        }
-                    ))
-                    .onChange(of: locationManager.authorizationStatus.rawValue) { _, _ in
-                        // If permission was just granted and user wanted to enable tracking, enable it now
-                        if pendingEnable && (locationManager.authorizationStatus == .authorizedWhenInUse || locationManager.authorizationStatus == .authorizedAlways) {
-                            isLocationTrackingEnabled = true
-                            pendingEnable = false
-                        }
-                    }
-                    
-                    if locationManager.authorizationStatus == .denied || locationManager.authorizationStatus == .restricted {
-                        Text("Location permission is required for tracking. Please enable it in Settings.")
-                            .font(.caption)
-                            .foregroundColor(.red)
-                    }
                 }
             }
             .navigationTitle("Add Drone")
@@ -549,9 +433,13 @@ struct AddTransponderSheet: View {
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Save") {
+                        // Combine make and model into deviceName
+                        deviceName = make.isEmpty ? model : "\(make) \(model)".trimmingCharacters(in: .whitespaces)
+                        // Always enable location tracking
+                        isLocationTrackingEnabled = true
                         onSave()
                     }
-                    .disabled(deviceName.isEmpty || remoteId.isEmpty)
+                    .disabled(model.isEmpty || remoteId.isEmpty)
                 }
             }
         }
