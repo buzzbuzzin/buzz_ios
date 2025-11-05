@@ -145,8 +145,7 @@ Buzz is a modern marketplace platform designed for the drone industry. It provid
 
 2. **Database Setup**
    - Create a new project at Supabase
-   - Run `database_schema.sql` in SQL Editor
-   - Run `database_academy.sql` for Academy features (optional)
+   - Run `database_complete.sql` in SQL Editor (consolidated schema with all features)
 
 3. **Configure Authentication**
    - Enable Email, Phone, Google, and Apple providers in Supabase
@@ -454,8 +453,7 @@ For more details on git-flow commands, see the [official documentation](https://
 - ARCHITECTURE.md - Technical architecture
 - DEPENDENCIES.md - Package dependencies
 - PROJECT_SUMMARY.md - Feature overview
-- database_schema.sql - Database schema
-- database_academy.sql - Academy tables
+- database_complete.sql - Complete database schema (consolidated, includes all tables and migrations)
 
 ## License
 
