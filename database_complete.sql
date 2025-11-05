@@ -33,6 +33,51 @@ CREATE TABLE IF NOT EXISTS profiles (
 -- Enable Row Level Security
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 
+-- Add missing columns if table already exists (for migrations)
+DO $$ 
+BEGIN
+    -- Add first_name if it doesn't exist
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'profiles' AND column_name = 'first_name'
+    ) THEN
+        ALTER TABLE profiles ADD COLUMN first_name TEXT;
+    END IF;
+    
+    -- Add last_name if it doesn't exist
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'profiles' AND column_name = 'last_name'
+    ) THEN
+        ALTER TABLE profiles ADD COLUMN last_name TEXT;
+    END IF;
+    
+    -- Add profile_picture_url if it doesn't exist
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'profiles' AND column_name = 'profile_picture_url'
+    ) THEN
+        ALTER TABLE profiles ADD COLUMN profile_picture_url TEXT;
+    END IF;
+    
+    -- Add communication_preference if it doesn't exist
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'profiles' AND column_name = 'communication_preference'
+    ) THEN
+        ALTER TABLE profiles ADD COLUMN communication_preference TEXT DEFAULT 'email';
+    END IF;
+    
+    -- Add check constraint for communication_preference if it doesn't exist
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint 
+        WHERE conname = 'profiles_communication_preference_check'
+    ) THEN
+        ALTER TABLE profiles ADD CONSTRAINT profiles_communication_preference_check 
+        CHECK (communication_preference IN ('email', 'text', 'both'));
+    END IF;
+END $$;
+
 -- Drop existing policies if they exist (for idempotency)
 DROP POLICY IF EXISTS "Public profiles are viewable by everyone" ON profiles;
 DROP POLICY IF EXISTS "Users can insert their own profile" ON profiles;
@@ -107,6 +152,62 @@ CREATE TABLE IF NOT EXISTS bookings (
     customer_rated BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc', NOW()) NOT NULL
 );
+
+-- Add missing columns if table already exists (for migrations)
+DO $$ 
+BEGIN
+    -- Add scheduled_date if it doesn't exist
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'bookings' AND column_name = 'scheduled_date'
+    ) THEN
+        ALTER TABLE bookings ADD COLUMN scheduled_date TIMESTAMP WITH TIME ZONE;
+    END IF;
+    
+    -- Add specialization if it doesn't exist
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'bookings' AND column_name = 'specialization'
+    ) THEN
+        ALTER TABLE bookings ADD COLUMN specialization TEXT;
+    END IF;
+    
+    -- Add check constraint for specialization if it doesn't exist
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint 
+        WHERE conname = 'bookings_specialization_check'
+    ) THEN
+        ALTER TABLE bookings ADD CONSTRAINT bookings_specialization_check 
+        CHECK (specialization IS NULL OR specialization IN (
+            'automotive', 'motion_picture', 'real_estate', 'agriculture', 
+            'inspections', 'search_rescue', 'logistics', 'drone_art', 'surveillance_security'
+        ));
+    END IF;
+    
+    -- Add tip_amount if it doesn't exist
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'bookings' AND column_name = 'tip_amount'
+    ) THEN
+        ALTER TABLE bookings ADD COLUMN tip_amount DECIMAL(10, 2) DEFAULT 0;
+    END IF;
+    
+    -- Add pilot_rated if it doesn't exist
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'bookings' AND column_name = 'pilot_rated'
+    ) THEN
+        ALTER TABLE bookings ADD COLUMN pilot_rated BOOLEAN DEFAULT FALSE;
+    END IF;
+    
+    -- Add customer_rated if it doesn't exist
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'bookings' AND column_name = 'customer_rated'
+    ) THEN
+        ALTER TABLE bookings ADD COLUMN customer_rated BOOLEAN DEFAULT FALSE;
+    END IF;
+END $$;
 
 -- Enable Row Level Security
 ALTER TABLE bookings ENABLE ROW LEVEL SECURITY;
@@ -348,6 +449,26 @@ CREATE TABLE IF NOT EXISTS transponders (
     altitude DOUBLE PRECISION, -- Altitude in meters
     created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc', NOW()) NOT NULL
 );
+
+-- Add missing columns if table already exists (for migrations)
+DO $$ 
+BEGIN
+    -- Add speed if it doesn't exist
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'transponders' AND column_name = 'speed'
+    ) THEN
+        ALTER TABLE transponders ADD COLUMN speed DOUBLE PRECISION;
+    END IF;
+    
+    -- Add altitude if it doesn't exist
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'transponders' AND column_name = 'altitude'
+    ) THEN
+        ALTER TABLE transponders ADD COLUMN altitude DOUBLE PRECISION;
+    END IF;
+END $$;
 
 -- Enable Row Level Security
 ALTER TABLE transponders ENABLE ROW LEVEL SECURITY;
