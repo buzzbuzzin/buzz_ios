@@ -44,6 +44,38 @@ Buzz is a modern marketplace platform designed for the drone industry. It provid
 - In-app messaging with customers
 - Conversation management
 
+**Cockpit Dashboard**
+- Centralized dashboard for pilot operations
+- Weather monitoring for current location and upcoming bookings
+- Real-time weather data with wind speed, direction, and flying conditions
+- Transponder management for drone registration and tracking
+- Flight Radar with real-time drone location tracking on map
+- Safety notifications for nearby active drones
+- Availability calendar view for scheduling
+- Progress tracking with rank progression requirements
+- Revenue analytics with monthly breakdowns and charts
+- Industry news feed
+
+**Drone Management**
+- Register and manage multiple drones with Remote ID
+- Real-time location tracking for registered drones
+- Transponder system for compliance and safety
+- Flight radar visualization showing active drones
+- Nearby drone detection (within 1 km radius)
+
+**Analytics & Insights**
+- Revenue tracking with base pay and tips breakdown
+- Monthly revenue charts and statistics
+- Booking completion metrics
+- Progress tracking toward next rank tier
+- Penalty tracking (no-shows, late arrivals)
+
+**Badges & Certifications**
+- Course completion badges
+- Badge expiration tracking
+- Recurrent training reminders
+- Multi-provider badge support (Buzz, Amazon, T-Mobile, etc.)
+
 ### For Customers
 
 **Service Booking**
@@ -72,6 +104,7 @@ Buzz is a modern marketplace platform designed for the drone industry. It provid
 - Combine - Reactive programming
 - MapKit - Map display and location services
 - CoreLocation - Location services
+- Charts - Data visualization (revenue charts)
 
 **Backend**
 - Supabase - Backend-as-a-Service
@@ -154,7 +187,11 @@ Buzz/
 │   ├── PilotLicense.swift
 │   ├── PilotStats.swift
 │   ├── Rating.swift
-│   └── Message.swift
+│   ├── Message.swift
+│   ├── Weather.swift
+│   ├── Transponder.swift
+│   ├── Badge.swift
+│   └── TrainingCourse.swift
 │
 ├── Services/                       # Business logic
 │   ├── SupabaseClient.swift       # Database connection
@@ -166,7 +203,11 @@ Buzz/
 │   ├── AcademyService.swift       # Training courses
 │   ├── RatingService.swift        # Ratings
 │   ├── MessageService.swift       # Messaging
-│   └── ProfilePictureService.swift # Profile images
+│   ├── ProfilePictureService.swift # Profile images
+│   ├── WeatherService.swift       # Weather data
+│   ├── TransponderService.swift   # Drone transponder management
+│   ├── BadgeService.swift         # Badge management
+│   └── LocationHelper.swift       # Location utilities
 │
 ├── Views/                          # UI Components
 │   ├── Auth/                      # Authentication
@@ -176,6 +217,11 @@ Buzz/
 │   ├── License/                   # License management
 │   ├── Rankings/                  # Ranking & leaderboard
 │   ├── Academy/                   # Training courses
+│   ├── Cockpit/                   # Cockpit dashboard
+│   │   ├── CockpitView.swift      # Main dashboard
+│   │   ├── WeatherView.swift      # Weather information
+│   │   ├── TransponderView.swift  # Drone management
+│   │   └── FlightRadarView.swift  # Real-time drone tracking
 │   ├── Navigation/                # App navigation
 │   └── Components/                # Reusable UI
 │
@@ -193,6 +239,8 @@ Buzz/
 - messages - In-app messaging
 - training_courses - Course catalog for Academy
 - course_enrollments - Pilot course enrollments
+- transponders - Drone transponder information and location tracking
+- badges - Course completion badges and certifications
 
 **Storage Buckets**
 - pilot-licenses: License document storage
@@ -231,6 +279,163 @@ Tier progression is automatic when pilots complete bookings. The leaderboard ran
 3. Push Notifications: Not yet implemented.
 4. Payment Processing: External for now.
 5. Offline Support: Requires network connection.
+6. Weather Data: Uses demo/fallback data if API is unavailable (fallback to Ithaca, NY).
+7. Flight Radar: Shows all active transponders but requires location permissions for nearby detection.
+
+## Git Flow Branch Conventions
+
+This project follows the **Git Flow** branching model for organized development and release management. We use [git-flow-next](https://git-flow.sh/) - a modern implementation of the git-flow branching model that provides Git extensions for high-level repository operations.
+
+**Prerequisites:** Install git-flow-next before using these commands:
+```bash
+# macOS (using Homebrew)
+brew install git-flow-avh
+
+# Or install git-flow-next (modern Go implementation)
+# See https://git-flow.sh/ for installation instructions
+# git-flow-next is compatible with git-flow-avh and automatically detects existing configurations
+```
+
+### Branch Types
+
+**Main Branches**
+
+- **`main`** - Production branch
+  - Contains stable, production-ready code
+  - Protected branch (requires pull request and approval for changes)
+  - Only merged from `develop` or `release/*` branches
+  - Each merge should be tagged with a version number
+
+- **`develop`** - Development branch
+  - Integration branch for completed features
+  - Always contains the latest delivered development changes
+  - Used as the base branch for feature branches
+  - Merged into `main` when preparing a release
+
+**Supporting Branches**
+
+- **`feature/*`** - Feature development branches
+  - Created from: `develop`
+  - Merged back into: `develop`
+  - Naming convention: `feature/feature-name` (e.g., `feature/cockpit`, `feature/weather-integration`)
+  - Used for developing new features
+  - Deleted after merging
+
+- **`release/*`** - Release preparation branches
+  - Created from: `develop`
+  - Merged into: `main` and `develop`
+  - Naming convention: `release/version-number` (e.g., `release/1.1.0`)
+  - Used for preparing a new production release
+  - Bug fixes for the release can be done directly on this branch
+  - Deleted after merging
+
+- **`hotfix/*`** - Hotfix branches
+  - Created from: `main`
+  - Merged into: `main` and `develop`
+  - Naming convention: `hotfix/issue-description` (e.g., `hotfix/auth-bug`)
+  - Used for critical bug fixes in production
+  - Allows immediate fixes without waiting for the next release cycle
+  - Deleted after merging
+
+### Initial Setup
+
+**Initialize git-flow in your repository:**
+```bash
+# Initialize with Classic GitFlow preset (recommended)
+git flow init --preset=classic --defaults
+
+# Or initialize interactively to customize branch names
+git flow init
+```
+
+This sets up the branch structure and configuration needed for git-flow operations. You'll be prompted to configure branch names (or use defaults).
+
+### Workflow Examples
+
+1. **Starting a new feature:**
+   ```bash
+   # Start a new feature branch (automatically created from develop)
+   git flow feature start new-feature-name
+   
+   # Or fetch latest changes before starting
+   git flow feature start new-feature-name --fetch
+   ```
+
+2. **Working on a feature:**
+   ```bash
+   # Update feature branch with latest changes from develop
+   git flow feature update new-feature-name
+   
+   # Or use shorthand if you're on the feature branch
+   git flow update
+   ```
+
+3. **Completing a feature:**
+   ```bash
+   # Finish the feature (merges to develop and deletes the branch)
+   git flow feature finish new-feature-name
+   
+   # Or use shorthand if you're on the feature branch
+   git flow finish
+   
+   # Keep the branch after finishing (useful for reference)
+   git flow feature finish new-feature-name --keep
+   ```
+
+4. **Starting a release:**
+   ```bash
+   # Start a release branch (automatically created from develop)
+   git flow release start 1.2.0
+   
+   # Make release-related changes, update version numbers, etc.
+   # Then finish the release
+   git flow release finish 1.2.0
+   ```
+
+5. **Hotfix process:**
+   ```bash
+   # Start a hotfix branch (automatically created from main)
+   git flow hotfix start critical-bug
+   
+   # Fix the bug, commit changes
+   # Then finish the hotfix (merges to both main and develop)
+   git flow hotfix finish critical-bug
+   ```
+
+6. **Other useful commands:**
+   ```bash
+   # List all feature branches
+   git flow feature list
+   
+   # List all release branches
+   git flow release list
+   
+   # Checkout an existing feature branch
+   git flow feature checkout feature-name
+   
+   # Delete a feature branch
+   git flow feature delete old-feature-name
+   
+   # Rename a feature branch
+   git flow feature rename old-name new-name
+   
+   # View repository workflow overview
+   git flow overview
+   ```
+
+For more details on git-flow commands, see the [official documentation](https://git-flow.sh/docs/commands/).
+
+### Branch Protection Rules
+
+- `main` branch requires:
+  - Pull request reviews (at least 1 approval)
+  - Status checks to pass
+  - No force pushes
+  - No deletions
+
+- `develop` branch requires:
+  - Pull request reviews (at least 1 approval)
+  - Status checks to pass
 
 ## Future Enhancements
 
@@ -238,7 +443,6 @@ Tier progression is automatic when pilots complete bookings. The leaderboard ran
 - Real-time chat enhancements
 - In-app payment processing (Stripe)
 - Advanced search and filtering
-- Weather API integration
 - Flight path recording
 - Multi-language support
 - iPad optimization
