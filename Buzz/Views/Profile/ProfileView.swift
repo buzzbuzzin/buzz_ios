@@ -144,8 +144,6 @@ struct ProfileView: View {
                                         .foregroundColor(.secondary)
                                 }
                                 
-                                Divider()
-                                
                                 // Flight Hours
                                 VStack(alignment: .trailing, spacing: 2) {
                                     Text(String(format: "%.0f", stats.totalFlightHours))
@@ -155,8 +153,6 @@ struct ProfileView: View {
                                         .font(.caption)
                                         .foregroundColor(.secondary)
                                 }
-                                
-                                Divider()
                                 
                                 // Years on Buzz
                                 VStack(alignment: .trailing, spacing: 2) {
@@ -282,9 +278,7 @@ struct ProfileView: View {
                                     .fontWeight(.medium)
                                     .foregroundColor(.primary)
                             }
-                            
-                            Divider()
-                            
+                                                        
                             HStack {
                                 Image(systemName: "checkmark.circle")
                                     .foregroundColor(.secondary)
@@ -367,8 +361,16 @@ struct ProfileView: View {
                         }
                     }
                     
-                    Divider()
-                    
+                    NavigationLink(destination: HelpView()) {
+                        HStack {
+                            Image(systemName: "questionmark.circle")
+                                .foregroundColor(.secondary)
+                                .font(.body)
+                            Text("Help")
+                                .foregroundColor(.primary)
+                        }
+                    }
+                                        
                     Button(role: .destructive) {
                         showSignOutAlert = true
                     } label: {
