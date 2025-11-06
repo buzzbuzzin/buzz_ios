@@ -157,6 +157,7 @@ class RatingService: ObservableObject {
                 callSign: nil,
                 email: "sarah.johnson@example.com",
                 phone: "+1234567890",
+                gender: nil,
                 profilePictureUrl: nil,
                 communicationPreference: .email,
                 createdAt: now
@@ -169,6 +170,7 @@ class RatingService: ObservableObject {
                 callSign: nil,
                 email: "michael.chen@example.com",
                 phone: "+1234567891",
+                gender: nil,
                 profilePictureUrl: nil,
                 communicationPreference: .both,
                 createdAt: now
@@ -181,6 +183,7 @@ class RatingService: ObservableObject {
                 callSign: nil,
                 email: "emily.davis@example.com",
                 phone: "+1234567892",
+                gender: nil,
                 profilePictureUrl: nil,
                 communicationPreference: .email,
                 createdAt: now
@@ -193,6 +196,7 @@ class RatingService: ObservableObject {
                 callSign: nil,
                 email: "robert.taylor@example.com",
                 phone: "+1234567893",
+                gender: nil,
                 profilePictureUrl: nil,
                 communicationPreference: .text,
                 createdAt: now
@@ -205,6 +209,7 @@ class RatingService: ObservableObject {
                 callSign: nil,
                 email: "lisa.anderson@example.com",
                 phone: "+1234567894",
+                gender: nil,
                 profilePictureUrl: nil,
                 communicationPreference: .email,
                 createdAt: now
@@ -217,6 +222,7 @@ class RatingService: ObservableObject {
                 callSign: nil,
                 email: "david.wilson@example.com",
                 phone: "+1234567895",
+                gender: nil,
                 profilePictureUrl: nil,
                 communicationPreference: .both,
                 createdAt: now

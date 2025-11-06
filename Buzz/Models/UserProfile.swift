@@ -26,6 +26,22 @@ enum CommunicationPreference: String, Codable {
     }
 }
 
+enum Gender: String, Codable, CaseIterable {
+    case male = "male"
+    case female = "female"
+    case other = "other"
+    case preferNotToSay = "prefer_not_to_say"
+    
+    var displayName: String {
+        switch self {
+        case .male: return "Male"
+        case .female: return "Female"
+        case .other: return "Other"
+        case .preferNotToSay: return "Prefer not to say"
+        }
+    }
+}
+
 struct UserProfile: Codable, Identifiable {
     let id: UUID
     let userType: UserType
@@ -34,6 +50,7 @@ struct UserProfile: Codable, Identifiable {
     let callSign: String?
     let email: String?
     let phone: String?
+    let gender: Gender?
     let profilePictureUrl: String?
     let communicationPreference: CommunicationPreference?
     let createdAt: Date
@@ -46,6 +63,7 @@ struct UserProfile: Codable, Identifiable {
         case callSign = "call_sign"
         case email
         case phone
+        case gender
         case profilePictureUrl = "profile_picture_url"
         case communicationPreference = "communication_preference"
         case createdAt = "created_at"

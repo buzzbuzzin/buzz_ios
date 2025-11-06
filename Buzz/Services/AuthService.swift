@@ -278,6 +278,73 @@ class AuthService: ObservableObject {
         isAuthenticated = false
     }
     
+    // MARK: - Change Password
+    
+    func verifyCurrentPassword(password: String) async throws -> Bool {
+        guard let email = currentUser?.email else {
+            throw NSError(domain: "AuthError", code: -1, userInfo: [NSLocalizedDescriptionKey: "No email found"])
+        }
+        
+        do {
+            _ = try await supabase.auth.signIn(
+                email: email,
+                password: password
+            )
+            return true
+        } catch {
+            return false
+        }
+    }
+    
+    func changePassword(newPassword: String) async throws {
+        isLoading = true
+        errorMessage = nil
+        
+        do {
+            try await supabase.auth.update(user: UserAttributes(password: newPassword))
+            isLoading = false
+        } catch {
+            isLoading = false
+            errorMessage = error.localizedDescription
+            throw error
+        }
+    }
+    
+    // MARK: - Delete Account
+    
+    func deleteAccount() async throws {
+        guard let userId = currentUser?.id else {
+            throw NSError(domain: "AuthError", code: -1, userInfo: [NSLocalizedDescriptionKey: "No user logged in"])
+        }
+        
+        isLoading = true
+        errorMessage = nil
+        
+        do {
+            // Delete profile from database
+            try await supabase
+                .from("profiles")
+                .delete()
+                .eq("id", value: userId.uuidString)
+                .execute()
+            
+            // Delete user from auth (this will cascade delete related data if RLS policies are set up)
+            // Note: Supabase doesn't have a direct API to delete auth users from client
+            // You may need to implement this via a server function or admin API
+            // For now, we'll sign out the user
+            try await supabase.auth.signOut()
+            
+            currentUser = nil
+            userProfile = nil
+            isAuthenticated = false
+            isLoading = false
+        } catch {
+            isLoading = false
+            errorMessage = error.localizedDescription
+            throw error
+        }
+    }
+    
     // MARK: - Helper Methods
     
     private func checkProfileExists(userId: UUID) async -> Bool {

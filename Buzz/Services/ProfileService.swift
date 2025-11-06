@@ -25,7 +25,7 @@ class ProfileService: ObservableObject {
         return profile
     }
     
-    func updateProfile(userId: UUID, firstName: String?, lastName: String?, callSign: String?, email: String?, phone: String?) async throws {
+    func updateProfile(userId: UUID, firstName: String?, lastName: String?, callSign: String?, email: String?, phone: String?, gender: Gender?) async throws {
         var updates: [String: AnyJSON] = [:]
         
         if let firstName = firstName {
@@ -42,6 +42,9 @@ class ProfileService: ObservableObject {
         }
         if let phone = phone {
             updates["phone"] = .string(phone)
+        }
+        if let gender = gender {
+            updates["gender"] = .string(gender.rawValue)
         }
         
         try await supabase
@@ -111,6 +114,7 @@ class ProfileService: ObservableObject {
                 callSign: nil,
                 email: nil,
                 phone: nil,
+                gender: nil,
                 profilePictureUrl: customerInfo.pictureUrl,
                 communicationPreference: nil,
                 createdAt: Date()
@@ -153,6 +157,7 @@ class ProfileService: ObservableObject {
                 callSign: pilotInfo.callSign,
                 email: nil,
                 phone: nil,
+                gender: nil,
                 profilePictureUrl: pilotInfo.pictureUrl,
                 communicationPreference: nil,
                 createdAt: Date()

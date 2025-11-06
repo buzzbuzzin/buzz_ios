@@ -25,6 +25,13 @@ struct ProfileView: View {
     @State private var completedBookingsCount = 0
     @State private var isLoadingRatings = false
     
+    var yearsOnBuzz: Int {
+        guard let createdAt = authService.userProfile?.createdAt else { return 0 }
+        let calendar = Calendar.current
+        let years = calendar.dateComponents([.year], from: createdAt, to: Date()).year ?? 0
+        return max(years, 0)
+    }
+    
     var body: some View {
         NavigationView {
             List {
@@ -80,61 +87,110 @@ struct ProfileView: View {
                         .buttonStyle(PlainButtonStyle())
                         
                         VStack(alignment: .leading, spacing: 4) {
-                            HStack {
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text(authService.userProfile?.fullName ?? "User")
+                            Text(authService.userProfile?.fullName ?? "User")
+                                .font(.title2)
+                                .fontWeight(.bold)
+                            
+                            if let callSign = authService.userProfile?.callSign {
+                                Text("@\(callSign)")
+                                    .font(.subheadline)
+                                    .foregroundColor(.blue)
+                            }
+                            
+                            // Ratings below call sign
+                            if isLoadingRatings && ratingSummary == nil {
+                                ProgressView()
+                                    .scaleEffect(0.8)
+                            } else if let summary = ratingSummary {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "star.fill")
+                                        .foregroundColor(.yellow)
+                                        .font(.subheadline)
+                                    Text(String(format: "%.1f", summary.averageRating))
+                                        .font(.subheadline)
+                                        .fontWeight(.semibold)
+                                    Text("(\(summary.totalRatings))")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                            } else {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "star.fill")
+                                        .foregroundColor(.gray)
+                                        .font(.subheadline)
+                                    Text("—")
+                                        .font(.subheadline)
+                                        .fontWeight(.semibold)
+                                        .foregroundColor(.secondary)
+                                    Text("No ratings")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+                        }
+                        
+                        Spacer()
+                        
+                        // Statistics on the right
+                        if authService.userProfile?.userType == .pilot, let stats = rankingService.pilotStats {
+                            VStack(alignment: .trailing, spacing: 16) {
+                                // Flights
+                                VStack(alignment: .trailing, spacing: 2) {
+                                    Text("\(completedBookingsCount)")
                                         .font(.title2)
                                         .fontWeight(.bold)
-                                    
-                                    if let callSign = authService.userProfile?.callSign {
-                                        Text("@\(callSign)")
-                                            .font(.subheadline)
-                                            .foregroundColor(.blue)
-                                    }
-                                    
-                                    Text(authService.userProfile?.userType == .pilot ? "Pilot" : "Customer")
-                                        .font(.subheadline)
+                                    Text("Flights")
+                                        .font(.caption)
                                         .foregroundColor(.secondary)
-                                    
-                                    if let email = authService.userProfile?.email {
-                                        Text(email)
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
-                                    }
                                 }
                                 
-                                Spacer()
+                                Divider()
                                 
-                                // Ratings display on the right
-                                VStack(alignment: .trailing, spacing: 4) {
-                                    if isLoadingRatings && ratingSummary == nil {
-                                        ProgressView()
-                                    } else if let summary = ratingSummary {
-                                        HStack(spacing: 4) {
-                                            Image(systemName: "star.fill")
-                                                .foregroundColor(.yellow)
-                                                .font(.subheadline)
-                                            Text(String(format: "%.1f", summary.averageRating))
-                                                .font(.title3)
-                                                .fontWeight(.bold)
-                                        }
-                                        Text("(\(summary.totalRatings))")
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
-                                    } else {
-                                        HStack(spacing: 4) {
-                                            Image(systemName: "star.fill")
-                                                .foregroundColor(.gray)
-                                                .font(.subheadline)
-                                            Text("—")
-                                                .font(.title3)
-                                                .fontWeight(.bold)
-                                                .foregroundColor(.secondary)
-                                        }
-                                        Text("No ratings")
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
-                                    }
+                                // Flight Hours
+                                VStack(alignment: .trailing, spacing: 2) {
+                                    Text(String(format: "%.0f", stats.totalFlightHours))
+                                        .font(.title2)
+                                        .fontWeight(.bold)
+                                    Text("Flight hours")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                                
+                                Divider()
+                                
+                                // Years on Buzz
+                                VStack(alignment: .trailing, spacing: 2) {
+                                    Text("\(yearsOnBuzz)")
+                                        .font(.title2)
+                                        .fontWeight(.bold)
+                                    Text("Years on Buzz")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+                        } else {
+                            // For customers, show Flights and Years on Buzz
+                            VStack(alignment: .trailing, spacing: 16) {
+                                // Flights
+                                VStack(alignment: .trailing, spacing: 2) {
+                                    Text("\(completedBookingsCount)")
+                                        .font(.title2)
+                                        .fontWeight(.bold)
+                                    Text("Flights")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                                
+                                Divider()
+                                
+                                // Years on Buzz
+                                VStack(alignment: .trailing, spacing: 2) {
+                                    Text("\(yearsOnBuzz)")
+                                        .font(.title2)
+                                        .fontWeight(.bold)
+                                    Text("Years on Buzz")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
                                 }
                             }
                         }
@@ -216,37 +272,29 @@ struct ProfileView: View {
                             }
                             
                             HStack {
-                                Image(systemName: "clock.fill")
-                                    .foregroundColor(.blue)
-                                    .frame(width: 24)
+                                Image(systemName: "clock")
+                                    .foregroundColor(.secondary)
+                                    .font(.body)
                                 Text("Flight Hours")
+                                    .foregroundColor(.primary)
                                 Spacer()
                                 Text(String(format: "%.1f hrs", stats.totalFlightHours))
-                                    .fontWeight(.semibold)
+                                    .fontWeight(.medium)
+                                    .foregroundColor(.primary)
                             }
+                            
+                            Divider()
                             
                             HStack {
-                                Image(systemName: "checkmark.circle.fill")
-                                    .foregroundColor(.green)
-                                    .frame(width: 24)
+                                Image(systemName: "checkmark.circle")
+                                    .foregroundColor(.secondary)
+                                    .font(.body)
                                 Text("Completed Bookings")
+                                    .foregroundColor(.primary)
                                 Spacer()
                                 Text("\(completedBookingsCount)")
-                                    .fontWeight(.semibold)
-                            }
-                            
-                            NavigationLink(destination: RevenueDetailsView()) {
-                                HStack {
-                                    Image(systemName: "dollarsign.circle.fill")
-                                    Text("Revenue")
-                                }
-                            }
-                            
-                            NavigationLink(destination: LeaderboardView()) {
-                                HStack {
-                                    Image(systemName: "chart.bar.fill")
-                                    Text("View Leaderboard")
-                                }
+                                    .fontWeight(.medium)
+                                    .foregroundColor(.primary)
                             }
                         } else if rankingService.isLoading {
                             HStack {
@@ -258,16 +306,18 @@ struct ProfileView: View {
                     } else {
                         // Customer stats
                         HStack {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundColor(.green)
-                                .frame(width: 24)
+                            Image(systemName: "checkmark.circle")
+                                .foregroundColor(.secondary)
+                                .font(.body)
                             Text("Completed Bookings")
+                                .foregroundColor(.primary)
                             Spacer()
                             if isLoadingRatings {
                                 ProgressView()
                             } else {
                                 Text("\(completedBookingsCount)")
-                                    .fontWeight(.semibold)
+                                    .fontWeight(.medium)
+                                    .foregroundColor(.primary)
                             }
                         }
                     }
@@ -276,8 +326,11 @@ struct ProfileView: View {
                     if let summary = ratingSummary, summary.totalRatings > 0, let currentUser = authService.currentUser {
                         NavigationLink(destination: RatingsListView(userId: currentUser.id)) {
                             HStack {
-                                Image(systemName: "star.fill")
+                                Image(systemName: "star")
+                                    .foregroundColor(.secondary)
+                                    .font(.body)
                                 Text("View All Reviews")
+                                    .foregroundColor(.primary)
                             }
                         }
                     }
@@ -285,33 +338,52 @@ struct ProfileView: View {
                 
                 // License Management (if pilot)
                 if authService.userProfile?.userType == .pilot {
-                    Section("License") {
+                    Section {
                         NavigationLink(destination: LicenseManagementView()) {
                             HStack {
                                 Image(systemName: "doc.badge.plus")
+                                    .foregroundColor(.secondary)
+                                    .font(.body)
                                 Text("Manage Licenses")
+                                    .foregroundColor(.primary)
                             }
                         }
+                    } header: {
+                        Text("License")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
                     }
                 }
                 
                 // Account
-                Section("Account") {
+                Section {
                     NavigationLink(destination: SettingsView()) {
                         HStack {
-                            Image(systemName: "gearshape.fill")
+                            Image(systemName: "gearshape")
+                                .foregroundColor(.secondary)
+                                .font(.body)
                             Text("Settings")
+                                .foregroundColor(.primary)
                         }
                     }
+                    
+                    Divider()
                     
                     Button(role: .destructive) {
                         showSignOutAlert = true
                     } label: {
                         HStack {
                             Image(systemName: "rectangle.portrait.and.arrow.right")
+                                .foregroundColor(.red)
+                                .font(.body)
                             Text("Sign Out")
+                                .foregroundColor(.red)
                         }
                     }
+                } header: {
+                    Text("Account")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
                 }
             }
             .navigationTitle("Profile")
@@ -503,7 +575,8 @@ struct EditProfileView: View {
                     lastName: lastName,
                     callSign: authService.userProfile?.userType == .pilot ? callSign : nil,
                     email: email,
-                    phone: phone
+                    phone: phone,
+                    gender: nil
                 )
                 await authService.checkAuthStatus()
                 isLoading = false

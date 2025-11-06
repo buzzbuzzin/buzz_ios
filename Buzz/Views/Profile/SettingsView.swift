@@ -13,11 +13,6 @@ struct SettingsView: View {
     @StateObject private var profileService = ProfileService()
     @Environment(\.dismiss) var dismiss
     
-    @State private var firstName = ""
-    @State private var lastName = ""
-    @State private var callSign = ""
-    @State private var email = ""
-    @State private var phone = ""
     @State private var communicationPreference: CommunicationPreference = .email
     @State private var appearanceMode: AppearanceMode = .system
     
@@ -50,64 +45,50 @@ struct SettingsView: View {
     
     var body: some View {
         Form {
-            // Profile Information Section
-            Section("Profile Information") {
-                TextField("First Name", text: $firstName)
-                    .textContentType(.givenName)
-                
-                TextField("Last Name", text: $lastName)
-                    .textContentType(.familyName)
-                
-                if authService.userProfile?.userType == .pilot {
-                    TextField("Call Sign", text: $callSign)
-                        .autocapitalization(.allCharacters)
+            // Personal Info
+            NavigationLink(destination: PersonalInfoView()) {
+                HStack {
+                    Text("Personal info")
                 }
-                
-                TextField("Email", text: $email)
-                    .textContentType(.emailAddress)
-                    .autocapitalization(.none)
-                    .keyboardType(.emailAddress)
-                
-                TextField("Phone", text: $phone)
-                    .textContentType(.telephoneNumber)
-                    .keyboardType(.phonePad)
             }
             
-            // Communication Preferences Section
-            Section {
-                Picker("Communication Preference", selection: $communicationPreference) {
-                    ForEach([CommunicationPreference.email, .text, .both], id: \.self) { preference in
-                        Text(preference.displayName).tag(preference)
-                    }
+            // Login & Security
+            NavigationLink(destination: LoginSecurityView()) {
+                HStack {
+                    Text("Login & Security")
                 }
-            } header: {
-                Text("Communication Preferences")
-            } footer: {
-                Text("Choose how you'd like to receive notifications and updates")
             }
             
-            // Appearance Section
-            Section {
-                Picker("Appearance", selection: $appearanceMode) {
-                    ForEach(AppearanceMode.allCases, id: \.self) { mode in
-                        HStack {
-                            Text(mode.displayName)
-                            if mode == .system {
-                                Spacer()
-                                Text("Uses device settings")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                        }.tag(mode)
-                    }
+            // Notifications
+            NavigationLink(destination: NotificationsView()) {
+                HStack {
+                    Text("Notifications")
                 }
-            } header: {
-                Text("Appearance")
-            } footer: {
-                Text("Choose your preferred color scheme")
             }
             
-            // Save Button Section
+            // Communication Preferences
+            Picker("Communication Preference", selection: $communicationPreference) {
+                ForEach([CommunicationPreference.email, .text, .both], id: \.self) { preference in
+                    Text(preference.displayName).tag(preference)
+                }
+            }
+            
+            // Appearance
+            Picker("Appearance", selection: $appearanceMode) {
+                ForEach(AppearanceMode.allCases, id: \.self) { mode in
+                    HStack {
+                        Text(mode.displayName)
+                        if mode == .system {
+                            Spacer()
+                            Text("Uses device settings")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }.tag(mode)
+                }
+            }
+            
+            // Save Button
             Section {
                 CustomButton(
                     title: "Save Changes",
@@ -137,13 +118,6 @@ struct SettingsView: View {
     }
     
     private func loadCurrentSettings() {
-        // Load profile information
-        firstName = authService.userProfile?.firstName ?? ""
-        lastName = authService.userProfile?.lastName ?? ""
-        callSign = authService.userProfile?.callSign ?? ""
-        email = authService.userProfile?.email ?? ""
-        phone = authService.userProfile?.phone ?? ""
-        
         // Load communication preference
         communicationPreference = authService.userProfile?.communicationPreference ?? .email
         
@@ -163,16 +137,6 @@ struct SettingsView: View {
         Task {
             let userId = currentUser.id
             do {
-                // Update profile information
-                try await profileService.updateProfile(
-                    userId: userId,
-                    firstName: firstName,
-                    lastName: lastName,
-                    callSign: authService.userProfile?.userType == .pilot ? callSign : nil,
-                    email: email,
-                    phone: phone
-                )
-                
                 // Update communication preference
                 try await profileService.updateCommunicationPreference(
                     userId: userId,
