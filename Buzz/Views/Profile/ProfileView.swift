@@ -333,12 +333,32 @@ struct ProfileView: View {
                 // License Management (if pilot)
                 if authService.userProfile?.userType == .pilot {
                     Section {
+                        NavigationLink(destination: GovernmentIDView()) {
+                            HStack {
+                                Image(systemName: "person.badge.key.fill")
+                                    .foregroundColor(.secondary)
+                                    .font(.body)
+                                Text("Government ID")
+                                    .foregroundColor(.primary)
+                            }
+                        }
+                        
                         NavigationLink(destination: LicenseManagementView()) {
                             HStack {
                                 Image(systemName: "doc.badge.plus")
                                     .foregroundColor(.secondary)
                                     .font(.body)
-                                Text("Manage Licenses")
+                                Text("Pilot Licenses")
+                                    .foregroundColor(.primary)
+                            }
+                        }
+                        
+                        NavigationLink(destination: DroneRegistrationView()) {
+                            HStack {
+                                Image(systemName: "airplane")
+                                    .foregroundColor(.secondary)
+                                    .font(.body)
+                                Text("Drone Registration")
                                     .foregroundColor(.primary)
                             }
                         }
@@ -361,12 +381,24 @@ struct ProfileView: View {
                         }
                     }
                     
+                    if authService.userProfile?.userType == .pilot {
+                        NavigationLink(destination: TaxDocumentView()) {
+                            HStack {
+                                Image(systemName: "doc.text.fill")
+                                    .foregroundColor(.secondary)
+                                    .font(.body)
+                                Text("Tax Document")
+                                    .foregroundColor(.primary)
+                            }
+                        }
+                    }
+                    
                     NavigationLink(destination: HelpView()) {
                         HStack {
                             Image(systemName: "questionmark.circle")
                                 .foregroundColor(.secondary)
                                 .font(.body)
-                            Text("Help")
+                            Text("Get help")
                                 .foregroundColor(.primary)
                         }
                     }
