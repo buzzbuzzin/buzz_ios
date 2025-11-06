@@ -8,18 +8,13 @@
 import SwiftUI
 import LocalAuthentication
 import Auth
-import PhotosUI
+import UIKit
 
 struct GovernmentIDView: View {
     @EnvironmentObject var authService: AuthService
     @StateObject private var identityService = IdentityVerificationService()
     @Environment(\.dismiss) var dismiss
     
-    @State private var showImagePicker = false
-    @State private var showDocumentPicker = false
-    @State private var showImageSourceSheet = false
-    @State private var imageSourceType: UIImagePickerController.SourceType = .photoLibrary
-    @State private var selectedImage: UIImage?
     @State private var showError = false
     @State private var errorMessage = ""
     @State private var showDeleteAlert = false
@@ -63,7 +58,7 @@ struct GovernmentIDView: View {
                         .padding(.top, 8)
                     
                     // Description
-                    Text("Upload your driver's license to verify your identity. This helps ensure the safety and security of our platform.")
+                    Text("Verify your identity using Stripe Identity. This secure service helps ensure the safety and security of our platform.")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                     
@@ -118,15 +113,96 @@ struct GovernmentIDView: View {
                         .padding()
                         .background(Color(.systemGray6))
                         .cornerRadius(10)
+                        
+                        // Status message based on verification status
+                        VStack(alignment: .leading, spacing: 12) {
+                            if governmentID.verificationStatus == .verified {
+                                HStack(alignment: .top, spacing: 12) {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .foregroundColor(.green)
+                                        .font(.title3)
+                                    
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text("Identity Verified")
+                                            .font(.headline)
+                                            .foregroundColor(.green)
+                                        
+                                        Text("Your identity has been successfully verified. You can now accept bookings and start working as a pilot.")
+                                            .font(.subheadline)
+                                            .foregroundColor(.secondary)
+                                    }
+                                }
+                                .padding()
+                                .background(Color.green.opacity(0.1))
+                                .cornerRadius(10)
+                            } else if governmentID.verificationStatus == .rejected {
+                                HStack(alignment: .top, spacing: 12) {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .foregroundColor(.red)
+                                        .font(.title3)
+                                    
+                                    VStack(alignment: .leading, spacing: 8) {
+                                        Text("Verification Failed")
+                                            .font(.headline)
+                                            .foregroundColor(.red)
+                                        
+                                        Text("Your identity verification was not successful. Please try again to verify your ID.")
+                                            .font(.subheadline)
+                                            .foregroundColor(.secondary)
+                                        
+                                        Button(action: {
+                                            startStripeVerification()
+                                        }) {
+                                            HStack {
+                                                Image(systemName: "arrow.clockwise")
+                                                Text("Retry Verification")
+                                            }
+                                            .font(.subheadline)
+                                            .fontWeight(.semibold)
+                                            .foregroundColor(.white)
+                                            .padding(.horizontal, 16)
+                                            .padding(.vertical, 8)
+                                            .background(Color.blue)
+                                            .cornerRadius(8)
+                                        }
+                                        .padding(.top, 4)
+                                    }
+                                }
+                                .padding()
+                                .background(Color.red.opacity(0.1))
+                                .cornerRadius(10)
+                            } else {
+                                // Pending status
+                                HStack(alignment: .top, spacing: 12) {
+                                    Image(systemName: "clock.fill")
+                                        .foregroundColor(.orange)
+                                        .font(.title3)
+                                    
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text("Verification Pending")
+                                            .font(.headline)
+                                            .foregroundColor(.orange)
+                                        
+                                        Text("Your identity verification is being processed. You cannot accept bookings until your identity is verified.")
+                                            .font(.subheadline)
+                                            .foregroundColor(.secondary)
+                                    }
+                                }
+                                .padding()
+                                .background(Color.orange.opacity(0.1))
+                                .cornerRadius(10)
+                            }
+                        }
+                        .padding(.top, 8)
                     } else {
-                        // Upload options
+                        // Stripe Identity verification button
                         VStack(spacing: 16) {
                             Button(action: {
-                                showImageSourceSheet = true
+                                startStripeVerification()
                             }) {
                                 HStack {
-                                    Image(systemName: "camera.fill")
-                                    Text("Take Photo")
+                                    Image(systemName: "person.badge.shield.checkmark.fill")
+                                    Text("Verify Identity with Stripe")
                                 }
                                 .frame(maxWidth: .infinity)
                                 .padding()
@@ -135,19 +211,10 @@ struct GovernmentIDView: View {
                                 .cornerRadius(10)
                             }
                             
-                            Button(action: {
-                                showDocumentPicker = true
-                            }) {
-                                HStack {
-                                    Image(systemName: "doc.fill")
-                                    Text("Choose File")
-                                }
-                                .frame(maxWidth: .infinity)
-                                .padding()
-                                .background(Color(.systemGray5))
-                                .foregroundColor(.primary)
-                                .cornerRadius(10)
-                            }
+                            Text("Stripe Identity securely verifies your government-issued ID. Your information is encrypted and protected.")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .multilineTextAlignment(.center)
                         }
                     }
                     
@@ -159,30 +226,6 @@ struct GovernmentIDView: View {
         }
         .navigationTitle("Government ID")
         .navigationBarTitleDisplayMode(.inline)
-        .confirmationDialog("Choose Photo Source", isPresented: $showImageSourceSheet, titleVisibility: .visible) {
-            Button("Take Photo") {
-                imageSourceType = .camera
-                showImagePicker = true
-            }
-            Button("Choose from Library") {
-                imageSourceType = .photoLibrary
-                showImagePicker = true
-            }
-            Button("Cancel", role: .cancel) {}
-        }
-        .sheet(isPresented: $showImagePicker) {
-            ImagePicker(image: $selectedImage, sourceType: imageSourceType)
-        }
-        .sheet(isPresented: $showDocumentPicker) {
-            DocumentPicker { url in
-                uploadDocument(url: url)
-            }
-        }
-        .onChange(of: selectedImage) { _, newImage in
-            if let image = newImage {
-                uploadImage(image)
-            }
-        }
         .alert("Error", isPresented: $showError) {
             Button("OK", role: .cancel) {}
         } message: {
@@ -249,55 +292,68 @@ struct GovernmentIDView: View {
         try? await identityService.fetchGovernmentID(userId: currentUser.id)
     }
     
-    private func uploadImage(_ image: UIImage) {
+    private func startStripeVerification() {
         guard isAuthenticated,
-              let currentUser = authService.currentUser,
-              let imageData = identityService.compressImage(image) else {
-            errorMessage = "Failed to process image"
+              let currentUser = authService.currentUser else {
+            errorMessage = "Please authenticate first"
             showError = true
             return
         }
         
-        let userId = currentUser.id
-        
         Task {
             do {
-                let fileName = "\(UUID().uuidString).jpg"
-                _ = try await identityService.uploadGovernmentID(
-                    userId: userId,
-                    data: imageData,
-                    fileName: fileName,
-                    fileType: .image
+                // Get user email for verification
+                let email = currentUser.email ?? authService.userProfile?.email
+                
+                // Create verification session
+                let clientSecret = try await identityService.createVerificationSession(
+                    userId: currentUser.id,
+                    email: email
                 )
+                
+                // Get the root view controller to present the verification sheet
+                guard let windowScene = await UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                      let rootViewController = await windowScene.windows.first?.rootViewController else {
+                    errorMessage = "Unable to present verification"
+                    showError = true
+                    return
+                }
+                
+                // Find the topmost view controller
+                var topController = rootViewController
+                while let presented = topController.presentedViewController {
+                    topController = presented
+                }
+                
+                // Present Stripe Identity verification flow
+                let result = try await identityService.presentVerificationFlow(
+                    clientSecret: clientSecret,
+                    from: topController
+                )
+                
+                // Handle the result
+                try await identityService.handleVerificationResult(
+                    result,
+                    userId: currentUser.id,
+                    sessionId: extractSessionId(from: clientSecret)
+                )
+                
+                // Reload to show updated status
                 await loadGovernmentID()
+                
             } catch {
-                errorMessage = error.localizedDescription
-                showError = true
+                await MainActor.run {
+                    errorMessage = error.localizedDescription
+                    showError = true
+                }
             }
         }
     }
     
-    private func uploadDocument(url: URL) {
-        guard isAuthenticated,
-              let currentUser = authService.currentUser else { return }
-        
-        Task {
-            let userId = currentUser.id
-            do {
-                let data = try Data(contentsOf: url)
-                let fileName = url.lastPathComponent
-                _ = try await identityService.uploadGovernmentID(
-                    userId: userId,
-                    data: data,
-                    fileName: fileName,
-                    fileType: .pdf
-                )
-                await loadGovernmentID()
-            } catch {
-                errorMessage = error.localizedDescription
-                showError = true
-            }
-        }
+    /// Extracts session ID from client secret (format: vs_xxx_secret_yyy)
+    private func extractSessionId(from clientSecret: String) -> String? {
+        let components = clientSecret.components(separatedBy: "_secret_")
+        return components.first
     }
     
     private func deleteID() {

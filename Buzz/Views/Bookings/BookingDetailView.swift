@@ -15,6 +15,7 @@ struct BookingDetailView: View {
     @StateObject private var rankingService = RankingService()
     @StateObject private var ratingService = RatingService()
     @StateObject private var profileService = ProfileService()
+    @StateObject private var identityService = IdentityVerificationService()
     @Environment(\.dismiss) var dismiss
     
     let booking: Booking
@@ -27,6 +28,8 @@ struct BookingDetailView: View {
     @State private var customerProfile: UserProfile?
     @State private var showMessageSheet = false
     @State private var showCopyConfirmation = false
+    @State private var isIdentityVerified = false
+    @State private var showVerificationRequiredAlert = false
     
     init(booking: Booking) {
         self.booking = booking
@@ -260,12 +263,35 @@ struct BookingDetailView: View {
                 if authService.userProfile?.userType == .pilot {
                     VStack(spacing: 12) {
                         if booking.status == .available {
-                            CustomButton(
-                                title: "Accept Booking",
-                                action: { showAcceptAlert = true },
-                                isLoading: bookingService.isLoading
-                            )
-                            .padding(.horizontal)
+                            if isIdentityVerified {
+                                CustomButton(
+                                    title: "Accept Booking",
+                                    action: { showAcceptAlert = true },
+                                    isLoading: bookingService.isLoading
+                                )
+                                .padding(.horizontal)
+                            } else {
+                                VStack(spacing: 8) {
+                                    CustomButton(
+                                        title: "Accept Booking",
+                                        action: { showVerificationRequiredAlert = true },
+                                        isLoading: false
+                                    )
+                                    .padding(.horizontal)
+                                    .disabled(true)
+                                    .opacity(0.6)
+                                    
+                                    HStack(spacing: 6) {
+                                        Image(systemName: "exclamationmark.triangle.fill")
+                                            .foregroundColor(.orange)
+                                            .font(.caption)
+                                        Text("Identity verification required to accept bookings")
+                                            .font(.caption)
+                                            .foregroundColor(.orange)
+                                    }
+                                    .padding(.horizontal)
+                                }
+                            }
                         } else if booking.status == .accepted && booking.pilotId == authService.currentUser?.id {
                             CustomButton(
                                 title: "Mark as Completed",
@@ -310,6 +336,14 @@ struct BookingDetailView: View {
         } message: {
             Text(errorMessage)
         }
+        .alert("Verification Required", isPresented: $showVerificationRequiredAlert) {
+            Button("Go to Settings", role: .none) {
+                // Navigate to profile/settings - user will need to manually navigate
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("You must verify your identity before accepting bookings. Please complete identity verification in your Profile settings.")
+        }
         .sheet(isPresented: $showRatingSheet) {
             RatingView(
                 userName: customerProfile?.fullName ?? "Customer",
@@ -327,7 +361,13 @@ struct BookingDetailView: View {
         }
         .task {
             await loadCustomerProfile()
+            await checkIdentityVerification()
         }
+    }
+    
+    private func checkIdentityVerification() async {
+        guard let userId = authService.currentUser?.id else { return }
+        isIdentityVerified = await identityService.isIdentityVerified(userId: userId)
     }
     
     private func loadCustomerProfile() async {
