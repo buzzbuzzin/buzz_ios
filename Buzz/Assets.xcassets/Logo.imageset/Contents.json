@@ -1,17 +1,17 @@
 {
   "images" : [
     {
-      "filename" : "buzz_logo.jpeg",
+      "filename" : "buzz_logo 1.png",
       "idiom" : "universal",
       "scale" : "1x"
     },
     {
-      "filename" : "buzz_logo.jpeg",
+      "filename" : "buzz_logo 2.png",
       "idiom" : "universal",
       "scale" : "2x"
     },
     {
-      "filename" : "buzz_logo.jpeg",
+      "filename" : "buzz_logo 3.png",
       "idiom" : "universal",
       "scale" : "3x"
     }
