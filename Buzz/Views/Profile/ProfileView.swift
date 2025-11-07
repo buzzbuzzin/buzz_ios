@@ -38,93 +38,99 @@ struct ProfileView: View {
                 // Profile Header
                 Section {
                     HStack(spacing: 16) {
-                        // Profile Picture (clickable to upload)
-                        Button(action: {
-                            showImageSourceSheet = true
-                        }) {
-                            Group {
-                                if let pictureUrl = authService.userProfile?.profilePictureUrl,
-                                   let url = URL(string: pictureUrl) {
-                                    AsyncImage(url: url) { phase in
-                                        switch phase {
-                                        case .empty:
-                                            ProgressView()
-                                                .frame(width: 70, height: 70)
-                                        case .success(let image):
-                                            image
-                                                .resizable()
-                                                .scaledToFill()
-                                                .frame(width: 70, height: 70)
-                                                .clipShape(Circle())
-                                        case .failure:
-                                            Image(systemName: authService.userProfile?.userType == .pilot ? "airplane.circle.fill" : "person.circle.fill")
-                                                .font(.system(size: 70))
-                                                .foregroundColor(.blue)
-                                        @unknown default:
-                                            EmptyView()
+                        Spacer()
+                        
+                        // Profile Picture and Info (centered)
+                        VStack(spacing: 8) {
+                            // Profile Picture (clickable to upload)
+                            Button(action: {
+                                showImageSourceSheet = true
+                            }) {
+                                Group {
+                                    if let pictureUrl = authService.userProfile?.profilePictureUrl,
+                                       let url = URL(string: pictureUrl) {
+                                        AsyncImage(url: url) { phase in
+                                            switch phase {
+                                            case .empty:
+                                                ProgressView()
+                                                    .frame(width: 90, height: 90)
+                                            case .success(let image):
+                                                image
+                                                    .resizable()
+                                                    .scaledToFill()
+                                                    .frame(width: 90, height: 90)
+                                                    .clipShape(Circle())
+                                            case .failure:
+                                                Image(systemName: authService.userProfile?.userType == .pilot ? "airplane.circle.fill" : "person.circle.fill")
+                                                    .font(.system(size: 90))
+                                                    .foregroundColor(.blue)
+                                            @unknown default:
+                                                EmptyView()
+                                            }
                                         }
+                                    } else {
+                                        Image(systemName: authService.userProfile?.userType == .pilot ? "airplane.circle.fill" : "person.circle.fill")
+                                            .font(.system(size: 90))
+                                            .foregroundColor(.blue)
                                     }
-                                } else {
-                                    Image(systemName: authService.userProfile?.userType == .pilot ? "airplane.circle.fill" : "person.circle.fill")
-                                        .font(.system(size: 70))
+                                }
+                                .overlay(
+                                    Circle()
+                                        .stroke(Color.blue.opacity(0.3), lineWidth: 2)
+                                )
+                                .overlay(
+                                    Image(systemName: "camera.fill")
+                                        .font(.system(size: 16))
+                                        .foregroundColor(.white)
+                                        .padding(6)
+                                        .background(Color.blue)
+                                        .clipShape(Circle())
+                                        .offset(x: 32, y: 32)
+                                )
+                            }
+                            .buttonStyle(PlainButtonStyle())
+                            
+                            // Name, Call Sign, and Ratings below picture
+                            VStack(alignment: .center, spacing: 4) {
+                                Text(authService.userProfile?.firstName ?? "User")
+                                    .font(.title2)
+                                    .fontWeight(.bold)
+                                
+                                if let callSign = authService.userProfile?.callSign {
+                                    Text("@\(callSign)")
+                                        .font(.caption)
                                         .foregroundColor(.blue)
                                 }
-                            }
-                            .overlay(
-                                Circle()
-                                    .stroke(Color.blue.opacity(0.3), lineWidth: 2)
-                            )
-                            .overlay(
-                                Image(systemName: "camera.fill")
-                                    .font(.system(size: 16))
-                                    .foregroundColor(.white)
-                                    .padding(6)
-                                    .background(Color.blue)
-                                    .clipShape(Circle())
-                                    .offset(x: 25, y: 25)
-                            )
-                        }
-                        .buttonStyle(PlainButtonStyle())
-                        
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(authService.userProfile?.fullName ?? "User")
-                                .font(.title2)
-                                .fontWeight(.bold)
-                            
-                            if let callSign = authService.userProfile?.callSign {
-                                Text("@\(callSign)")
-                                    .font(.subheadline)
-                                    .foregroundColor(.blue)
-                            }
-                            
-                            // Ratings below call sign
-                            if isLoadingRatings && ratingSummary == nil {
-                                ProgressView()
-                                    .scaleEffect(0.8)
-                            } else if let summary = ratingSummary {
-                                HStack(spacing: 4) {
-                                    Image(systemName: "star.fill")
-                                        .foregroundColor(.yellow)
-                                        .font(.subheadline)
-                                    Text(String(format: "%.1f", summary.averageRating))
-                                        .font(.subheadline)
-                                        .fontWeight(.semibold)
-                                    Text("(\(summary.totalRatings))")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                }
-                            } else {
-                                HStack(spacing: 4) {
-                                    Image(systemName: "star.fill")
-                                        .foregroundColor(.gray)
-                                        .font(.subheadline)
-                                    Text("—")
-                                        .font(.subheadline)
-                                        .fontWeight(.semibold)
-                                        .foregroundColor(.secondary)
-                                    Text("No ratings")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
+                                
+                                // Ratings below call sign
+                                if isLoadingRatings && ratingSummary == nil {
+                                    ProgressView()
+                                        .scaleEffect(0.8)
+                                } else if let summary = ratingSummary {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "star.fill")
+                                            .foregroundColor(.yellow)
+                                            .font(.caption)
+                                        Text(String(format: "%.1f", summary.averageRating))
+                                            .font(.caption)
+                                            .fontWeight(.semibold)
+                                        Text("(\(summary.totalRatings))")
+                                            .font(.caption2)
+                                            .foregroundColor(.secondary)
+                                    }
+                                } else {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "star.fill")
+                                            .foregroundColor(.gray)
+                                            .font(.caption)
+                                        Text("—")
+                                            .font(.caption)
+                                            .fontWeight(.semibold)
+                                            .foregroundColor(.secondary)
+                                        Text("No ratings")
+                                            .font(.caption2)
+                                            .foregroundColor(.secondary)
+                                    }
                                 }
                             }
                         }
@@ -133,9 +139,9 @@ struct ProfileView: View {
                         
                         // Statistics on the right
                         if authService.userProfile?.userType == .pilot, let stats = rankingService.pilotStats {
-                            VStack(alignment: .trailing, spacing: 16) {
+                            VStack(alignment: .leading, spacing: 16) {
                                 // Flights
-                                VStack(alignment: .trailing, spacing: 2) {
+                                VStack(alignment: .leading, spacing: 2) {
                                     Text("\(completedBookingsCount)")
                                         .font(.title2)
                                         .fontWeight(.bold)
@@ -145,7 +151,7 @@ struct ProfileView: View {
                                 }
                                 
                                 // Flight Hours
-                                VStack(alignment: .trailing, spacing: 2) {
+                                VStack(alignment: .leading, spacing: 2) {
                                     Text(String(format: "%.0f", stats.totalFlightHours))
                                         .font(.title2)
                                         .fontWeight(.bold)
@@ -155,7 +161,7 @@ struct ProfileView: View {
                                 }
                                 
                                 // Years on Buzz
-                                VStack(alignment: .trailing, spacing: 2) {
+                                VStack(alignment: .leading, spacing: 2) {
                                     Text("\(yearsOnBuzz)")
                                         .font(.title2)
                                         .fontWeight(.bold)
@@ -166,9 +172,9 @@ struct ProfileView: View {
                             }
                         } else {
                             // For customers, show Flights and Years on Buzz
-                            VStack(alignment: .trailing, spacing: 16) {
+                            VStack(alignment: .leading, spacing: 16) {
                                 // Flights
-                                VStack(alignment: .trailing, spacing: 2) {
+                                VStack(alignment: .leading, spacing: 2) {
                                     Text("\(completedBookingsCount)")
                                         .font(.title2)
                                         .fontWeight(.bold)
@@ -180,7 +186,7 @@ struct ProfileView: View {
                                 Divider()
                                 
                                 // Years on Buzz
-                                VStack(alignment: .trailing, spacing: 2) {
+                                VStack(alignment: .leading, spacing: 2) {
                                     Text("\(yearsOnBuzz)")
                                         .font(.title2)
                                         .fontWeight(.bold)

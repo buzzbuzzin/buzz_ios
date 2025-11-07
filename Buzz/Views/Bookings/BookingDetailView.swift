@@ -211,25 +211,46 @@ struct BookingDetailView: View {
                 Divider()
                 .padding(.horizontal)
                 
-                // Payment & Hours
-                HStack(spacing: 40) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Label("Payment", systemImage: "dollarsign.circle.fill")
-                            .font(.subheadline)
-                            .foregroundColor(.green)
-                        Text(String(format: "$%.2f", NSDecimalNumber(decimal: booking.paymentAmount).doubleValue))
-                            .font(.title2)
-                            .fontWeight(.bold)
-                    }
-                    
-                    if let hours = booking.estimatedFlightHours {
+                // Payment, Hourly Rate & Hours (Grid Layout)
+                VStack(spacing: 20) {
+                    // First row: Payment and Hourly rate
+                    HStack(spacing: 40) {
                         VStack(alignment: .leading, spacing: 4) {
-                            Label("Duration", systemImage: "clock.fill")
+                            Label("Payment", systemImage: "dollarsign.circle.fill")
                                 .font(.subheadline)
-                                .foregroundColor(.blue)
-                            Text(String(format: "%.1f hours", hours))
+                                .foregroundColor(.green)
+                            Text(String(format: "$%.2f", NSDecimalNumber(decimal: booking.paymentAmount).doubleValue))
                                 .font(.title2)
                                 .fontWeight(.bold)
+                        }
+                        
+                        if let hours = booking.estimatedFlightHours, hours > 0 {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Label("Hourly rate", systemImage: "clock.badge.checkmark")
+                                    .font(.subheadline)
+                                    .foregroundColor(.purple)
+                                Text(String(format: "$%.2f/hr", NSDecimalNumber(decimal: booking.paymentAmount).doubleValue / hours))
+                                    .font(.title2)
+                                    .fontWeight(.bold)
+                            }
+                        }
+                        
+                        Spacer()
+                    }
+                    
+                    // Second row: Duration
+                    if let hours = booking.estimatedFlightHours {
+                        HStack(spacing: 40) {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Label("Duration", systemImage: "clock.fill")
+                                    .font(.subheadline)
+                                    .foregroundColor(.blue)
+                                Text(String(format: "%.1f hours", hours))
+                                    .font(.title2)
+                                    .fontWeight(.bold)
+                            }
+                            
+                            Spacer()
                         }
                     }
                 }

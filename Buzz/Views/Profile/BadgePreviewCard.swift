@@ -41,11 +41,19 @@ struct BadgePreviewCard: View {
                 .multilineTextAlignment(.center)
                 .frame(width: 80)
             
+            // Always reserve space for expiration text to keep badges aligned
             if badge.isExpiringSoon, let daysLeft = badge.daysUntilExpiration {
                 Text("\(daysLeft)d left")
                     .font(.caption2)
                     .foregroundColor(.orange)
                     .fontWeight(.semibold)
+                    .padding(.top, 2)
+            } else {
+                // Invisible placeholder to maintain consistent height
+                Text(" ")
+                    .font(.caption2)
+                    .opacity(0)
+                    .padding(.top, 2)
             }
         }
     }
