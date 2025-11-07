@@ -27,7 +27,7 @@ struct PilotTabView: View {
         TabView {
             PilotBookingListView()
                 .tabItem {
-                    Label("Jobs", systemImage: "airplane.departure")
+                    Label("Jobs", systemImage: "drone.fill")
                 }
             
             MyFlightsView()
