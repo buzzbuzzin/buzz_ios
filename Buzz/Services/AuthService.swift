@@ -211,8 +211,18 @@ class AuthService: ObservableObject {
             let profileExists = await checkProfileExists(userId: userId)
             
             if !profileExists, let userType = userType {
+                // Note: email and fullName are only provided on first authorization
+                // For returning users, these will be nil
                 let email = appleIDCredential.email
-                try await createProfile(userId: userId, userType: userType, callSign: callSign, email: email)
+                let fullName = appleIDCredential.fullName
+                try await createProfile(
+                    userId: userId,
+                    userType: userType,
+                    firstName: fullName?.givenName,
+                    lastName: fullName?.familyName,
+                    callSign: callSign,
+                    email: email
+                )
             }
             
             currentUser = response.user

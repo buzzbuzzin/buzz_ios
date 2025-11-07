@@ -13,6 +13,16 @@ struct BuzzApp: App {
     @StateObject private var authService = AuthService()
     @AppStorage("appearanceMode") private var appearanceModeString: String = "system"
 
+    init() {
+        // Configure Google Sign In
+        // The client ID can be set in Info.plist as GIDClientID, or configured here
+        // If set in Info.plist, this configuration is optional but recommended
+        if Config.googleClientID != "YOUR_GOOGLE_CLIENT_ID" {
+            let config = GIDConfiguration(clientID: Config.googleClientID)
+            GIDSignIn.sharedInstance.configuration = config
+        }
+    }
+
     var body: some Scene {
         WindowGroup {
             Group {
@@ -28,7 +38,18 @@ struct BuzzApp: App {
             }
             .animation(.easeInOut(duration: 0.3), value: authService.isAuthenticated)
             .preferredColorScheme(colorScheme)
+            .onAppear {
+                // Attempt to restore the user's sign-in state
+                // Reference: https://developers.google.com/identity/sign-in/ios/sign-in#swift
+                GIDSignIn.sharedInstance.restorePreviousSignIn { user, error in
+                    // Note: We handle authentication through AuthService,
+                    // so we don't need to update UI here directly
+                    // The AuthService will check authentication status separately
+                }
+            }
             .onOpenURL { url in
+                // Handle the authentication redirect URL
+                // Reference: https://developers.google.com/identity/sign-in/ios/sign-in#swift
                 GIDSignIn.sharedInstance.handle(url)
             }
         }

@@ -7,10 +7,10 @@
 
 import SwiftUI
 import AuthenticationServices
+import GoogleSignInSwift
 
 struct AuthenticationView: View {
     @EnvironmentObject var authService: AuthService
-    @Environment(\.dismiss) var dismiss
     @State private var showSignUp = false
     @State private var selectedTab = 0
     
@@ -18,21 +18,21 @@ struct AuthenticationView: View {
         NavigationView {
             VStack(spacing: 0) {
                 // Header
-                VStack(spacing: 16) {
+                VStack(spacing: 8) {
                     Image("Logo")
                         .resizable()
                         .scaledToFit()
-                        .frame(width: 90, height: 90)
+                        .frame(width: 80, height: 80)
                     
                     Text("Welcome aboard")
-                        .font(.system(size: 32, weight: .semibold))
+                        .font(.system(size: 28, weight: .semibold))
                     
                     Text("or back")
-                        .font(.system(size: 32, weight: .semibold))
+                        .font(.system(size: 28, weight: .semibold))
                         .foregroundColor(.secondary)
                 }
-                .padding(.top, 60)
-                .padding(.bottom, 40)
+                .padding(.top, 10)
+                .padding(.bottom, 10)
                 
                 // Auth Methods
                 TabView(selection: $selectedTab) {
@@ -52,26 +52,19 @@ struct AuthenticationView: View {
                 HStack {
                     Text("Don't have an account?")
                         .foregroundColor(.secondary)
-                    Button("Sign Up") {
+                    Button("Sign up") {
                         showSignUp = true
                     }
                     .fontWeight(.semibold)
                 }
                 .font(.subheadline)
-                .padding(.bottom, 40)
+                .padding(.top, 30)
+                
+                Spacer(minLength: 0)
+                    .frame(maxHeight: 20)
             }
+            .frame(maxHeight: .infinity)
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button(action: {
-                        dismiss()
-                    }) {
-                        Image(systemName: "chevron.left")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(.primary)
-                    }
-                }
-            }
             .sheet(isPresented: $showSignUp) {
                 SignUpView()
             }
@@ -94,13 +87,18 @@ struct EmailSignInView: View {
     @State private var showError = false
     @State private var errorMessage = ""
     @State private var isSigningIn = false
+    @State private var showUserTypeSelection = false
+    @State private var selectedAuthMethod: SocialAuthMethod?
+    @State private var selectedUserType: UserType = .pilot
+    @State private var callSign = ""
+    @State private var appleAuthorization: ASAuthorization?
+    
+    enum SocialAuthMethod {
+        case apple, google
+    }
     
     var body: some View {
         VStack(spacing: 20) {
-            Text("Sign In with Email")
-                .font(.title3)
-                .fontWeight(.semibold)
-            
             VStack(spacing: 16) {
                 TextField("Email", text: $email)
                     .textContentType(.emailAddress)
@@ -131,11 +129,53 @@ struct EmailSignInView: View {
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
+            
+            // Divider - Temporarily commented out
+            /*
+            HStack {
+                Rectangle()
+                    .fill(Color(.systemGray4))
+                    .frame(height: 1)
+                Text("or")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .padding(.horizontal, 8)
+                Rectangle()
+                    .fill(Color(.systemGray4))
+                    .frame(height: 1)
+            }
+            .padding(.horizontal)
+            .padding(.top, 8)
+            */
+            
+            // Social Sign In Options - Temporarily commented out
+            /*
+            VStack(spacing: 12) {
+                SignInWithAppleButton(.continue) { request in
+                    request.requestedScopes = [.email, .fullName]
+                } onCompletion: { result in
+                    handleAppleSignIn(result)
+                }
+                .frame(height: 50)
+                .cornerRadius(10)
+                
+                GoogleSignInButton(action: handleGoogleSignInButton)
+                .frame(height: 50)
+            }
+            .padding(.horizontal)
+            */
         }
         .alert("Error", isPresented: $showError) {
             Button("OK", role: .cancel) {}
         } message: {
             Text(errorMessage)
+        }
+        .sheet(isPresented: $showUserTypeSelection) {
+            UserTypeSelectionSheet(
+                userType: $selectedUserType,
+                callSign: $callSign,
+                onComplete: handleSocialSignIn
+            )
         }
     }
     
@@ -152,6 +192,66 @@ struct EmailSignInView: View {
                 isSigningIn = false
             } catch {
                 isSigningIn = false
+                errorMessage = error.localizedDescription
+                showError = true
+            }
+        }
+    }
+    
+    private func handleAppleSignIn(_ result: Result<ASAuthorization, Error>) {
+        switch result {
+        case .success(let authorization):
+            selectedAuthMethod = .apple
+            appleAuthorization = authorization
+            showUserTypeSelection = true
+        case .failure(let error):
+            if let authError = error as? ASAuthorizationError {
+                switch authError.code {
+                case .canceled:
+                    // User canceled, don't show error
+                    return
+                case .failed:
+                    errorMessage = "Apple Sign In failed. Please try again."
+                case .invalidResponse:
+                    errorMessage = "Invalid response from Apple. Please try again."
+                case .notHandled:
+                    errorMessage = "Apple Sign In is not available. Please check your device settings."
+                case .unknown:
+                    errorMessage = "Apple Sign In is not properly configured. Please ensure:\n1. Sign in with Apple capability is enabled in Xcode\n2. You're signed in with an Apple ID on this device\n3. Try using email sign-in instead"
+                @unknown default:
+                    errorMessage = "Apple Sign In error: \(authError.localizedDescription)"
+                }
+            } else {
+                errorMessage = error.localizedDescription
+            }
+            showError = true
+        }
+    }
+    
+    private func handleGoogleSignInButton() {
+        // Show user type selection first, then sign in
+        // This matches our app's flow where we need user type before creating profile
+        selectedAuthMethod = .google
+        showUserTypeSelection = true
+    }
+    
+    private func handleSocialSignIn() {
+        Task {
+            do {
+                if selectedAuthMethod == .apple, let authorization = appleAuthorization {
+                    try await authService.signInWithApple(
+                        authorization: authorization,
+                        userType: selectedUserType,
+                        callSign: selectedUserType == .pilot ? callSign : nil
+                    )
+                } else if selectedAuthMethod == .google {
+                    // Complete Google sign-in with user type
+                    try await authService.signInWithGoogle(
+                        userType: selectedUserType,
+                        callSign: selectedUserType == .pilot ? callSign : nil
+                    )
+                }
+            } catch {
                 errorMessage = error.localizedDescription
                 showError = true
             }
@@ -290,6 +390,8 @@ struct SocialSignInView: View {
                 .font(.title3)
                 .fontWeight(.semibold)
             
+            // Temporarily commented out
+            /*
             VStack(spacing: 16) {
                 SignInWithAppleButton(.signIn) { request in
                     request.requestedScopes = [.email, .fullName]
@@ -317,6 +419,12 @@ struct SocialSignInView: View {
                 }
             }
             .padding(.horizontal)
+            */
+            
+            Text("Social sign-in temporarily disabled")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+                .padding()
             
             Text("Choose your preferred sign-in method")
                 .font(.caption)
