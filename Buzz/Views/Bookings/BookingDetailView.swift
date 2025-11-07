@@ -8,6 +8,7 @@
 import SwiftUI
 import MapKit
 import Auth
+import UIKit
 
 struct BookingDetailView: View {
     @EnvironmentObject var authService: AuthService
@@ -30,6 +31,7 @@ struct BookingDetailView: View {
     @State private var showCopyConfirmation = false
     @State private var isIdentityVerified = false
     @State private var showVerificationRequiredAlert = false
+    @State private var showDirectionsSheet = false
     
     init(booking: Booking) {
         self.booking = booking
@@ -62,7 +64,7 @@ struct BookingDetailView: View {
                         .font(.title3)
                         .fontWeight(.semibold)
                     
-                    // Detailed Address with copy button
+                    // Detailed Address with Get directions button
                     HStack {
                         Text(detailedAddress)
                             .font(.subheadline)
@@ -72,17 +74,12 @@ struct BookingDetailView: View {
                         Spacer()
                         
                         Button(action: {
-                            UIPasteboard.general.string = detailedAddress
-                            showCopyConfirmation = true
-                            // Auto-dismiss after 2 seconds
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                                showCopyConfirmation = false
-                            }
+                            showDirectionsSheet = true
                         }) {
                             HStack(spacing: 4) {
-                                Image(systemName: "doc.on.doc")
+                                Image(systemName: "location.fill")
                                     .font(.caption)
-                                Text("Copy")
+                                Text("Get directions")
                                     .font(.caption)
                             }
                             .foregroundColor(.blue)
@@ -380,6 +377,33 @@ struct BookingDetailView: View {
                 booking: booking
             )
         }
+        .sheet(isPresented: $showDirectionsSheet) {
+            DirectionsBottomSheet(
+                onOpenAppleMaps: {
+                    showDirectionsSheet = false
+                    openAppleMaps()
+                },
+                onOpenGoogleMaps: {
+                    showDirectionsSheet = false
+                    openGoogleMaps()
+                },
+                onCopyToClipboard: {
+                    showDirectionsSheet = false
+                    copyToClipboard()
+                },
+                onCancel: {
+                    showDirectionsSheet = false
+                }
+            )
+            .presentationDetents([.height(214)])
+            .presentationDragIndicator(.hidden)
+            .presentationBackground(.clear)
+        }
+        .alert("Copied!", isPresented: $showCopyConfirmation) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Address copied to clipboard")
+        }
         .task {
             await loadCustomerProfile()
             await checkIdentityVerification()
@@ -513,6 +537,108 @@ struct BookingDetailView: View {
                 showError = true
             }
         }
+    }
+    
+    private func openAppleMaps() {
+        let coordinate = booking.coordinate
+        let mapItem = MKMapItem(placemark: MKPlacemark(coordinate: coordinate))
+        mapItem.name = booking.locationName
+        mapItem.openInMaps(launchOptions: [MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeDriving])
+    }
+    
+    private func openGoogleMaps() {
+        let coordinate = booking.coordinate
+        let lat = coordinate.latitude
+        let lng = coordinate.longitude
+        
+        // Google Maps URL scheme
+        if let url = URL(string: "comgooglemaps://?q=\(lat),\(lng)&directionsmode=driving") {
+            if UIApplication.shared.canOpenURL(url) {
+                UIApplication.shared.open(url)
+            } else {
+                // Fallback to web version if app is not installed
+                if let webUrl = URL(string: "https://www.google.com/maps?q=\(lat),\(lng)&directionsmode=driving") {
+                    UIApplication.shared.open(webUrl)
+                }
+            }
+        }
+    }
+    
+    private func copyToClipboard() {
+        UIPasteboard.general.string = detailedAddress
+        showCopyConfirmation = true
+        // Auto-dismiss after 2 seconds
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+            showCopyConfirmation = false
+        }
+    }
+}
+
+// MARK: - Directions Bottom Sheet
+
+struct DirectionsBottomSheet: View {
+    let onOpenAppleMaps: () -> Void
+    let onOpenGoogleMaps: () -> Void
+    let onCopyToClipboard: () -> Void
+    let onCancel: () -> Void
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            // Action buttons group
+            VStack(spacing: 0) {
+                Button(action: onOpenAppleMaps) {
+                    Text("Open Apple Maps")
+                        .font(.headline)
+                        .foregroundColor(.primary)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 56)
+                }
+                
+                Divider()
+                
+                Button(action: onOpenGoogleMaps) {
+                    Text("Open Google Maps")
+                        .font(.headline)
+                        .foregroundColor(.primary)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 56)
+                }
+                
+                Divider()
+                
+                Button(action: onCopyToClipboard) {
+                    Text("Copy to Clipboard")
+                        .font(.headline)
+                        .foregroundColor(.primary)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 56)
+                }
+            }
+            .background(Color(.systemGray6))
+            .cornerRadius(14)
+            .padding(.horizontal, 8)
+            .padding(.top, 8)
+            
+            // Spacing between action buttons and cancel
+            Spacer()
+                .frame(height: 8)
+            
+            // Cancel button
+            Button(action: onCancel) {
+                Text("Cancel")
+                    .font(.headline)
+                    .foregroundColor(.primary)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 56)
+            }
+            .background(Color(.systemGray6))
+            .cornerRadius(14)
+            .padding(.horizontal, 8)
+            .padding(.bottom, 0)
+        }
+        .frame(maxWidth: .infinity)
+        .background(Color.clear)
+        .ignoresSafeArea(edges: .bottom)
     }
 }
 
