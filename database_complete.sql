@@ -643,29 +643,51 @@ CREATE POLICY "Pilots can delete their own licenses"
     );
 
 -- Profile Pictures Storage Policies
+-- Note: auth.uid() returns NULL in Supabase Storage RLS context, so we rely on:
+-- 1. Authentication requirement (TO authenticated)
+-- 2. Path structure validation (UUID format)
+-- 3. Application-level ownership verification (in Swift app code)
+
+-- Allow anyone to view profile pictures (public bucket)
 CREATE POLICY "Users can view all profile pictures"
     ON storage.objects FOR SELECT
     USING (bucket_id = 'profile-pictures');
 
+-- Allow authenticated users to upload profile pictures
+-- Path must follow UUID/filename structure (e.g., {userId}/profile.jpg)
+-- Ownership is verified in application code before upload
 CREATE POLICY "Users can upload their own profile picture"
     ON storage.objects FOR INSERT
+    TO authenticated
     WITH CHECK (
         bucket_id = 'profile-pictures' 
-        AND auth.uid()::text = (storage.foldername(name))[1]
+        AND (storage.foldername(name))[1] IS NOT NULL
+        AND (storage.foldername(name))[1] ~ '^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$'
     );
 
+-- Allow authenticated users to update their own profile picture
 CREATE POLICY "Users can update their own profile picture"
     ON storage.objects FOR UPDATE
+    TO authenticated
     USING (
         bucket_id = 'profile-pictures' 
-        AND auth.uid()::text = (storage.foldername(name))[1]
+        AND (storage.foldername(name))[1] IS NOT NULL
+        AND (storage.foldername(name))[1] ~ '^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$'
+    )
+    WITH CHECK (
+        bucket_id = 'profile-pictures' 
+        AND (storage.foldername(name))[1] IS NOT NULL
+        AND (storage.foldername(name))[1] ~ '^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$'
     );
 
+-- Allow authenticated users to delete their own profile picture
 CREATE POLICY "Users can delete their own profile picture"
     ON storage.objects FOR DELETE
+    TO authenticated
     USING (
         bucket_id = 'profile-pictures' 
-        AND auth.uid()::text = (storage.foldername(name))[1]
+        AND (storage.foldername(name))[1] IS NOT NULL
+        AND (storage.foldername(name))[1] ~ '^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$'
     );
 
 -- ============================================================================

@@ -96,18 +96,22 @@ struct GovernmentIDView: View {
                                     .foregroundColor(.secondary)
                             }
                             
-                            Button(role: .destructive) {
-                                showDeleteAlert = true
-                            } label: {
-                                HStack {
-                                    Image(systemName: "trash")
-                                    Text("Remove ID")
+                            // Show Remove ID button only for rejected status
+                            // For verified and pending, hide the button
+                            if governmentID.verificationStatus == .rejected {
+                                Button(action: {
+                                    startStripeVerification()
+                                }) {
+                                    HStack {
+                                        Image(systemName: "arrow.clockwise")
+                                        Text("Retry Verification")
+                                    }
+                                    .frame(maxWidth: .infinity)
+                                    .padding()
+                                    .background(Color.blue.opacity(0.1))
+                                    .foregroundColor(.blue)
+                                    .cornerRadius(10)
                                 }
-                                .frame(maxWidth: .infinity)
-                                .padding()
-                                .background(Color.red.opacity(0.1))
-                                .foregroundColor(.red)
-                                .cornerRadius(10)
                             }
                         }
                         .padding()

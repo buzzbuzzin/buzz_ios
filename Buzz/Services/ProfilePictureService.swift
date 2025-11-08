@@ -26,25 +26,69 @@ class ProfilePictureService: ObservableObject {
         errorMessage = nil
         
         do {
+            // Verify authentication session is active and refresh if needed
+            var session = try await supabase.auth.session
+            guard session.user.id == userId else {
+                throw NSError(domain: "ProfilePictureService", code: 0, userInfo: [NSLocalizedDescriptionKey: "User ID mismatch or not authenticated"])
+            }
+            
+            // Refresh session to ensure token is valid
+            do {
+                session = try await supabase.auth.refreshSession()
+                print("DEBUG: Session refreshed, access token present: \(session.accessToken.isEmpty ? "NO" : "YES")")
+            } catch {
+                print("DEBUG: Session refresh warning: \(error.localizedDescription)")
+                // Continue anyway if refresh fails - session might still be valid
+            }
+            
             // Compress image
             guard let imageData = compressImage(image) else {
                 throw NSError(domain: "ProfilePictureService", code: 0, userInfo: [NSLocalizedDescriptionKey: "Failed to compress image"])
             }
             
             let fileName = "\(userId.uuidString)/profile.jpg"
+            print("DEBUG: Uploading to path: \(fileName)")
+            print("DEBUG: Current auth.uid(): \(session.user.id.uuidString)")
+            print("DEBUG: Access token length: \(session.accessToken.count)")
             
             // Upload to Supabase Storage
-            let _ = try await supabase.storage
-                .from(bucketName)
-                .upload(
-                    fileName,
-                    data: imageData,
-                    options: FileOptions(
-                        cacheControl: "3600",
-                        contentType: "image/jpeg",
-                        upsert: true // Replace existing file
+            // Try upload first, if it fails with "already exists", try update
+            do {
+                let _ = try await supabase.storage
+                    .from(bucketName)
+                    .upload(
+                        fileName,
+                        data: imageData,
+                        options: FileOptions(
+                            cacheControl: "3600",
+                            contentType: "image/jpeg",
+                            upsert: false
+                        )
                     )
-                )
+            } catch {
+                // If file already exists, try to update it
+                if error.localizedDescription.contains("already exists") || error.localizedDescription.contains("duplicate") {
+                    print("DEBUG: File exists, attempting update...")
+                    // Delete existing file first, then upload new one
+                    try? await supabase.storage
+                        .from(bucketName)
+                        .remove(paths: [fileName])
+                    
+                    let _ = try await supabase.storage
+                        .from(bucketName)
+                        .upload(
+                            fileName,
+                            data: imageData,
+                            options: FileOptions(
+                                cacheControl: "3600",
+                                contentType: "image/jpeg",
+                                upsert: false
+                            )
+                        )
+                } else {
+                    throw error
+                }
+            }
             
             // Get public URL
             let publicURL = try supabase.storage
