@@ -74,6 +74,9 @@ struct Booking: Codable, Identifiable {
     var pilotRated: Bool?
     var customerRated: Bool?
     var requiredMinimumRank: Int? // 0-4: Ensign, Sub Lieutenant, Lieutenant, Commander, Captain
+    var paymentIntentId: String?
+    var transferId: String?
+    var chargeId: String?
     
     enum CodingKeys: String, CodingKey {
         case id
@@ -94,6 +97,9 @@ struct Booking: Codable, Identifiable {
         case pilotRated = "pilot_rated"
         case customerRated = "customer_rated"
         case requiredMinimumRank = "required_minimum_rank"
+        case paymentIntentId = "payment_intent_id"
+        case transferId = "transfer_id"
+        case chargeId = "charge_id"
     }
     
     var rankName: String {

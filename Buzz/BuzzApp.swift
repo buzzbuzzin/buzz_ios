@@ -7,6 +7,7 @@
 
 import SwiftUI
 import GoogleSignIn
+import StripePaymentSheet
 
 @main
 struct BuzzApp: App {
@@ -21,6 +22,9 @@ struct BuzzApp: App {
             let config = GIDConfiguration(clientID: Config.googleClientID)
             GIDSignIn.sharedInstance.configuration = config
         }
+        
+        // Configure Stripe
+        StripeAPI.defaultPublishableKey = Config.stripePublishableKey
     }
 
     var body: some Scene {

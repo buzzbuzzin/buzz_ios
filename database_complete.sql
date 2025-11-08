@@ -76,6 +76,14 @@ BEGIN
         ALTER TABLE profiles ADD CONSTRAINT profiles_communication_preference_check 
         CHECK (communication_preference IN ('email', 'text', 'both'));
     END IF;
+    
+    -- Add stripe_account_id if it doesn't exist
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'profiles' AND column_name = 'stripe_account_id'
+    ) THEN
+        ALTER TABLE profiles ADD COLUMN stripe_account_id TEXT;
+    END IF;
 END $$;
 
 -- Drop existing policies if they exist (for idempotency)
@@ -206,6 +214,46 @@ BEGIN
         WHERE table_name = 'bookings' AND column_name = 'customer_rated'
     ) THEN
         ALTER TABLE bookings ADD COLUMN customer_rated BOOLEAN DEFAULT FALSE;
+    END IF;
+    
+    -- Add end_date if it doesn't exist
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'bookings' AND column_name = 'end_date'
+    ) THEN
+        ALTER TABLE bookings ADD COLUMN end_date TIMESTAMP WITH TIME ZONE;
+    END IF;
+    
+    -- Add required_minimum_rank if it doesn't exist
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'bookings' AND column_name = 'required_minimum_rank'
+    ) THEN
+        ALTER TABLE bookings ADD COLUMN required_minimum_rank INTEGER DEFAULT 0;
+    END IF;
+    
+    -- Add payment_intent_id if it doesn't exist
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'bookings' AND column_name = 'payment_intent_id'
+    ) THEN
+        ALTER TABLE bookings ADD COLUMN payment_intent_id TEXT;
+    END IF;
+    
+    -- Add transfer_id if it doesn't exist
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'bookings' AND column_name = 'transfer_id'
+    ) THEN
+        ALTER TABLE bookings ADD COLUMN transfer_id TEXT;
+    END IF;
+    
+    -- Add charge_id if it doesn't exist
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'bookings' AND column_name = 'charge_id'
+    ) THEN
+        ALTER TABLE bookings ADD COLUMN charge_id TEXT;
     END IF;
 END $$;
 
@@ -552,6 +600,12 @@ CREATE INDEX IF NOT EXISTS idx_bookings_status ON bookings(status);
 CREATE INDEX IF NOT EXISTS idx_bookings_customer_id ON bookings(customer_id);
 CREATE INDEX IF NOT EXISTS idx_bookings_pilot_id ON bookings(pilot_id);
 CREATE INDEX IF NOT EXISTS idx_bookings_scheduled_date ON bookings(scheduled_date);
+CREATE INDEX IF NOT EXISTS idx_bookings_payment_intent_id ON bookings(payment_intent_id);
+CREATE INDEX IF NOT EXISTS idx_bookings_transfer_id ON bookings(transfer_id);
+CREATE INDEX IF NOT EXISTS idx_bookings_charge_id ON bookings(charge_id);
+
+-- Profiles indexes
+CREATE INDEX IF NOT EXISTS idx_profiles_stripe_account_id ON profiles(stripe_account_id);
 
 -- Pilot licenses indexes
 CREATE INDEX IF NOT EXISTS idx_pilot_licenses_pilot_id ON pilot_licenses(pilot_id);

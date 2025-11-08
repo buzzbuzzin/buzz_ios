@@ -31,7 +31,9 @@ class BookingService: ObservableObject {
         description: String,
         paymentAmount: Decimal,
         estimatedFlightHours: Double,
-        requiredMinimumRank: Int = 0
+        requiredMinimumRank: Int = 0,
+        paymentIntentId: String? = nil,
+        chargeId: String? = nil
     ) async throws {
         isLoading = true
         errorMessage = nil
@@ -61,6 +63,14 @@ class BookingService: ObservableObject {
             
             if let specialization = specialization {
                 booking["specialization"] = .string(specialization.rawValue)
+            }
+            
+            if let paymentIntentId = paymentIntentId {
+                booking["payment_intent_id"] = .string(paymentIntentId)
+            }
+            
+            if let chargeId = chargeId {
+                booking["charge_id"] = .string(chargeId)
             }
             
             try await supabase
@@ -308,54 +318,89 @@ class BookingService: ObservableObject {
         isLoading = true
         errorMessage = nil
         
-        // TODO: DEMO MODE - Replace this sample data with real backend call
-        // Simulate API call delay
-        try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+        // Store current bookings to preserve them if fetch fails
+        let previousBookings = myBookings
         
-        // SAMPLE DATA FOR DEMO PURPOSES - Replace with real Supabase query when ready
-        let sampleBookings = isPilot ? createSamplePilotBookings() : createSampleCustomerBookings()
+        // Always start with demo data
+        let demoBookings = isPilot ? createSamplePilotBookings() : createSampleCustomerBookings()
         
-        await MainActor.run {
-            self.myBookings = sampleBookings
-            self.isLoading = false
-        }
-        
-        return
-        
-        /* UNCOMMENT WHEN READY TO USE REAL BACKEND:
         do {
+            // Fetch real bookings from database
             let query = supabase
                 .from("bookings")
                 .select()
             
-            let result: [Booking]
+            let realBookings: [Booking]
             if isPilot {
-                result = try await query
+                realBookings = try await query
                     .eq("pilot_id", value: userId.uuidString)
                     .in("status", values: [BookingStatus.accepted.rawValue, BookingStatus.completed.rawValue])
                     .order("created_at", ascending: false)
                     .execute()
                     .value
             } else {
-                result = try await query
+                realBookings = try await query
                     .eq("customer_id", value: userId.uuidString)
                     .order("created_at", ascending: false)
                     .execute()
                     .value
             }
             
+            // Combine real and demo bookings, removing duplicates by ID
+            var allBookings = realBookings
+            let realBookingIds = Set(realBookings.map { $0.id })
+            
+            // Add demo bookings that don't already exist in real bookings
+            for demoBooking in demoBookings {
+                if !realBookingIds.contains(demoBooking.id) {
+                    allBookings.append(demoBooking)
+                }
+            }
+            
+            // Sort by created_at (most recent first)
+            allBookings.sort { $0.createdAt > $1.createdAt }
+            
             await MainActor.run {
-                self.myBookings = result
+                self.myBookings = allBookings
                 self.isLoading = false
             }
         } catch {
-            await MainActor.run {
-                self.isLoading = false
-                self.errorMessage = error.localizedDescription
+            // Check if error is a cancellation (not a real error)
+            let nsError = error as NSError
+            if nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled {
+                // Request was cancelled (e.g., during refresh, navigation, or view dismissal)
+                // Don't treat this as an error - preserve existing bookings
+                print("Booking fetch was cancelled (likely due to concurrent request or navigation)")
+                await MainActor.run {
+                    // Keep existing bookings, don't replace with demo data
+                    self.isLoading = false
+                }
+                return
             }
-            throw error
+            
+            // If database fetch fails with a real error, log and preserve previous bookings
+            print("Error fetching bookings from database: \(error)")
+            print("Error details: \(error.localizedDescription)")
+            
+            // If we have previous bookings (from a successful fetch), preserve them
+            // Otherwise, show demo data as fallback
+            let bookingsToShow: [Booking]
+            if !previousBookings.isEmpty {
+                // Keep previous bookings (which include both real and demo)
+                // This preserves the real bookings even if refresh fails
+                bookingsToShow = previousBookings
+            } else {
+                // No previous bookings, show demo data
+                bookingsToShow = demoBookings
+            }
+            
+            await MainActor.run {
+                self.myBookings = bookingsToShow
+                self.isLoading = false
+                // Don't set errorMessage to avoid showing error to user
+                // since we're preserving existing bookings
+            }
         }
-        */
     }
     
     // MARK: - Sample Data for Demo (Pilot's Bookings)
@@ -743,7 +788,51 @@ class BookingService: ObservableObject {
         errorMessage = nil
         
         do {
-            let updateData: [String: AnyJSON] = ["status": .string(BookingStatus.completed.rawValue)]
+            // First, get the booking to check if it has a charge_id
+            let booking: Booking = try await supabase
+                .from("bookings")
+                .select()
+                .eq("id", value: bookingId.uuidString)
+                .single()
+                .execute()
+                .value
+            
+            // Update status to completed
+            var updateData: [String: AnyJSON] = ["status": .string(BookingStatus.completed.rawValue)]
+            
+            // If booking has a charge_id but no transfer_id, trigger transfer
+            if let chargeId = booking.chargeId, booking.transferId == nil, booking.pilotId != nil {
+                // Get payment amount (including tip)
+                let totalAmount = booking.paymentAmount + (booking.tipAmount ?? 0)
+                
+                // Call transfer function
+                struct TransferRequest: Codable {
+                    let booking_id: String
+                    let amount: Int
+                    let currency: String
+                    let charge_id: String
+                }
+                
+                struct TransferResponse: Codable {
+                    let transfer_id: String
+                }
+                
+                let transferRequest = TransferRequest(
+                    booking_id: bookingId.uuidString,
+                    amount: Int(NSDecimalNumber(decimal: totalAmount * 100).intValue),
+                    currency: "usd",
+                    charge_id: chargeId
+                )
+                
+                let transferResponse: TransferResponse = try await supabase.functions
+                    .invoke("create-transfer", options: FunctionInvokeOptions(
+                        body: transferRequest
+                    ))
+                
+                // Update booking with transfer_id
+                updateData["transfer_id"] = .string(transferResponse.transfer_id)
+            }
+            
             try await supabase
                 .from("bookings")
                 .update(updateData)

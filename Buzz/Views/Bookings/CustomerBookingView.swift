@@ -8,6 +8,7 @@
 import SwiftUI
 import MapKit
 import Auth
+import Supabase
 
 struct CustomerBookingView: View {
     @EnvironmentObject var authService: AuthService
@@ -67,7 +68,12 @@ struct CustomerBookingView: View {
                     }
                 }
             }
-            .sheet(isPresented: $showCreateBooking) {
+            .sheet(isPresented: $showCreateBooking, onDismiss: {
+                // Refresh bookings when sheet is dismissed (after successful creation)
+                Task {
+                    await loadBookings()
+                }
+            }) {
                 CreateBookingView()
             }
             .sheet(isPresented: $showConversations) {
@@ -81,7 +87,12 @@ struct CustomerBookingView: View {
     
     private func loadBookings() async {
         guard let currentUser = authService.currentUser else { return }
-        try? await bookingService.fetchMyBookings(userId: currentUser.id, isPilot: false)
+        do {
+            try await bookingService.fetchMyBookings(userId: currentUser.id, isPilot: false)
+        } catch {
+            print("Error loading bookings: \(error.localizedDescription)")
+            // Error is handled in BookingService, which will show demo data as fallback
+        }
     }
 }
 
@@ -223,6 +234,7 @@ struct StatusBadge: View {
 struct CreateBookingView: View {
     @EnvironmentObject var authService: AuthService
     @StateObject private var bookingService = BookingService()
+    @StateObject private var paymentService = PaymentService()
     @Environment(\.dismiss) var dismiss
     
     @State private var currentStep = 1
@@ -239,6 +251,7 @@ struct CreateBookingView: View {
     @State private var showError = false
     @State private var errorMessage = ""
     @State private var showSuccess = false
+    @State private var isProcessingPayment = false
     
     var body: some View {
         NavigationView {
@@ -267,7 +280,7 @@ struct CreateBookingView: View {
                             currentStep = 1
                         },
                         onCreate: createBooking,
-                        isLoading: bookingService.isLoading,
+                        isLoading: bookingService.isLoading || paymentService.isLoading || isProcessingPayment,
                         isFormValid: isStep2Valid
                     )
                 }
@@ -321,52 +334,125 @@ struct CreateBookingView: View {
             return
         }
         
-        // Combine date with start time
-        let calendar = Calendar.current
-        let dateComponents = calendar.dateComponents([.year, .month, .day], from: selectedDate)
-        let startTimeComponents = calendar.dateComponents([.hour, .minute], from: startTime)
-        let endTimeComponents = calendar.dateComponents([.hour, .minute], from: endTime)
-        
-        var startDateTimeComponents = DateComponents()
-        startDateTimeComponents.year = dateComponents.year
-        startDateTimeComponents.month = dateComponents.month
-        startDateTimeComponents.day = dateComponents.day
-        startDateTimeComponents.hour = startTimeComponents.hour
-        startDateTimeComponents.minute = startTimeComponents.minute
-        
-        let startDateTime = calendar.date(from: startDateTimeComponents) ?? selectedDate
-        
-        var endDateTimeComponents = DateComponents()
-        endDateTimeComponents.year = dateComponents.year
-        endDateTimeComponents.month = dateComponents.month
-        endDateTimeComponents.day = dateComponents.day
-        endDateTimeComponents.hour = endTimeComponents.hour
-        endDateTimeComponents.minute = endTimeComponents.minute
-        
-        let endDateTime = calendar.date(from: endDateTimeComponents) ?? startTime
-        
-        let userId = currentUser.id
-        
+        // Process payment first, then create booking
         Task {
-            do {
+            await processPaymentAndCreateBooking(
+                customerId: currentUser.id,
+                paymentAmount: Decimal(payment),
+                location: location,
+                specialization: specialization,
+                hours: hours
+            )
+        }
+    }
+    
+    private func processPaymentAndCreateBooking(
+        customerId: UUID,
+        paymentAmount: Decimal,
+        location: CLLocationCoordinate2D,
+        specialization: BookingSpecialization,
+        hours: Double
+    ) async {
+        isProcessingPayment = true
+        
+        do {
+            // Generate transfer group (using booking ID that we'll create)
+            let bookingId = UUID()
+            let transferGroup = "booking_\(bookingId.uuidString)"
+            
+            // Create PaymentIntent
+            let paymentIntentResponse = try await paymentService.createPaymentIntent(
+                amount: paymentAmount,
+                currency: "usd",
+                customerId: customerId,
+                transferGroup: transferGroup
+            )
+            
+            // Present PaymentSheet
+            let paymentResult = try await paymentService.presentPaymentSheet(
+                paymentIntentClientSecret: paymentIntentResponse.clientSecret,
+                customerId: paymentIntentResponse.customerId,
+                customerEphemeralKeySecret: paymentIntentResponse.ephemeralKeySecret
+            )
+            
+            switch paymentResult {
+            case .completed:
+                // Payment successful, get charge_id from PaymentIntent
+                let chargeId = try await getChargeId(from: paymentIntentResponse.paymentIntentId)
+                
+                // Combine date with start time
+                let calendar = Calendar.current
+                let dateComponents = calendar.dateComponents([.year, .month, .day], from: selectedDate)
+                let startTimeComponents = calendar.dateComponents([.hour, .minute], from: startTime)
+                let endTimeComponents = calendar.dateComponents([.hour, .minute], from: endTime)
+                
+                var startDateTimeComponents = DateComponents()
+                startDateTimeComponents.year = dateComponents.year
+                startDateTimeComponents.month = dateComponents.month
+                startDateTimeComponents.day = dateComponents.day
+                startDateTimeComponents.hour = startTimeComponents.hour
+                startDateTimeComponents.minute = startTimeComponents.minute
+                
+                let startDateTime = calendar.date(from: startDateTimeComponents) ?? selectedDate
+                
+                var endDateTimeComponents = DateComponents()
+                endDateTimeComponents.year = dateComponents.year
+                endDateTimeComponents.month = dateComponents.month
+                endDateTimeComponents.day = dateComponents.day
+                endDateTimeComponents.hour = endTimeComponents.hour
+                endDateTimeComponents.minute = endTimeComponents.minute
+                
+                let endDateTime = calendar.date(from: endDateTimeComponents) ?? startTime
+                
+                // Create booking with payment info
                 try await bookingService.createBooking(
-                    customerId: userId,
+                    customerId: customerId,
                     location: location,
                     locationName: locationName.isEmpty ? "Selected Location" : locationName,
                     scheduledDate: startDateTime,
                     endDate: endDateTime,
                     specialization: specialization,
                     description: description,
-                    paymentAmount: Decimal(payment),
+                    paymentAmount: paymentAmount,
                     estimatedFlightHours: hours,
-                    requiredMinimumRank: requiredMinimumRank
+                    requiredMinimumRank: requiredMinimumRank,
+                    paymentIntentId: paymentIntentResponse.paymentIntentId,
+                    chargeId: chargeId
                 )
+                
+                isProcessingPayment = false
                 showSuccess = true
-            } catch {
-                errorMessage = error.localizedDescription
+                
+            case .cancelled:
+                isProcessingPayment = false
+                errorMessage = "Payment was cancelled"
+                showError = true
+                
+            case .failed(let error):
+                isProcessingPayment = false
+                errorMessage = "Payment failed: \(error.localizedDescription)"
                 showError = true
             }
+        } catch {
+            isProcessingPayment = false
+            errorMessage = error.localizedDescription
+            showError = true
         }
+    }
+    
+    private func getChargeId(from paymentIntentId: String) async throws -> String {
+        let supabase = SupabaseClient.shared.client
+        
+        struct PaymentIntentDetails: Codable {
+            let charge_id: String
+        }
+        
+        let response: PaymentIntentDetails = try await supabase.functions
+            .invoke("get-payment-intent", options: FunctionInvokeOptions(
+                body: ["payment_intent_id": paymentIntentId]
+            ))
+        
+        return response.charge_id
     }
 }
 
@@ -380,6 +466,7 @@ struct CustomerBookingDetailView: View {
     let booking: Booking
     @State private var region: MKCoordinateRegion
     @State private var showCancelAlert = false
+    @State private var showCancelSuccess = false
     @State private var showRatingSheet = false
     @State private var showError = false
     @State private var errorMessage = ""
@@ -387,6 +474,7 @@ struct CustomerBookingDetailView: View {
     @State private var pilotProfile: UserProfile?
     @State private var showMessageSheet = false
     @State private var showEditSheet = false
+    @Environment(\.dismiss) var dismiss
     
     init(booking: Booking) {
         self.booking = booking
@@ -492,7 +580,7 @@ struct CustomerBookingDetailView: View {
                     .padding(.horizontal)
                 
                 // Pilot Info Section (for accepted/completed bookings)
-                if (booking.status == .accepted || booking.status == .completed), let pilotId = booking.pilotId {
+                if (booking.status == .accepted || booking.status == .completed), booking.pilotId != nil {
                     VStack(alignment: .leading, spacing: 12) {
                         Label("Pilot", systemImage: "airplane.circle.fill")
                             .font(.headline)
@@ -649,6 +737,13 @@ struct CustomerBookingDetailView: View {
         } message: {
             Text(errorMessage)
         }
+        .alert("Booking Cancelled", isPresented: $showCancelSuccess) {
+            Button("OK") {
+                dismiss()
+            }
+        } message: {
+            Text("Your booking has been cancelled successfully.")
+        }
         .sheet(isPresented: $showRatingSheet) {
             RatingView(
                 userName: pilotName,
@@ -696,6 +791,7 @@ struct CustomerBookingDetailView: View {
         Task {
             do {
                 try await bookingService.cancelBooking(bookingId: booking.id)
+                showCancelSuccess = true
             } catch {
                 errorMessage = error.localizedDescription
                 showError = true
