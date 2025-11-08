@@ -396,6 +396,19 @@ struct ProfileView: View {
                         }
                     }
                     
+                    // Saved Payments (Customer only)
+                    if authService.userProfile?.userType == .customer {
+                        NavigationLink(destination: SavedPaymentsView()) {
+                            HStack {
+                                Image(systemName: "creditcard")
+                                    .foregroundColor(.secondary)
+                                    .font(.body)
+                                Text("Saved Payments")
+                                    .foregroundColor(.primary)
+                            }
+                        }
+                    }
+                    
                     if authService.userProfile?.userType == .pilot {
                         NavigationLink(destination: TaxDocumentView()) {
                             HStack {

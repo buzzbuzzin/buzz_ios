@@ -87,6 +87,8 @@ serve(async (req) => {
     }
 
     // Create PaymentIntent with transfer_group
+    // Note: We don't set setup_future_usage here to allow users to opt-in via checkbox
+    // PaymentSheet will show "Save payment details" checkbox when customer + ephemeral key are provided
     const paymentIntent = await stripe.paymentIntents.create({
       amount: amount,
       currency: currency,

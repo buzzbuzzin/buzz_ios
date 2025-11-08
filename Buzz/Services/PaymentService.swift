@@ -124,6 +124,41 @@ class PaymentService: ObservableObject {
             throw error
         }
     }
+    
+    // MARK: - Fetch Saved Payment Methods
+    
+    /// Fetches all saved payment methods for a customer
+    func fetchSavedPaymentMethods(customerId: UUID) async throws -> [SavedPaymentMethod] {
+        isLoading = true
+        errorMessage = nil
+        
+        do {
+            struct PaymentMethodsRequest: Codable {
+                let customer_id: String
+            }
+            
+            let request = PaymentMethodsRequest(
+                customer_id: customerId.uuidString
+            )
+            
+            let response: PaymentMethodsResponse = try await supabase.functions
+                .invoke("list-payment-methods", options: FunctionInvokeOptions(
+                    body: request
+                ))
+            
+            isLoading = false
+            return response.paymentMethods
+        } catch {
+            isLoading = false
+            // Log error for debugging but return empty array to prevent UI errors
+            print("Error fetching payment methods: \(error)")
+            if let decodingError = error as? DecodingError {
+                print("Decoding error details: \(decodingError)")
+            }
+            // Always return empty array - Edge Function now always returns consistent structure
+            return []
+        }
+    }
 }
 
 // MARK: - Response Models
@@ -151,6 +186,57 @@ struct TransferResponse: Codable {
         case transferId = "transfer_id"
         case amount
         case currency
+    }
+}
+
+// MARK: - Saved Payment Methods Models
+
+struct PaymentMethodsResponse: Codable {
+    let paymentMethods: [SavedPaymentMethod]
+    
+    enum CodingKeys: String, CodingKey {
+        case paymentMethods = "payment_methods"
+    }
+}
+
+struct SavedPaymentMethod: Codable, Identifiable {
+    let id: String
+    let type: String
+    let card: CardDetails?
+    let created: Int
+    let allowRedisplay: String?
+    
+    enum CodingKeys: String, CodingKey {
+        case id
+        case type
+        case card
+        case created
+        case allowRedisplay = "allow_redisplay"
+    }
+    
+    var displayName: String {
+        guard let card = card else { return "Payment Method" }
+        let brand = card.brand.capitalized
+        return "\(brand) •••• \(card.last4)"
+    }
+    
+    var expirationDate: String {
+        guard let card = card else { return "" }
+        return String(format: "%02d/%d", card.expMonth, card.expYear)
+    }
+}
+
+struct CardDetails: Codable {
+    let brand: String
+    let last4: String
+    let expMonth: Int
+    let expYear: Int
+    
+    enum CodingKeys: String, CodingKey {
+        case brand
+        case last4
+        case expMonth = "exp_month"
+        case expYear = "exp_year"
     }
 }
 

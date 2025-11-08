@@ -248,6 +248,7 @@ struct CreateBookingView: View {
     @State private var description = ""
     @State private var paymentAmount = ""
     @State private var estimatedHours = ""
+    @State private var paymentInputType: PaymentInputType = .totalPayment
     @State private var showError = false
     @State private var errorMessage = ""
     @State private var showSuccess = false
@@ -276,6 +277,7 @@ struct CreateBookingView: View {
                         description: $description,
                         paymentAmount: $paymentAmount,
                         estimatedHours: $estimatedHours,
+                        paymentInputType: $paymentInputType,
                         onBack: {
                             currentStep = 1
                         },
@@ -316,11 +318,33 @@ struct CreateBookingView: View {
     }
     
     private var isStep2Valid: Bool {
-        !description.isEmpty &&
-        !paymentAmount.isEmpty &&
-        !estimatedHours.isEmpty &&
-        Double(paymentAmount) != nil &&
-        Double(estimatedHours) != nil
+        guard !description.isEmpty,
+              !estimatedHours.isEmpty,
+              let hours = Double(estimatedHours),
+              hours > 0 else {
+            return false
+        }
+        
+        // Check payment based on input type
+        if paymentInputType == .totalPayment {
+            // Validate total payment
+            guard !paymentAmount.isEmpty,
+                  let total = Double(paymentAmount),
+                  total > 0 else {
+                return false
+            }
+            // Calculate and validate hourly rate meets minimum
+            let hourlyRate = total / hours
+            return hourlyRate >= 25.0
+        } else {
+            // Validate hourly rate
+            guard !paymentAmount.isEmpty,
+                  let rate = Double(paymentAmount),
+                  rate >= 25.0 else {
+                return false
+            }
+            return true
+        }
     }
     
     private func createBooking() {
@@ -526,25 +550,46 @@ struct CustomerBookingDetailView: View {
                 Divider()
                     .padding(.horizontal)
                 
-                // Payment & Hours
-                HStack(spacing: 40) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Label("Payment", systemImage: "dollarsign.circle.fill")
-                            .font(.subheadline)
-                            .foregroundColor(.green)
-                        Text(String(format: "$%.2f", NSDecimalNumber(decimal: booking.paymentAmount).doubleValue))
-                            .font(.title2)
-                            .fontWeight(.bold)
-                    }
-                    
-                    if let hours = booking.estimatedFlightHours {
+                // Payment, Hourly Rate & Hours (Grid Layout)
+                VStack(spacing: 20) {
+                    // First row: Payment and Hourly rate
+                    HStack(spacing: 40) {
                         VStack(alignment: .leading, spacing: 4) {
-                            Label("Duration", systemImage: "clock.fill")
+                            Label("Payment", systemImage: "dollarsign.circle.fill")
                                 .font(.subheadline)
-                                .foregroundColor(.blue)
-                            Text(String(format: "%.1f hours", hours))
+                                .foregroundColor(.green)
+                            Text(String(format: "$%.2f", NSDecimalNumber(decimal: booking.paymentAmount).doubleValue))
                                 .font(.title2)
                                 .fontWeight(.bold)
+                        }
+                        
+                        if let hours = booking.estimatedFlightHours, hours > 0 {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Label("Hourly rate", systemImage: "clock.badge.checkmark")
+                                    .font(.subheadline)
+                                    .foregroundColor(.purple)
+                                Text(String(format: "$%.2f/hr", NSDecimalNumber(decimal: booking.paymentAmount).doubleValue / hours))
+                                    .font(.title2)
+                                    .fontWeight(.bold)
+                            }
+                        }
+                        
+                        Spacer()
+                    }
+                    
+                    // Second row: Duration
+                    if let hours = booking.estimatedFlightHours {
+                        HStack(spacing: 40) {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Label("Duration", systemImage: "clock.fill")
+                                    .font(.subheadline)
+                                    .foregroundColor(.blue)
+                                Text(String(format: "%.1f hours", hours))
+                                    .font(.title2)
+                                    .fontWeight(.bold)
+                            }
+                            
+                            Spacer()
                         }
                     }
                 }
