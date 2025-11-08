@@ -419,6 +419,16 @@ struct ProfileView: View {
                                     .foregroundColor(.primary)
                             }
                         }
+                        
+                        NavigationLink(destination: StripeAccountSetupView()) {
+                            HStack {
+                                Image(systemName: "creditcard.fill")
+                                    .foregroundColor(.secondary)
+                                    .font(.body)
+                                Text("Payment Account")
+                                    .foregroundColor(.primary)
+                            }
+                        }
                     }
                     
                     NavigationLink(destination: HelpView()) {
