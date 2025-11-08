@@ -4,7 +4,9 @@ This guide explains how to set up Stripe Identity for government ID verification
 
 ## Overview
 
-The app now uses Stripe Identity to securely verify government-issued IDs. This replaces the previous manual upload flow with Stripe's automated verification system.
+The app now uses Stripe Identity to securely verify government-issued IDs with both document verification and selfie checks. This replaces the previous manual upload flow with Stripe's automated verification system.
+
+**Selfie Verification**: The verification flow includes a selfie check that compares the user's face with the photo on their government-issued ID. This provides an additional layer of security against identity fraud using stolen documents.
 
 ## Prerequisites
 
@@ -83,11 +85,14 @@ ALTER COLUMN file_type DROP NOT NULL;
 ## How It Works
 
 1. **User Initiates Verification**: User taps "Verify Identity with Stripe" button
-2. **Create Session**: App calls Supabase Edge Function to create a Stripe VerificationSession
+2. **Create Session**: App calls Supabase Edge Function to create a Stripe VerificationSession with selfie check enabled
 3. **Present Flow**: Stripe Identity SDK presents the document capture UI
-4. **User Submits**: User captures/uploads their ID document
-5. **Stripe Verifies**: Stripe processes and verifies the document
-6. **Update Status**: App updates the database with verification status
+4. **User Submits Document**: User captures/uploads their ID document
+5. **User Takes Selfie**: User takes a selfie photo (automatically prompted by Stripe SDK)
+6. **Stripe Verifies**: Stripe processes and verifies both the document and selfie match
+7. **Update Status**: App updates the database with verification status
+
+**Note**: Both the document check and selfie check must pass for verification to be successful. If either check fails, the verification status will be set to "rejected".
 
 ## Architecture
 
@@ -131,6 +136,13 @@ ALTER COLUMN file_type DROP NOT NULL;
 - ✅ Verification data is encrypted by Stripe
 - ✅ No sensitive data stored in app or database
 - ✅ Stripe handles all document storage and processing
+- ✅ Selfie verification prevents use of stolen identity documents
+- ✅ Biometric matching uses advanced machine learning algorithms
+
+**Privacy Note**: Selfie checks use biometric technology. In some jurisdictions (e.g., EU), you may need to:
+- Justify the use of biometric technology
+- Offer an alternative non-biometric verification option
+- Consult with legal counsel regarding compliance requirements
 
 ## Troubleshooting
 
@@ -161,6 +173,23 @@ ALTER COLUMN file_type DROP NOT NULL;
 - Verify camera permissions are granted
 - Check Stripe dashboard for verification session status
 - Review error messages in app logs
+
+### Selfie Check Failures
+
+**Problem**: Verification fails with selfie check errors
+
+**Common Error Codes**:
+- `selfie_face_mismatch`: The selfie doesn't match the photo on the ID document
+- `selfie_document_missing_photo`: The ID document doesn't contain a photo
+- `selfie_manipulated`: The selfie image was manipulated or edited
+- `selfie_unverified_other`: General selfie verification failure
+
+**Solution**:
+- Ensure the ID document has a clear photo of the user's face
+- Make sure the selfie is taken in good lighting
+- Ensure the user's face is clearly visible in the selfie
+- Verify the user is using their own ID document
+- Check that the ID document type is supported for selfie checks (see Stripe documentation for supported countries)
 
 ## Production Checklist
 

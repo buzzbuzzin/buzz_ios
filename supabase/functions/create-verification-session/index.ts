@@ -50,11 +50,16 @@ serve(async (req) => {
       )
     }
 
-    // Create Stripe Identity VerificationSession
+    // Create Stripe Identity VerificationSession with selfie check enabled
     const verificationSession = await stripe.identity.verificationSessions.create({
       type: "document",
       provided_details: {
         email: email || undefined,
+      },
+      options: {
+        document: {
+          require_matching_selfie: true,
+        },
       },
       metadata: {
         user_id: user_id,

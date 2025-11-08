@@ -40,9 +40,13 @@ serve(async (req) => {
       )
     }
 
-    // Retrieve the verification session from Stripe
+    // Retrieve the verification session from Stripe with expanded verification report
+    // This includes selfie check details if selfie verification is enabled
     const verificationSession = await stripe.identity.verificationSessions.retrieve(
-      session_id
+      session_id,
+      {
+        expand: ["last_verification_report"],
+      }
     )
 
     // Map Stripe status to our app status

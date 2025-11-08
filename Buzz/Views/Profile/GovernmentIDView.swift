@@ -34,7 +34,7 @@ struct GovernmentIDView: View {
                         .font(.title2)
                         .fontWeight(.bold)
                     
-                    Text("Please authenticate with Face ID to upload your driver's license for identity verification.")
+                    Text("Please authenticate with Face ID to verify your identity. You'll need to provide your government-issued ID and a selfie photo.")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
@@ -58,7 +58,7 @@ struct GovernmentIDView: View {
                         .padding(.top, 8)
                     
                     // Description
-                    Text("Verify your identity using Stripe Identity. This secure service helps ensure the safety and security of our platform.")
+                    Text("Verify your identity using Stripe Identity. You'll need to provide both your government-issued ID and a selfie photo. This secure service helps ensure the safety and security of our platform.")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                     
@@ -215,7 +215,7 @@ struct GovernmentIDView: View {
                                 .cornerRadius(10)
                             }
                             
-                            Text("Stripe Identity securely verifies your government-issued ID. Your information is encrypted and protected.")
+                            Text("Stripe Identity securely verifies your identity by comparing your government-issued ID with a selfie photo. Your information is encrypted and protected.")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                                 .multilineTextAlignment(.center)
