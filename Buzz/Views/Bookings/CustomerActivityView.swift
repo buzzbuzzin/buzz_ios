@@ -89,8 +89,7 @@ struct CompletedBookingCard: View {
             let totalAmount = booking.paymentAmount + (booking.tipAmount ?? 0)
             Text(String(format: "$%.2f", NSDecimalNumber(decimal: totalAmount).doubleValue))
                 .font(.subheadline)
-                .fontWeight(.semibold)
-                .foregroundColor(.green)
+                .foregroundColor(.secondary)
         }
         .padding(.vertical, 4)
     }

@@ -498,6 +498,7 @@ struct CustomerBookingDetailView: View {
     @State private var errorMessage = ""
     @State private var pilotName = "Pilot"
     @State private var pilotProfile: UserProfile?
+    @State private var pilotRating: Double? = nil
     @State private var showMessageSheet = false
     @State private var showEditSheet = false
     @State private var showFinishBookingAlert = false
@@ -875,7 +876,9 @@ struct CustomerBookingDetailView: View {
                 onRatingSubmitted: { rating, comment, tip in
                     submitRating(rating: rating, comment: comment, tip: tip)
                 },
-                customTitle: currentBooking.status == .completed ? "Booking is completed" : nil
+                customTitle: currentBooking.status == .completed ? "Booking is completed" : nil,
+                paymentAmount: currentBooking.paymentAmount,
+                userRating: pilotRating
             )
         }
         .sheet(isPresented: $showMessageSheet) {
@@ -927,6 +930,16 @@ struct CustomerBookingDetailView: View {
             print("Error loading pilot profile: \(error)")
             pilotName = "Pilot"
             }
+        }
+        
+        // Fetch pilot rating
+        let ratingService = RatingService()
+        do {
+            if let ratingSummary = try await ratingService.getUserRatingSummary(userId: pilotId) {
+                pilotRating = ratingSummary.averageRating
+            }
+        } catch {
+            print("Error loading pilot rating: \(error)")
         }
     }
     

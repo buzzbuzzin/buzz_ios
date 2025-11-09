@@ -12,164 +12,315 @@ struct RatingView: View {
     let isPilotRatingCustomer: Bool
     let onRatingSubmitted: (Int, String?, Decimal?) -> Void
     let customTitle: String? // Optional custom title (e.g., "Booking is completed")
+    let paymentAmount: Decimal? // Payment amount for calculating tip amounts (only for customers rating pilots)
+    let userRating: Double? // Optional user rating to display (e.g., 4.99)
     
     @State private var selectedRating = 0
     @State private var comment = ""
-    @State private var selectedTipAmount: Decimal? = nil
-    @State private var customTipAmount = ""
-    @State private var showCustomTipField = false
+    @State private var selectedTipPercentage: Int? = nil // 5, 10, or 15
+    @State private var customTipAmount: Decimal? = nil // Custom tip amount entered by user
+    @State private var showCustomTipSheet = false
     @Environment(\.dismiss) var dismiss
     
-    // Predefined tip amounts
-    private let tipAmounts: [Decimal] = [1, 2, 5]
+    // Predefined tip percentages
+    private let tipPercentages: [Int] = [5, 10, 15]
     
-    init(userName: String, isPilotRatingCustomer: Bool, onRatingSubmitted: @escaping (Int, String?, Decimal?) -> Void, customTitle: String? = nil) {
+    init(userName: String, isPilotRatingCustomer: Bool, onRatingSubmitted: @escaping (Int, String?, Decimal?) -> Void, customTitle: String? = nil, paymentAmount: Decimal? = nil, userRating: Double? = nil) {
         self.userName = userName
         self.isPilotRatingCustomer = isPilotRatingCustomer
         self.onRatingSubmitted = onRatingSubmitted
         self.customTitle = customTitle
+        self.paymentAmount = paymentAmount
+        self.userRating = userRating
     }
     
     var body: some View {
         NavigationView {
-            Form {
-                Section {
-                    VStack(spacing: 20) {
-                        // User Icon
-                        Image(systemName: isPilotRatingCustomer ? "person.fill" : "airplane.circle.fill")
-                            .font(.system(size: 60))
-                            .foregroundColor(.blue)
-                            .padding(.top)
-                        
+            ScrollView {
+                VStack(alignment: .leading, spacing: 24) {
+                    // Header Section
+                    VStack(alignment: .leading, spacing: 12) {
                         // Title
-                        Text("Rate \(userName)")
-                            .font(.title2)
-                            .fontWeight(.bold)
-                        
-                        Text(isPilotRatingCustomer ? "How was your experience with this customer?" : "How was your experience with this pilot?")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical)
-                }
-                
-                // Star Rating
-                Section("Rating") {
-                    HStack {
-                        Spacer()
-                        ForEach(1...5, id: \.self) { rating in
-                            Button(action: {
-                                selectedRating = rating
-                            }) {
-                                Image(systemName: rating <= selectedRating ? "star.fill" : "star")
-                                    .font(.system(size: 40))
-                                    .foregroundColor(rating <= selectedRating ? .yellow : .gray)
-                            }
-                            .buttonStyle(PlainButtonStyle())
-                        }
-                        Spacer()
-                    }
-                    .padding(.vertical)
-                }
-                
-                // Comment Section
-                Section("Your Review (Optional)") {
-                    TextField("Share your experience...", text: $comment, axis: .vertical)
-                        .lineLimit(3...8)
-                }
-                
-                // Tip Section (Only for customers rating pilots)
-                if !isPilotRatingCustomer {
-                    Section {
-                        Text("Add a tip for \(userName)")
+                        Text(isPilotRatingCustomer ? "How was your booking with \(userName)?" : "How was your booking with \(userName)?")
                             .font(.headline)
-                            .padding(.vertical, 4)
-                        
-                        // Predefined tip amount buttons
-                        HStack(spacing: 12) {
-                            ForEach(tipAmounts, id: \.self) { amount in
-                                Button(action: {
-                                    if selectedTipAmount == amount {
-                                        selectedTipAmount = nil
-                                        showCustomTipField = false
-                                    } else {
-                                        selectedTipAmount = amount
-                                        showCustomTipField = false
-                                        customTipAmount = ""
-                                    }
-                                }) {
-                                    Text("$\(NSDecimalNumber(decimal: amount).intValue)")
-                                        .font(.headline)
-                                        .foregroundColor(selectedTipAmount == amount ? .white : .primary)
-                                        .frame(width: 70, height: 70)
-                                        .background(selectedTipAmount == amount ? Color.teal : Color(.systemGray6))
-                                        .clipShape(Circle())
+                            .fontWeight(.semibold)
+                            .multilineTextAlignment(.leading)
+                    }
+                    .padding(.horizontal)
+                    .padding(.top, 20)
+                    
+                    // Tip Section (Only for customers rating pilots)
+                    if !isPilotRatingCustomer, let paymentAmount = paymentAmount {
+                        VStack(alignment: .leading, spacing: 16) {
+                            Text("Add a tip for \(userName)")
+                                .font(.headline)
+                                .fontWeight(.semibold)
+                            
+                            Text("Your booking was \(String(format: "$%.2f", NSDecimalNumber(decimal: paymentAmount).doubleValue))")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                            
+                            // Tip percentage buttons with calculated amounts
+                            HStack(spacing: 12) {
+                                ForEach(tipPercentages, id: \.self) { percentage in
+                                    TipPercentageButton(
+                                        percentage: percentage,
+                                        paymentAmount: paymentAmount,
+                                        isSelected: selectedTipPercentage == percentage,
+                                        onTap: {
+                                            if selectedTipPercentage == percentage {
+                                                selectedTipPercentage = nil
+                                            } else {
+                                                selectedTipPercentage = percentage
+                                                customTipAmount = nil
+                                            }
+                                        }
+                                    )
                                 }
                             }
-                        }
-                        .padding(.vertical, 8)
-                        
-                        // Custom amount option
-                        Button(action: {
-                            showCustomTipField.toggle()
-                            if showCustomTipField {
-                                selectedTipAmount = nil
-                            } else {
-                                customTipAmount = ""
+                            
+                            // Custom amount option
+                            Button(action: {
+                                showCustomTipSheet = true
+                            }) {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "pencil")
+                                        .font(.subheadline)
+                                    Text("Enter Custom Amount")
+                                        .font(.subheadline)
+                                    
+                                    if let customTip = customTipAmount {
+                                        Spacer()
+                                        Text(String(format: "$%.2f", NSDecimalNumber(decimal: customTip).doubleValue))
+                                            .font(.subheadline)
+                                            .fontWeight(.semibold)
+                                    }
+                                }
+                                .foregroundColor(.primary)
                             }
-                        }) {
-                            Text("Enter Custom Amount")
-                                .font(.subheadline)
-                                .foregroundColor(.teal)
+                            
+                            Divider()
                         }
-                        .padding(.vertical, 4)
+                        .padding(.horizontal)
+                    }
+                    
+                    // Rating Section
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text("Rate your booking")
+                            .font(.headline)
+                            .fontWeight(.semibold)
                         
-                        // Custom tip amount field
-                        if showCustomTipField {
-                            HStack {
-                                Text("$")
-                                    .foregroundColor(.secondary)
-                                TextField("Amount", text: $customTipAmount)
-                                    .keyboardType(.decimalPad)
+                        HStack(spacing: 12) {
+                            ForEach(1...5, id: \.self) { rating in
+                                Button(action: {
+                                    selectedRating = rating
+                                }) {
+                                    Image(systemName: rating <= selectedRating ? "star.fill" : "star")
+                                        .font(.system(size: 32))
+                                        .foregroundColor(rating <= selectedRating ? .yellow : .gray)
+                                }
+                                .buttonStyle(PlainButtonStyle())
                             }
-                            .padding(.top, 4)
                         }
-                    } header: {
-                        Text("Tip")
-                    } footer: {
-                        Text("Show your appreciation with a tip")
-                            .font(.caption)
+                        
+                        Divider()
+                        
+                        // Review text field
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Review Details")
+                                .font(.headline)
+                                .fontWeight(.semibold)
+                            
+                            TextField("Share your experience...", text: $comment, axis: .vertical)
+                                .lineLimit(3...8)
+                                .textFieldStyle(.plain)
+                                .padding(12)
+                                .background(Color(.systemGray6))
+                                .cornerRadius(8)
+                        }
+                        
+                        Divider()
                     }
-                }
-            }
-            .navigationTitle(customTitle ?? "Rate & Review")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Cancel") {
-                        dismiss()
-                    }
-                }
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("DONE") {
-                        let tip: Decimal? = if showCustomTipField && !customTipAmount.isEmpty, let tipValue = Double(customTipAmount) {
-                            Decimal(tipValue)
-                        } else if let selectedTip = selectedTipAmount {
-                            selectedTip
+                    .padding(.horizontal)
+                    
+                    Spacer()
+                        .frame(height: 20)
+                    
+                    // Submit Button
+                    Button(action: {
+                        let tip: Decimal? = if let customTip = customTipAmount {
+                            customTip
+                        } else if let percentage = selectedTipPercentage, let paymentAmount = paymentAmount {
+                            paymentAmount * Decimal(percentage) / 100
                         } else {
                             nil
                         }
                         onRatingSubmitted(selectedRating, comment.isEmpty ? nil : comment, tip)
                         dismiss()
+                    }) {
+                        Text("Submit")
+                            .font(.headline)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 56)
+                            .background(selectedRating == 0 ? Color.gray : Color.black)
+                            .cornerRadius(12)
                     }
                     .disabled(selectedRating == 0)
-                    .fontWeight(.semibold)
+                    .padding(.horizontal)
+                    .padding(.bottom, 20)
                 }
             }
+            .navigationTitle(customTitle ?? "")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button(action: { dismiss() }) {
+                        Image(systemName: "chevron.left")
+                            .foregroundColor(.primary)
+                    }
+                }
+            }
+            .sheet(isPresented: $showCustomTipSheet) {
+                CustomTipSheet(
+                    paymentAmount: paymentAmount ?? 0,
+                    onTipSelected: { tipAmount in
+                        customTipAmount = tipAmount
+                        selectedTipPercentage = nil
+                        showCustomTipSheet = false
+                    },
+                    onCancel: {
+                        showCustomTipSheet = false
+                    }
+                )
+            }
         }
+    }
+}
+
+// MARK: - Custom Tip Sheet
+
+struct CustomTipSheet: View {
+    let paymentAmount: Decimal
+    let onTipSelected: (Decimal) -> Void
+    let onCancel: () -> Void
+    
+    @State private var customTipAmount = ""
+    @FocusState private var isTextFieldFocused: Bool
+    
+    var body: some View {
+        NavigationView {
+            VStack(spacing: 24) {
+                // Header
+                VStack(spacing: 8) {
+                    Text("Enter Custom Amount")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                    
+                    Text("Payment: \(String(format: "$%.2f", NSDecimalNumber(decimal: paymentAmount).doubleValue))")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+                .padding(.top, 20)
+                
+                // Tip amount input
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Tip Amount")
+                        .font(.headline)
+                        .foregroundColor(.secondary)
+                    
+                    HStack {
+                        Text("$")
+                            .font(.title2)
+                            .foregroundColor(.primary)
+                        
+                        TextField("0.00", text: $customTipAmount)
+                            .font(.title)
+                            .keyboardType(.decimalPad)
+                            .focused($isTextFieldFocused)
+                    }
+                    .padding()
+                    .background(Color(.systemGray6))
+                    .cornerRadius(12)
+                }
+                .padding(.horizontal)
+                
+                Spacer()
+                
+                // Action buttons
+                VStack(spacing: 12) {
+                    Button(action: {
+                        if let tipValue = Double(customTipAmount), tipValue > 0 {
+                            onTipSelected(Decimal(tipValue))
+                        }
+                    }) {
+                        Text("DONE")
+                            .font(.headline)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 56)
+                            .background(customTipAmount.isEmpty || Double(customTipAmount) == nil || Double(customTipAmount)! <= 0 ? Color.gray : Color.black)
+                            .cornerRadius(12)
+                    }
+                    .disabled(customTipAmount.isEmpty || Double(customTipAmount) == nil || Double(customTipAmount)! <= 0)
+                    
+                    Button(action: onCancel) {
+                        Text("Cancel")
+                            .font(.headline)
+                            .foregroundColor(.primary)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 56)
+                            .background(Color(.systemGray6))
+                            .cornerRadius(12)
+                    }
+                }
+                .padding(.horizontal)
+                .padding(.bottom, 20)
+            }
+            .navigationBarTitleDisplayMode(.inline)
+            .onAppear {
+                isTextFieldFocused = true
+            }
+        }
+    }
+}
+
+// MARK: - Tip Percentage Button
+
+struct TipPercentageButton: View {
+    let percentage: Int
+    let paymentAmount: Decimal
+    let isSelected: Bool
+    let onTap: () -> Void
+    
+    private var calculatedTip: Decimal {
+        paymentAmount * Decimal(percentage) / 100
+    }
+    
+    var body: some View {
+        Button(action: onTap) {
+            VStack(spacing: 4) {
+                Text("\(percentage)%")
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(isSelected ? .white : .primary)
+                
+                Text(String(format: "$%.2f", NSDecimalNumber(decimal: calculatedTip).doubleValue))
+                    .font(.caption)
+                    .foregroundColor(isSelected ? .white.opacity(0.9) : .secondary)
+            }
+            .frame(minWidth: 80)
+            .frame(height: 60)
+            .background(isSelected ? Color.black : Color(.systemGray6))
+            .cornerRadius(22)
+            .overlay(
+                RoundedRectangle(cornerRadius: 22)
+                    .stroke(isSelected ? Color.clear : Color(.systemGray4), lineWidth: 1)
+            )
+        }
+        .buttonStyle(PlainButtonStyle())
     }
 }
 
