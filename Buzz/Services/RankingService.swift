@@ -114,21 +114,22 @@ class RankingService: ObservableObject {
         isLoading = true
         errorMessage = nil
         
-        // TODO: DEMO MODE - Replace this sample data with real backend call
-        // Simulate API call delay
-        try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
-        
-        // SAMPLE DATA FOR DEMO PURPOSES - Replace with real Supabase query when ready
-        let sampleLeaderboard = createSampleLeaderboard()
-        
-        await MainActor.run {
-            self.leaderboard = sampleLeaderboard
-            self.isLoading = false
+        // Check if demo mode is enabled
+        if DemoModeManager.shared.isDemoModeEnabled {
+            // Simulate API call delay
+            try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+            
+            // SAMPLE DATA FOR DEMO PURPOSES
+            let sampleLeaderboard = createSampleLeaderboard()
+            
+            await MainActor.run {
+                self.leaderboard = sampleLeaderboard
+                self.isLoading = false
+            }
+            return
         }
         
-        return
-        
-        /* UNCOMMENT WHEN READY TO USE REAL BACKEND:
+        // Real backend call
         do {
             let stats: [PilotStats] = try await supabase
                 .from("pilot_stats")
@@ -149,7 +150,6 @@ class RankingService: ObservableObject {
             }
             throw error
         }
-        */
     }
     
     // MARK: - Sample Data for Demo (Leaderboard)

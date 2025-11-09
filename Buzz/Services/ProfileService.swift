@@ -85,6 +85,10 @@ class ProfileService: ObservableObject {
     // TODO: Remove this function when connecting to real backend
     
     func getSampleCustomerProfile(customerId: UUID) -> UserProfile? {
+        // Only return sample data if demo mode is enabled
+        guard DemoModeManager.shared.isDemoModeEnabled else {
+            return nil
+        }
         // Create a mapping of sample customer IDs to profiles with profile pictures
         // In production, this would fetch from the database
         let sampleCustomers: [String: (firstName: String, lastName: String, pictureUrl: String)] = [
@@ -130,6 +134,10 @@ class ProfileService: ObservableObject {
     // TODO: Remove this function when connecting to real backend
     
     func getSamplePilotProfile(pilotId: UUID) -> UserProfile? {
+        // Only return sample data if demo mode is enabled
+        guard DemoModeManager.shared.isDemoModeEnabled else {
+            return nil
+        }
         // Create a mapping of sample pilot IDs to profiles with profile pictures
         // In production, this would fetch from the database
         let samplePilots: [String: (firstName: String, lastName: String, callSign: String, pictureUrl: String)] = [

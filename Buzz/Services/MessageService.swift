@@ -23,22 +23,22 @@ class MessageService: ObservableObject {
         isLoading = true
         errorMessage = nil
         
-        // TODO: DEMO MODE - Replace this sample data with real backend call
-        // Simulate API call delay
-        try? await Task.sleep(nanoseconds: 300_000_000) // 0.3 seconds
-        
-        // SAMPLE DATA FOR DEMO PURPOSES - Replace with real Supabase query when ready
-        // Note: pilotId and customerId are needed for sample data but won't be used in real backend
-        let sampleMessages = createSampleMessages(for: bookingId, pilotId: pilotId, customerId: customerId)
-        
-        await MainActor.run {
-            self.messages = sampleMessages
-            self.isLoading = false
+        // Check if demo mode is enabled
+        if DemoModeManager.shared.isDemoModeEnabled {
+            // Simulate API call delay
+            try? await Task.sleep(nanoseconds: 300_000_000) // 0.3 seconds
+            
+            // SAMPLE DATA FOR DEMO PURPOSES
+            let sampleMessages = createSampleMessages(for: bookingId, pilotId: pilotId, customerId: customerId)
+            
+            await MainActor.run {
+                self.messages = sampleMessages
+                self.isLoading = false
+            }
+            return
         }
         
-        return
-        
-        /* UNCOMMENT WHEN READY TO USE REAL BACKEND:
+        // Real backend call
         do {
             let messages: [Message] = try await supabase
                 .from("messages")
@@ -59,7 +59,6 @@ class MessageService: ObservableObject {
             }
             throw error
         }
-        */
     }
     
     // MARK: - Send Message
@@ -68,25 +67,27 @@ class MessageService: ObservableObject {
         isLoading = true
         errorMessage = nil
         
-        // TODO: DEMO MODE - Add message to local array for demo
-        let newMessage = Message(
-            id: UUID(),
-            bookingId: bookingId,
-            fromUserId: fromUserId,
-            toUserId: toUserId,
-            text: text,
-            createdAt: Date(),
-            isRead: false
-        )
-        
-        await MainActor.run {
-            self.messages.append(newMessage)
-            self.isLoading = false
+        // Check if demo mode is enabled
+        if DemoModeManager.shared.isDemoModeEnabled {
+            // Add message to local array for demo
+            let newMessage = Message(
+                id: UUID(),
+                bookingId: bookingId,
+                fromUserId: fromUserId,
+                toUserId: toUserId,
+                text: text,
+                createdAt: Date(),
+                isRead: false
+            )
+            
+            await MainActor.run {
+                self.messages.append(newMessage)
+                self.isLoading = false
+            }
+            return
         }
         
-        return
-        
-        /* UNCOMMENT WHEN READY TO USE REAL BACKEND:
+        // Real backend call
         do {
             let messageData: [String: AnyJSON] = [
                 "booking_id": .string(bookingId.uuidString),
@@ -112,7 +113,6 @@ class MessageService: ObservableObject {
             }
             throw error
         }
-        */
     }
     
     // MARK: - Sample Data for Demo

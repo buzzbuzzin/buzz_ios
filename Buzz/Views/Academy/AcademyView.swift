@@ -172,14 +172,16 @@ struct AcademyView: View {
     private func loadCourses() async {
         isLoading = true
         
-        // Simulate API call - in production, fetch from backend
-        try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
-        
-        // Fixed UUID for demo Amazon Prime Air Operations course (matches badge)
-        let amazonPrimeAirCourseId = UUID(uuidString: "550e8400-e29b-41d4-a716-446655440001") ?? UUID()
-        
-        // Sample courses data with providers
-        courses = [
+        // Check if demo mode is enabled
+        if DemoModeManager.shared.isDemoModeEnabled {
+            // Simulate API call - in production, fetch from backend
+            try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+            
+            // Fixed UUID for demo Amazon Prime Air Operations course (matches badge)
+            let amazonPrimeAirCourseId = UUID(uuidString: "550e8400-e29b-41d4-a716-446655440001") ?? UUID()
+            
+            // Sample courses data with providers
+            courses = [
             // Buzz courses
             TrainingCourse(
                 id: UUID(),
@@ -391,6 +393,14 @@ struct AcademyView: View {
         ]
         
         isLoading = false
+        } else {
+            // Real backend call - fetch from AcademyService
+            // Note: AcademyService.fetchCourses() is not yet implemented
+            // For now, show empty courses when demo mode is disabled
+            // TODO: Implement backend fetching in AcademyService
+            courses = []
+            isLoading = false
+        }
     }
     
     private func loadRecurrentNotices() async {

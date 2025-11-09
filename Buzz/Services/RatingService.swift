@@ -86,17 +86,19 @@ class RatingService: ObservableObject {
         isLoading = true
         errorMessage = nil
         
-        // TODO: DEMO MODE - Replace this sample data with real backend call
-        // Simulate API call delay
-        try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+        // Check if demo mode is enabled
+        if DemoModeManager.shared.isDemoModeEnabled {
+            // Simulate API call delay
+            try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+            
+            // SAMPLE DATA FOR DEMO PURPOSES
+            let sampleRatings = createSampleRatingsWithUsers(for: userId)
+            
+            isLoading = false
+            return sampleRatings
+        }
         
-        // SAMPLE DATA FOR DEMO PURPOSES - Replace with real Supabase query when ready
-        let sampleRatings = createSampleRatingsWithUsers(for: userId)
-        
-        isLoading = false
-        return sampleRatings
-        
-        /* UNCOMMENT WHEN READY TO USE REAL BACKEND:
+        // Real backend call
         do {
             let ratings: [Rating] = try await supabase
                 .from("ratings")
@@ -137,7 +139,6 @@ class RatingService: ObservableObject {
             errorMessage = error.localizedDescription
             throw error
         }
-        */
     }
     
     // MARK: - Sample Data for Demo (Ratings)
@@ -312,28 +313,30 @@ class RatingService: ObservableObject {
     // MARK: - Get User Rating Summary
     
     func getUserRatingSummary(userId: UUID) async throws -> UserRatingSummary? {
-        // TODO: DEMO MODE - Replace this sample data with real backend call
-        // Simulate API call delay
-        try? await Task.sleep(nanoseconds: 300_000_000) // 0.3 seconds
-        
-        // SAMPLE DATA FOR DEMO PURPOSES - Replace with real Supabase query when ready
-        // Using sample ratings to calculate summary
-        let sampleRatings = createSampleRatingsWithUsers(for: userId)
-        let ratings = sampleRatings.map { $0.rating }
-        
-        guard !ratings.isEmpty else {
-            return nil
+        // Check if demo mode is enabled
+        if DemoModeManager.shared.isDemoModeEnabled {
+            // Simulate API call delay
+            try? await Task.sleep(nanoseconds: 300_000_000) // 0.3 seconds
+            
+            // SAMPLE DATA FOR DEMO PURPOSES
+            // Using sample ratings to calculate summary
+            let sampleRatings = createSampleRatingsWithUsers(for: userId)
+            let ratings = sampleRatings.map { $0.rating }
+            
+            guard !ratings.isEmpty else {
+                return nil
+            }
+            
+            let averageRating = Double(ratings.reduce(0) { $0 + $1.rating }) / Double(ratings.count)
+            
+            return UserRatingSummary(
+                userId: userId,
+                averageRating: averageRating,
+                totalRatings: ratings.count
+            )
         }
         
-        let averageRating = Double(ratings.reduce(0) { $0 + $1.rating }) / Double(ratings.count)
-        
-        return UserRatingSummary(
-            userId: userId,
-            averageRating: averageRating,
-            totalRatings: ratings.count
-        )
-        
-        /* UNCOMMENT WHEN READY TO USE REAL BACKEND:
+        // Real backend call
         do {
             // Use Supabase RPC or calculate in app
             let ratings: [Rating] = try await supabase
@@ -357,7 +360,6 @@ class RatingService: ObservableObject {
         } catch {
             throw error
         }
-        */
     }
     
     // MARK: - Check if Rating Exists

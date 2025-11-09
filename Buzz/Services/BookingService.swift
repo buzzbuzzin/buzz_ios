@@ -146,6 +146,22 @@ class BookingService: ObservableObject {
         isLoading = true
         errorMessage = nil
         
+        // Check if demo mode is enabled
+        if DemoModeManager.shared.isDemoModeEnabled {
+            // Simulate API call delay
+            try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+            
+            // SAMPLE DATA FOR DEMO PURPOSES
+            let sampleBookings = createSampleAvailableBookings()
+            
+            await MainActor.run {
+                self.availableBookings = sampleBookings
+                self.isLoading = false
+            }
+            return
+        }
+        
+        // Real backend call
         do {
             // Fetch available bookings from database (status = available)
             let bookings: [Booking] = try await supabase
@@ -304,6 +320,26 @@ class BookingService: ObservableObject {
     func fetchMyBookings(userId: UUID, isPilot: Bool) async throws {
         isLoading = true
         errorMessage = nil
+        
+        // Check if demo mode is enabled
+        if DemoModeManager.shared.isDemoModeEnabled {
+            // Simulate API call delay
+            try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+            
+            // SAMPLE DATA FOR DEMO PURPOSES
+            let sampleBookings: [Booking]
+            if isPilot {
+                sampleBookings = createSamplePilotBookings()
+            } else {
+                sampleBookings = createSampleCustomerBookings()
+            }
+            
+            await MainActor.run {
+                self.myBookings = sampleBookings
+                self.isLoading = false
+            }
+            return
+        }
         
         // Store current bookings to preserve them if fetch fails
         let previousBookings = myBookings
@@ -1050,15 +1086,17 @@ class BookingService: ObservableObject {
     // MARK: - Get Revenue Data for Pilot
     
     func getPilotRevenue(pilotId: UUID) async throws -> [Booking] {
-        // TODO: DEMO MODE - Replace this sample data with real backend call
-        // Simulate API call delay
-        try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+        // Check if demo mode is enabled
+        if DemoModeManager.shared.isDemoModeEnabled {
+            // Simulate API call delay
+            try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+            
+            // SAMPLE DATA FOR DEMO PURPOSES
+            let sampleCompletedBookings = createSampleRevenueBookings()
+            return sampleCompletedBookings
+        }
         
-        // SAMPLE DATA FOR DEMO PURPOSES - Replace with real Supabase query when ready
-        let sampleCompletedBookings = createSampleRevenueBookings()
-        return sampleCompletedBookings
-        
-        /* UNCOMMENT WHEN READY TO USE REAL BACKEND:
+        // Real backend call
         do {
             let bookings: [Booking] = try await supabase
                 .from("bookings")
@@ -1073,7 +1111,6 @@ class BookingService: ObservableObject {
         } catch {
             throw error
         }
-        */
     }
     
     // MARK: - Sample Data for Demo (Revenue/Completed Bookings)
