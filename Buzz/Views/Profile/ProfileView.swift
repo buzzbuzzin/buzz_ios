@@ -331,6 +331,20 @@ struct ProfileView: View {
                         }
                     }
                     
+                    // Balance Section (Pilot only)
+                    if authService.userProfile?.userType == .pilot {
+                        NavigationLink(destination: BalanceView()) {
+                            HStack {
+                                Image(systemName: "dollarsign.circle.fill")
+                                    .foregroundColor(.green)
+                                    .font(.body)
+                                Text("Balance")
+                                    .foregroundColor(.primary)
+                                Spacer()
+                            }
+                        }
+                    }
+                    
                     // View All Ratings Link
                     if let summary = ratingSummary, summary.totalRatings > 0, let currentUser = authService.currentUser {
                         NavigationLink(destination: RatingsListView(userId: currentUser.id)) {

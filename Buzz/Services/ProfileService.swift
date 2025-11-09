@@ -106,7 +106,7 @@ class ProfileService: ObservableObject {
         let customerKey = "customer\(hash + 1)"
         
         if let customerInfo = sampleCustomers[customerKey] {
-            return UserProfile(
+            return             UserProfile(
                 id: customerId,
                 userType: .customer,
                 firstName: customerInfo.firstName,
@@ -117,7 +117,9 @@ class ProfileService: ObservableObject {
                 gender: nil,
                 profilePictureUrl: customerInfo.pictureUrl,
                 communicationPreference: nil,
-                createdAt: Date()
+                createdAt: Date(),
+                balance: nil,
+                stripeAccountId: nil
             )
         }
         
@@ -160,7 +162,9 @@ class ProfileService: ObservableObject {
                 gender: nil,
                 profilePictureUrl: pilotInfo.pictureUrl,
                 communicationPreference: nil,
-                createdAt: Date()
+                createdAt: Date(),
+                balance: nil,
+                stripeAccountId: nil
             )
         }
         

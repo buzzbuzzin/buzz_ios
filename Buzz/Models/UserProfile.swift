@@ -54,6 +54,8 @@ struct UserProfile: Codable, Identifiable {
     let profilePictureUrl: String?
     let communicationPreference: CommunicationPreference?
     let createdAt: Date
+    let balance: Decimal? // Pilot balance (earnings + tips)
+    let stripeAccountId: String? // Stripe Connect account ID for pilots
     
     enum CodingKeys: String, CodingKey {
         case id
@@ -67,6 +69,8 @@ struct UserProfile: Codable, Identifiable {
         case profilePictureUrl = "profile_picture_url"
         case communicationPreference = "communication_preference"
         case createdAt = "created_at"
+        case balance
+        case stripeAccountId = "stripe_account_id"
     }
     
     var fullName: String {

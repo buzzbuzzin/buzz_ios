@@ -121,23 +121,36 @@ serve(async (req) => {
     let account
     try {
       // Use direct HTTP call to avoid Deno compatibility issues with Stripe SDK
+      // Prefill business_profile to avoid asking for industry/website during onboarding
+      const params = new URLSearchParams({
+        country: country,
+        email: accountEmail,
+        "controller[stripe_dashboard][type]": "express",
+        "controller[fees][payer]": "application",
+        "controller[losses][payments]": "application",
+        "capabilities[card_payments][requested]": "true",
+        "capabilities[transfers][requested]": "true",
+        "business_type": "individual",
+        "business_profile[product_description]": "Drone pilot services including aerial photography, videography, inspections, and mapping",
+        "business_profile[mcc]": "7333", // Photographic services - general
+        "metadata[user_id]": user_id,
+      })
+      
+      // Add individual information if available
+      if (userProfile?.first_name) {
+        params.append("individual[first_name]", userProfile.first_name)
+      }
+      if (userProfile?.last_name) {
+        params.append("individual[last_name]", userProfile.last_name)
+      }
+      
       const stripeResponse = await fetch("https://api.stripe.com/v1/accounts", {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${stripeSecretKey}`,
           "Content-Type": "application/x-www-form-urlencoded",
         },
-        body: new URLSearchParams({
-          country: country,
-          email: accountEmail,
-          "controller[stripe_dashboard][type]": "express",
-          "controller[fees][payer]": "application",
-          "controller[losses][payments]": "application",
-          "capabilities[card_payments][requested]": "true",
-          "capabilities[transfers][requested]": "true",
-          "business_type": "individual",
-          "metadata[user_id]": user_id,
-        }).toString(),
+        body: params.toString(),
       })
 
       if (!stripeResponse.ok) {

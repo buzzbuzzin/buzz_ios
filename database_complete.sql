@@ -84,6 +84,14 @@ BEGIN
     ) THEN
         ALTER TABLE profiles ADD COLUMN stripe_account_id TEXT;
     END IF;
+    
+    -- Add balance if it doesn't exist
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'profiles' AND column_name = 'balance'
+    ) THEN
+        ALTER TABLE profiles ADD COLUMN balance DECIMAL(10, 2) DEFAULT 0.0;
+    END IF;
 END $$;
 
 -- Drop existing policies if they exist (for idempotency)
@@ -254,6 +262,22 @@ BEGIN
         WHERE table_name = 'bookings' AND column_name = 'charge_id'
     ) THEN
         ALTER TABLE bookings ADD COLUMN charge_id TEXT;
+    END IF;
+    
+    -- Add customer_completed if it doesn't exist
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'bookings' AND column_name = 'customer_completed'
+    ) THEN
+        ALTER TABLE bookings ADD COLUMN customer_completed BOOLEAN DEFAULT FALSE;
+    END IF;
+    
+    -- Add pilot_completed if it doesn't exist
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'bookings' AND column_name = 'pilot_completed'
+    ) THEN
+        ALTER TABLE bookings ADD COLUMN pilot_completed BOOLEAN DEFAULT FALSE;
     END IF;
 END $$;
 

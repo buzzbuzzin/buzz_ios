@@ -160,7 +160,9 @@ class RatingService: ObservableObject {
                 gender: nil,
                 profilePictureUrl: nil,
                 communicationPreference: .email,
-                createdAt: now
+                createdAt: now,
+                balance: nil,
+                stripeAccountId: nil
             ),
             UserProfile(
                 id: UUID(),
@@ -173,7 +175,9 @@ class RatingService: ObservableObject {
                 gender: nil,
                 profilePictureUrl: nil,
                 communicationPreference: .both,
-                createdAt: now
+                createdAt: now,
+                balance: nil,
+                stripeAccountId: nil
             ),
             UserProfile(
                 id: UUID(),
@@ -186,7 +190,9 @@ class RatingService: ObservableObject {
                 gender: nil,
                 profilePictureUrl: nil,
                 communicationPreference: .email,
-                createdAt: now
+                createdAt: now,
+                balance: nil,
+                stripeAccountId: nil
             ),
             UserProfile(
                 id: UUID(),
@@ -199,7 +205,9 @@ class RatingService: ObservableObject {
                 gender: nil,
                 profilePictureUrl: nil,
                 communicationPreference: .text,
-                createdAt: now
+                createdAt: now,
+                balance: nil,
+                stripeAccountId: nil
             ),
             UserProfile(
                 id: UUID(),
@@ -212,7 +220,9 @@ class RatingService: ObservableObject {
                 gender: nil,
                 profilePictureUrl: nil,
                 communicationPreference: .email,
-                createdAt: now
+                createdAt: now,
+                balance: nil,
+                stripeAccountId: nil
             ),
             UserProfile(
                 id: UUID(),
@@ -225,7 +235,9 @@ class RatingService: ObservableObject {
                 gender: nil,
                 profilePictureUrl: nil,
                 communicationPreference: .both,
-                createdAt: now
+                createdAt: now,
+                balance: nil,
+                stripeAccountId: nil
             )
         ]
         

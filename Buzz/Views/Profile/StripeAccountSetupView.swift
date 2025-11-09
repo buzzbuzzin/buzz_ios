@@ -172,7 +172,31 @@ struct StripeAccountSetupView: View {
             Text(errorMessage)
         }
         .onAppear {
+            print("👀 StripeAccountSetupView: View appeared, loading account status")
             loadAccountStatus()
+        }
+        .onChange(of: accountId) { oldValue, newValue in
+            print("🔄 StripeAccountSetupView: Account ID changed from \(oldValue ?? "nil") to \(newValue ?? "nil")")
+            if newValue != nil && oldValue == nil {
+                // Account was just created, refresh status
+                Task {
+                    await loadAccountStatusAsync()
+                }
+            }
+        }
+        .refreshable {
+            await loadAccountStatusAsync()
+        }
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button(action: {
+                    Task {
+                        await loadAccountStatusAsync()
+                    }
+                }) {
+                    Image(systemName: "arrow.clockwise")
+                }
+            }
         }
     }
     
@@ -190,45 +214,67 @@ struct StripeAccountSetupView: View {
         }
     }
     
-    private func loadAccountStatus() {
-        guard let userId = authService.currentUser?.id else { return }
+    private func loadAccountStatusAsync() async {
+        guard let userId = authService.currentUser?.id else {
+            print("⚠️ StripeAccountSetupView: No user ID available")
+            return
+        }
         
-        isLoadingAccount = true
-        Task {
-            do {
-                let id = try await stripeConnectService.getAccountId(userId: userId)
-                await MainActor.run {
-                    self.accountId = id
-                    if let accountId = id {
-                        // Check actual account status
-                        Task {
-                            do {
-                                let status = try await stripeConnectService.checkAccountStatus(accountId: accountId)
-                                await MainActor.run {
-                                    self.accountStatus = status
-                                }
-                            } catch {
-                                // If status check fails, default to onboarding
-                                await MainActor.run {
-                                    self.accountStatus = .onboarding
-                                }
-                            }
-                        }
-                    } else {
-                        self.accountStatus = .notCreated
+        print("🔄 StripeAccountSetupView: Loading account status for user \(userId)")
+        
+        await MainActor.run {
+            isLoadingAccount = true
+        }
+        
+        do {
+            let id = try await stripeConnectService.getAccountId(userId: userId)
+            print("📋 StripeAccountSetupView: Account ID from profile: \(id ?? "nil")")
+            
+            await MainActor.run {
+                self.accountId = id
+            }
+            
+            if let accountId = id {
+                print("✅ StripeAccountSetupView: Account exists, checking status...")
+                // Check actual account status
+                do {
+                    let status = try await stripeConnectService.checkAccountStatus(accountId: accountId)
+                    print("📊 StripeAccountSetupView: Account status: \(status.displayName)")
+                    await MainActor.run {
+                        self.accountStatus = status
+                        self.isLoadingAccount = false
                     }
-                    self.isLoadingAccount = false
+                } catch {
+                    print("❌ Error checking account status: \(error)")
+                    // If status check fails, default to onboarding
+                    await MainActor.run {
+                        self.accountStatus = .onboarding
+                        self.isLoadingAccount = false
+                    }
                 }
-            } catch {
+            } else {
+                print("ℹ️ StripeAccountSetupView: No account ID found in profile")
                 await MainActor.run {
+                    self.accountStatus = .notCreated
                     self.isLoadingAccount = false
-                    // Don't show error if account just doesn't exist yet
-                    if !error.localizedDescription.contains("not found") {
-                        self.errorMessage = error.localizedDescription
-                        self.showError = true
-                    }
                 }
             }
+        } catch {
+            print("❌ StripeAccountSetupView: Error loading account: \(error)")
+            await MainActor.run {
+                self.isLoadingAccount = false
+                // Don't show error if account just doesn't exist yet
+                if !error.localizedDescription.contains("not found") {
+                    self.errorMessage = error.localizedDescription
+                    self.showError = true
+                }
+            }
+        }
+    }
+    
+    private func loadAccountStatus() {
+        Task {
+            await loadAccountStatusAsync()
         }
     }
     
@@ -266,7 +312,9 @@ struct StripeAccountSetupView: View {
                     from: topController
                 )
                 
-                // Reload account status after onboarding
+                // Reload account status after onboarding with a delay
+                // Give Stripe time to process the onboarding completion
+                try await Task.sleep(nanoseconds: 2_000_000_000) // 2 seconds
                 await MainActor.run {
                     loadAccountStatus()
                 }

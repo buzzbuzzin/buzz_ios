@@ -208,7 +208,10 @@ class StripeConnectService: ObservableObject {
                 var observation: NSKeyValueObservation?
                 observation = safariVC.observe(\.isBeingDismissed) { _, _ in
                     observation?.invalidate()
-                    continuation.resume()
+                    // Add a small delay to ensure Stripe has processed the onboarding
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                        continuation.resume()
+                    }
                 }
                 
                 viewController.present(safariVC, animated: true)
@@ -235,12 +238,16 @@ class StripeConnectService: ObservableObject {
                 let payouts_enabled: Bool
             }
             
+            print("🔍 StripeConnectService: Checking status for account \(accountId)")
+            
             let request = AccountStatusRequest(account_id: accountId)
             
             let response: AccountStatusResponse = try await supabase.functions
                 .invoke("check-account-status", options: FunctionInvokeOptions(
                     body: request
                 ))
+            
+            print("📊 StripeConnectService: Account status response - status: \(response.status), details_submitted: \(response.details_submitted), charges_enabled: \(response.charges_enabled), payouts_enabled: \(response.payouts_enabled)")
             
             // Map Stripe status to our enum
             let status: StripeAccountStatus
@@ -257,11 +264,14 @@ class StripeConnectService: ObservableObject {
                 status = .onboarding
             }
             
+            print("✅ StripeConnectService: Mapped status to: \(status.displayName)")
+            
             isLoading = false
             return status
         } catch {
             isLoading = false
             errorMessage = error.localizedDescription
+            print("❌ StripeConnectService: Error checking account status: \(error)")
             throw error
         }
     }
@@ -275,6 +285,8 @@ class StripeConnectService: ObservableObject {
                 let stripe_account_id: String?
             }
             
+            print("🔍 StripeConnectService: Fetching account ID for user \(userId)")
+            
             let response: ProfileResponse = try await supabase
                 .from("profiles")
                 .select("stripe_account_id")
@@ -283,8 +295,98 @@ class StripeConnectService: ObservableObject {
                 .execute()
                 .value
             
+            print("📋 StripeConnectService: Found account ID: \(response.stripe_account_id ?? "nil")")
             return response.stripe_account_id
         } catch {
+            print("❌ StripeConnectService: Error fetching account ID: \(error)")
+            throw error
+        }
+    }
+    
+    // MARK: - Get Pilot Balance
+    
+    /// Gets the current balance from Stripe account
+    func getPilotBalance(pilotId: UUID) async throws -> (available: Decimal, pending: Decimal, total: Decimal) {
+        isLoading = true
+        errorMessage = nil
+        
+        do {
+            struct BalanceRequest: Codable {
+                let pilot_id: String
+            }
+            
+            struct BalanceResponse: Codable {
+                let balance: Int // total balance in cents
+                let available: Int // available for payout in cents
+                let pending: Int // pending transfers in cents
+                let currency: String
+            }
+            
+            let request = BalanceRequest(pilot_id: pilotId.uuidString)
+            
+            let response: BalanceResponse = try await supabase.functions
+                .invoke("get-pilot-balance", options: FunctionInvokeOptions(
+                    body: request
+                ))
+            
+            // Convert from cents to dollars
+            let available = Decimal(response.available) / 100
+            let pending = Decimal(response.pending) / 100
+            let total = Decimal(response.balance) / 100
+            
+            isLoading = false
+            return (available: available, pending: pending, total: total)
+        } catch {
+            isLoading = false
+            errorMessage = error.localizedDescription
+            throw error
+        }
+    }
+    
+    // MARK: - Withdraw Balance
+    
+    /// Withdraws balance from Stripe account (creates payout)
+    func withdrawBalance(pilotId: UUID, amount: Decimal) async throws -> String {
+        isLoading = true
+        errorMessage = nil
+        
+        do {
+            struct WithdrawRequest: Codable {
+                let pilot_id: String
+                let amount: Int
+                let currency: String
+            }
+            
+            struct WithdrawResponse: Codable {
+                let success: Bool
+                let message: String?
+                let payout_id: String?
+            }
+            
+            let request = WithdrawRequest(
+                pilot_id: pilotId.uuidString,
+                amount: Int(NSDecimalNumber(decimal: amount * 100).intValue), // Convert to cents
+                currency: "usd"
+            )
+            
+            let response: WithdrawResponse = try await supabase.functions
+                .invoke("withdraw-balance", options: FunctionInvokeOptions(
+                    body: request
+                ))
+            
+            if !response.success {
+                throw NSError(
+                    domain: "StripeConnectError",
+                    code: -1,
+                    userInfo: [NSLocalizedDescriptionKey: response.message ?? "Withdrawal failed"]
+                )
+            }
+            
+            isLoading = false
+            return response.payout_id ?? ""
+        } catch {
+            isLoading = false
+            errorMessage = error.localizedDescription
             throw error
         }
     }

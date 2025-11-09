@@ -488,6 +488,7 @@ struct CustomerBookingDetailView: View {
     @StateObject private var ratingService = RatingService()
     @StateObject private var profileService = ProfileService()
     let booking: Booking
+    @State private var currentBooking: Booking
     @State private var region: MKCoordinateRegion
     @State private var showCancelAlert = false
     @State private var showCancelSuccess = false
@@ -498,10 +499,14 @@ struct CustomerBookingDetailView: View {
     @State private var pilotProfile: UserProfile?
     @State private var showMessageSheet = false
     @State private var showEditSheet = false
+    @State private var showFinishBookingAlert = false
+    @State private var showCompletionConfirmation = false
+    @State private var showCompletionSuccess = false
     @Environment(\.dismiss) var dismiss
     
     init(booking: Booking) {
         self.booking = booking
+        _currentBooking = State(initialValue: booking)
         _region = State(initialValue: MKCoordinateRegion(
             center: booking.coordinate,
             span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
@@ -512,7 +517,7 @@ struct CustomerBookingDetailView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 // Map
-                Map(coordinateRegion: .constant(region), annotationItems: [booking]) { booking in
+                Map(coordinateRegion: .constant(region), annotationItems: [currentBooking]) { booking in
                     MapAnnotation(coordinate: booking.coordinate) {
                         BookingAnnotation(booking: booking, isSelected: true)
                     }
@@ -527,7 +532,7 @@ struct CustomerBookingDetailView: View {
                         .font(.headline)
                         .foregroundColor(.red)
                     
-                    Text(booking.locationName)
+                    Text(currentBooking.locationName)
                         .font(.title3)
                         .fontWeight(.semibold)
                 }
@@ -603,7 +608,7 @@ struct CustomerBookingDetailView: View {
                     Label("Status", systemImage: "info.circle.fill")
                         .font(.headline)
                     
-                    StatusBadge(status: booking.status)
+                    StatusBadge(status: currentBooking.status)
                 }
                 .padding(.horizontal)
                 
@@ -625,7 +630,7 @@ struct CustomerBookingDetailView: View {
                     .padding(.horizontal)
                 
                 // Pilot Info Section (for accepted/completed bookings)
-                if (booking.status == .accepted || booking.status == .completed), booking.pilotId != nil {
+                if (currentBooking.status == .accepted || currentBooking.status == .completed), currentBooking.pilotId != nil {
                     VStack(alignment: .leading, spacing: 12) {
                         Label("Pilot", systemImage: "airplane.circle.fill")
                             .font(.headline)
@@ -696,7 +701,7 @@ struct CustomerBookingDetailView: View {
                 }
                 
                 // Tip Display
-                if let tip = booking.tipAmount, tip > 0 {
+                if let tip = currentBooking.tipAmount, tip > 0 {
                     HStack {
                         Label("Tip Added", systemImage: "heart.fill")
                             .font(.subheadline)
@@ -714,12 +719,12 @@ struct CustomerBookingDetailView: View {
                 }
                 
                 // Total Payment
-                if booking.status == .completed || booking.tipAmount != nil {
+                if currentBooking.status == .completed || currentBooking.tipAmount != nil {
                     VStack(alignment: .leading, spacing: 8) {
                         Label("Total Payment", systemImage: "creditcard.fill")
                             .font(.headline)
                         
-                        let total = booking.paymentAmount + (booking.tipAmount ?? 0)
+                        let total = currentBooking.paymentAmount + (currentBooking.tipAmount ?? 0)
                         Text(String(format: "$%.2f", NSDecimalNumber(decimal: total).doubleValue))
                             .font(.title2)
                             .fontWeight(.bold)
@@ -732,8 +737,21 @@ struct CustomerBookingDetailView: View {
                 }
                 
                 // Edit and Cancel Buttons (for available and accepted bookings)
-                if booking.status == .available || booking.status == .accepted {
+                if currentBooking.status == .available || currentBooking.status == .accepted {
                     VStack(spacing: 12) {
+                        // Finish Booking Button (for accepted bookings)
+                        if currentBooking.status == .accepted {
+                            // Only show button if customer hasn't completed yet
+                            if currentBooking.customerCompleted != true {
+                                CustomButton(
+                                    title: "Finish Booking",
+                                    action: { showFinishBookingAlert = true },
+                                    style: .primary,
+                                    isLoading: bookingService.isLoading
+                                )
+                            }
+                        }
+                        
                         CustomButton(
                             title: "Edit Booking",
                             action: { showEditSheet = true },
@@ -751,8 +769,43 @@ struct CustomerBookingDetailView: View {
                     .padding(.horizontal)
                 }
                 
+                // Show waiting message if customer has completed but pilot hasn't
+                if currentBooking.status == .accepted && currentBooking.customerCompleted == true && currentBooking.pilotCompleted != true {
+                    VStack(spacing: 12) {
+                        Text("Booking finish is waiting to be confirmed by pilot")
+                            .font(.subheadline)
+                            .foregroundColor(.orange)
+                            .multilineTextAlignment(.center)
+                            .padding()
+                            .background(Color.orange.opacity(0.1))
+                            .cornerRadius(8)
+                    }
+                    .padding(.horizontal)
+                }
+                
+                // Completion Confirmation (when pilot has marked as finished)
+                if currentBooking.status == .accepted && currentBooking.pilotCompleted == true && currentBooking.customerCompleted != true {
+                    VStack(spacing: 12) {
+                        Text("Pilot has marked this booking as finished")
+                            .font(.subheadline)
+                            .foregroundColor(.blue)
+                            .multilineTextAlignment(.center)
+                            .padding()
+                            .background(Color.blue.opacity(0.1))
+                            .cornerRadius(8)
+                        
+                        CustomButton(
+                            title: "Confirm Completion",
+                            action: { showCompletionConfirmation = true },
+                            style: .primary,
+                            isLoading: bookingService.isLoading
+                        )
+                    }
+                    .padding(.horizontal)
+                }
+                
                 // Rate Pilot Button (for completed bookings)
-                if booking.status == .completed && booking.customerRated != true {
+                if currentBooking.status == .completed && currentBooking.customerRated != true {
                     CustomButton(
                         title: "Rate Pilot",
                         action: { showRatingSheet = true },
@@ -771,7 +824,7 @@ struct CustomerBookingDetailView: View {
                 cancelBooking()
             }
         } message: {
-            if booking.status == .accepted {
+            if currentBooking.status == .accepted {
                 Text("A pilot has already accepted this booking. Are you sure you want to cancel? This will notify the pilot.")
             } else {
                 Text("Are you sure you want to cancel this booking?")
@@ -789,6 +842,32 @@ struct CustomerBookingDetailView: View {
         } message: {
             Text("Your booking has been cancelled successfully.")
         }
+        .alert("Finish Booking", isPresented: $showFinishBookingAlert) {
+            Button("Cancel", role: .cancel) {}
+            Button("Finish") {
+                finishBooking()
+            }
+        } message: {
+            Text("Mark this booking as finished? The pilot will be notified to confirm completion.")
+        }
+        .alert("Confirm Completion", isPresented: $showCompletionConfirmation) {
+            Button("Cancel", role: .cancel) {}
+            Button("Confirm") {
+                confirmCompletion()
+            }
+        } message: {
+            Text("Confirm that this booking is complete? This will finalize the booking and allow you to rate the pilot.")
+        }
+        .alert("Booking Completed", isPresented: $showCompletionSuccess) {
+            Button("OK") {
+                // Show rating sheet after completion
+                if currentBooking.status == .completed {
+                    showRatingSheet = true
+                }
+            }
+        } message: {
+            Text("Booking completed successfully! Please rate the pilot.")
+        }
         .sheet(isPresented: $showRatingSheet) {
             RatingView(
                 userName: pilotName,
@@ -801,20 +880,36 @@ struct CustomerBookingDetailView: View {
         .sheet(isPresented: $showMessageSheet) {
             MessageView(
                 customerProfile: pilotProfile,
-                booking: booking
+                booking: currentBooking
             )
         }
         .sheet(isPresented: $showEditSheet) {
-            EditBookingView(booking: booking)
+            EditBookingView(booking: currentBooking)
         }
         .task {
-            // Load pilot profile
+            // Load pilot profile and refresh booking
             await loadPilotProfile()
+            await refreshBooking()
+        }
+        .onAppear {
+            // Refresh booking when view appears to get latest status
+            Task {
+                await refreshBooking()
+            }
+        }
+    }
+    
+    private func refreshBooking() async {
+        do {
+            let updatedBooking = try await bookingService.getBooking(bookingId: booking.id)
+            currentBooking = updatedBooking
+        } catch {
+            print("Error refreshing booking: \(error)")
         }
     }
     
     private func loadPilotProfile() async {
-        guard let pilotId = booking.pilotId else { return }
+        guard let pilotId = currentBooking.pilotId else { return }
         
         // Try to get sample pilot profile first (for demo)
         if let sampleProfile = profileService.getSamplePilotProfile(pilotId: pilotId) {
@@ -835,7 +930,7 @@ struct CustomerBookingDetailView: View {
     private func cancelBooking() {
         Task {
             do {
-                try await bookingService.cancelBooking(bookingId: booking.id)
+                try await bookingService.cancelBooking(bookingId: currentBooking.id)
                 showCancelSuccess = true
             } catch {
                 errorMessage = error.localizedDescription
@@ -846,13 +941,13 @@ struct CustomerBookingDetailView: View {
     
     private func submitRating(rating: Int, comment: String?, tip: Decimal?) {
         guard let currentUser = authService.currentUser,
-              let pilotId = booking.pilotId else { return }
+              let pilotId = currentBooking.pilotId else { return }
         
         Task {
             do {
                 // Submit rating
                 try await ratingService.submitRating(
-                    bookingId: booking.id,
+                    bookingId: currentBooking.id,
                     fromUserId: currentUser.id,
                     toUserId: pilotId,
                     rating: rating,
@@ -861,15 +956,63 @@ struct CustomerBookingDetailView: View {
                 
                 // Add tip if provided
                 if let tipAmount = tip {
-                    try await bookingService.addTip(bookingId: booking.id, tipAmount: tipAmount)
+                    try await bookingService.addTip(bookingId: currentBooking.id, tipAmount: tipAmount)
+                    
+                    // If booking is already completed, we need to create a transfer for the tip
+                    // For now, tip is stored and will be included in balance display
+                    // In production, you might want to create an additional transfer
                 }
                 
                 // Mark as rated
                 try await bookingService.markRatingStatus(
-                    bookingId: booking.id,
+                    bookingId: currentBooking.id,
                     isPilot: false,
                     hasRated: true
                 )
+                
+                // Refresh booking to update rated status
+                await refreshBooking()
+            } catch {
+                errorMessage = error.localizedDescription
+                showError = true
+            }
+        }
+    }
+    
+    private func finishBooking() {
+        Task {
+            do {
+                let isCompleted = try await bookingService.markBookingCompletion(bookingId: currentBooking.id, isPilot: false)
+                
+                // Refresh booking to get latest status
+                await refreshBooking()
+                
+                if isCompleted {
+                    // Both parties confirmed, booking is completed
+                    showCompletionSuccess = true
+                } else {
+                    // Waiting for pilot confirmation
+                    // The view will automatically update when booking is refreshed
+                }
+            } catch {
+                errorMessage = error.localizedDescription
+                showError = true
+            }
+        }
+    }
+    
+    private func confirmCompletion() {
+        Task {
+            do {
+                let isCompleted = try await bookingService.markBookingCompletion(bookingId: currentBooking.id, isPilot: false)
+                
+                // Refresh booking to get latest status
+                await refreshBooking()
+                
+                if isCompleted {
+                    // Both parties confirmed, booking is completed
+                    showCompletionSuccess = true
+                }
             } catch {
                 errorMessage = error.localizedDescription
                 showError = true

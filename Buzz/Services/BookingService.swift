@@ -146,20 +146,8 @@ class BookingService: ObservableObject {
         isLoading = true
         errorMessage = nil
         
-        // TODO: DEMO MODE - Replace this sample data with real backend call
-        // Simulate API call delay
-        try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
-        
-        // SAMPLE DATA FOR DEMO PURPOSES - Replace with real Supabase query when ready
-        let sampleBookings = createSampleAvailableBookings()
-        
-        await MainActor.run {
-            self.availableBookings = sampleBookings
-            self.isLoading = false
-        }
-        
-        /* UNCOMMENT WHEN READY TO USE REAL BACKEND:
         do {
+            // Fetch available bookings from database (status = available)
             let bookings: [Booking] = try await supabase
                 .from("bookings")
                 .select()
@@ -179,7 +167,6 @@ class BookingService: ObservableObject {
             }
             throw error
         }
-        */
     }
     
     // MARK: - Sample Data for Demo (Available Bookings)
@@ -321,9 +308,6 @@ class BookingService: ObservableObject {
         // Store current bookings to preserve them if fetch fails
         let previousBookings = myBookings
         
-        // Always start with demo data
-        let demoBookings = isPilot ? createSamplePilotBookings() : createSampleCustomerBookings()
-        
         do {
             // Fetch real bookings from database
             let query = supabase
@@ -346,22 +330,8 @@ class BookingService: ObservableObject {
                     .value
             }
             
-            // Combine real and demo bookings, removing duplicates by ID
-            var allBookings = realBookings
-            let realBookingIds = Set(realBookings.map { $0.id })
-            
-            // Add demo bookings that don't already exist in real bookings
-            for demoBooking in demoBookings {
-                if !realBookingIds.contains(demoBooking.id) {
-                    allBookings.append(demoBooking)
-                }
-            }
-            
-            // Sort by created_at (most recent first)
-            allBookings.sort { $0.createdAt > $1.createdAt }
-            
             await MainActor.run {
-                self.myBookings = allBookings
+                self.myBookings = realBookings
                 self.isLoading = false
             }
         } catch {
@@ -383,15 +353,14 @@ class BookingService: ObservableObject {
             print("Error details: \(error.localizedDescription)")
             
             // If we have previous bookings (from a successful fetch), preserve them
-            // Otherwise, show demo data as fallback
+            // Otherwise, show empty list
             let bookingsToShow: [Booking]
             if !previousBookings.isEmpty {
-                // Keep previous bookings (which include both real and demo)
-                // This preserves the real bookings even if refresh fails
+                // Keep previous bookings
                 bookingsToShow = previousBookings
             } else {
-                // No previous bookings, show demo data
-                bookingsToShow = demoBookings
+                // No previous bookings, show empty list
+                bookingsToShow = []
             }
             
             await MainActor.run {
@@ -781,7 +750,162 @@ class BookingService: ObservableObject {
         }
     }
     
-    // MARK: - Complete Booking
+    // MARK: - Mark Booking Completion (Mutual Confirmation)
+    
+    func markBookingCompletion(bookingId: UUID, isPilot: Bool) async throws -> Bool {
+        isLoading = true
+        errorMessage = nil
+        
+        do {
+            // Get current booking state
+            let booking: Booking = try await supabase
+                .from("bookings")
+                .select()
+                .eq("id", value: bookingId.uuidString)
+                .single()
+                .execute()
+                .value
+            
+            // Update completion flag
+            var updateData: [String: AnyJSON] = [:]
+            if isPilot {
+                updateData["pilot_completed"] = .bool(true)
+            } else {
+                updateData["customer_completed"] = .bool(true)
+            }
+            
+            // Check if both parties have completed (after this update)
+            // If current user is pilot, check if customer already completed
+            // If current user is customer, check if pilot already completed
+            let customerCompleted = isPilot ? (booking.customerCompleted == true) : true
+            let pilotCompleted = isPilot ? true : (booking.pilotCompleted == true)
+            
+            // If both have completed, finalize the booking
+            if customerCompleted && pilotCompleted {
+                updateData["status"] = .string(BookingStatus.completed.rawValue)
+                
+                // If booking has a charge_id but no transfer_id, trigger transfer
+                // Transfer goes directly to Stripe account, balance is managed by Stripe
+                if let chargeId = booking.chargeId, booking.transferId == nil, let pilotId = booking.pilotId {
+                    // Get payment amount (including tip)
+                    let totalAmount = booking.paymentAmount + (booking.tipAmount ?? 0)
+                    
+                    // Call transfer function
+                    struct TransferRequest: Codable {
+                        let booking_id: String
+                        let amount: Int
+                        let currency: String
+                        let charge_id: String
+                    }
+                    
+                    struct TransferResponse: Codable {
+                        let transfer_id: String
+                    }
+                    
+                    let transferRequest = TransferRequest(
+                        booking_id: bookingId.uuidString,
+                        amount: Int(NSDecimalNumber(decimal: totalAmount * 100).intValue),
+                        currency: "usd",
+                        charge_id: chargeId
+                    )
+                    
+                    let transferResponse: TransferResponse = try await supabase.functions
+                        .invoke("create-transfer", options: FunctionInvokeOptions(
+                            body: transferRequest
+                        ))
+                    
+                    // Update booking with transfer_id
+                    updateData["transfer_id"] = .string(transferResponse.transfer_id)
+                    
+                    // Note: Balance is managed by Stripe, no need to update database balance
+                    // The transfer adds funds to the pilot's Stripe account balance
+                }
+            }
+            
+            try await supabase
+                .from("bookings")
+                .update(updateData)
+                .eq("id", value: bookingId.uuidString)
+                .execute()
+            
+            isLoading = false
+            return customerCompleted && pilotCompleted
+        } catch {
+            isLoading = false
+            errorMessage = error.localizedDescription
+            throw error
+        }
+    }
+    
+    // MARK: - Add Tip and Update Balance
+    
+    func addTipAndUpdateBalance(bookingId: UUID, tipAmount: Decimal) async throws {
+        isLoading = true
+        errorMessage = nil
+        
+        do {
+            // Add tip to booking (without setting isLoading since we're managing it here)
+            let updateData: [String: AnyJSON] = [
+                "tip_amount": .double(NSDecimalNumber(decimal: tipAmount).doubleValue)
+            ]
+            try await supabase
+                .from("bookings")
+                .update(updateData)
+                .eq("id", value: bookingId.uuidString)
+                .execute()
+            
+            // Get booking to find pilot
+            let booking: Booking = try await supabase
+                .from("bookings")
+                .select()
+                .eq("id", value: bookingId.uuidString)
+                .single()
+                .execute()
+                .value
+            
+            // If booking is already completed and has a charge, create additional transfer for tip
+            // Otherwise, tip will be included in the completion transfer
+            if booking.status == .completed,
+               let chargeId = booking.chargeId,
+               let pilotId = booking.pilotId {
+                // Create additional transfer for tip (can use same charge_id or transfer from platform balance)
+                struct TransferRequest: Codable {
+                    let booking_id: String
+                    let amount: Int
+                    let currency: String
+                    let charge_id: String?
+                }
+                
+                struct TransferResponse: Codable {
+                    let transfer_id: String
+                }
+                
+                let transferRequest = TransferRequest(
+                    booking_id: bookingId.uuidString,
+                    amount: Int(NSDecimalNumber(decimal: tipAmount * 100).intValue),
+                    currency: "usd",
+                    charge_id: chargeId // Optional - if provided, links to charge; otherwise transfers from platform balance
+                )
+                
+                // Create transfer for tip
+                let transferResponse: TransferResponse = try await supabase.functions
+                    .invoke("create-transfer", options: FunctionInvokeOptions(
+                        body: transferRequest
+                    ))
+                
+                // Note: Transfer ID is stored in booking, but for tips we might want to track separately
+                // For now, the tip transfer is created and funds go to pilot's Stripe account
+            }
+            
+            isLoading = false
+        } catch {
+            isLoading = false
+            errorMessage = error.localizedDescription
+            throw error
+        }
+    }
+    
+    // MARK: - Complete Booking (Legacy - kept for backward compatibility)
     
     func completeBooking(bookingId: UUID) async throws {
         isLoading = true

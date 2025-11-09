@@ -45,9 +45,10 @@ serve(async (req) => {
     const { booking_id, amount, currency = "usd", charge_id } = await req.json()
 
     // Validate required fields
-    if (!booking_id || !amount || !charge_id) {
+    // charge_id is optional - if not provided, transfer will be from platform balance (for tips)
+    if (!booking_id || !amount) {
       return new Response(
-        JSON.stringify({ error: "Missing required fields: booking_id, amount, charge_id" }),
+        JSON.stringify({ error: "Missing required fields: booking_id, amount" }),
         {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -58,7 +59,7 @@ serve(async (req) => {
     // Get booking details from database
     const { data: booking, error: bookingError } = await supabase
       .from("bookings")
-      .select("pilot_id, payment_amount, tip_amount")
+      .select("pilot_id, payment_amount, tip_amount, charge_id")
       .eq("id", booking_id)
       .single()
 
@@ -109,32 +110,35 @@ serve(async (req) => {
       )
     }
 
-    // Calculate transfer amount (payment_amount + tip_amount)
-    const paymentAmount = parseFloat(booking.payment_amount) || 0
-    const tipAmount = parseFloat(booking.tip_amount) || 0
-    const totalAmount = Math.round((paymentAmount + tipAmount) * 100) // Convert to cents
-
-    // Use the provided amount if it matches, otherwise use calculated amount
-    const transferAmount = amount === totalAmount ? amount : totalAmount
+    // Use provided charge_id or booking's charge_id
+    const sourceChargeId = charge_id || booking.charge_id
 
     // Create transfer to pilot's connected account
-    // Using source_transaction links the transfer to the charge
-    const transfer = await stripe.transfers.create({
-      amount: transferAmount,
+    // If sourceChargeId is provided, link transfer to the charge
+    // Otherwise, transfer from platform balance (for tips added after completion)
+    const transferParams: any = {
+      amount: amount,
       currency: currency,
       destination: pilot.stripe_account_id,
-      source_transaction: charge_id, // Links transfer to the charge
-    })
+    }
 
-    // Update booking with transfer ID
-    const { error: updateError } = await supabase
-      .from("bookings")
-      .update({ transfer_id: transfer.id })
-      .eq("id", booking_id)
+    if (sourceChargeId) {
+      transferParams.source_transaction = sourceChargeId
+    }
 
-    if (updateError) {
-      console.error("Error updating booking with transfer_id:", updateError)
-      // Don't fail the request, transfer was successful
+    const transfer = await stripe.transfers.create(transferParams)
+
+    // Update booking with transfer ID (only if this is the first transfer)
+    if (!booking.transfer_id) {
+      const { error: updateError } = await supabase
+        .from("bookings")
+        .update({ transfer_id: transfer.id })
+        .eq("id", booking_id)
+
+      if (updateError) {
+        console.error("Error updating booking with transfer_id:", updateError)
+        // Don't fail the request, transfer was successful
+      }
     }
 
     return new Response(

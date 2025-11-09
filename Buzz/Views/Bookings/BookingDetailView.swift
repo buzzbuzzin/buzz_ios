@@ -32,6 +32,10 @@ struct BookingDetailView: View {
     @State private var isIdentityVerified = false
     @State private var showVerificationRequiredAlert = false
     @State private var showDirectionsSheet = false
+    @State private var showFinishBookingAlert = false
+    @State private var showCompletionConfirmation = false
+    @State private var showCompletionSuccess = false
+    @State private var currentBooking: Booking
     
     init(booking: Booking) {
         self.booking = booking
@@ -39,6 +43,7 @@ struct BookingDetailView: View {
             center: booking.coordinate,
             span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
         ))
+        _currentBooking = State(initialValue: booking)
     }
     
     var body: some View {
@@ -143,7 +148,7 @@ struct BookingDetailView: View {
                             Spacer()
                             
                             // Message Button (only for accepted/completed bookings)
-                            if booking.status == .accepted || booking.status == .completed {
+                            if currentBooking.status == .accepted || currentBooking.status == .completed {
                                 Button(action: {
                                     showMessageSheet = true
                                 }) {
@@ -280,7 +285,7 @@ struct BookingDetailView: View {
                 // Action Button
                 if authService.userProfile?.userType == .pilot {
                     VStack(spacing: 12) {
-                        if booking.status == .available {
+                        if currentBooking.status == .available {
                             if isIdentityVerified {
                                 CustomButton(
                                     title: "Accept Booking",
@@ -310,15 +315,53 @@ struct BookingDetailView: View {
                                     .padding(.horizontal)
                                 }
                             }
-                        } else if booking.status == .accepted && booking.pilotId == authService.currentUser?.id {
-                            CustomButton(
-                                title: "Mark as Completed",
-                                action: { showCompleteAlert = true },
-                                style: .primary,
-                                isLoading: bookingService.isLoading
-                            )
-                            .padding(.horizontal)
-                        } else if booking.status == .completed && booking.pilotId == authService.currentUser?.id && booking.pilotRated != true {
+                        } else if currentBooking.status == .accepted && currentBooking.pilotId == authService.currentUser?.id {
+                            // Show Finish Booking button if pilot hasn't completed yet
+                            if currentBooking.pilotCompleted != true {
+                                CustomButton(
+                                    title: "Finish Booking",
+                                    action: { showFinishBookingAlert = true },
+                                    style: .primary,
+                                    isLoading: bookingService.isLoading
+                                )
+                                .padding(.horizontal)
+                            }
+                            
+                            // Show waiting message if pilot has completed but customer hasn't
+                            if currentBooking.pilotCompleted == true && currentBooking.customerCompleted != true {
+                                VStack(spacing: 12) {
+                                    Text("Booking finish is waiting to be confirmed by customer")
+                                        .font(.subheadline)
+                                        .foregroundColor(.orange)
+                                        .multilineTextAlignment(.center)
+                                        .padding()
+                                        .background(Color.orange.opacity(0.1))
+                                        .cornerRadius(8)
+                                }
+                                .padding(.horizontal)
+                            }
+                            
+                            // Completion Confirmation (when customer has marked as finished)
+                            if currentBooking.customerCompleted == true && currentBooking.pilotCompleted != true {
+                                VStack(spacing: 12) {
+                                    Text("Customer has marked this booking as finished")
+                                        .font(.subheadline)
+                                        .foregroundColor(.blue)
+                                        .multilineTextAlignment(.center)
+                                        .padding()
+                                        .background(Color.blue.opacity(0.1))
+                                        .cornerRadius(8)
+                                    
+                                    CustomButton(
+                                        title: "Confirm Completion",
+                                        action: { showCompletionConfirmation = true },
+                                        style: .primary,
+                                        isLoading: bookingService.isLoading
+                                    )
+                                }
+                                .padding(.horizontal)
+                            }
+                        } else if currentBooking.status == .completed && currentBooking.pilotId == authService.currentUser?.id && currentBooking.pilotRated != true {
                             CustomButton(
                                 title: "Rate Customer",
                                 action: { showRatingSheet = true },
@@ -349,6 +392,29 @@ struct BookingDetailView: View {
         } message: {
             Text("Mark this booking as completed? Your flight hours will be updated.")
         }
+        .alert("Finish Booking", isPresented: $showFinishBookingAlert) {
+            Button("Cancel", role: .cancel) {}
+            Button("Finish") {
+                finishBooking()
+            }
+        } message: {
+            Text("Mark this booking as finished? The customer will be notified to confirm completion.")
+        }
+        .alert("Confirm Completion", isPresented: $showCompletionConfirmation) {
+            Button("Cancel", role: .cancel) {}
+            Button("Confirm") {
+                confirmCompletion()
+            }
+        } message: {
+            Text("Confirm that this booking is complete? This will finalize the booking and update your balance.")
+        }
+        .alert("Booking Completed", isPresented: $showCompletionSuccess) {
+            Button("OK") {
+                // Refresh view or navigate back
+            }
+        } message: {
+            Text("Booking completed successfully! Your balance has been updated.")
+        }
         .alert("Error", isPresented: $showError) {
             Button("OK", role: .cancel) {}
         } message: {
@@ -374,7 +440,7 @@ struct BookingDetailView: View {
         .sheet(isPresented: $showMessageSheet) {
             MessageView(
                 customerProfile: customerProfile,
-                booking: booking
+                booking: currentBooking
             )
         }
         .sheet(isPresented: $showDirectionsSheet) {
@@ -407,12 +473,29 @@ struct BookingDetailView: View {
         .task {
             await loadCustomerProfile()
             await checkIdentityVerification()
+            await refreshBooking()
+        }
+        .onAppear {
+            // Refresh booking when view appears to get latest status
+            Task {
+                await refreshBooking()
+            }
         }
     }
     
     private func checkIdentityVerification() async {
         guard let userId = authService.currentUser?.id else { return }
         isIdentityVerified = await identityService.isIdentityVerified(userId: userId)
+    }
+    
+    private func refreshBooking() async {
+        do {
+            let updatedBooking = try await bookingService.getBooking(bookingId: booking.id)
+            currentBooking = updatedBooking
+        } catch {
+            print("Error refreshing booking: \(error)")
+            // Keep current booking if refresh fails
+        }
     }
     
     private func loadCustomerProfile() async {
@@ -482,6 +565,8 @@ struct BookingDetailView: View {
             let userId = currentUser.id
             do {
                 try await bookingService.acceptBooking(bookingId: booking.id, pilotId: userId)
+                // Refresh booking after accepting
+                await refreshBooking()
                 dismiss()
             } catch {
                 errorMessage = error.localizedDescription
@@ -512,14 +597,65 @@ struct BookingDetailView: View {
         }
     }
     
+    private func finishBooking() {
+        Task {
+            do {
+                let isCompleted = try await bookingService.markBookingCompletion(bookingId: currentBooking.id, isPilot: true)
+                
+                // Refresh booking to get latest status
+                await refreshBooking()
+                
+                if isCompleted {
+                    // Both parties confirmed, booking is completed
+                    showCompletionSuccess = true
+                    
+                    // Update pilot stats
+                    if let hours = currentBooking.estimatedFlightHours, let userId = authService.currentUser?.id {
+                        try await rankingService.updateFlightHours(pilotId: userId, additionalHours: hours)
+                    }
+                } else {
+                    // Waiting for customer confirmation
+                    // The view will automatically update when booking is refreshed
+                }
+            } catch {
+                errorMessage = error.localizedDescription
+                showError = true
+            }
+        }
+    }
+    
+    private func confirmCompletion() {
+        Task {
+            do {
+                let isCompleted = try await bookingService.markBookingCompletion(bookingId: currentBooking.id, isPilot: true)
+                
+                // Refresh booking to get latest status
+                await refreshBooking()
+                
+                if isCompleted {
+                    // Both parties confirmed, booking is completed
+                    showCompletionSuccess = true
+                    
+                    // Update pilot stats
+                    if let hours = currentBooking.estimatedFlightHours, let userId = authService.currentUser?.id {
+                        try await rankingService.updateFlightHours(pilotId: userId, additionalHours: hours)
+                    }
+                }
+            } catch {
+                errorMessage = error.localizedDescription
+                showError = true
+            }
+        }
+    }
+    
     private func submitRating(rating: Int, comment: String?) {
         guard let currentUser = authService.currentUser else { return }
-        let customerId = booking.customerId
+        let customerId = currentBooking.customerId
         
         Task {
             do {
                 try await ratingService.submitRating(
-                    bookingId: booking.id,
+                    bookingId: currentBooking.id,
                     fromUserId: currentUser.id,
                     toUserId: customerId,
                     rating: rating,
@@ -528,10 +664,13 @@ struct BookingDetailView: View {
                 
                 // Mark as rated
                 try await bookingService.markRatingStatus(
-                    bookingId: booking.id,
+                    bookingId: currentBooking.id,
                     isPilot: true,
                     hasRated: true
                 )
+                
+                // Refresh booking to update rated status
+                await refreshBooking()
             } catch {
                 errorMessage = error.localizedDescription
                 showError = true

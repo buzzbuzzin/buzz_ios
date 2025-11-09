@@ -11,16 +11,11 @@
 // }
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import Stripe from "https://esm.sh/stripe@14.21.0?target=deno"
 
 const stripeSecretKey = Deno.env.get("STRIPE_SECRET_KEY")
 if (!stripeSecretKey) {
   throw new Error("STRIPE_SECRET_KEY environment variable is not set")
 }
-
-const stripe = new Stripe(stripeSecretKey, {
-  httpClient: Stripe.createFetchHttpClient(),
-})
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -46,8 +41,20 @@ serve(async (req) => {
       )
     }
 
-    // Retrieve account details from Stripe
-    const account = await stripe.accounts.retrieve(account_id)
+    // Retrieve account details from Stripe using direct HTTP call
+    const stripeResponse = await fetch(`https://api.stripe.com/v1/accounts/${account_id}`, {
+      method: "GET",
+      headers: {
+        "Authorization": `Bearer ${stripeSecretKey}`,
+      },
+    })
+
+    if (!stripeResponse.ok) {
+      const errorData = await stripeResponse.json()
+      throw new Error(errorData.error?.message || "Failed to retrieve account")
+    }
+
+    const account = await stripeResponse.json()
 
     // Determine status based on account details
     let status = "onboarding"
