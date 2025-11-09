@@ -11,12 +11,24 @@ struct RatingView: View {
     let userName: String
     let isPilotRatingCustomer: Bool
     let onRatingSubmitted: (Int, String?, Decimal?) -> Void
+    let customTitle: String? // Optional custom title (e.g., "Booking is completed")
     
     @State private var selectedRating = 0
     @State private var comment = ""
-    @State private var tipAmount = ""
-    @State private var showTipField = false
+    @State private var selectedTipAmount: Decimal? = nil
+    @State private var customTipAmount = ""
+    @State private var showCustomTipField = false
     @Environment(\.dismiss) var dismiss
+    
+    // Predefined tip amounts
+    private let tipAmounts: [Decimal] = [1, 2, 5]
+    
+    init(userName: String, isPilotRatingCustomer: Bool, onRatingSubmitted: @escaping (Int, String?, Decimal?) -> Void, customTitle: String? = nil) {
+        self.userName = userName
+        self.isPilotRatingCustomer = isPilotRatingCustomer
+        self.onRatingSubmitted = onRatingSubmitted
+        self.customTitle = customTitle
+    }
     
     var body: some View {
         NavigationView {
@@ -72,15 +84,58 @@ struct RatingView: View {
                 // Tip Section (Only for customers rating pilots)
                 if !isPilotRatingCustomer {
                     Section {
-                        Toggle("Add a Tip", isOn: $showTipField)
+                        Text("Add a tip for \(userName)")
+                            .font(.headline)
+                            .padding(.vertical, 4)
                         
-                        if showTipField {
+                        // Predefined tip amount buttons
+                        HStack(spacing: 12) {
+                            ForEach(tipAmounts, id: \.self) { amount in
+                                Button(action: {
+                                    if selectedTipAmount == amount {
+                                        selectedTipAmount = nil
+                                        showCustomTipField = false
+                                    } else {
+                                        selectedTipAmount = amount
+                                        showCustomTipField = false
+                                        customTipAmount = ""
+                                    }
+                                }) {
+                                    Text("$\(NSDecimalNumber(decimal: amount).intValue)")
+                                        .font(.headline)
+                                        .foregroundColor(selectedTipAmount == amount ? .white : .primary)
+                                        .frame(width: 70, height: 70)
+                                        .background(selectedTipAmount == amount ? Color.teal : Color(.systemGray6))
+                                        .clipShape(Circle())
+                                }
+                            }
+                        }
+                        .padding(.vertical, 8)
+                        
+                        // Custom amount option
+                        Button(action: {
+                            showCustomTipField.toggle()
+                            if showCustomTipField {
+                                selectedTipAmount = nil
+                            } else {
+                                customTipAmount = ""
+                            }
+                        }) {
+                            Text("Enter Custom Amount")
+                                .font(.subheadline)
+                                .foregroundColor(.teal)
+                        }
+                        .padding(.vertical, 4)
+                        
+                        // Custom tip amount field
+                        if showCustomTipField {
                             HStack {
                                 Text("$")
                                     .foregroundColor(.secondary)
-                                TextField("Amount", text: $tipAmount)
+                                TextField("Amount", text: $customTipAmount)
                                     .keyboardType(.decimalPad)
                             }
+                            .padding(.top, 4)
                         }
                     } header: {
                         Text("Tip")
@@ -90,7 +145,7 @@ struct RatingView: View {
                     }
                 }
             }
-            .navigationTitle("Rate & Review")
+            .navigationTitle(customTitle ?? "Rate & Review")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -99,9 +154,11 @@ struct RatingView: View {
                     }
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Submit") {
-                        let tip: Decimal? = if showTipField && !tipAmount.isEmpty, let tipValue = Double(tipAmount) {
+                    Button("DONE") {
+                        let tip: Decimal? = if showCustomTipField && !customTipAmount.isEmpty, let tipValue = Double(customTipAmount) {
                             Decimal(tipValue)
+                        } else if let selectedTip = selectedTipAmount {
+                            selectedTip
                         } else {
                             nil
                         }
@@ -109,6 +166,7 @@ struct RatingView: View {
                         dismiss()
                     }
                     .disabled(selectedRating == 0)
+                    .fontWeight(.semibold)
                 }
             }
         }

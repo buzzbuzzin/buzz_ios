@@ -819,6 +819,8 @@ class BookingService: ObservableObject {
             // If both have completed, finalize the booking
             if customerCompleted && pilotCompleted {
                 updateData["status"] = .string(BookingStatus.completed.rawValue)
+                // Set completed_at timestamp when booking is officially completed
+                updateData["completed_at"] = .string(ISO8601DateFormatter().string(from: Date()))
                 
                 // If booking has a charge_id but no transfer_id, trigger transfer
                 // Transfer goes directly to Stripe account, balance is managed by Stripe

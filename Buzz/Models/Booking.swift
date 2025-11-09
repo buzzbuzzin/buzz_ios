@@ -79,6 +79,7 @@ struct Booking: Codable, Identifiable {
     var chargeId: String?
     var customerCompleted: Bool? // Customer has marked booking as finished
     var pilotCompleted: Bool? // Pilot has marked booking as finished
+    var completedAt: Date? // Timestamp when booking was officially completed
     
     enum CodingKeys: String, CodingKey {
         case id
@@ -104,6 +105,7 @@ struct Booking: Codable, Identifiable {
         case chargeId = "charge_id"
         case customerCompleted = "customer_completed"
         case pilotCompleted = "pilot_completed"
+        case completedAt = "completed_at"
     }
     
     var rankName: String {

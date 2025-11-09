@@ -148,6 +148,22 @@ class RatingService: ObservableObject {
         let calendar = Calendar.current
         let now = Date()
         
+        // Check if the user being rated is a pilot or customer
+        // In demo mode, check if ProfileService can find a pilot profile for this userId
+        let profileService = ProfileService()
+        let isPilot = profileService.getSamplePilotProfile(pilotId: userId) != nil
+        
+        if isPilot {
+            // User is a pilot - show reviews from customers (existing logic)
+            return createSampleRatingsForPilot(userId: userId, calendar: calendar, now: now)
+        } else {
+            // User is a customer - show reviews from pilots
+            return createSampleRatingsForCustomer(userId: userId, calendar: calendar, now: now)
+        }
+    }
+    
+    // Sample ratings from customers (for pilots)
+    private func createSampleRatingsForPilot(userId: UUID, calendar: Calendar, now: Date) -> [RatingWithUser] {
         // Sample customer profiles who left ratings
         let sampleCustomers = [
             UserProfile(
@@ -242,7 +258,7 @@ class RatingService: ObservableObject {
             )
         ]
         
-        // Sample ratings from different customers
+        // Sample ratings from different customers (about pilots)
         let sampleRatings = [
             Rating(
                 id: UUID(),
@@ -306,6 +322,170 @@ class RatingService: ObservableObject {
                 id: rating.id,
                 rating: rating,
                 raterProfile: sampleCustomers[index]
+            )
+        }
+    }
+    
+    // Sample ratings from pilots (for customers)
+    private func createSampleRatingsForCustomer(userId: UUID, calendar: Calendar, now: Date) -> [RatingWithUser] {
+        // Sample pilot profiles who left ratings
+        let samplePilots = [
+            UserProfile(
+                id: UUID(),
+                userType: .pilot,
+                firstName: "Captain",
+                lastName: "James",
+                callSign: "SkyHawk",
+                email: nil,
+                phone: nil,
+                gender: nil,
+                profilePictureUrl: "https://i.pravatar.cc/150?img=11",
+                communicationPreference: nil,
+                createdAt: now,
+                balance: nil,
+                stripeAccountId: nil
+            ),
+            UserProfile(
+                id: UUID(),
+                userType: .pilot,
+                firstName: "Major",
+                lastName: "Sarah",
+                callSign: "CloudRunner",
+                email: nil,
+                phone: nil,
+                gender: nil,
+                profilePictureUrl: "https://i.pravatar.cc/150?img=16",
+                communicationPreference: nil,
+                createdAt: now,
+                balance: nil,
+                stripeAccountId: nil
+            ),
+            UserProfile(
+                id: UUID(),
+                userType: .pilot,
+                firstName: "Lt.",
+                lastName: "Michael",
+                callSign: "DroneMaster",
+                email: nil,
+                phone: nil,
+                gender: nil,
+                profilePictureUrl: "https://i.pravatar.cc/150?img=25",
+                communicationPreference: nil,
+                createdAt: now,
+                balance: nil,
+                stripeAccountId: nil
+            ),
+            UserProfile(
+                id: UUID(),
+                userType: .pilot,
+                firstName: "Commander",
+                lastName: "Emily",
+                callSign: "AeroWave",
+                email: nil,
+                phone: nil,
+                gender: nil,
+                profilePictureUrl: "https://i.pravatar.cc/150?img=27",
+                communicationPreference: nil,
+                createdAt: now,
+                balance: nil,
+                stripeAccountId: nil
+            ),
+            UserProfile(
+                id: UUID(),
+                userType: .pilot,
+                firstName: "Captain",
+                lastName: "David",
+                callSign: "SkyLine",
+                email: nil,
+                phone: nil,
+                gender: nil,
+                profilePictureUrl: "https://i.pravatar.cc/150?img=35",
+                communicationPreference: nil,
+                createdAt: now,
+                balance: nil,
+                stripeAccountId: nil
+            ),
+            UserProfile(
+                id: UUID(),
+                userType: .pilot,
+                firstName: "Major",
+                lastName: "Jessica",
+                callSign: "WingShot",
+                email: nil,
+                phone: nil,
+                gender: nil,
+                profilePictureUrl: "https://i.pravatar.cc/150?img=41",
+                communicationPreference: nil,
+                createdAt: now,
+                balance: nil,
+                stripeAccountId: nil
+            )
+        ]
+        
+        // Sample ratings from different pilots (about customers) - written from pilot's perspective
+        let sampleRatings = [
+            Rating(
+                id: UUID(),
+                bookingId: UUID(),
+                fromUserId: samplePilots[0].id,
+                toUserId: userId,
+                rating: 5,
+                comment: "Great customer to work with! Clear communication, flexible with scheduling, and very appreciative of the work. Would definitely fly for them again.",
+                createdAt: calendar.date(byAdding: .day, value: -5, to: now) ?? now
+            ),
+            Rating(
+                id: UUID(),
+                bookingId: UUID(),
+                fromUserId: samplePilots[1].id,
+                toUserId: userId,
+                rating: 5,
+                comment: "Excellent client! Provided clear requirements and was very responsive throughout the project. Payment was prompt and professional.",
+                createdAt: calendar.date(byAdding: .day, value: -12, to: now) ?? now
+            ),
+            Rating(
+                id: UUID(),
+                bookingId: UUID(),
+                fromUserId: samplePilots[2].id,
+                toUserId: userId,
+                rating: 4,
+                comment: "Good customer overall. Had some last-minute changes but was understanding about timing. Professional and respectful.",
+                createdAt: calendar.date(byAdding: .day, value: -18, to: now) ?? now
+            ),
+            Rating(
+                id: UUID(),
+                bookingId: UUID(),
+                fromUserId: samplePilots[3].id,
+                toUserId: userId,
+                rating: 5,
+                comment: "Outstanding client! Very organized, knew exactly what they wanted, and was a pleasure to work with. Highly recommend!",
+                createdAt: calendar.date(byAdding: .day, value: -25, to: now) ?? now
+            ),
+            Rating(
+                id: UUID(),
+                bookingId: UUID(),
+                fromUserId: samplePilots[4].id,
+                toUserId: userId,
+                rating: 5,
+                comment: "Fantastic experience! Customer was professional, communicated well, and left a generous tip. Would love to work together again.",
+                createdAt: calendar.date(byAdding: .day, value: -32, to: now) ?? now
+            ),
+            Rating(
+                id: UUID(),
+                bookingId: UUID(),
+                fromUserId: samplePilots[5].id,
+                toUserId: userId,
+                rating: 4,
+                comment: "Solid customer. Responsive to messages and reasonable with expectations. Smooth booking process overall.",
+                createdAt: calendar.date(byAdding: .day, value: -40, to: now) ?? now
+            )
+        ]
+        
+        // Combine ratings with pilot profiles
+        return sampleRatings.enumerated().map { index, rating in
+            RatingWithUser(
+                id: rating.id,
+                rating: rating,
+                raterProfile: samplePilots[index]
             )
         }
     }

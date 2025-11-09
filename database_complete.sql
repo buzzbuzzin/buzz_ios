@@ -279,6 +279,14 @@ BEGIN
     ) THEN
         ALTER TABLE bookings ADD COLUMN pilot_completed BOOLEAN DEFAULT FALSE;
     END IF;
+    
+    -- Add completed_at if it doesn't exist
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'bookings' AND column_name = 'completed_at'
+    ) THEN
+        ALTER TABLE bookings ADD COLUMN completed_at TIMESTAMP WITH TIME ZONE;
+    END IF;
 END $$;
 
 -- Enable Row Level Security

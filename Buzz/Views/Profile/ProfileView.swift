@@ -101,14 +101,23 @@ struct ProfileView: View {
                             
                             // Name, Call Sign, and Ratings below picture
                             VStack(alignment: .center, spacing: 4) {
-                                Text(authService.userProfile?.firstName ?? "User")
-                                    .font(.title2)
-                                    .fontWeight(.bold)
-                                
-                                if let callSign = authService.userProfile?.callSign {
-                                    Text("@\(callSign)")
-                                        .font(.caption)
-                                        .foregroundColor(.blue)
+                                // For pilots, show callsign instead of first name
+                                if authService.userProfile?.userType == .pilot {
+                                    if let callSign = authService.userProfile?.callSign, !callSign.isEmpty {
+                                        Text("@\(callSign)")
+                                            .font(.headline)
+                                            .fontWeight(.bold)
+                                            .lineLimit(1)
+                                            .minimumScaleFactor(0.8)
+                                    } else {
+                                        Text("Pilot")
+                                            .font(.headline)
+                                            .fontWeight(.bold)
+                                    }
+                                } else {
+                                    Text(authService.userProfile?.firstName ?? "User")
+                                        .font(.title2)
+                                        .fontWeight(.bold)
                                 }
                                 
                                 // Ratings below call sign

@@ -316,8 +316,8 @@ struct BookingDetailView: View {
                                 }
                             }
                         } else if currentBooking.status == .accepted && currentBooking.pilotId == authService.currentUser?.id {
-                            // Show Finish Booking button if pilot hasn't completed yet
-                            if currentBooking.pilotCompleted != true {
+                            // Show Finish Booking button if pilot hasn't completed yet and customer hasn't completed yet
+                            if currentBooking.pilotCompleted != true && currentBooking.customerCompleted != true {
                                 CustomButton(
                                     title: "Finish Booking",
                                     action: { showFinishBookingAlert = true },

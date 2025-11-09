@@ -104,9 +104,14 @@ struct MyFlightsView: View {
                         }
                         
                         Section("Completed") {
-                            ForEach(bookingService.myBookings.filter { $0.status == .completed }) { booking in
+                            ForEach(bookingService.myBookings.filter { $0.status == .completed }.sorted(by: { booking1, booking2 in
+                                // Sort by completedAt if available, otherwise createdAt
+                                let date1 = booking1.completedAt ?? booking1.createdAt
+                                let date2 = booking2.completedAt ?? booking2.createdAt
+                                return date1 > date2
+                            })) { booking in
                                 NavigationLink(destination: BookingDetailView(booking: booking)) {
-                                    MyFlightsBookingCard(booking: booking)
+                                    CompletedBookingCard(booking: booking)
                                 }
                             }
                         }

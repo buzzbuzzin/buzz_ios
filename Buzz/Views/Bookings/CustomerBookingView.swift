@@ -112,20 +112,21 @@ struct CustomerBookingCard: View {
                     StatusBadge(status: booking.status)
                 }
                 
-                // Show pilot name if assigned (text only, no picture)
+                // Show pilot callsign if assigned (text only, no picture)
                 if let profile = pilotProfile,
                    booking.status == .accepted || booking.status == .completed {
                     HStack(spacing: 4) {
                         Image(systemName: "airplane.fill")
                             .font(.caption)
                             .foregroundColor(.blue)
-                        Text(profile.fullName)
-                            .font(.subheadline)
-                            .foregroundColor(.blue)
-                        if let callSign = profile.callSign {
-                            Text("(\(callSign))")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
+                        if let callSign = profile.callSign, !callSign.isEmpty {
+                            Text("@\(callSign)")
+                                .font(.subheadline)
+                                .foregroundColor(.blue)
+                        } else {
+                            Text("Pilot")
+                                .font(.subheadline)
+                                .foregroundColor(.blue)
                         }
                     }
                 }
@@ -668,10 +669,15 @@ struct CustomerBookingDetailView: View {
                             }
                             .frame(width: 60, height: 60)
                             
-                            // Pilot Name
+                            // Pilot Callsign
                             VStack(alignment: .leading, spacing: 4) {
-                                Text(pilotProfile?.fullName ?? "Pilot")
-                                    .font(.headline)
+                                if let callSign = pilotProfile?.callSign, !callSign.isEmpty {
+                                    Text("@\(callSign)")
+                                        .font(.headline)
+                                } else {
+                                    Text("Pilot")
+                                        .font(.headline)
+                                }
                             }
                             
                             Spacer()
@@ -737,19 +743,23 @@ struct CustomerBookingDetailView: View {
                 }
                 
                 // Edit and Cancel Buttons (for available and accepted bookings)
-                if currentBooking.status == .available || currentBooking.status == .accepted {
+                // Hide these buttons when waiting for completion confirmation
+                // Show buttons only if: status is available OR (status is accepted AND neither party has completed)
+                let showActionButtons = currentBooking.status == .available || 
+                    (currentBooking.status == .accepted && 
+                     currentBooking.customerCompleted != true && 
+                     currentBooking.pilotCompleted != true)
+                
+                if showActionButtons {
                     VStack(spacing: 12) {
                         // Finish Booking Button (for accepted bookings)
                         if currentBooking.status == .accepted {
-                            // Only show button if customer hasn't completed yet
-                            if currentBooking.customerCompleted != true {
-                                CustomButton(
-                                    title: "Finish Booking",
-                                    action: { showFinishBookingAlert = true },
-                                    style: .primary,
-                                    isLoading: bookingService.isLoading
-                                )
-                            }
+                            CustomButton(
+                                title: "Finish Booking",
+                                action: { showFinishBookingAlert = true },
+                                style: .primary,
+                                isLoading: bookingService.isLoading
+                            )
                         }
                         
                         CustomButton(
@@ -858,23 +868,14 @@ struct CustomerBookingDetailView: View {
         } message: {
             Text("Confirm that this booking is complete? This will finalize the booking and allow you to rate the pilot.")
         }
-        .alert("Booking Completed", isPresented: $showCompletionSuccess) {
-            Button("OK") {
-                // Show rating sheet after completion
-                if currentBooking.status == .completed {
-                    showRatingSheet = true
-                }
-            }
-        } message: {
-            Text("Booking completed successfully! Please rate the pilot.")
-        }
         .sheet(isPresented: $showRatingSheet) {
             RatingView(
                 userName: pilotName,
                 isPilotRatingCustomer: false,
                 onRatingSubmitted: { rating, comment, tip in
                     submitRating(rating: rating, comment: comment, tip: tip)
-                }
+                },
+                customTitle: currentBooking.status == .completed ? "Booking is completed" : nil
             )
         }
         .sheet(isPresented: $showMessageSheet) {
@@ -914,12 +915,14 @@ struct CustomerBookingDetailView: View {
         // Try to get sample pilot profile first (for demo)
         if let sampleProfile = profileService.getSamplePilotProfile(pilotId: pilotId) {
             pilotProfile = sampleProfile
-            pilotName = sampleProfile.fullName
+            // Use callsign for display in RatingView (not payment-related)
+            pilotName = sampleProfile.callSign ?? sampleProfile.fullName
         } else {
             // Fallback to real profile fetch
         do {
             pilotProfile = try await profileService.getProfile(userId: pilotId)
-            pilotName = pilotProfile?.fullName ?? "Pilot"
+            // Use callsign for display in RatingView (not payment-related)
+            pilotName = pilotProfile?.callSign ?? pilotProfile?.fullName ?? "Pilot"
         } catch {
             print("Error loading pilot profile: \(error)")
             pilotName = "Pilot"
@@ -1010,8 +1013,9 @@ struct CustomerBookingDetailView: View {
                 await refreshBooking()
                 
                 if isCompleted {
-                    // Both parties confirmed, booking is completed
+                    // Both parties confirmed, booking is completed - show rating sheet directly
                     showCompletionSuccess = true
+                    showRatingSheet = true
                 }
             } catch {
                 errorMessage = error.localizedDescription
