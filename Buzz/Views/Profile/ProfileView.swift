@@ -430,6 +430,16 @@ struct ProfileView: View {
                                     .foregroundColor(.primary)
                             }
                         }
+                        
+                        NavigationLink(destination: FlightPackageView()) {
+                            HStack {
+                                Image(systemName: "airplane.circle.fill")
+                                    .foregroundColor(.secondary)
+                                    .font(.body)
+                                Text("Flight Package")
+                                    .foregroundColor(.primary)
+                            }
+                        }
                     }
                     
                     if authService.userProfile?.userType == .pilot {
