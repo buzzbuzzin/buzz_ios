@@ -55,15 +55,15 @@ struct PersonalInfoView: View {
                 .buttonStyle(PlainButtonStyle())
             }
             
-            // Gender Card
-            NavigationLink(destination: GenderEditView()) {
-                PersonalInfoCard(
-                    title: "Gender",
-                    value: authService.userProfile?.gender?.displayName ?? "Not set",
-                    icon: "person.2.fill"
-                )
-            }
-            .buttonStyle(PlainButtonStyle())
+            // Gender Card (Hidden)
+//            NavigationLink(destination: GenderEditView()) {
+//                PersonalInfoCard(
+//                    title: "Gender",
+//                    value: authService.userProfile?.gender?.displayName ?? "Not set",
+//                    icon: "person.2.fill"
+//                )
+//            }
+//            .buttonStyle(PlainButtonStyle())
             
             // Identity Verification Card
             NavigationLink(destination: IdentityVerificationView()) {

@@ -1093,8 +1093,6 @@ struct MembershipDetailsView: View {
     @Environment(\.dismiss) var dismiss
     @State private var showSlideshow = false
     
-    // TODO: Replace this URL with your Supabase Storage URL after uploading
-    // Format: https://YOUR_PROJECT.supabase.co/storage/v1/object/public/presentations/buzz-auto-presentation.pdf
     private let slideshowURL = "https://mzapuczjijqjzdcujetx.supabase.co/storage/v1/object/public/presentations/car_commercial_pkg.pdf"
     
     var body: some View {
