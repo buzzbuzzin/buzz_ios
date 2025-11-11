@@ -407,6 +407,25 @@ struct ProfileView: View {
                     }
                 }
                 
+                // Flight Packages (Customer only)
+                if authService.userProfile?.userType == .customer {
+                    Section {
+                        NavigationLink(destination: FlightPackageView()) {
+                            HStack {
+                                Image(systemName: "car.circle.fill")
+                                    .foregroundColor(.secondary)
+                                    .font(.body)
+                                Text("Buzz Auto")
+                                    .foregroundColor(.primary)
+                            }
+                        }
+                    } header: {
+                        Text("Flight Packages")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                
                 // Account
                 Section {
                     NavigationLink(destination: SettingsView()) {
@@ -427,16 +446,6 @@ struct ProfileView: View {
                                     .foregroundColor(.secondary)
                                     .font(.body)
                                 Text("Saved Payments")
-                                    .foregroundColor(.primary)
-                            }
-                        }
-                        
-                        NavigationLink(destination: FlightPackageView()) {
-                            HStack {
-                                Image(systemName: "airplane.circle.fill")
-                                    .foregroundColor(.secondary)
-                                    .font(.body)
-                                Text("Flight Package")
                                     .foregroundColor(.primary)
                             }
                         }

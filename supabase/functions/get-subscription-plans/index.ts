@@ -50,28 +50,33 @@ serve(async (req) => {
 
     // Map Stripe prices to plan format
     const plans = prices.data.map((price) => {
-      // Extract features from metadata if available, or use defaults based on price
+      // Extract features from metadata if available, or use defaults
       let features: string[] = []
       
       if (price.metadata?.features) {
         // If features are stored as comma-separated string in metadata
         features = price.metadata.features.split(",").map((f: string) => f.trim())
       } else {
-        // Default features based on price amount (you can customize this)
-        const amount = price.unit_amount || 0
-        if (amount < 4000) {
-          features = ["5 flight credits", "Standard support"]
-        } else if (amount < 8000) {
-          features = ["15 flight credits", "Priority support", "20% discount"]
-        } else {
-          features = ["Unlimited credits", "24/7 support", "30% discount"]
-        }
+        // Default features for Automotive Flight Package
+        features = ["50 drone flight bookings", "24/7 support"]
+      }
+
+      // Get the nickname, but remove everything after the comma if it exists
+      let planName = price.nickname || `Automotive Flight Package - ${price.recurring?.interval || "month"}`
+      if (planName.includes(",")) {
+        planName = planName.split(",")[0].trim()
+      }
+
+      // For description, use everything after the comma in nickname if it exists, otherwise use metadata
+      let description = price.metadata?.description || "Automotive flight package subscription"
+      if (price.nickname && price.nickname.includes(",")) {
+        description = price.nickname.split(",").slice(1).join(",").trim()
       }
 
       return {
         id: price.id,
-        name: price.nickname || `Automotive Flight Package - ${price.recurring?.interval || "month"}`,
-        description: price.metadata?.description || "Automotive flight package subscription",
+        name: planName,
+        description: description,
         price_id: price.id,
         amount: price.unit_amount || 0,
         currency: price.currency,

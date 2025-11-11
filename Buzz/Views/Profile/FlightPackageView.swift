@@ -82,7 +82,7 @@ struct FlightPackageView: View {
                     )
                 }
             }
-            .navigationTitle("Flight Package")
+//            .navigationTitle("Buzz Auto")
             .navigationBarTitleDisplayMode(.large)
             .alert("Pause Membership", isPresented: $showPauseAlert) {
                 Button("Cancel", role: .cancel) {}
@@ -548,34 +548,96 @@ struct LearnMoreView: View {
     var body: some View {
         NavigationView {
             ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
+                VStack(alignment: .leading, spacing: 24) {
                     Text("Automotive Flight Package")
                         .font(.title2)
                         .fontWeight(.bold)
                     
-                    Text("Our Automotive Flight Package provides you with access to automotive-focused drone services at competitive rates.")
-                        .font(.body)
-                        .foregroundColor(.primary)
+                    Text("Turn every car into a commercial. With 50 videos per month per drone, your inventory shines like never before. On average, members save over $2,000 per month compared to on-demand shoots.")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
                     
-                    Text("Features:")
-                        .font(.headline)
-                        .padding(.top, 8)
-                    
-                    VStack(alignment: .leading, spacing: 8) {
-                        FeatureRow(icon: "checkmark.circle.fill", text: "Access to automotive specialists")
-                        FeatureRow(icon: "checkmark.circle.fill", text: "Discounted rates on bookings")
-                        FeatureRow(icon: "checkmark.circle.fill", text: "Priority support")
-                        FeatureRow(icon: "checkmark.circle.fill", text: "Monthly flight credits")
-                    }
-                    
-                    Text("Plans:")
-                        .font(.headline)
-                        .padding(.top, 8)
-                    
-                    VStack(alignment: .leading, spacing: 12) {
-                        PlanRow(name: "Basic Plan", price: "$29/month", features: ["5 flight credits", "Standard support"])
-                        PlanRow(name: "Premium Plan", price: "$59/month", features: ["15 flight credits", "Priority support", "20% discount"])
-                        PlanRow(name: "Enterprise Plan", price: "$99/month", features: ["Unlimited credits", "24/7 support", "30% discount"])
+                    // What's included section
+                    VStack(alignment: .leading, spacing: 20) {
+                        Text("What's included")
+                            .font(.title3)
+                            .fontWeight(.bold)
+                        
+                        // Feature 1
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack(spacing: 8) {
+                                Text("⚡")
+                                    .font(.title2)
+                                Text("Up to 50 cinematic videos per month")
+                                    .font(.headline)
+                                    .foregroundColor(.primary)
+                            }
+                            Text("Full editing and post-production included.")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                                .padding(.leading, 32)
+                        }
+                        
+                        // Feature 2
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack(spacing: 8) {
+                                Text("🚗")
+                                    .font(.title2)
+                                Text("Dedicated drone & pilot access")
+                                    .font(.headline)
+                                    .foregroundColor(.primary)
+                            }
+                            Text("One drone team reserved exclusively for your dealership.")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                                .padding(.leading, 32)
+                        }
+                        
+                        // Feature 3
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack(spacing: 8) {
+                                Text("🎥")
+                                    .font(.title2)
+                                Text("Priority scheduling")
+                                    .font(.headline)
+                                    .foregroundColor(.primary)
+                            }
+                            Text("Guaranteed next-day shoot availability.")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                                .padding(.leading, 32)
+                        }
+                        
+                        // Feature 4
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack(spacing: 8) {
+                                Text("💼")
+                                    .font(.title2)
+                                Text("Dealer-exclusive analytics dashboard")
+                                    .font(.headline)
+                                    .foregroundColor(.primary)
+                            }
+                            Text("Track engagement, turnaround time, and content ROI.")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                                .padding(.leading, 32)
+                        }
+                        
+                        // Feature 5
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack(spacing: 8) {
+                                Text("🌤️")
+                                    .font(.title2)
+                                Text("Weather & site-planning support")
+                                    .font(.headline)
+                                    .foregroundColor(.primary)
+                            }
+                            Text("We handle logistics, FAA checks, and filming permits.")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                                .padding(.leading, 32)
+                        }
                     }
                 }
                 .padding()
@@ -662,10 +724,8 @@ struct SubscriptionSelectionView: View {
     @EnvironmentObject var authService: AuthService
     let onSubscriptionCreated: () -> Void
     
-    @State private var selectedPlan: SubscriptionPlan?
-    @State private var isProcessingPayment = false
-    @State private var showError = false
-    @State private var errorMessage = ""
+    @State private var showPlanSelection = false
+    @State private var showMembershipDetails = false
     @State private var hasLoadedPlans = false // Prevent multiple loads
     
     var body: some View {
@@ -673,81 +733,165 @@ struct SubscriptionSelectionView: View {
             VStack(spacing: 24) {
                 // Header
                 VStack(spacing: 12) {
-                    Image(systemName: "airplane.circle.fill")
+                    Image(systemName: "car.circle.fill")
                         .font(.system(size: 60))
                         .foregroundColor(.blue)
                     
-                    Text("Automotive Flight Package")
+                    Text("Become a Buzz Auto member")
                         .font(.title2)
                         .fontWeight(.bold)
                     
-                    Text("Choose a subscription plan to get started")
+                    Text("Turn every car into a commercial. With 50 videos per month per drone, your inventory shines like never before. On average, members save over $2,000 per month compared to on-demand shoots.")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
+                        .padding(.horizontal)
                 }
                 .padding(.top, 20)
                 
-                // Plans
-                if subscriptionService.isLoading && subscriptionService.availablePlans.isEmpty {
-                    ProgressView()
-                        .padding()
-                } else if subscriptionService.availablePlans.isEmpty {
-                    VStack(spacing: 12) {
-                        Text("No plans available")
-                            .foregroundColor(.secondary)
-                        if let error = subscriptionService.errorMessage {
-                            Text(error)
-                                .font(.caption)
-                                .foregroundColor(.red)
-                                .multilineTextAlignment(.center)
-                                .padding(.horizontal)
-                        }
-                    }
-                    .padding()
-                } else {
-                    VStack(spacing: 16) {
-                        ForEach(subscriptionService.availablePlans) { plan in
-                            PlanSelectionCard(
-                                plan: plan,
-                                isSelected: selectedPlan?.id == plan.id,
-                                onSelect: {
-                                    selectedPlan = plan
+                // Divider
+                Divider()
+                    .padding(.horizontal)
+                
+                // What's included section
+                VStack(alignment: .leading, spacing: 20) {
+                    Text("What's included:")
+                        .font(.title3)
+                        .fontWeight(.bold)
+                        .padding(.horizontal)
+                    
+                    VStack(alignment: .leading, spacing: 24) {
+                        // Feature 1
+                        HStack(alignment: .top, spacing: 12) {
+                            Image(systemName: "bolt.fill")
+                                .font(.system(size: 24))
+                                .foregroundColor(.orange)
+                                .frame(width: 32)
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Up to 50 videos per month per drone")
+                                    .font(.headline)
+                                    .foregroundColor(.primary)
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("Full editing and post-production included.")
+                                        .font(.subheadline)
+                                        .foregroundColor(.secondary)
+                                    Text("• 10 30-second high-resolution videos")
+                                        .font(.subheadline)
+                                        .foregroundColor(.secondary)
+                                    Text("• 10 enticising Facebook or Linkedin posts")
+                                        .font(.subheadline)
+                                        .foregroundColor(.secondary)
+                                    Text("• 10 creative 3x3 grid for Instagram")
+                                        .font(.subheadline)
+                                        .foregroundColor(.secondary)
+                                    Text("• 10 informative Instagram stories")
+                                        .font(.subheadline)
+                                        .foregroundColor(.secondary)
+                                    Text("• 10 Captivating Tiktoks")
+                                        .font(.subheadline)
+                                        .foregroundColor(.secondary)
                                 }
-                            )
+                            }
                         }
+                        
+                        // Feature 2
+                        HStack(alignment: .top, spacing: 12) {
+                            Image(systemName: "car.fill")
+                                .font(.system(size: 24))
+                                .foregroundColor(.blue)
+                                .frame(width: 32)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Dedicated drone & pilot access")
+                                    .font(.headline)
+                                    .foregroundColor(.primary)
+                                Text("One skilled and talented drone team reserved exclusively for your dealership, dedicating to to capturing quality content.")
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        
+                        // Feature 3
+                        HStack(alignment: .top, spacing: 12) {
+                            Image(systemName: "video.fill")
+                                .font(.system(size: 24))
+                                .foregroundColor(.purple)
+                                .frame(width: 32)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Priority scheduling")
+                                    .font(.headline)
+                                    .foregroundColor(.primary)
+                                Text("Guaranteed next-day shoot availability.")
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        
+                        // Feature 4
+                        HStack(alignment: .top, spacing: 12) {
+                            Image(systemName: "chart.bar.fill")
+                                .font(.system(size: 24))
+                                .foregroundColor(.green)
+                                .frame(width: 32)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Online traffic boosting")
+                                    .font(.headline)
+                                    .foregroundColor(.primary)
+                                Text("90% of vehicle buyers do research online before purchasing.")
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        
+                        // Feature 5
+                        HStack(alignment: .top, spacing: 12) {
+                            Image(systemName: "cloud.sun.fill")
+                                .font(.system(size: 24))
+                                .foregroundColor(.cyan)
+                                .frame(width: 32)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Weather & site-planning support")
+                                    .font(.headline)
+                                    .foregroundColor(.primary)
+                                Text("We handle logistics, FAA checks, pilot licences, and drone registration permits.")
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        
+                        // Membership details link
+                        Button(action: {
+                            showMembershipDetails = true
+                        }) {
+                            Text("See membership details and terms")
+                                .font(.subheadline)
+                                .foregroundColor(.blue)
+                                .underline()
+                        }
+                        .padding(.top, 8)
                     }
                     .padding(.horizontal)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.bottom, 8)
                 
-                // Subscribe button
-                if let plan = selectedPlan {
-                    Button(action: {
-                        Task {
-                            await subscribeToPlan(plan)
-                        }
-                    }) {
-                        HStack {
-                            if isProcessingPayment {
-                                ProgressView()
-                                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                            }
-                            Text(isProcessingPayment ? "Processing..." : "Subscribe to \(plan.name)")
-                                .fontWeight(.semibold)
-                        }
+                Spacer()
+                
+                // Join now button
+                Button(action: {
+                    showPlanSelection = true
+                }) {
+                    Text("Join now")
+                        .fontWeight(.semibold)
                         .frame(maxWidth: .infinity)
                         .padding()
                         .background(Color.blue)
                         .foregroundColor(.white)
                         .cornerRadius(12)
-                    }
-                    .disabled(isProcessingPayment)
-                    .padding(.horizontal)
-                    .padding(.bottom, 20)
                 }
+                .padding(.horizontal)
+                .padding(.bottom, 20)
             }
         }
-        .navigationTitle("Flight Package")
         .navigationBarTitleDisplayMode(.large)
         .onAppear {
             // Load plans when view appears
@@ -761,13 +905,14 @@ struct SubscriptionSelectionView: View {
                 await loadPlans()
             }
         }
-        .alert("Error", isPresented: $showError) {
-            Button("OK", role: .cancel) {
-                // Don't show error again after dismissing
-                showError = false
-            }
-        } message: {
-            Text(errorMessage)
+        .sheet(isPresented: $showMembershipDetails) {
+            MembershipDetailsView()
+        }
+        .sheet(isPresented: $showPlanSelection) {
+            PlanSelectionView(
+                subscriptionService: subscriptionService,
+                onSubscriptionCreated: onSubscriptionCreated
+            )
         }
     }
     
@@ -788,14 +933,10 @@ struct SubscriptionSelectionView: View {
         let plans = await subscriptionService.fetchAvailablePlans()
         print("📦 Fetched \(plans.count) plans")
         
-        // If we got an error message but no plans, show it once
+        // If we got an error message but no plans, log it
         if plans.isEmpty {
             if let errorMsg = subscriptionService.errorMessage {
                 print("❌ Error fetching plans: \(errorMsg)")
-                if !showError {
-                    errorMessage = errorMsg
-                    showError = true
-                }
             } else {
                 print("⚠️ No plans found and no error message")
             }
@@ -803,6 +944,101 @@ struct SubscriptionSelectionView: View {
             print("✅ Plans loaded successfully:")
             for (index, plan) in plans.enumerated() {
                 print("   \(index + 1). \(plan.name) - \(plan.currency) \(plan.amount / 100)")
+            }
+        }
+    }
+}
+
+// MARK: - Plan Selection View
+
+struct PlanSelectionView: View {
+    @ObservedObject var subscriptionService: SubscriptionService
+    @EnvironmentObject var authService: AuthService
+    let onSubscriptionCreated: () -> Void
+    @Environment(\.dismiss) var dismiss
+    
+    @State private var selectedPlan: SubscriptionPlan?
+    @State private var isProcessingPayment = false
+    @State private var showError = false
+    @State private var errorMessage = ""
+    
+    var body: some View {
+        NavigationView {
+            ScrollView {
+                VStack(spacing: 24) {
+                    // Plans
+                    if subscriptionService.isLoading && subscriptionService.availablePlans.isEmpty {
+                        ProgressView()
+                            .padding()
+                    } else if subscriptionService.availablePlans.isEmpty {
+                        VStack(spacing: 12) {
+                            Text("No plans available")
+                                .foregroundColor(.secondary)
+                            if let error = subscriptionService.errorMessage {
+                                Text(error)
+                                    .font(.caption)
+                                    .foregroundColor(.red)
+                                    .multilineTextAlignment(.center)
+                                    .padding(.horizontal)
+                            }
+                        }
+                        .padding()
+                    } else {
+                        VStack(spacing: 16) {
+                            ForEach(subscriptionService.availablePlans) { plan in
+                                PlanSelectionCard(
+                                    plan: plan,
+                                    isSelected: selectedPlan?.id == plan.id,
+                                    onSelect: {
+                                        selectedPlan = plan
+                                    }
+                                )
+                            }
+                        }
+                        .padding(.horizontal)
+                    }
+                    
+                    // Subscribe button
+                    if let plan = selectedPlan {
+                        Button(action: {
+                            Task {
+                                await subscribeToPlan(plan)
+                            }
+                        }) {
+                            HStack {
+                                if isProcessingPayment {
+                                    ProgressView()
+                                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                }
+                                Text(isProcessingPayment ? "Processing..." : "Subscribe to \(plan.name)")
+                                    .fontWeight(.semibold)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(Color.blue)
+                            .foregroundColor(.white)
+                            .cornerRadius(12)
+                        }
+                        .disabled(isProcessingPayment)
+                        .padding(.horizontal)
+                        .padding(.bottom, 20)
+                    }
+                }
+                .padding(.top)
+            }
+            .navigationTitle("Choose Plan")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+            }
+            .alert("Error", isPresented: $showError) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(errorMessage)
             }
         }
     }
@@ -848,6 +1084,109 @@ struct SubscriptionSelectionView: View {
         }
         
         isProcessingPayment = false
+    }
+}
+
+// MARK: - Membership Details View
+
+struct MembershipDetailsView: View {
+    @Environment(\.dismiss) var dismiss
+    @State private var showSlideshow = false
+    
+    // TODO: Replace this URL with your Supabase Storage URL after uploading
+    // Format: https://YOUR_PROJECT.supabase.co/storage/v1/object/public/presentations/buzz-auto-presentation.pdf
+    private let slideshowURL = "https://mzapuczjijqjzdcujetx.supabase.co/storage/v1/object/public/presentations/car_commercial_pkg.pdf"
+    
+    var body: some View {
+        NavigationView {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 24) {
+                    Text("Membership Details & Terms")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                    
+                    Text("Learn more about Buzz Auto membership benefits and policies.")
+                        .font(.body)
+                        .foregroundColor(.secondary)
+                    
+                    // View Presentation Button
+                    Button(action: {
+                        showSlideshow = true
+                    }) {
+                        HStack {
+                            Image(systemName: "play.rectangle.fill")
+                                .font(.title3)
+                            Text("View Membership Presentation")
+                                .font(.headline)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color.blue)
+                        .foregroundColor(.white)
+                        .cornerRadius(12)
+                    }
+                    
+                    Divider()
+                        .padding(.vertical, 8)
+                    
+                    // Terms content
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text("Terms of Service")
+                            .font(.headline)
+                        Text("• Subscription terms\n• Cancellation policy\n• Refund policy\n• Usage guidelines")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .padding()
+            }
+            .navigationTitle("Details & Terms")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+            }
+            .sheet(isPresented: $showSlideshow) {
+                if let url = URL(string: slideshowURL), slideshowURL != "YOUR_SUPABASE_STORAGE_URL_HERE" {
+                    SafariView(url: url)
+                } else {
+                    VStack(spacing: 20) {
+                        Image(systemName: "doc.text.magnifyingglass")
+                            .font(.system(size: 60))
+                            .foregroundColor(.gray)
+                        Text("Presentation URL Not Configured")
+                            .font(.headline)
+                        Text("Please upload your presentation to Supabase Storage and update the URL in MembershipDetailsView")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal)
+                        Button("Close") {
+                            showSlideshow = false
+                        }
+                        .padding()
+                    }
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Safari View for displaying web content
+import SafariServices
+
+struct SafariView: UIViewControllerRepresentable {
+    let url: URL
+    
+    func makeUIViewController(context: Context) -> SFSafariViewController {
+        return SFSafariViewController(url: url)
+    }
+    
+    func updateUIViewController(_ uiViewController: SFSafariViewController, context: Context) {
+        // No update needed
     }
 }
 
