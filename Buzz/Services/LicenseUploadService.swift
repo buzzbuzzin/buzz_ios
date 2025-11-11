@@ -27,21 +27,66 @@ class LicenseUploadService: ObservableObject {
         errorMessage = nil
         
         do {
+            // Verify authentication session
+            let session = try await supabase.auth.session
+            print("DEBUG LicenseUpload: Current user ID: \(session.user.id.uuidString)")
+            print("DEBUG LicenseUpload: Pilot ID: \(pilotId.uuidString)")
+            print("DEBUG LicenseUpload: IDs match: \(session.user.id == pilotId)")
+            
+            // Verify user has a profile (required for foreign key)
+            do {
+                let profile: UserProfile? = try await supabase
+                    .from("profiles")
+                    .select()
+                    .eq("id", value: pilotId.uuidString)
+                    .single()
+                    .execute()
+                    .value
+                
+                if profile == nil {
+                    throw NSError(
+                        domain: "LicenseUploadService",
+                        code: -1,
+                        userInfo: [NSLocalizedDescriptionKey: "User profile not found. Please ensure your profile exists in the database."]
+                    )
+                }
+                print("DEBUG LicenseUpload: Profile found for user")
+            } catch {
+                print("DEBUG LicenseUpload: Error checking profile: \(error.localizedDescription)")
+                throw NSError(
+                    domain: "LicenseUploadService",
+                    code: -1,
+                    userInfo: [NSLocalizedDescriptionKey: "Failed to verify user profile: \(error.localizedDescription)"]
+                )
+            }
+            
             let filePath = "\(pilotId.uuidString)/\(fileName)"
+            print("DEBUG LicenseUpload: Uploading to path: \(filePath)")
             
             // Upload to Supabase Storage
-            let _ = try await supabase.storage
-                .from(bucketName)
-                .upload(
-                    filePath,
-                    data: data,
-                    options: FileOptions(contentType: fileType == .pdf ? "application/pdf" : "image/jpeg")
+            do {
+                let _ = try await supabase.storage
+                    .from(bucketName)
+                    .upload(
+                        filePath,
+                        data: data,
+                        options: FileOptions(contentType: fileType == .pdf ? "application/pdf" : "image/jpeg")
+                    )
+                print("DEBUG LicenseUpload: Storage upload successful")
+            } catch {
+                print("DEBUG LicenseUpload: Storage upload failed: \(error.localizedDescription)")
+                throw NSError(
+                    domain: "LicenseUploadService",
+                    code: -2,
+                    userInfo: [NSLocalizedDescriptionKey: "Storage upload failed: \(error.localizedDescription). Check storage RLS policies."]
                 )
+            }
             
             // Get public URL
             let publicURL = try supabase.storage
                 .from(bucketName)
                 .getPublicURL(path: filePath)
+            print("DEBUG LicenseUpload: Public URL: \(publicURL.absoluteString)")
             
             // Save license record to database
             let license: [String: AnyJSON] = [
@@ -52,16 +97,42 @@ class LicenseUploadService: ObservableObject {
                 "uploaded_at": .string(ISO8601DateFormatter().string(from: Date()))
             ]
             
-            try await supabase
-                .from("pilot_licenses")
-                .insert(license)
-                .execute()
+            print("DEBUG LicenseUpload: Attempting database insert...")
+            do {
+                try await supabase
+                    .from("pilot_licenses")
+                    .insert(license)
+                    .execute()
+                print("DEBUG LicenseUpload: Database insert successful")
+            } catch {
+                print("DEBUG LicenseUpload: Database insert failed: \(error.localizedDescription)")
+                print("DEBUG LicenseUpload: Error details: \(error)")
+                
+                // Try to provide more helpful error message
+                let errorMsg = error.localizedDescription
+                if errorMsg.contains("row-level security") {
+                    throw NSError(
+                        domain: "LicenseUploadService",
+                        code: -3,
+                        userInfo: [NSLocalizedDescriptionKey: "RLS Policy Error: \(errorMsg). Ensure RLS policies allow inserts for authenticated users with matching pilot_id."]
+                    )
+                } else if errorMsg.contains("foreign key") {
+                    throw NSError(
+                        domain: "LicenseUploadService",
+                        code: -4,
+                        userInfo: [NSLocalizedDescriptionKey: "Foreign Key Error: \(errorMsg). Ensure your profile exists in the profiles table."]
+                    )
+                } else {
+                    throw error
+                }
+            }
             
             isLoading = false
             return publicURL.absoluteString
         } catch {
             isLoading = false
             errorMessage = error.localizedDescription
+            print("DEBUG LicenseUpload: Final error: \(error.localizedDescription)")
             throw error
         }
     }

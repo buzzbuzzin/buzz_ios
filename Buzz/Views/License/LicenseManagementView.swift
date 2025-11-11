@@ -8,6 +8,7 @@
 import SwiftUI
 import PhotosUI
 import Auth
+import LocalAuthentication
 
 struct LicenseManagementView: View {
     @EnvironmentObject var authService: AuthService
@@ -15,57 +16,112 @@ struct LicenseManagementView: View {
     
     @State private var showDocumentPicker = false
     @State private var showImagePicker = false
+    @State private var showUploadOptions = false
+    @State private var imageSourceType: UIImagePickerController.SourceType = .photoLibrary
     @State private var selectedImage: UIImage?
     @State private var showError = false
     @State private var errorMessage = ""
+    @State private var isAuthenticated = false
+    @State private var showAuthPrompt = true
+    @State private var selectedLicense: PilotLicense?
+    @State private var showFileViewer = false
+    @State private var licenseToDelete: PilotLicense?
+    @State private var showDeleteConfirmation = false
     
     var body: some View {
-        VStack {
-            if licenseService.isLoading {
-                LoadingView(message: "Loading licenses...")
-            } else if licenseService.licenses.isEmpty {
-                EmptyStateView(
-                    icon: "doc.badge.plus",
-                    title: "No Licenses",
-                    message: "Upload your drone pilot license to start accepting bookings",
-                    actionTitle: "Upload License",
-                    action: { showDocumentPicker = true }
-                )
-            } else {
-                List {
-                    ForEach(licenseService.licenses) { license in
-                        LicenseRow(license: license)
-                    }
-                    .onDelete(perform: deleteLicense)
+        VStack(spacing: 0) {
+            if showAuthPrompt && !isAuthenticated {
+                // Authentication prompt
+                VStack(spacing: 24) {
+                    Image(systemName: "faceid")
+                        .font(.system(size: 60))
+                        .foregroundColor(.blue)
+                    
+                    Text("Verify Your Identity")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                    
+                    Text("Please authenticate with Face ID to access pilot license information. This helps protect your sensitive information.")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal)
+                    
+                    CustomButton(
+                        title: "Authenticate with Face ID",
+                        action: authenticateWithFaceID
+                    )
+                    .padding(.horizontal, 20)
                 }
-                .refreshable {
-                    await loadLicenses()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding()
+            } else {
+                // Content
+                if licenseService.isLoading {
+                    LoadingView(message: "Loading licenses...")
+                } else if licenseService.licenses.isEmpty {
+                    EmptyStateView(
+                        icon: "doc.badge.plus",
+                        title: "No Licenses",
+                        message: "Upload your drone pilot license to start accepting bookings",
+                        actionTitle: "Upload License",
+                        action: { showUploadOptions = true }
+                    )
+                } else {
+                    List {
+                        ForEach(licenseService.licenses) { license in
+                            LicenseRow(
+                                license: license,
+                                onTap: {
+                                    selectedLicense = license
+                                    showFileViewer = true
+                                },
+                                onDelete: {
+                                    licenseToDelete = license
+                                    showDeleteConfirmation = true
+                                }
+                            )
+                        }
+                    }
+                    .refreshable {
+                        await loadLicenses()
+                    }
                 }
             }
         }
         .navigationTitle("Licenses")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
-                Menu {
-                    Button {
-                        showImagePicker = true
-                    } label: {
-                        Label("Take Photo", systemImage: "camera")
-                    }
-                    
-                    Button {
-                        showDocumentPicker = true
-                    } label: {
-                        Label("Choose File", systemImage: "doc")
-                    }
-                } label: {
-                    Image(systemName: "plus")
+        .confirmationDialog("Upload License", isPresented: $showUploadOptions, titleVisibility: .visible) {
+            Button("Take Photo") {
+                guard isAuthenticated else {
+                    errorMessage = "Please authenticate first"
+                    showError = true
+                    return
                 }
+                imageSourceType = .camera
+                showImagePicker = true
             }
+            Button("Choose from Photo Library") {
+                guard isAuthenticated else {
+                    errorMessage = "Please authenticate first"
+                    showError = true
+                    return
+                }
+                imageSourceType = .photoLibrary
+                showImagePicker = true
+            }
+            Button("Choose File") {
+                guard isAuthenticated else {
+                    errorMessage = "Please authenticate first"
+                    showError = true
+                    return
+                }
+                showDocumentPicker = true
+            }
+            Button("Cancel", role: .cancel) {}
         }
         .sheet(isPresented: $showImagePicker) {
-            ImagePicker(image: $selectedImage, sourceType: .photoLibrary)
+            ImagePicker(image: $selectedImage, sourceType: imageSourceType)
         }
         .sheet(isPresented: $showDocumentPicker) {
             DocumentPicker { url in
@@ -82,8 +138,73 @@ struct LicenseManagementView: View {
         } message: {
             Text(errorMessage)
         }
+        .alert("Delete License", isPresented: $showDeleteConfirmation) {
+            Button("Cancel", role: .cancel) {
+                licenseToDelete = nil
+            }
+            Button("Delete", role: .destructive) {
+                if let license = licenseToDelete {
+                    deleteLicense(license: license)
+                }
+                licenseToDelete = nil
+            }
+        } message: {
+            Text("Are you sure you want to delete this license? This action cannot be undone.")
+        }
+        .sheet(isPresented: $showFileViewer) {
+            if let license = selectedLicense {
+                FileViewer(
+                    fileUrl: license.fileUrl,
+                    fileType: license.fileType == .pdf ? .pdf : .image,
+                    bucketName: "pilot-licenses"
+                )
+            }
+        }
         .task {
-            await loadLicenses()
+            if isAuthenticated {
+                await loadLicenses()
+            }
+        }
+    }
+    
+    private func authenticateWithFaceID() {
+        let context = LAContext()
+        var error: NSError?
+        
+        if context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error) {
+            let reason = "Please authenticate to access pilot license information."
+            
+            context.evaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, localizedReason: reason) { success, authenticationError in
+                DispatchQueue.main.async {
+                    if success {
+                        isAuthenticated = true
+                        showAuthPrompt = false
+                        Task {
+                            await loadLicenses()
+                        }
+                    } else {
+                        errorMessage = authenticationError?.localizedDescription ?? "Authentication failed"
+                        showError = true
+                    }
+                }
+            }
+        } else {
+            // Fallback to device passcode if biometrics not available
+            let context = LAContext()
+            context.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: "Please authenticate to access pilot license information.") { success, authenticationError in
+                DispatchQueue.main.async {
+                    if success {
+                        isAuthenticated = true
+                        showAuthPrompt = false
+                        Task {
+                            await loadLicenses()
+                        }
+                    } else {
+                        errorMessage = authenticationError?.localizedDescription ?? "Authentication failed"
+                        showError = true
+                    }
+                }
+            }
         }
     }
     
@@ -93,9 +214,14 @@ struct LicenseManagementView: View {
     }
     
     private func uploadImage(_ image: UIImage) {
-        guard let currentUser = authService.currentUser,
+        guard isAuthenticated,
+              let currentUser = authService.currentUser,
               let imageData = licenseService.compressImage(image) else {
-            errorMessage = "Failed to process image"
+            if !isAuthenticated {
+                errorMessage = "Please authenticate first"
+            } else {
+                errorMessage = "Failed to process image"
+            }
             showError = true
             return
         }
@@ -120,11 +246,27 @@ struct LicenseManagementView: View {
     }
     
     private func uploadDocument(url: URL) {
-        guard let currentUser = authService.currentUser else { return }
+        guard isAuthenticated,
+              let currentUser = authService.currentUser else {
+            errorMessage = "Please authenticate first"
+            showError = true
+            return
+        }
         
         Task {
             let userId = currentUser.id
             do {
+                // Request access to security-scoped resource
+                guard url.startAccessingSecurityScopedResource() else {
+                    throw NSError(domain: "FileAccessError", code: -1, 
+                                userInfo: [NSLocalizedDescriptionKey: "Unable to access the selected file"])
+                }
+                
+                // Ensure we stop accessing the resource when done
+                defer {
+                    url.stopAccessingSecurityScopedResource()
+                }
+                
                 let data = try Data(contentsOf: url)
                 let fileName = url.lastPathComponent
                 _ = try await licenseService.uploadLicense(
@@ -141,12 +283,20 @@ struct LicenseManagementView: View {
         }
     }
     
-    private func deleteLicense(at offsets: IndexSet) {
-        for index in offsets {
-            let license = licenseService.licenses[index]
-            Task {
-                try? await licenseService.deleteLicense(license: license)
+    private func deleteLicense(license: PilotLicense) {
+        guard isAuthenticated else {
+            errorMessage = "Please authenticate first"
+            showError = true
+            return
+        }
+        
+        Task {
+            do {
+                try await licenseService.deleteLicense(license: license)
                 await loadLicenses()
+            } catch {
+                errorMessage = "Failed to delete license: \(error.localizedDescription)"
+                showError = true
             }
         }
     }
@@ -156,14 +306,18 @@ struct LicenseManagementView: View {
 
 struct LicenseRow: View {
     let license: PilotLicense
+    let onTap: () -> Void
+    let onDelete: () -> Void
     
     var body: some View {
-        HStack {
+        HStack(spacing: 12) {
+            // File icon
             Image(systemName: license.fileType == .pdf ? "doc.fill" : "photo.fill")
                 .font(.title2)
                 .foregroundColor(.blue)
                 .frame(width: 50)
             
+            // File info
             VStack(alignment: .leading, spacing: 4) {
                 Text(license.fileType == .pdf ? "PDF Document" : "Image")
                     .font(.headline)
@@ -175,11 +329,26 @@ struct LicenseRow: View {
             
             Spacer()
             
-            Image(systemName: "chevron.right")
-                .font(.caption)
-                .foregroundColor(.secondary)
+            // Delete button
+            Button(action: onDelete) {
+                Image(systemName: "trash")
+                    .font(.body)
+                    .foregroundColor(.red)
+                    .padding(8)
+            }
+            .buttonStyle(PlainButtonStyle())
+            
+            // View button/chevron
+            Button(action: onTap) {
+                Image(systemName: "eye")
+                    .font(.body)
+                    .foregroundColor(.blue)
+                    .padding(8)
+            }
+            .buttonStyle(PlainButtonStyle())
         }
         .padding(.vertical, 4)
+        .contentShape(Rectangle())
     }
 }
 

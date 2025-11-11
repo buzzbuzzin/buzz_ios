@@ -8,6 +8,7 @@
 import SwiftUI
 import PhotosUI
 import Auth
+import LocalAuthentication
 
 struct DroneRegistrationView: View {
     @EnvironmentObject var authService: AuthService
@@ -20,60 +21,102 @@ struct DroneRegistrationView: View {
     @State private var selectedImage: UIImage?
     @State private var showError = false
     @State private var errorMessage = ""
+    @State private var isAuthenticated = false
+    @State private var showAuthPrompt = true
+    @State private var selectedRegistration: DroneRegistration?
+    @State private var showFileViewer = false
+    @State private var registrationToDelete: DroneRegistration?
+    @State private var showDeleteConfirmation = false
     
     var body: some View {
-        VStack {
-            if registrationService.isLoading {
-                LoadingView(message: "Loading registrations...")
-            } else if registrationService.registrations.isEmpty {
-                EmptyStateView(
-                    icon: "airplane",
-                    title: "No Drone Registrations",
-                    message: "Upload your drone registration file to verify your drone",
-                    actionTitle: "Upload Registration",
-                    action: { showDocumentPicker = true }
-                )
-            } else {
-                List {
-                    ForEach(registrationService.registrations) { registration in
-                        DroneRegistrationRow(registration: registration)
-                    }
-                    .onDelete(perform: deleteRegistration)
+        VStack(spacing: 0) {
+            if showAuthPrompt && !isAuthenticated {
+                // Authentication prompt
+                VStack(spacing: 24) {
+                    Image(systemName: "faceid")
+                        .font(.system(size: 60))
+                        .foregroundColor(.blue)
+                    
+                    Text("Verify Your Identity")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                    
+                    Text("Please authenticate with Face ID to access drone registration. This helps protect your sensitive information.")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal)
+                    
+                    CustomButton(
+                        title: "Authenticate with Face ID",
+                        action: authenticateWithFaceID
+                    )
+                    .padding(.horizontal, 20)
                 }
-                .refreshable {
-                    await loadRegistrations()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding()
+            } else {
+                // Content
+                if registrationService.isLoading {
+                    LoadingView(message: "Loading registrations...")
+                } else if registrationService.registrations.isEmpty {
+                    EmptyStateView(
+                        icon: "airplane",
+                        title: "No Drone Registrations",
+                        message: "Upload your drone registration file to verify your drone",
+                        actionTitle: "Upload Registration",
+                        action: { showImageSourceSheet = true }
+                    )
+                } else {
+                    List {
+                        ForEach(registrationService.registrations) { registration in
+                            DroneRegistrationRow(
+                                registration: registration,
+                                onTap: {
+                                    selectedRegistration = registration
+                                    showFileViewer = true
+                                },
+                                onDelete: {
+                                    registrationToDelete = registration
+                                    showDeleteConfirmation = true
+                                }
+                            )
+                        }
+                    }
+                    .refreshable {
+                        await loadRegistrations()
+                    }
                 }
             }
         }
         .navigationTitle("Drone Registration")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
-                Menu {
-                    Button {
-                        showImageSourceSheet = true
-                    } label: {
-                        Label("Take Photo", systemImage: "camera")
-                    }
-                    
-                    Button {
-                        showDocumentPicker = true
-                    } label: {
-                        Label("Choose File", systemImage: "doc")
-                    }
-                } label: {
-                    Image(systemName: "plus")
-                }
-            }
-        }
-        .confirmationDialog("Choose Photo Source", isPresented: $showImageSourceSheet, titleVisibility: .visible) {
+        .confirmationDialog("Upload Registration", isPresented: $showImageSourceSheet, titleVisibility: .visible) {
             Button("Take Photo") {
+                guard isAuthenticated else {
+                    errorMessage = "Please authenticate first"
+                    showError = true
+                    return
+                }
                 imageSourceType = .camera
                 showImagePicker = true
             }
-            Button("Choose from Library") {
+            Button("Choose from Photo Library") {
+                guard isAuthenticated else {
+                    errorMessage = "Please authenticate first"
+                    showError = true
+                    return
+                }
                 imageSourceType = .photoLibrary
                 showImagePicker = true
+            }
+            Button("Choose File") {
+                guard isAuthenticated else {
+                    errorMessage = "Please authenticate first"
+                    showError = true
+                    return
+                }
+                showDocumentPicker = true
             }
             Button("Cancel", role: .cancel) {}
         }
@@ -95,8 +138,73 @@ struct DroneRegistrationView: View {
         } message: {
             Text(errorMessage)
         }
+        .alert("Delete Registration", isPresented: $showDeleteConfirmation) {
+            Button("Cancel", role: .cancel) {
+                registrationToDelete = nil
+            }
+            Button("Delete", role: .destructive) {
+                if let registration = registrationToDelete {
+                    deleteRegistration(registration: registration)
+                }
+                registrationToDelete = nil
+            }
+        } message: {
+            Text("Are you sure you want to delete this registration? This action cannot be undone.")
+        }
+        .sheet(isPresented: $showFileViewer) {
+            if let registration = selectedRegistration {
+                FileViewer(
+                    fileUrl: registration.fileUrl,
+                    fileType: registration.fileType == .pdf ? .pdf : .image,
+                    bucketName: "drone-registrations"
+                )
+            }
+        }
         .task {
-            await loadRegistrations()
+            if isAuthenticated {
+                await loadRegistrations()
+            }
+        }
+    }
+    
+    private func authenticateWithFaceID() {
+        let context = LAContext()
+        var error: NSError?
+        
+        if context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error) {
+            let reason = "Please authenticate to access drone registration information."
+            
+            context.evaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, localizedReason: reason) { success, authenticationError in
+                DispatchQueue.main.async {
+                    if success {
+                        isAuthenticated = true
+                        showAuthPrompt = false
+                        Task {
+                            await loadRegistrations()
+                        }
+                    } else {
+                        errorMessage = authenticationError?.localizedDescription ?? "Authentication failed"
+                        showError = true
+                    }
+                }
+            }
+        } else {
+            // Fallback to device passcode if biometrics not available
+            let context = LAContext()
+            context.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: "Please authenticate to access drone registration information.") { success, authenticationError in
+                DispatchQueue.main.async {
+                    if success {
+                        isAuthenticated = true
+                        showAuthPrompt = false
+                        Task {
+                            await loadRegistrations()
+                        }
+                    } else {
+                        errorMessage = authenticationError?.localizedDescription ?? "Authentication failed"
+                        showError = true
+                    }
+                }
+            }
         }
     }
     
@@ -106,9 +214,14 @@ struct DroneRegistrationView: View {
     }
     
     private func uploadImage(_ image: UIImage) {
-        guard let currentUser = authService.currentUser,
+        guard isAuthenticated,
+              let currentUser = authService.currentUser,
               let imageData = registrationService.compressImage(image) else {
-            errorMessage = "Failed to process image"
+            if !isAuthenticated {
+                errorMessage = "Please authenticate first"
+            } else {
+                errorMessage = "Failed to process image"
+            }
             showError = true
             return
         }
@@ -133,11 +246,27 @@ struct DroneRegistrationView: View {
     }
     
     private func uploadDocument(url: URL) {
-        guard let currentUser = authService.currentUser else { return }
+        guard isAuthenticated,
+              let currentUser = authService.currentUser else {
+            errorMessage = "Please authenticate first"
+            showError = true
+            return
+        }
         
         Task {
             let userId = currentUser.id
             do {
+                // Request access to security-scoped resource
+                guard url.startAccessingSecurityScopedResource() else {
+                    throw NSError(domain: "FileAccessError", code: -1, 
+                                userInfo: [NSLocalizedDescriptionKey: "Unable to access the selected file"])
+                }
+                
+                // Ensure we stop accessing the resource when done
+                defer {
+                    url.stopAccessingSecurityScopedResource()
+                }
+                
                 let data = try Data(contentsOf: url)
                 let fileName = url.lastPathComponent
                 _ = try await registrationService.uploadRegistration(
@@ -154,12 +283,20 @@ struct DroneRegistrationView: View {
         }
     }
     
-    private func deleteRegistration(at offsets: IndexSet) {
-        for index in offsets {
-            let registration = registrationService.registrations[index]
-            Task {
-                try? await registrationService.deleteRegistration(registration: registration)
+    private func deleteRegistration(registration: DroneRegistration) {
+        guard isAuthenticated else {
+            errorMessage = "Please authenticate first"
+            showError = true
+            return
+        }
+        
+        Task {
+            do {
+                try await registrationService.deleteRegistration(registration: registration)
                 await loadRegistrations()
+            } catch {
+                errorMessage = "Failed to delete registration: \(error.localizedDescription)"
+                showError = true
             }
         }
     }
@@ -169,14 +306,18 @@ struct DroneRegistrationView: View {
 
 struct DroneRegistrationRow: View {
     let registration: DroneRegistration
+    let onTap: () -> Void
+    let onDelete: () -> Void
     
     var body: some View {
-        HStack {
+        HStack(spacing: 12) {
+            // File icon
             Image(systemName: registration.fileType == .pdf ? "doc.fill" : "photo.fill")
                 .font(.title2)
                 .foregroundColor(.blue)
                 .frame(width: 50)
             
+            // File info
             VStack(alignment: .leading, spacing: 4) {
                 Text(registration.fileType == .pdf ? "PDF Document" : "Image")
                     .font(.headline)
@@ -188,11 +329,26 @@ struct DroneRegistrationRow: View {
             
             Spacer()
             
-            Image(systemName: "chevron.right")
-                .font(.caption)
-                .foregroundColor(.secondary)
+            // Delete button
+            Button(action: onDelete) {
+                Image(systemName: "trash")
+                    .font(.body)
+                    .foregroundColor(.red)
+                    .padding(8)
+            }
+            .buttonStyle(PlainButtonStyle())
+            
+            // View button
+            Button(action: onTap) {
+                Image(systemName: "eye")
+                    .font(.body)
+                    .foregroundColor(.blue)
+                    .padding(8)
+            }
+            .buttonStyle(PlainButtonStyle())
         }
         .padding(.vertical, 4)
+        .contentShape(Rectangle())
     }
 }
 
