@@ -59,162 +59,242 @@ struct FileViewer: View {
     }
     
     var body: some View {
-        NavigationView {
-            ZStack {
-                // Background color to see if view is rendering
-                Color(UIColor.systemBackground)
-                    .ignoresSafeArea()
-                
+        ZStack {
+            // Background - use a distinct color to verify view is rendering
+            Color(UIColor.secondarySystemBackground)
+                .ignoresSafeArea()
+            
+            VStack {
                 if isLoading {
-                    VStack(spacing: 16) {
+                    VStack(spacing: 20) {
                         ProgressView()
-                            .scaleEffect(1.5)
+                            .scaleEffect(2.0)
                         Text("Loading file...")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
+                            .font(.headline)
+                        Text(fileUrl)
+                            .font(.caption)
+                            .foregroundColor(.gray)
+                            .padding()
+                            .lineLimit(2)
+                            .multilineTextAlignment(.center)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if let errorMessage = errorMessage {
                     ScrollView {
-                        VStack(spacing: 16) {
-                            Image(systemName: "exclamationmark.triangle")
-                                .font(.system(size: 50))
+                        VStack(spacing: 20) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .font(.system(size: 60))
                                 .foregroundColor(.red)
-                            Text("Error loading file")
-                                .font(.headline)
+                            Text("Error Loading File")
+                                .font(.title2)
+                                .fontWeight(.bold)
                             Text(errorMessage)
-                                .font(.subheadline)
+                                .font(.body)
                                 .foregroundColor(.secondary)
                                 .multilineTextAlignment(.center)
                                 .padding(.horizontal)
                             
-                            Button("Open in Browser") {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("File URL:")
+                                    .font(.caption)
+                                    .fontWeight(.semibold)
+                                Text(fileUrl)
+                                    .font(.caption)
+                                    .foregroundColor(.gray)
+                                    .textSelection(.enabled)
+                            }
+                            .padding()
+                            .background(Color(UIColor.tertiarySystemBackground))
+                            .cornerRadius(8)
+                            
+                            Button(action: {
                                 if let url = URL(string: fileUrl) {
                                     UIApplication.shared.open(url)
                                 }
+                            }) {
+                                HStack {
+                                    Image(systemName: "safari")
+                                    Text("Open in Browser")
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(Color.blue)
+                                .foregroundColor(.white)
+                                .cornerRadius(10)
                             }
-                            .padding()
-                            .background(Color.blue)
-                            .foregroundColor(.white)
-                            .cornerRadius(10)
+                            .padding(.horizontal)
                         }
                         .padding()
                     }
-                } else {
-                    // Content viewer
-                    if fileType == .pdf {
-                        if let pdfDocument = pdfDocument {
-                            PDFViewRepresentable(pdfDocument: pdfDocument)
-                                .background(Color(UIColor.systemBackground))
-                        } else {
-                            VStack(spacing: 16) {
-                                ProgressView()
-                                Text("Processing PDF...")
-                                    .font(.subheadline)
-                                    .foregroundColor(.secondary)
-                            }
+                } else if fileType == .pdf {
+                    if let pdfDocument = pdfDocument {
+                        PDFViewRepresentable(pdfDocument: pdfDocument)
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        }
                     } else {
-                        if let image = image {
-                            ZoomableImageView(image: image)
-                                .background(Color(UIColor.systemBackground))
-                        } else {
-                            VStack(spacing: 16) {
-                                ProgressView()
-                                Text("Processing image...")
-                                    .font(.subheadline)
-                                    .foregroundColor(.secondary)
-                            }
+                        VStack(spacing: 20) {
+                            ProgressView()
+                                .scaleEffect(2.0)
+                            Text("Loading PDF...")
+                                .font(.headline)
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    }
+                } else if fileType == .image {
+                    if let image = image {
+                        ZoomableImageView(image: image)
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    } else {
+                        VStack(spacing: 20) {
+                            ProgressView()
+                                .scaleEffect(2.0)
+                            Text("Loading image...")
+                                .font(.headline)
                         }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
                 }
             }
-            .navigationTitle(fileType == .pdf ? "PDF Document" : "Image")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Done") {
-                        dismiss()
-                    }
-                }
-                
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button(action: {
-                        if let url = URL(string: fileUrl) {
-                            UIApplication.shared.open(url)
-                        }
-                    }) {
-                        Label("Open in Browser", systemImage: "safari")
-                    }
+        }
+        .navigationTitle(fileType == .pdf ? "PDF Document" : "Image")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button("Done") {
+                    print("DEBUG FileViewer: Done button tapped")
+                    dismiss()
                 }
             }
-            .task {
-                await loadFile()
+            
+            ToolbarItem(placement: .navigationBarLeading) {
+                Button(action: {
+                    print("DEBUG FileViewer: Open in browser tapped")
+                    if let url = URL(string: fileUrl) {
+                        UIApplication.shared.open(url)
+                    }
+                }) {
+                    Label("Browser", systemImage: "safari")
+                }
             }
+        }
+        .onAppear {
+            print("DEBUG FileViewer: ========== VIEW APPEARED ==========")
+            print("DEBUG FileViewer: URL: \(fileUrl)")
+            print("DEBUG FileViewer: Bucket: \(bucketName)")
+            print("DEBUG FileViewer: Type: \(fileType == .pdf ? "PDF" : "Image")")
+            print("DEBUG FileViewer: isLoading: \(isLoading)")
+            print("DEBUG FileViewer: errorMessage: \(errorMessage ?? "nil")")
+            print("DEBUG FileViewer: pdfDocument: \(pdfDocument != nil ? "exists" : "nil")")
+            print("DEBUG FileViewer: image: \(image != nil ? "exists" : "nil")")
+        }
+        .task {
+            print("DEBUG FileViewer: ========== TASK STARTED ==========")
+            await loadFile()
         }
     }
     
     private func loadFile() async {
-        // Try to download using Supabase storage client (with authentication)
-        if let filePath = filePath {
-            do {
-                print("DEBUG FileViewer: Downloading from bucket: \(bucketName), path: \(filePath)")
-                let data = try await supabase.storage
-                    .from(bucketName)
-                    .download(path: filePath)
-                
-                await processFileData(data: data)
-            } catch {
-                print("DEBUG FileViewer: Supabase download failed: \(error.localizedDescription)")
-                // Fallback to direct URL if Supabase download fails
-                await loadFileFromURL()
-            }
-        } else {
-            // If we can't extract path, try direct URL
-            await loadFileFromURL()
-        }
+        print("DEBUG FileViewer: loadFile() called")
+        print("DEBUG FileViewer: fileUrl = \(fileUrl)")
+        print("DEBUG FileViewer: bucketName = \(bucketName)")
+        
+        // First, try direct URL download (simplest approach for public buckets)
+        await loadFileFromURL()
     }
     
     private func loadFileFromURL() async {
+        print("DEBUG FileViewer: loadFileFromURL() called")
+        
         guard let url = URL(string: fileUrl) else {
+            print("DEBUG FileViewer: Invalid URL string: \(fileUrl)")
             await MainActor.run {
-                self.errorMessage = "Invalid file URL"
+                self.errorMessage = "Invalid file URL: \(fileUrl)"
                 self.isLoading = false
             }
             return
         }
         
+        print("DEBUG FileViewer: Created URL: \(url.absoluteString)")
+        print("DEBUG FileViewer: URL path: \(url.path)")
+        print("DEBUG FileViewer: URL host: \(url.host ?? "nil")")
+        
         do {
+            // For public buckets, we can try without auth first
             var request = URLRequest(url: url)
-            // Try to get auth token and add it to the request
+            request.timeoutInterval = 30.0
+            
+            // Try with authentication if available
             do {
                 let session = try await supabase.auth.session
+                print("DEBUG FileViewer: Got auth session, adding headers")
                 request.setValue("Bearer \(session.accessToken)", forHTTPHeaderField: "Authorization")
-                // Get the API key from Config
                 request.setValue(Config.supabaseAnonKey, forHTTPHeaderField: "apikey")
             } catch {
-                print("DEBUG FileViewer: Could not get auth token, trying without authentication")
+                print("DEBUG FileViewer: No auth session available: \(error.localizedDescription)")
+                print("DEBUG FileViewer: Trying without authentication (public bucket)")
             }
             
+            print("DEBUG FileViewer: Starting URLSession download...")
             let (data, response) = try await URLSession.shared.data(for: request)
+            print("DEBUG FileViewer: Download completed, data size: \(data.count) bytes")
             
             if let httpResponse = response as? HTTPURLResponse {
                 print("DEBUG FileViewer: HTTP Status: \(httpResponse.statusCode)")
+                print("DEBUG FileViewer: HTTP Headers: \(httpResponse.allHeaderFields)")
+                
                 if httpResponse.statusCode != 200 {
+                    let errorMsg = "Failed to load file (HTTP \(httpResponse.statusCode))"
+                    print("DEBUG FileViewer: \(errorMsg)")
                     await MainActor.run {
-                        self.errorMessage = "Failed to load file (HTTP \(httpResponse.statusCode))"
+                        self.errorMessage = errorMsg
                         self.isLoading = false
                     }
                     return
                 }
             }
             
+            guard data.count > 0 else {
+                print("DEBUG FileViewer: Received empty data")
+                await MainActor.run {
+                    self.errorMessage = "Received empty file data"
+                    self.isLoading = false
+                }
+                return
+            }
+            
+            print("DEBUG FileViewer: Processing \(data.count) bytes of data")
             await processFileData(data: data)
         } catch {
+            print("DEBUG FileViewer: Error downloading file: \(error)")
+            print("DEBUG FileViewer: Error details: \(error.localizedDescription)")
+            
+            // Try fallback: Use Supabase storage client
+            if let filePath = filePath {
+                print("DEBUG FileViewer: Trying Supabase storage client as fallback...")
+                await loadFileFromSupabaseStorage(filePath: filePath)
+            } else {
+                await MainActor.run {
+                    self.errorMessage = "Failed to load file: \(error.localizedDescription)\n\nURL: \(fileUrl)"
+                    self.isLoading = false
+                }
+            }
+        }
+    }
+    
+    private func loadFileFromSupabaseStorage(filePath: String) async {
+        do {
+            print("DEBUG FileViewer: Downloading from Supabase storage")
+            print("DEBUG FileViewer: Bucket: \(bucketName), Path: \(filePath)")
+            
+            let data = try await supabase.storage
+                .from(bucketName)
+                .download(path: filePath)
+            
+            print("DEBUG FileViewer: Supabase download successful, size: \(data.count) bytes")
+            await processFileData(data: data)
+        } catch {
+            print("DEBUG FileViewer: Supabase storage download also failed: \(error.localizedDescription)")
             await MainActor.run {
-                self.errorMessage = "Failed to load file: \(error.localizedDescription)"
+                self.errorMessage = "Failed to load file from storage: \(error.localizedDescription)\n\nPlease try opening in browser."
                 self.isLoading = false
             }
         }
@@ -270,9 +350,13 @@ struct PDFViewRepresentable: UIViewRepresentable {
         pdfView.displaysPageBreaks = true
         pdfView.pageShadowsEnabled = true
         
-        // Ensure PDF is visible
+        print("DEBUG PDFView: Created PDFView with \(pdfDocument.pageCount) pages")
+        
+        // Ensure PDF is visible and scaled properly
         DispatchQueue.main.async {
             pdfView.goToFirstPage(nil)
+            pdfView.autoScales = true
+            print("DEBUG PDFView: Navigated to first page, autoScales: \(pdfView.autoScales)")
         }
         
         return pdfView
@@ -280,7 +364,12 @@ struct PDFViewRepresentable: UIViewRepresentable {
     
     func updateUIView(_ pdfView: PDFView, context: Context) {
         if pdfView.document != pdfDocument {
+            print("DEBUG PDFView: Updating document")
             pdfView.document = pdfDocument
+            pdfView.autoScales = true
+            DispatchQueue.main.async {
+                pdfView.goToFirstPage(nil)
+            }
         }
     }
 }

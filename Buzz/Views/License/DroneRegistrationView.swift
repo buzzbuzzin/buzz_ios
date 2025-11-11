@@ -24,7 +24,6 @@ struct DroneRegistrationView: View {
     @State private var isAuthenticated = false
     @State private var showAuthPrompt = true
     @State private var selectedRegistration: DroneRegistration?
-    @State private var showFileViewer = false
     @State private var registrationToDelete: DroneRegistration?
     @State private var showDeleteConfirmation = false
     
@@ -73,8 +72,15 @@ struct DroneRegistrationView: View {
                             DroneRegistrationRow(
                                 registration: registration,
                                 onTap: {
-                                    selectedRegistration = registration
-                                    showFileViewer = true
+                                    print("DEBUG DroneRegistrationView: Eye icon tapped")
+                                    print("DEBUG DroneRegistrationView: Registration ID: \(registration.id)")
+                                    print("DEBUG DroneRegistrationView: Registration URL: \(registration.fileUrl)")
+                                    print("DEBUG DroneRegistrationView: Registration type: \(registration.fileType)")
+                                    // Use Task to ensure state update happens on main thread
+                                    Task { @MainActor in
+                                        self.selectedRegistration = registration
+                                        print("DEBUG DroneRegistrationView: selectedRegistration set to: \(self.selectedRegistration?.id.uuidString ?? "nil")")
+                                    }
                                 },
                                 onDelete: {
                                     registrationToDelete = registration
@@ -151,13 +157,18 @@ struct DroneRegistrationView: View {
         } message: {
             Text("Are you sure you want to delete this registration? This action cannot be undone.")
         }
-        .sheet(isPresented: $showFileViewer) {
-            if let registration = selectedRegistration {
+        .sheet(item: $selectedRegistration) { registration in
+            NavigationStack {
                 FileViewer(
                     fileUrl: registration.fileUrl,
                     fileType: registration.fileType == .pdf ? .pdf : .image,
                     bucketName: "drone-registrations"
                 )
+            }
+            .onAppear {
+                print("DEBUG DroneRegistrationView: Sheet appeared for registration: \(registration.id)")
+                print("DEBUG DroneRegistrationView: File URL: \(registration.fileUrl)")
+                print("DEBUG DroneRegistrationView: File Type: \(registration.fileType)")
             }
         }
         .task {
@@ -329,25 +340,34 @@ struct DroneRegistrationRow: View {
             
             Spacer()
             
-            // Delete button
-            Button(action: onDelete) {
-                Image(systemName: "trash")
-                    .font(.body)
-                    .foregroundColor(.red)
-                    .padding(8)
+            // Action buttons
+            HStack(spacing: 8) {
+                // View button
+                Button(action: {
+                    print("DEBUG DroneRegistrationRow: View button tapped")
+                    onTap()
+                }) {
+                    Image(systemName: "eye.fill")
+                        .font(.body)
+                        .foregroundColor(.blue)
+                        .frame(width: 44, height: 44)
+                }
+                .buttonStyle(PlainButtonStyle())
+                
+                // Delete button
+                Button(action: {
+                    print("DEBUG DroneRegistrationRow: Delete button tapped")
+                    onDelete()
+                }) {
+                    Image(systemName: "trash.fill")
+                        .font(.body)
+                        .foregroundColor(.red)
+                        .frame(width: 44, height: 44)
+                }
+                .buttonStyle(PlainButtonStyle())
             }
-            .buttonStyle(PlainButtonStyle())
-            
-            // View button
-            Button(action: onTap) {
-                Image(systemName: "eye")
-                    .font(.body)
-                    .foregroundColor(.blue)
-                    .padding(8)
-            }
-            .buttonStyle(PlainButtonStyle())
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 8)
         .contentShape(Rectangle())
     }
 }

@@ -24,7 +24,6 @@ struct LicenseManagementView: View {
     @State private var isAuthenticated = false
     @State private var showAuthPrompt = true
     @State private var selectedLicense: PilotLicense?
-    @State private var showFileViewer = false
     @State private var licenseToDelete: PilotLicense?
     @State private var showDeleteConfirmation = false
     
@@ -73,14 +72,27 @@ struct LicenseManagementView: View {
                             LicenseRow(
                                 license: license,
                                 onTap: {
-                                    selectedLicense = license
-                                    showFileViewer = true
+                                    print("DEBUG LicenseView: Eye icon tapped")
+                                    print("DEBUG LicenseView: License ID: \(license.id)")
+                                    print("DEBUG LicenseView: License URL: \(license.fileUrl)")
+                                    print("DEBUG LicenseView: License type: \(license.fileType)")
+                                    // Use Task to ensure state update happens on main thread
+                                    Task { @MainActor in
+                                        self.selectedLicense = license
+                                        print("DEBUG LicenseView: selectedLicense set to: \(self.selectedLicense?.id.uuidString ?? "nil")")
+                                    }
                                 },
                                 onDelete: {
                                     licenseToDelete = license
                                     showDeleteConfirmation = true
                                 }
                             )
+                        }
+                        .onDelete { indexSet in
+                            for index in indexSet {
+                                licenseToDelete = licenseService.licenses[index]
+                                showDeleteConfirmation = true
+                            }
                         }
                     }
                     .refreshable {
@@ -151,13 +163,18 @@ struct LicenseManagementView: View {
         } message: {
             Text("Are you sure you want to delete this license? This action cannot be undone.")
         }
-        .sheet(isPresented: $showFileViewer) {
-            if let license = selectedLicense {
+        .sheet(item: $selectedLicense) { license in
+            NavigationStack {
                 FileViewer(
                     fileUrl: license.fileUrl,
                     fileType: license.fileType == .pdf ? .pdf : .image,
                     bucketName: "pilot-licenses"
                 )
+            }
+            .onAppear {
+                print("DEBUG LicenseView: Sheet appeared for license: \(license.id)")
+                print("DEBUG LicenseView: File URL: \(license.fileUrl)")
+                print("DEBUG LicenseView: File Type: \(license.fileType)")
             }
         }
         .task {
@@ -329,25 +346,34 @@ struct LicenseRow: View {
             
             Spacer()
             
-            // Delete button
-            Button(action: onDelete) {
-                Image(systemName: "trash")
-                    .font(.body)
-                    .foregroundColor(.red)
-                    .padding(8)
+            // Action buttons
+            HStack(spacing: 8) {
+                // View button
+                Button(action: {
+                    print("DEBUG LicenseRow: View button tapped")
+                    onTap()
+                }) {
+                    Image(systemName: "eye.fill")
+                        .font(.body)
+                        .foregroundColor(.blue)
+                        .frame(width: 44, height: 44)
+                }
+                .buttonStyle(PlainButtonStyle())
+                
+                // Delete button
+                Button(action: {
+                    print("DEBUG LicenseRow: Delete button tapped")
+                    onDelete()
+                }) {
+                    Image(systemName: "trash.fill")
+                        .font(.body)
+                        .foregroundColor(.red)
+                        .frame(width: 44, height: 44)
+                }
+                .buttonStyle(PlainButtonStyle())
             }
-            .buttonStyle(PlainButtonStyle())
-            
-            // View button/chevron
-            Button(action: onTap) {
-                Image(systemName: "eye")
-                    .font(.body)
-                    .foregroundColor(.blue)
-                    .padding(8)
-            }
-            .buttonStyle(PlainButtonStyle())
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 8)
         .contentShape(Rectangle())
     }
 }
