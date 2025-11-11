@@ -107,22 +107,11 @@ struct FileViewer: View {
                             .background(Color(UIColor.tertiarySystemBackground))
                             .cornerRadius(8)
                             
-                            Button(action: {
-                                if let url = URL(string: fileUrl) {
-                                    UIApplication.shared.open(url)
-                                }
-                            }) {
-                                HStack {
-                                    Image(systemName: "safari")
-                                    Text("Open in Browser")
-                                }
-                                .frame(maxWidth: .infinity)
-                                .padding()
-                                .background(Color.blue)
-                                .foregroundColor(.white)
-                                .cornerRadius(10)
-                            }
-                            .padding(.horizontal)
+                            Text("If the file doesn't load, please check your internet connection and try again.")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal)
                         }
                         .padding()
                     }
@@ -162,17 +151,6 @@ struct FileViewer: View {
                 Button("Done") {
                     print("DEBUG FileViewer: Done button tapped")
                     dismiss()
-                }
-            }
-            
-            ToolbarItem(placement: .navigationBarLeading) {
-                Button(action: {
-                    print("DEBUG FileViewer: Open in browser tapped")
-                    if let url = URL(string: fileUrl) {
-                        UIApplication.shared.open(url)
-                    }
-                }) {
-                    Label("Browser", systemImage: "safari")
                 }
             }
         }
@@ -343,7 +321,6 @@ struct PDFViewRepresentable: UIViewRepresentable {
     func makeUIView(context: Context) -> PDFView {
         let pdfView = PDFView()
         pdfView.document = pdfDocument
-        pdfView.autoScales = true
         pdfView.displayMode = .singlePageContinuous
         pdfView.displayDirection = .vertical
         pdfView.backgroundColor = .systemBackground
@@ -352,11 +329,31 @@ struct PDFViewRepresentable: UIViewRepresentable {
         
         print("DEBUG PDFView: Created PDFView with \(pdfDocument.pageCount) pages")
         
-        // Ensure PDF is visible and scaled properly
-        DispatchQueue.main.async {
+        // Set up auto-scaling after view is laid out
+        // This ensures the PDF fits the view properly without being zoomed in
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
             pdfView.goToFirstPage(nil)
-            pdfView.autoScales = true
-            print("DEBUG PDFView: Navigated to first page, autoScales: \(pdfView.autoScales)")
+            // Use scaleFactorForSizeToFit to ensure it fits the view bounds
+            if let firstPage = pdfDocument.page(at: 0) {
+                let pageRect = firstPage.bounds(for: .mediaBox)
+                let viewSize = pdfView.bounds.size
+                
+                if viewSize.width > 0 && viewSize.height > 0 && pageRect.width > 0 && pageRect.height > 0 {
+                    let widthScale = viewSize.width / pageRect.width
+                    let heightScale = viewSize.height / pageRect.height
+                    let scale = min(widthScale, heightScale)
+                    
+                    // Set the scale to fit, but don't exceed 1.0 (no zoom in by default)
+                    pdfView.scaleFactor = min(scale, 1.0)
+                    pdfView.autoScales = true
+                    print("DEBUG PDFView: Set scale factor to fit: \(min(scale, 1.0))")
+                } else {
+                    pdfView.autoScales = true
+                    print("DEBUG PDFView: Using autoScales (view not laid out yet)")
+                }
+            } else {
+                pdfView.autoScales = true
+            }
         }
         
         return pdfView
@@ -366,9 +363,9 @@ struct PDFViewRepresentable: UIViewRepresentable {
         if pdfView.document != pdfDocument {
             print("DEBUG PDFView: Updating document")
             pdfView.document = pdfDocument
-            pdfView.autoScales = true
-            DispatchQueue.main.async {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                 pdfView.goToFirstPage(nil)
+                pdfView.autoScales = true
             }
         }
     }
@@ -381,23 +378,24 @@ struct ZoomableImageView: UIViewRepresentable {
     
     func makeUIView(context: Context) -> UIScrollView {
         let scrollView = UIScrollView()
-        scrollView.minimumZoomScale = 1.0
-        scrollView.maximumZoomScale = 5.0
         scrollView.delegate = context.coordinator
         scrollView.showsHorizontalScrollIndicator = true
         scrollView.showsVerticalScrollIndicator = true
         scrollView.backgroundColor = .systemBackground
+        scrollView.bouncesZoom = true
         
         let imageView = UIImageView(image: image)
         imageView.contentMode = .scaleAspectFit
+        imageView.clipsToBounds = true
         scrollView.addSubview(imageView)
         
         context.coordinator.imageView = imageView
         context.coordinator.scrollView = scrollView
         context.coordinator.image = image
         
-        // Set initial layout after a brief delay to ensure view is laid out
-        DispatchQueue.main.async {
+        // Set initial layout after view is properly laid out
+        // This ensures we calculate the correct fit-to-screen scale
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
             context.coordinator.updateLayout(for: scrollView)
         }
         
@@ -436,41 +434,87 @@ struct ZoomableImageView: UIViewRepresentable {
             guard let imageView = imageView else { return }
             
             let scrollViewSize = scrollView.bounds.size
-            guard scrollViewSize.width > 0 && scrollViewSize.height > 0 else { return }
+            guard scrollViewSize.width > 0 && scrollViewSize.height > 0 else { 
+                print("DEBUG ZoomableImageView: ScrollView not laid out yet")
+                return 
+            }
             
             let imageSize = image.size
-            guard imageSize.width > 0 && imageSize.height > 0 else { return }
+            guard imageSize.width > 0 && imageSize.height > 0 else { 
+                print("DEBUG ZoomableImageView: Invalid image size")
+                return 
+            }
             
             // Calculate scale to fit image in scroll view
+            // This gives us the scale needed to fit the entire image on screen
             let widthScale = scrollViewSize.width / imageSize.width
             let heightScale = scrollViewSize.height / imageSize.height
-            let minScale = min(widthScale, heightScale, 1.0)
+            let fitScale = min(widthScale, heightScale)
             
-            // Set image view frame
-            let scaledImageSize = CGSize(
-                width: imageSize.width * minScale,
-                height: imageSize.height * minScale
-            )
+            // For initial display:
+            // - If image is larger than screen: scale down to fit (use fitScale, which is < 1.0)
+            // - If image is smaller than screen: show at actual size (use 1.0, don't zoom in)
+            // This ensures we never zoom in by default
+            let initialScale = min(fitScale, 1.0)
             
+            // Minimum zoom: same as initial scale
+            // This prevents zooming out beyond the fit-to-screen or actual-size view
+            let minZoom = initialScale
+            
+            print("DEBUG ZoomableImageView: ScrollView size: \(scrollViewSize)")
+            print("DEBUG ZoomableImageView: Image size: \(imageSize)")
+            print("DEBUG ZoomableImageView: Fit scale: \(fitScale), Initial scale: \(initialScale), Min zoom: \(minZoom)")
+            
+            // Set image view frame to actual image size (before zoom)
             imageView.frame = CGRect(
                 x: 0,
                 y: 0,
-                width: scaledImageSize.width,
-                height: scaledImageSize.height
+                width: imageSize.width,
+                height: imageSize.height
             )
             
-            scrollView.contentSize = scaledImageSize
-            scrollView.minimumZoomScale = minScale
+            // Configure zoom scales
+            scrollView.minimumZoomScale = minZoom
             scrollView.maximumZoomScale = 5.0
             
-            if scrollView.zoomScale < minScale {
-                scrollView.zoomScale = minScale
+            // Set initial zoom to fit screen (no zoom in by default)
+            scrollView.zoomScale = initialScale
+            
+            // Calculate and set content size based on initial zoom
+            let finalContentSize = CGSize(
+                width: imageSize.width * initialScale,
+                height: imageSize.height * initialScale
+            )
+            scrollView.contentSize = finalContentSize
+            
+            // Reset scroll position and insets
+            scrollView.contentOffset = .zero
+            scrollView.contentInset = .zero
+            
+            // Center the image if it's smaller than the screen
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                self.centerImage(in: scrollView)
             }
             
-            centerImage(in: scrollView)
+            print("DEBUG ZoomableImageView: Set zoomScale to \(initialScale), contentSize: \(finalContentSize)")
         }
         
         func scrollViewDidZoom(_ scrollView: UIScrollView) {
+            // Update content size during zoom
+            let scale = scrollView.zoomScale
+            scrollView.contentSize = CGSize(
+                width: image.size.width * scale,
+                height: image.size.height * scale
+            )
+            centerImage(in: scrollView)
+        }
+        
+        func scrollViewDidEndZooming(_ scrollView: UIScrollView, with view: UIView?, atScale scale: CGFloat) {
+            // Ensure content size is correct after zoom ends
+            scrollView.contentSize = CGSize(
+                width: image.size.width * scale,
+                height: image.size.height * scale
+            )
             centerImage(in: scrollView)
         }
         
@@ -478,21 +522,27 @@ struct ZoomableImageView: UIViewRepresentable {
             guard let imageView = imageView else { return }
             
             let boundsSize = scrollView.bounds.size
-            var frameToCenter = imageView.frame
+            let contentSize = scrollView.contentSize
             
-            if frameToCenter.size.width < boundsSize.width {
-                frameToCenter.origin.x = (boundsSize.width - frameToCenter.size.width) / 2
-            } else {
-                frameToCenter.origin.x = 0
+            // Calculate content inset to center the image
+            var insetX: CGFloat = 0
+            var insetY: CGFloat = 0
+            
+            if contentSize.width < boundsSize.width {
+                insetX = (boundsSize.width - contentSize.width) / 2.0
             }
             
-            if frameToCenter.size.height < boundsSize.height {
-                frameToCenter.origin.y = (boundsSize.height - frameToCenter.size.height) / 2
-            } else {
-                frameToCenter.origin.y = 0
+            if contentSize.height < boundsSize.height {
+                insetY = (boundsSize.height - contentSize.height) / 2.0
             }
             
-            imageView.frame = frameToCenter
+            // Set content inset to center the image
+            scrollView.contentInset = UIEdgeInsets(
+                top: insetY,
+                left: insetX,
+                bottom: insetY,
+                right: insetX
+            )
         }
     }
 }
