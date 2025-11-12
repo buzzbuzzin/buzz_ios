@@ -47,8 +47,8 @@ struct SignUpView: View {
                     }
                     .padding(.top, 40)
                     
-                    // User Type Selection (hidden on customer pages 2 and 3)
-                    if !(userType == .customer && (customerSignUpPage == 2 || customerSignUpPage == 3)) {
+                    // User Type Selection (hidden on customer pages 2, 3, and 4)
+                    if !(userType == .customer && (customerSignUpPage == 2 || customerSignUpPage == 3 || customerSignUpPage == 4)) {
                     VStack(alignment: .leading, spacing: 12) {
                         Text("I am a...")
                             .font(.headline)
@@ -88,9 +88,12 @@ struct SignUpView: View {
                             } else if customerSignUpPage == 2 {
                                 // Page 2: Role Selection
                                 customerRoleSelectionFields
-                            } else {
+                            } else if customerSignUpPage == 3 {
                                 // Page 3: Specialization Selection
                                 customerSpecializationFields
+                            } else {
+                                // Page 4: Confirmation
+                                customerConfirmationFields
                             }
                         } else {
                             // Pilot sign-up: Show all fields on one page
@@ -101,7 +104,7 @@ struct SignUpView: View {
                     
                     // Page Indicator (only for customer sign-up)
                     if userType == .customer {
-                        PageIndicator(currentPage: customerSignUpPage, totalPages: 3)
+                        PageIndicator(currentPage: customerSignUpPage, totalPages: 4)
                             .padding(.top, 8)
                             .padding(.bottom, 4)
                     }
@@ -177,12 +180,23 @@ struct SignUpView: View {
             .gesture(
                 DragGesture(minimumDistance: 50)
                     .onEnded { value in
-                        // Swipe left to go back (only on pages 2 and 3)
-                        if userType == .customer && value.translation.width < -50 {
+                        // Only handle gestures for customer sign-up
+                        guard userType == .customer else { return }
+                        
+                        // Swipe left to go back (pages 2 and 3)
+                        if value.translation.width < -50 {
                             if customerSignUpPage == 2 {
                                 customerSignUpPage = 1
                             } else if customerSignUpPage == 3 {
                                 customerSignUpPage = 2
+                            }
+                        }
+                        // Swipe right to go forward (only if current page is valid)
+                        else if value.translation.width > 50 {
+                            if customerSignUpPage == 1 && isCustomerPage1Valid {
+                                customerSignUpPage = 2
+                            } else if customerSignUpPage == 2 && role != nil {
+                                customerSignUpPage = 3
                             }
                         }
                     }
@@ -236,6 +250,22 @@ struct SignUpView: View {
             password.count >= 6 &&
             !callSign.isEmpty
         }
+    }
+    
+    // Custom ordering for specialization cards: Logistics and Drone Art at the bottom
+    private var orderedSpecializations: [BookingSpecialization] {
+        [
+            .automotive,
+            .realEstate,
+            .motionPicture,
+            .agriculture,
+            .searchRescue,
+            .surveillanceSecurity,
+            .inspections,
+            .mappingSurveying,
+            .logistics,
+            .droneArt
+        ]
     }
     
     // MARK: - Customer Sign Up Fields
@@ -346,17 +376,22 @@ struct SignUpView: View {
                 .font(.subheadline)
                 .foregroundColor(.secondary)
             
-            // Specialization cards in a grid
+            // Specialization cards in a grid (with custom ordering: Logistics and Drone Art at the bottom)
             LazyVGrid(columns: [
                 GridItem(.flexible(), spacing: 12),
                 GridItem(.flexible(), spacing: 12)
             ], spacing: 12) {
-                ForEach(BookingSpecialization.allCases, id: \.self) { specialization in
+                ForEach(orderedSpecializations, id: \.self) { specialization in
                     SpecializationCard(
                         specialization: specialization,
                         isSelected: selectedSpecialization == specialization
                     ) {
-                        selectedSpecialization = specialization
+                        // Toggle selection: if already selected, deselect it
+                        if selectedSpecialization == specialization {
+                            selectedSpecialization = nil
+                        } else {
+                            selectedSpecialization = specialization
+                        }
                     }
                 }
             }

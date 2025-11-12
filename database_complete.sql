@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS profiles (
     phone TEXT,
     profile_picture_url TEXT,
     communication_preference TEXT CHECK (communication_preference IN ('email', 'text', 'both')) DEFAULT 'email',
-    role TEXT CHECK (role IN ('individual', 'manager', 'employee', 'business_owner')),
+    role TEXT CHECK (role IN ('individual', 'company', 'government', 'non_profit')),
     specialization TEXT CHECK (specialization IN ('automotive', 'motion_picture', 'real_estate', 'agriculture', 'inspections', 'search_rescue', 'logistics', 'drone_art', 'surveillance_security', 'mapping_surveying')),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc', NOW()) NOT NULL
 );
@@ -109,7 +109,7 @@ BEGIN
         WHERE conname = 'profiles_role_check'
     ) THEN
         ALTER TABLE profiles ADD CONSTRAINT profiles_role_check 
-        CHECK (role IS NULL OR role IN ('individual', 'manager', 'employee', 'business_owner'));
+        CHECK (role IS NULL OR role IN ('individual', 'company', 'government', 'non_profit'));
     END IF;
     
     -- Add specialization if it doesn't exist

@@ -44,25 +44,25 @@ enum Gender: String, Codable, CaseIterable {
 
 enum CustomerRole: String, Codable, CaseIterable {
     case individual = "individual"
-    case manager = "manager"
-    case employee = "employee"
-    case businessOwner = "business_owner"
+    case company = "company"
+    case government = "government"
+    case nonProfit = "non_profit"
     
     var displayName: String {
         switch self {
         case .individual: return "Individual"
-        case .manager: return "Manager"
-        case .employee: return "Employee"
-        case .businessOwner: return "Business owner"
+        case .company: return "Company"
+        case .government: return "Government"
+        case .nonProfit: return "Non-profit"
         }
     }
     
     var icon: String {
         switch self {
         case .individual: return "person.fill"
-        case .manager: return "person.2.fill"
-        case .employee: return "person.badge.plus.fill"
-        case .businessOwner: return "building.2.fill"
+        case .company: return "building.2.fill"
+        case .government: return "building.columns.fill"
+        case .nonProfit: return "heart.fill"
         }
     }
 }

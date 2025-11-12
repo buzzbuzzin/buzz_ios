@@ -171,7 +171,12 @@ struct CreateBookingStep1View: View {
                                 specialization: specialization,
                                 isSelected: selectedSpecialization == specialization
                             ) {
-                                selectedSpecialization = specialization
+                                // Toggle selection: if already selected, deselect it
+                                if selectedSpecialization == specialization {
+                                    selectedSpecialization = nil
+                                } else {
+                                    selectedSpecialization = specialization
+                                }
                             }
                         }
                     }
@@ -287,49 +292,51 @@ struct SpecializationCard: View {
     
     var body: some View {
         Button(action: action) {
-            ZStack {
-                // Background Image
-                Image(specialization.backgroundImage)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(height: 80)
-                    .frame(maxWidth: .infinity)
-                    .clipped()
-                    .cornerRadius(12)
-                
-                // Semi-transparent overlay when selected (blue tint)
-                if isSelected {
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(Color.blue.opacity(0.4))
-                } else {
-                    // Dark overlay for better text/icon visibility when not selected
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(Color.black.opacity(0.2))
-                }
-                
-                // Content (Icon and Text)
-                VStack(spacing: 12) {
-                    Image(systemName: specialization.icon)
-                        .font(.system(size: 24))
-                        .foregroundColor(.white)
+            GeometryReader { geometry in
+                ZStack {
+                    // Background Image
+                    Image(specialization.backgroundImage)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: geometry.size.width, height: geometry.size.height)
+                        .clipped()
+                        .cornerRadius(12)
                     
-                    Text(specialization.displayName)
-                        .font(.caption)
-                        .fontWeight(.semibold)
-                        .multilineTextAlignment(.center)
-                        .foregroundColor(.white)
-                        .lineLimit(2)
-                        .minimumScaleFactor(0.8)
+                    // Semi-transparent overlay when selected (blue tint)
+                    if isSelected {
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(Color.blue.opacity(0.4))
+                    } else {
+                        // Dark overlay for better text/icon visibility when not selected
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(Color.black.opacity(0.2))
+                    }
+                    
+                    // Content (Icon and Text)
+                    VStack(spacing: 4) {
+                        Image(systemName: specialization.icon)
+                            .font(.system(size: 20))
+                            .foregroundColor(.white)
+                        
+                        Text(specialization.displayName)
+                            .font(.caption)
+                            .fontWeight(.semibold)
+                            .multilineTextAlignment(.center)
+                            .foregroundColor(.white)
+                            .lineLimit(2)
+                            .minimumScaleFactor(0.7)
+                            .frame(height: 28)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 4)
+                    .padding(.horizontal, 8)
                 }
-                .padding(.vertical, 8)
-                .padding(.horizontal, 12)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(isSelected ? Color.blue : Color.clear, lineWidth: 2)
+                )
             }
-            .frame(height: 80)
-            .frame(maxWidth: .infinity)
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(isSelected ? Color.blue : Color.clear, lineWidth: 2)
-            )
+            .aspectRatio(2.0, contentMode: .fit)
         }
         .buttonStyle(PlainButtonStyle())
     }
