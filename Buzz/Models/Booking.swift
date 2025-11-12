@@ -53,6 +53,20 @@ enum BookingSpecialization: String, Codable, CaseIterable {
         case .surveillanceSecurity: return "eye.fill"
         }
     }
+    
+    var backgroundImage: String {
+        switch self {
+        case .automotive: return "Specialization_automotive_bg"
+        case .motionPicture: return "Specialization_motion_picture_bg"
+        case .realEstate: return "Specialization_real_estate_bg"
+        case .agriculture: return "Specialization_agriculture_bg"
+        case .inspections: return "Specialization_inspections_bg"
+        case .searchRescue: return "Specialization_search_rescue_bg"
+        case .logistics: return "Specialization_logistics_bg"
+        case .droneArt: return "Specialization_drone_art_bg"
+        case .surveillanceSecurity: return "Specialization_surveillance_security_bg"
+        }
+    }
 }
 
 struct Booking: Codable, Identifiable {

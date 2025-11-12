@@ -512,7 +512,8 @@ struct UserTypeSelectionSheet: View {
                     HStack(spacing: 12) {
                         UserTypeButton(
                             title: "Pilot",
-                            icon: "airplane",
+                            icon: "PilotIcon",
+                            isCustomImage: true,
                             isSelected: userType == .pilot
                         ) {
                             userType = .pilot
@@ -521,6 +522,7 @@ struct UserTypeSelectionSheet: View {
                         UserTypeButton(
                             title: "Customer",
                             icon: "person.fill",
+                            isCustomImage: false,
                             isSelected: userType == .customer
                         ) {
                             userType = .customer

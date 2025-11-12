@@ -121,6 +121,8 @@ class ProfileService: ObservableObject {
                 gender: nil,
                 profilePictureUrl: customerInfo.pictureUrl,
                 communicationPreference: nil,
+                role: nil,
+                specialization: nil,
                 createdAt: Date(),
                 balance: nil,
                 stripeAccountId: nil
@@ -170,6 +172,8 @@ class ProfileService: ObservableObject {
                 gender: nil,
                 profilePictureUrl: pilotInfo.pictureUrl,
                 communicationPreference: nil,
+                role: nil,
+                specialization: nil,
                 createdAt: Date(),
                 balance: nil,
                 stripeAccountId: nil
