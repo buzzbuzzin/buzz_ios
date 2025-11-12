@@ -41,9 +41,12 @@ struct SignUpView: View {
                             .font(.title)
                             .fontWeight(.bold)
                         
-                        Text(headerSubtitle)
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
+                        // Hide subtitle on customer pages 2 and 3 (role and specialization selection)
+                        if !(userType == .customer && (customerSignUpPage == 2 || customerSignUpPage == 3)) {
+                            Text(headerSubtitle)
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        }
                     }
                     .padding(.top, 40)
                     
@@ -383,7 +386,7 @@ struct SignUpView: View {
     
     private var customerSpecializationFields: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Choose Specialization")
+            Text("Choose your industry")
                 .font(.headline)
                 .fontWeight(.semibold)
                 .foregroundColor(.primary)
