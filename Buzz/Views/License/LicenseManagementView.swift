@@ -458,27 +458,36 @@ struct LicenseRow: View {
                     .buttonStyle(PlainButtonStyle())
                 }
                 
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], alignment: .leading, spacing: 8) {
-                    LicenseInfoRow(
-                        label: "Name",
-                        value: license.name ?? "",
-                        isEmpty: license.name == nil
-                    )
-                    LicenseInfoRow(
-                        label: "Course",
-                        value: license.courseCompleted ?? "",
-                        isEmpty: license.courseCompleted == nil
-                    )
-                    LicenseInfoRow(
-                        label: "Date",
-                        value: license.completionDate ?? "",
-                        isEmpty: license.completionDate == nil
-                    )
-                    LicenseInfoRow(
-                        label: "Certificate",
-                        value: license.certificateNumber ?? "",
-                        isEmpty: license.certificateNumber == nil
-                    )
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(alignment: .top, spacing: 16) {
+                        VStack(alignment: .leading, spacing: 8) {
+                            LicenseInfoRow(
+                                label: "Name",
+                                value: license.name ?? "",
+                                isEmpty: license.name == nil
+                            )
+                            LicenseInfoRow(
+                                label: "Course",
+                                value: license.courseCompleted ?? "",
+                                isEmpty: license.courseCompleted == nil
+                            )
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        
+                        VStack(alignment: .leading, spacing: 8) {
+                            LicenseInfoRow(
+                                label: "Date",
+                                value: license.completionDate ?? "",
+                                isEmpty: license.completionDate == nil
+                            )
+                            LicenseInfoRow(
+                                label: "Certificate",
+                                value: license.certificateNumber ?? "",
+                                isEmpty: license.certificateNumber == nil
+                            )
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
                 }
             }
             .padding(.leading, 62) // Align with content above

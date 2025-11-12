@@ -69,34 +69,66 @@ struct DroneRegistrationView: View {
                         action: { showImageSourceSheet = true }
                     )
                 } else {
-                    List {
-                        ForEach(registrationService.registrations) { registration in
-                            DroneRegistrationRow(
-                                registration: registration,
-                                onTap: {
-                                    print("DEBUG DroneRegistrationView: Eye icon tapped")
-                                    print("DEBUG DroneRegistrationView: Registration ID: \(registration.id)")
-                                    print("DEBUG DroneRegistrationView: Registration URL: \(registration.fileUrl)")
-                                    print("DEBUG DroneRegistrationView: Registration type: \(registration.fileType)")
-                                    // Use Task to ensure state update happens on main thread
-                                    Task { @MainActor in
-                                        self.selectedRegistration = registration
-                                        print("DEBUG DroneRegistrationView: selectedRegistration set to: \(self.selectedRegistration?.id.uuidString ?? "nil")")
+                    VStack(spacing: 0) {
+                        List {
+                            ForEach(registrationService.registrations) { registration in
+                                DroneRegistrationRow(
+                                    registration: registration,
+                                    onTap: {
+                                        print("DEBUG DroneRegistrationView: Eye icon tapped")
+                                        print("DEBUG DroneRegistrationView: Registration ID: \(registration.id)")
+                                        print("DEBUG DroneRegistrationView: Registration URL: \(registration.fileUrl)")
+                                        print("DEBUG DroneRegistrationView: Registration type: \(registration.fileType)")
+                                        // Use Task to ensure state update happens on main thread
+                                        Task { @MainActor in
+                                            self.selectedRegistration = registration
+                                            print("DEBUG DroneRegistrationView: selectedRegistration set to: \(self.selectedRegistration?.id.uuidString ?? "nil")")
+                                        }
+                                    },
+                                    onDelete: {
+                                        registrationToDelete = registration
+                                        showDeleteConfirmation = true
+                                    },
+                                    onEdit: {
+                                        registrationToEdit = registration
+                                        showEditSheet = true
                                     }
-                                },
-                                onDelete: {
-                                    registrationToDelete = registration
-                                    showDeleteConfirmation = true
-                                },
-                                onEdit: {
-                                    registrationToEdit = registration
-                                    showEditSheet = true
-                                }
-                            )
+                                )
+                            }
                         }
-                    }
-                    .refreshable {
-                        await loadRegistrations()
+                        .refreshable {
+                            await loadRegistrations()
+                        }
+                        
+                        // Notes section in gray background
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Notes")
+                                .font(.caption)
+                                .fontWeight(.semibold)
+                                .foregroundColor(.secondary)
+                                .textCase(.uppercase)
+                            
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("1. OCR may not working properly to parse out correct information from your uploaded file. It is your responsibility to double check and make sure the data is correct.")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                
+                                Text("2. Your data will be kept safe and is used to verify your eligibility to operate your drones. This ensures public safety and protects you and others from risks.")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                
+                                Text("3. Per FAA regulation, register your drone at FAADroneZone whether flying under the Exception for Limited Recreational Operations or Part 107. All drones must be registered, except those that weigh 0.55 pounds or less (less than 250 grams) and are flown under the Exception for Limited Recreational Operations. Drones registered under the Exception for Limited Recreational Operations cannot be flown under Part 107.")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                
+                                Link("Learn more about registering your drone", destination: URL(string: "https://www.faa.gov/uas/getting_started/register_drone")!)
+                                    .font(.caption)
+                                    .foregroundColor(.blue)
+                            }
+                        }
+                        .padding()
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color(.systemGray6))
                     }
                 }
             }
@@ -424,42 +456,51 @@ struct DroneRegistrationRow: View {
                     .buttonStyle(PlainButtonStyle())
                 }
                 
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], alignment: .leading, spacing: 8) {
-                    RegistrationInfoRow(
-                        label: "Owner",
-                        value: registration.registeredOwner ?? "",
-                        isEmpty: registration.registeredOwner == nil
-                    )
-                    RegistrationInfoRow(
-                        label: "Manufacturer",
-                        value: registration.manufacturer ?? "",
-                        isEmpty: registration.manufacturer == nil
-                    )
-                    RegistrationInfoRow(
-                        label: "Model",
-                        value: registration.model ?? "",
-                        isEmpty: registration.model == nil
-                    )
-                    RegistrationInfoRow(
-                        label: "Serial Number",
-                        value: registration.serialNumber ?? "",
-                        isEmpty: registration.serialNumber == nil
-                    )
-                    RegistrationInfoRow(
-                        label: "Registration",
-                        value: registration.registrationNumber ?? "",
-                        isEmpty: registration.registrationNumber == nil
-                    )
-                    RegistrationInfoRow(
-                        label: "Issued",
-                        value: registration.issued ?? "",
-                        isEmpty: registration.issued == nil
-                    )
-                    RegistrationInfoRow(
-                        label: "Expires",
-                        value: registration.expires ?? "",
-                        isEmpty: registration.expires == nil
-                    )
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(alignment: .top, spacing: 16) {
+                        VStack(alignment: .leading, spacing: 8) {
+                            RegistrationInfoRow(
+                                label: "Owner",
+                                value: registration.registeredOwner ?? "",
+                                isEmpty: registration.registeredOwner == nil
+                            )
+                            RegistrationInfoRow(
+                                label: "Manufacturer",
+                                value: registration.manufacturer ?? "",
+                                isEmpty: registration.manufacturer == nil
+                            )
+                            RegistrationInfoRow(
+                                label: "Model",
+                                value: registration.model ?? "",
+                                isEmpty: registration.model == nil
+                            )
+                            RegistrationInfoRow(
+                                label: "Serial Number",
+                                value: registration.serialNumber ?? "",
+                                isEmpty: registration.serialNumber == nil
+                            )
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        
+                        VStack(alignment: .leading, spacing: 8) {
+                            RegistrationInfoRow(
+                                label: "Registration",
+                                value: registration.registrationNumber ?? "",
+                                isEmpty: registration.registrationNumber == nil
+                            )
+                            RegistrationInfoRow(
+                                label: "Issued",
+                                value: registration.issued ?? "",
+                                isEmpty: registration.issued == nil
+                            )
+                            RegistrationInfoRow(
+                                label: "Expires",
+                                value: registration.expires ?? "",
+                                isEmpty: registration.expires == nil
+                            )
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
                 }
             }
             .padding(.leading, 62) // Align with content above
