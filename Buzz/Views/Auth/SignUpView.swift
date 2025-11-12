@@ -24,7 +24,7 @@ struct SignUpView: View {
     @State private var showError = false
     @State private var errorMessage = ""
     @State private var isSigningUp = false
-    @State private var customerSignUpPage: Int = 1 // 1 for basic info, 2 for role selection, 3 for specialization
+    @State private var customerSignUpPage: Int = 1 // 1 for basic info, 2 for role selection, 3 for specialization, 4 for confirmation
     
     var body: some View {
         NavigationView {
@@ -133,10 +133,21 @@ struct SignUpView: View {
                                 isDisabled: role == nil
                             )
                             .padding(.horizontal)
-                        } else {
-                            // Sign Up button for customer page 3
+                        } else if customerSignUpPage == 3 {
+                            // Next button for customer page 3
                             CustomButton(
-                                title: "Sign Up",
+                                title: "Next",
+                                action: {
+                                    customerSignUpPage = 4
+                                },
+                                isLoading: false,
+                                isDisabled: selectedSpecialization == nil
+                            )
+                            .padding(.horizontal)
+                        } else {
+                            // Finish Sign-up button for customer page 4
+                            CustomButton(
+                                title: "Finish Sign-up",
                                 action: signUp,
                                 isLoading: authService.isLoading || isSigningUp,
                                 isDisabled: !isFormValid
@@ -183,12 +194,14 @@ struct SignUpView: View {
                         // Only handle gestures for customer sign-up
                         guard userType == .customer else { return }
                         
-                        // Swipe left to go back (pages 2 and 3)
+                        // Swipe left to go back (pages 2, 3, and 4)
                         if value.translation.width < -50 {
                             if customerSignUpPage == 2 {
                                 customerSignUpPage = 1
                             } else if customerSignUpPage == 3 {
                                 customerSignUpPage = 2
+                            } else if customerSignUpPage == 4 {
+                                customerSignUpPage = 3
                             }
                         }
                         // Swipe right to go forward (only if current page is valid)
@@ -197,6 +210,8 @@ struct SignUpView: View {
                                 customerSignUpPage = 2
                             } else if customerSignUpPage == 2 && role != nil {
                                 customerSignUpPage = 3
+                            } else if customerSignUpPage == 3 && selectedSpecialization != nil {
+                                customerSignUpPage = 4
                             }
                         }
                     }
@@ -222,6 +237,7 @@ struct SignUpView: View {
             case 1: return "Create your account"
             case 2: return "Select your role"
             case 3: return "Choose your specialization"
+            case 4: return "Review your information"
             default: return "Create your account"
             }
         } else {
@@ -393,6 +409,127 @@ struct SignUpView: View {
                             selectedSpecialization = specialization
                         }
                     }
+                }
+            }
+        }
+    }
+    
+    private var customerConfirmationFields: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            Text("Please review your information")
+                .font(.headline)
+                .fontWeight(.semibold)
+                .foregroundColor(.primary)
+            
+            Text("Tap any section to edit")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+            
+            // Basic Information Section
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Text("Basic Information")
+                        .font(.headline)
+                        .fontWeight(.semibold)
+                    Spacer()
+                    Button(action: {
+                        customerSignUpPage = 1
+                    }) {
+                        Text("Edit")
+                            .font(.subheadline)
+                            .foregroundColor(.blue)
+                    }
+                }
+                
+                VStack(alignment: .leading, spacing: 8) {
+                    ConfirmationRow(label: "First Name", value: firstName)
+                    ConfirmationRow(label: "Last Name", value: lastName)
+                    ConfirmationRow(label: "Email", value: email)
+                }
+                .padding()
+                .background(Color(.systemGray6))
+                .cornerRadius(10)
+            }
+            
+            // Role Section
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Text("Role")
+                        .font(.headline)
+                        .fontWeight(.semibold)
+                    Spacer()
+                    Button(action: {
+                        customerSignUpPage = 2
+                    }) {
+                        Text("Edit")
+                            .font(.subheadline)
+                            .foregroundColor(.blue)
+                    }
+                }
+                
+                if let role = role {
+                    HStack {
+                        Image(systemName: role.icon)
+                            .font(.system(size: 20))
+                            .foregroundColor(.blue)
+                            .frame(width: 30)
+                        Text(role.displayName)
+                            .font(.body)
+                            .foregroundColor(.primary)
+                        Spacer()
+                    }
+                    .padding()
+                    .background(Color(.systemGray6))
+                    .cornerRadius(10)
+                } else {
+                    Text("Not selected")
+                        .font(.body)
+                        .foregroundColor(.secondary)
+                        .padding()
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color(.systemGray6))
+                        .cornerRadius(10)
+                }
+            }
+            
+            // Specialization Section
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Text("Specialization")
+                        .font(.headline)
+                        .fontWeight(.semibold)
+                    Spacer()
+                    Button(action: {
+                        customerSignUpPage = 3
+                    }) {
+                        Text("Edit")
+                            .font(.subheadline)
+                            .foregroundColor(.blue)
+                    }
+                }
+                
+                if let specialization = selectedSpecialization {
+                    HStack {
+                        Image(systemName: specialization.icon)
+                            .font(.system(size: 20))
+                            .foregroundColor(.blue)
+                            .frame(width: 30)
+                        Text(specialization.displayName)
+                            .font(.body)
+                            .foregroundColor(.primary)
+                        Spacer()
+                    }
+                    .padding()
+                    .background(Color(.systemGray6))
+                    .cornerRadius(10)
+                } else {
+                    Text("Not selected")
+                        .font(.body)
+                        .foregroundColor(.secondary)
+                        .padding()
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color(.systemGray6))
+                        .cornerRadius(10)
                 }
             }
         }
@@ -601,6 +738,27 @@ struct PageIndicator: View {
                     .frame(width: 8, height: 8)
                     .animation(.easeInOut, value: currentPage)
             }
+        }
+    }
+}
+
+struct ConfirmationRow: View {
+    let label: String
+    let value: String
+    
+    var body: some View {
+        HStack(alignment: .top) {
+            Text(label + ":")
+                .font(.subheadline)
+                .fontWeight(.medium)
+                .foregroundColor(.secondary)
+                .frame(width: 100, alignment: .leading)
+            
+            Text(value.isEmpty ? "Not provided" : value)
+                .font(.body)
+                .foregroundColor(value.isEmpty ? .secondary : .primary)
+            
+            Spacer()
         }
     }
 }
