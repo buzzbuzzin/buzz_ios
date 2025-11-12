@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS profiles (
     profile_picture_url TEXT,
     communication_preference TEXT CHECK (communication_preference IN ('email', 'text', 'both')) DEFAULT 'email',
     role TEXT CHECK (role IN ('individual', 'manager', 'employee', 'business_owner')),
-    specialization TEXT CHECK (specialization IN ('automotive', 'motion_picture', 'real_estate', 'agriculture', 'inspections', 'search_rescue', 'logistics', 'drone_art', 'surveillance_security')),
+    specialization TEXT CHECK (specialization IN ('automotive', 'motion_picture', 'real_estate', 'agriculture', 'inspections', 'search_rescue', 'logistics', 'drone_art', 'surveillance_security', 'mapping_surveying')),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc', NOW()) NOT NULL
 );
 
@@ -128,7 +128,7 @@ BEGIN
         ALTER TABLE profiles ADD CONSTRAINT profiles_specialization_check 
         CHECK (specialization IS NULL OR specialization IN (
             'automotive', 'motion_picture', 'real_estate', 'agriculture', 
-            'inspections', 'search_rescue', 'logistics', 'drone_art', 'surveillance_security'
+            'inspections', 'search_rescue', 'logistics', 'drone_art', 'surveillance_security', 'mapping_surveying'
         ));
     END IF;
 END $$;
@@ -438,7 +438,7 @@ CREATE TABLE IF NOT EXISTS bookings (
     location_name TEXT NOT NULL,
     scheduled_date TIMESTAMP WITH TIME ZONE,
     end_date TIMESTAMP WITH TIME ZONE,
-    specialization TEXT CHECK (specialization IN ('automotive', 'motion_picture', 'real_estate', 'agriculture', 'inspections', 'search_rescue', 'logistics', 'drone_art', 'surveillance_security')),
+    specialization TEXT CHECK (specialization IN ('automotive', 'motion_picture', 'real_estate', 'agriculture', 'inspections', 'search_rescue', 'logistics', 'drone_art', 'surveillance_security', 'mapping_surveying')),
     description TEXT NOT NULL,
     payment_amount DECIMAL(10, 2) NOT NULL,
     tip_amount DECIMAL(10, 2) DEFAULT 0,
@@ -476,7 +476,7 @@ BEGIN
         ALTER TABLE bookings ADD CONSTRAINT bookings_specialization_check 
         CHECK (specialization IS NULL OR specialization IN (
             'automotive', 'motion_picture', 'real_estate', 'agriculture', 
-            'inspections', 'search_rescue', 'logistics', 'drone_art', 'surveillance_security'
+            'inspections', 'search_rescue', 'logistics', 'drone_art', 'surveillance_security', 'mapping_surveying'
         ));
     END IF;
     
