@@ -42,6 +42,31 @@ enum Gender: String, Codable, CaseIterable {
     }
 }
 
+enum CustomerRole: String, Codable, CaseIterable {
+    case individual = "individual"
+    case company = "company"
+    case government = "government"
+    case nonProfit = "non_profit"
+    
+    var displayName: String {
+        switch self {
+        case .individual: return "Individual"
+        case .company: return "Company"
+        case .government: return "Government"
+        case .nonProfit: return "Non-profit"
+        }
+    }
+    
+    var icon: String {
+        switch self {
+        case .individual: return "person.fill"
+        case .company: return "building.2.fill"
+        case .government: return "building.columns.fill"
+        case .nonProfit: return "heart.fill"
+        }
+    }
+}
+
 struct UserProfile: Codable, Identifiable {
     let id: UUID
     let userType: UserType
@@ -53,6 +78,8 @@ struct UserProfile: Codable, Identifiable {
     let gender: Gender?
     let profilePictureUrl: String?
     let communicationPreference: CommunicationPreference?
+    let role: CustomerRole? // Customer role (only for customers)
+    let specialization: BookingSpecialization? // Customer specialization preference (only for customers)
     let createdAt: Date
     let balance: Decimal? // Pilot balance (earnings + tips)
     let stripeAccountId: String? // Stripe Connect account ID for pilots
@@ -68,6 +95,8 @@ struct UserProfile: Codable, Identifiable {
         case gender
         case profilePictureUrl = "profile_picture_url"
         case communicationPreference = "communication_preference"
+        case role
+        case specialization
         case createdAt = "created_at"
         case balance
         case stripeAccountId = "stripe_account_id"

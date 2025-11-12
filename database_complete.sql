@@ -27,6 +27,8 @@ CREATE TABLE IF NOT EXISTS profiles (
     phone TEXT,
     profile_picture_url TEXT,
     communication_preference TEXT CHECK (communication_preference IN ('email', 'text', 'both')) DEFAULT 'email',
+    role TEXT CHECK (role IN ('individual', 'company', 'government', 'non_profit')),
+    specialization TEXT CHECK (specialization IN ('automotive', 'motion_picture', 'real_estate', 'agriculture', 'inspections', 'search_rescue', 'logistics', 'drone_art', 'surveillance_security', 'mapping_surveying')),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc', NOW()) NOT NULL
 );
 
@@ -92,6 +94,43 @@ BEGIN
     ) THEN
         ALTER TABLE profiles ADD COLUMN balance DECIMAL(10, 2) DEFAULT 0.0;
     END IF;
+    
+    -- Add role if it doesn't exist
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'profiles' AND column_name = 'role'
+    ) THEN
+        ALTER TABLE profiles ADD COLUMN role TEXT;
+    END IF;
+    
+    -- Add check constraint for role if it doesn't exist
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint 
+        WHERE conname = 'profiles_role_check'
+    ) THEN
+        ALTER TABLE profiles ADD CONSTRAINT profiles_role_check 
+        CHECK (role IS NULL OR role IN ('individual', 'company', 'government', 'non_profit'));
+    END IF;
+    
+    -- Add specialization if it doesn't exist
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'profiles' AND column_name = 'specialization'
+    ) THEN
+        ALTER TABLE profiles ADD COLUMN specialization TEXT;
+    END IF;
+    
+    -- Add check constraint for specialization if it doesn't exist
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint 
+        WHERE conname = 'profiles_specialization_check'
+    ) THEN
+        ALTER TABLE profiles ADD CONSTRAINT profiles_specialization_check 
+        CHECK (specialization IS NULL OR specialization IN (
+            'automotive', 'motion_picture', 'real_estate', 'agriculture', 
+            'inspections', 'search_rescue', 'logistics', 'drone_art', 'surveillance_security', 'mapping_surveying'
+        ));
+    END IF;
 END $$;
 
 -- Drop existing policies if they exist (for idempotency)
@@ -121,7 +160,12 @@ CREATE TABLE IF NOT EXISTS pilot_licenses (
     pilot_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
     file_url TEXT NOT NULL,
     file_type TEXT NOT NULL CHECK (file_type IN ('pdf', 'image')),
-    uploaded_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc', NOW()) NOT NULL
+    uploaded_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc', NOW()) NOT NULL,
+    -- OCR extracted fields
+    name TEXT,
+    course_completed TEXT,
+    completion_date TEXT,
+    certificate_number TEXT
 );
 
 -- Enable Row Level Security
@@ -146,6 +190,242 @@ CREATE POLICY "Pilots can delete their own licenses"
     ON pilot_licenses FOR DELETE 
     USING (auth.uid() = pilot_id);
 
+-- Add OCR fields to pilot_licenses if they don't exist (for migrations)
+DO $$ 
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'pilot_licenses' AND column_name = 'name'
+    ) THEN
+        ALTER TABLE pilot_licenses ADD COLUMN name TEXT;
+    END IF;
+    
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'pilot_licenses' AND column_name = 'course_completed'
+    ) THEN
+        ALTER TABLE pilot_licenses ADD COLUMN course_completed TEXT;
+    END IF;
+    
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'pilot_licenses' AND column_name = 'completion_date'
+    ) THEN
+        ALTER TABLE pilot_licenses ADD COLUMN completion_date TEXT;
+    END IF;
+    
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'pilot_licenses' AND column_name = 'certificate_number'
+    ) THEN
+        ALTER TABLE pilot_licenses ADD COLUMN certificate_number TEXT;
+    END IF;
+END $$;
+
+-- ----------------------------------------------------------------------------
+-- Drone Registrations Table
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS drone_registrations (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    pilot_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
+    file_url TEXT NOT NULL,
+    file_type TEXT NOT NULL CHECK (file_type IN ('pdf', 'image')),
+    uploaded_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc', NOW()) NOT NULL,
+    -- OCR extracted fields
+    registered_owner TEXT,
+    manufacturer TEXT,
+    model TEXT,
+    serial_number TEXT,
+    registration_number TEXT,
+    issued TEXT,
+    expires TEXT
+);
+
+-- Enable Row Level Security
+ALTER TABLE drone_registrations ENABLE ROW LEVEL SECURITY;
+
+-- Drop existing policies if they exist
+DROP POLICY IF EXISTS "Pilots can view their own drone registrations" ON drone_registrations;
+DROP POLICY IF EXISTS "Pilots can insert their own drone registrations" ON drone_registrations;
+DROP POLICY IF EXISTS "Pilots can update their own drone registrations" ON drone_registrations;
+DROP POLICY IF EXISTS "Pilots can delete their own drone registrations" ON drone_registrations;
+
+-- Drone Registrations Policies
+CREATE POLICY "Pilots can view their own drone registrations" 
+    ON drone_registrations FOR SELECT 
+    TO authenticated
+    USING (auth.uid() = pilot_id);
+
+CREATE POLICY "Pilots can insert their own drone registrations" 
+    ON drone_registrations FOR INSERT 
+    TO authenticated
+    WITH CHECK (auth.uid() = pilot_id);
+
+CREATE POLICY "Pilots can update their own drone registrations" 
+    ON drone_registrations FOR UPDATE 
+    TO authenticated
+    USING (auth.uid() = pilot_id)
+    WITH CHECK (auth.uid() = pilot_id);
+
+CREATE POLICY "Pilots can delete their own drone registrations" 
+    ON drone_registrations FOR DELETE 
+    TO authenticated
+    USING (auth.uid() = pilot_id);
+
+-- Add OCR fields to drone_registrations if they don't exist (for migrations)
+DO $$ 
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'drone_registrations' AND column_name = 'registered_owner'
+    ) THEN
+        ALTER TABLE drone_registrations ADD COLUMN registered_owner TEXT;
+    END IF;
+    
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'drone_registrations' AND column_name = 'manufacturer'
+    ) THEN
+        ALTER TABLE drone_registrations ADD COLUMN manufacturer TEXT;
+    END IF;
+    
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'drone_registrations' AND column_name = 'model'
+    ) THEN
+        ALTER TABLE drone_registrations ADD COLUMN model TEXT;
+    END IF;
+    
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'drone_registrations' AND column_name = 'serial_number'
+    ) THEN
+        ALTER TABLE drone_registrations ADD COLUMN serial_number TEXT;
+    END IF;
+    
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'drone_registrations' AND column_name = 'registration_number'
+    ) THEN
+        ALTER TABLE drone_registrations ADD COLUMN registration_number TEXT;
+    END IF;
+    
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'drone_registrations' AND column_name = 'issued'
+    ) THEN
+        ALTER TABLE drone_registrations ADD COLUMN issued TEXT;
+    END IF;
+    
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'drone_registrations' AND column_name = 'expires'
+    ) THEN
+        ALTER TABLE drone_registrations ADD COLUMN expires TEXT;
+    END IF;
+END $$;
+
+-- ----------------------------------------------------------------------------
+-- Government IDs Table
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS government_ids (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    user_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
+    file_url TEXT, -- Made nullable since Stripe handles document storage
+    file_type TEXT CHECK (file_type IN ('pdf', 'image')), -- Made nullable
+    verification_status TEXT NOT NULL DEFAULT 'pending' CHECK (verification_status IN ('pending', 'verified', 'rejected')),
+    stripe_session_id TEXT, -- Stripe Identity verification session ID
+    uploaded_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc', NOW()) NOT NULL,
+    UNIQUE(user_id) -- One verification per user
+);
+
+-- Enable Row Level Security
+ALTER TABLE government_ids ENABLE ROW LEVEL SECURITY;
+
+-- Drop existing policies if they exist
+DROP POLICY IF EXISTS "Users can view their own government IDs" ON government_ids;
+DROP POLICY IF EXISTS "Users can insert their own government IDs" ON government_ids;
+DROP POLICY IF EXISTS "Users can update their own government IDs" ON government_ids;
+DROP POLICY IF EXISTS "Users can delete their own government IDs" ON government_ids;
+
+-- Government IDs Policies
+CREATE POLICY "Users can view their own government IDs" 
+    ON government_ids FOR SELECT 
+    TO authenticated
+    USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert their own government IDs" 
+    ON government_ids FOR INSERT 
+    TO authenticated
+    WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update their own government IDs" 
+    ON government_ids FOR UPDATE 
+    TO authenticated
+    USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete their own government IDs" 
+    ON government_ids FOR DELETE 
+    TO authenticated
+    USING (auth.uid() = user_id);
+
+-- Add missing columns to government_ids if table already exists (for migrations)
+DO $$ 
+BEGIN
+    -- Add stripe_session_id if it doesn't exist
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'government_ids' AND column_name = 'stripe_session_id'
+    ) THEN
+        ALTER TABLE government_ids ADD COLUMN stripe_session_id TEXT;
+    END IF;
+    
+    -- Make file_url nullable if it's not already
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'government_ids' 
+        AND column_name = 'file_url' 
+        AND is_nullable = 'NO'
+    ) THEN
+        ALTER TABLE government_ids ALTER COLUMN file_url DROP NOT NULL;
+    END IF;
+    
+    -- Make file_type nullable if it's not already
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'government_ids' 
+        AND column_name = 'file_type' 
+        AND is_nullable = 'NO'
+    ) THEN
+        ALTER TABLE government_ids ALTER COLUMN file_type DROP NOT NULL;
+    END IF;
+    
+    -- Add verification_status if it doesn't exist
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'government_ids' AND column_name = 'verification_status'
+    ) THEN
+        ALTER TABLE government_ids ADD COLUMN verification_status TEXT DEFAULT 'pending';
+        
+        -- Add check constraint for verification_status
+        IF NOT EXISTS (
+            SELECT 1 FROM pg_constraint 
+            WHERE conname = 'government_ids_verification_status_check'
+        ) THEN
+            ALTER TABLE government_ids ADD CONSTRAINT government_ids_verification_status_check 
+            CHECK (verification_status IN ('pending', 'verified', 'rejected'));
+        END IF;
+    END IF;
+    
+    -- Add unique constraint on user_id if it doesn't exist
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint 
+        WHERE conname = 'government_ids_user_id_key'
+    ) THEN
+        ALTER TABLE government_ids ADD CONSTRAINT government_ids_user_id_key UNIQUE (user_id);
+    END IF;
+END $$;
+
 -- ----------------------------------------------------------------------------
 -- Bookings Table
 -- ----------------------------------------------------------------------------
@@ -158,7 +438,7 @@ CREATE TABLE IF NOT EXISTS bookings (
     location_name TEXT NOT NULL,
     scheduled_date TIMESTAMP WITH TIME ZONE,
     end_date TIMESTAMP WITH TIME ZONE,
-    specialization TEXT CHECK (specialization IN ('automotive', 'motion_picture', 'real_estate', 'agriculture', 'inspections', 'search_rescue', 'logistics', 'drone_art', 'surveillance_security')),
+    specialization TEXT CHECK (specialization IN ('automotive', 'motion_picture', 'real_estate', 'agriculture', 'inspections', 'search_rescue', 'logistics', 'drone_art', 'surveillance_security', 'mapping_surveying')),
     description TEXT NOT NULL,
     payment_amount DECIMAL(10, 2) NOT NULL,
     tip_amount DECIMAL(10, 2) DEFAULT 0,
@@ -196,7 +476,7 @@ BEGIN
         ALTER TABLE bookings ADD CONSTRAINT bookings_specialization_check 
         CHECK (specialization IS NULL OR specialization IN (
             'automotive', 'motion_picture', 'real_estate', 'agriculture', 
-            'inspections', 'search_rescue', 'logistics', 'drone_art', 'surveillance_security'
+            'inspections', 'search_rescue', 'logistics', 'drone_art', 'surveillance_security', 'mapping_surveying'
         ));
     END IF;
     
@@ -641,6 +921,14 @@ CREATE INDEX IF NOT EXISTS idx_profiles_stripe_account_id ON profiles(stripe_acc
 
 -- Pilot licenses indexes
 CREATE INDEX IF NOT EXISTS idx_pilot_licenses_pilot_id ON pilot_licenses(pilot_id);
+
+-- Drone registrations indexes
+CREATE INDEX IF NOT EXISTS idx_drone_registrations_pilot_id ON drone_registrations(pilot_id);
+
+-- Government IDs indexes
+CREATE INDEX IF NOT EXISTS idx_government_ids_user_id ON government_ids(user_id);
+CREATE INDEX IF NOT EXISTS idx_government_ids_verification_status ON government_ids(verification_status);
+CREATE INDEX IF NOT EXISTS idx_government_ids_stripe_session_id ON government_ids(stripe_session_id);
 
 -- Pilot stats indexes
 CREATE INDEX IF NOT EXISTS idx_pilot_stats_tier ON pilot_stats(tier);

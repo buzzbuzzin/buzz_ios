@@ -419,6 +419,16 @@ struct ProfileView: View {
                                     .foregroundColor(.primary)
                             }
                         }
+                        
+                        NavigationLink(destination: RealEstatePackageView()) {
+                            HStack {
+                                Image(systemName: "house.circle.fill")
+                                    .foregroundColor(.secondary)
+                                    .font(.body)
+                                Text("Buzz Real Estate")
+                                    .foregroundColor(.primary)
+                            }
+                        }
                     } header: {
                         Text("Flight Packages")
                             .font(.subheadline)

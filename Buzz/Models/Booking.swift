@@ -25,6 +25,7 @@ enum BookingSpecialization: String, Codable, CaseIterable {
     case logistics = "logistics"
     case droneArt = "drone_art"
     case surveillanceSecurity = "surveillance_security"
+    case mappingSurveying = "mapping_surveying"
     
     var displayName: String {
         switch self {
@@ -37,6 +38,7 @@ enum BookingSpecialization: String, Codable, CaseIterable {
         case .logistics: return "Logistics"
         case .droneArt: return "Drone Art"
         case .surveillanceSecurity: return "Surveillance & Security"
+        case .mappingSurveying: return "Mapping & Surveying"
         }
     }
     
@@ -51,6 +53,22 @@ enum BookingSpecialization: String, Codable, CaseIterable {
         case .logistics: return "shippingbox.fill"
         case .droneArt: return "paintpalette.fill"
         case .surveillanceSecurity: return "eye.fill"
+        case .mappingSurveying: return "map.fill"
+        }
+    }
+    
+    var backgroundImage: String {
+        switch self {
+        case .automotive: return "Specialization_automotive_bg"
+        case .motionPicture: return "Specialization_motion_picture_bg"
+        case .realEstate: return "Specialization_real_estate_bg"
+        case .agriculture: return "Specialization_agriculture_bg"
+        case .inspections: return "Specialization_inspections_bg"
+        case .searchRescue: return "Specialization_search_rescue_bg"
+        case .logistics: return "Specialization_logistics_bg"
+        case .droneArt: return "Specialization_drone_art_bg"
+        case .surveillanceSecurity: return "Specialization_surveillance_security_bg"
+        case .mappingSurveying: return "Specialization_mapping_surveying_bg"
         }
     }
 }

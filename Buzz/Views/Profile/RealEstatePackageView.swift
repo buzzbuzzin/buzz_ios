@@ -1,15 +1,15 @@
 //
-//  FlightPackageView.swift
+//  RealEstatePackageView.swift
 //  Buzz
 //
-//  Created for displaying customer subscription information
+//  Created for displaying customer subscription information for Real Estate
 //
 
 import SwiftUI
 import Auth
 import Foundation
 
-struct FlightPackageView: View {
+struct RealEstatePackageView: View {
     @EnvironmentObject var authService: AuthService
     @StateObject private var subscriptionService = SubscriptionService()
     @State private var selectedTab: PackageTab = .managePackage
@@ -57,7 +57,7 @@ struct FlightPackageView: View {
                             VStack(spacing: 24) {
                                 switch selectedTab {
                                 case .managePackage:
-                                    ManagePackageView(
+                                    ManageRealEstatePackageView(
                                         currentPlan: $currentPlan,
                                         showPauseAlert: $showPauseAlert,
                                         showEndMembershipAlert: $showEndMembershipAlert,
@@ -72,7 +72,7 @@ struct FlightPackageView: View {
                     }
                 } else {
                     // Show subscription selection view if no subscription
-                    SubscriptionSelectionView(
+                    RealEstateSubscriptionSelectionView(
                         subscriptionService: subscriptionService,
                         onSubscriptionCreated: {
                             Task {
@@ -82,7 +82,6 @@ struct FlightPackageView: View {
                     )
                 }
             }
-//            .navigationTitle("Buzz Auto")
             .navigationBarTitleDisplayMode(.large)
             .alert("Pause Membership", isPresented: $showPauseAlert) {
                 Button("Cancel", role: .cancel) {}
@@ -101,12 +100,12 @@ struct FlightPackageView: View {
                 Text("Are you sure you want to end your membership? This action cannot be undone.")
             }
             .sheet(isPresented: $showLearnMore) {
-                LearnMoreView()
+                RealEstateLearnMoreView()
             }
         }
         .onAppear {
             // Use onAppear instead of .task to prevent retriggering on state changes
-            print("📱 View appeared, hasLoadedOnce=\(hasLoadedOnce)")
+            print("📱 Real Estate View appeared, hasLoadedOnce=\(hasLoadedOnce)")
             guard !hasLoadedOnce else {
                 print("⏭️ Already loaded, skipping")
                 return
@@ -120,7 +119,7 @@ struct FlightPackageView: View {
             }
         }
         .onDisappear {
-            print("👋 View disappearing, canceling tasks")
+            print("👋 Real Estate View disappearing, canceling tasks")
             // Cancel task when view disappears
             loadTask?.cancel()
             isLoadingInProgress = false
@@ -197,9 +196,9 @@ struct FlightPackageView: View {
     }
 }
 
-// MARK: - Manage Package View
+// MARK: - Manage Real Estate Package View
 
-struct ManagePackageView: View {
+struct ManageRealEstatePackageView: View {
     @Binding var currentPlan: String?
     @Binding var showPauseAlert: Bool
     @Binding var showEndMembershipAlert: Bool
@@ -216,12 +215,12 @@ struct ManagePackageView: View {
                     .foregroundColor(.primary)
                 
                 VStack(alignment: .leading, spacing: 12) {
-                    // Automotive flight package
+                    // Real Estate flight package
                     HStack {
                         Image(systemName: "airplane.circle.fill")
                             .foregroundColor(.blue)
                             .font(.title2)
-                        Text("Automotive flight package")
+                        Text("Real Estate flight package")
                             .font(.subheadline)
                             .foregroundColor(.primary)
                         Spacer()
@@ -370,190 +369,20 @@ struct ManagePackageView: View {
     }
 }
 
-// MARK: - Payment Method Detail View
+// MARK: - Real Estate Learn More View
 
-struct PaymentMethodDetailView: View {
-    @EnvironmentObject var authService: AuthService
-    @StateObject private var paymentService = PaymentService()
-    @State private var paymentMethods: [SavedPaymentMethod] = []
-    @State private var isLoading = false
-    @State private var errorMessage: String?
-    @State private var showError = false
-    
-    var body: some View {
-        List {
-            if isLoading {
-                HStack {
-                    Spacer()
-                    ProgressView()
-                    Spacer()
-                }
-                .padding()
-            } else if paymentMethods.isEmpty {
-                VStack(spacing: 16) {
-                    Image(systemName: "creditcard")
-                        .font(.system(size: 50))
-                        .foregroundColor(.secondary)
-                    
-                    Text("No Payment Method")
-                        .font(.headline)
-                        .foregroundColor(.primary)
-                    
-                    Text("Add a payment method to manage your subscription.")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 40)
-            } else {
-                ForEach(paymentMethods) { method in
-                    PaymentMethodRow(paymentMethod: method)
-                }
-            }
-        }
-        .navigationTitle("Payment Method")
-        .navigationBarTitleDisplayMode(.inline)
-        .task {
-            await loadPaymentMethods()
-        }
-        .alert("Error", isPresented: $showError) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(errorMessage ?? "Failed to load payment methods")
-        }
-    }
-    
-    private func loadPaymentMethods() async {
-        guard let currentUser = authService.currentUser else { return }
-        
-        isLoading = true
-        errorMessage = nil
-        
-        do {
-            let methods = try await paymentService.fetchSavedPaymentMethods(customerId: currentUser.id)
-            await MainActor.run {
-                self.paymentMethods = methods
-                self.isLoading = false
-            }
-        } catch {
-            await MainActor.run {
-                self.errorMessage = error.localizedDescription
-                self.isLoading = false
-                self.showError = true
-            }
-        }
-    }
-}
-
-// MARK: - Transactions View
-
-struct TransactionsView: View {
-    @EnvironmentObject var authService: AuthService
-    @State private var transactions: [SubscriptionTransaction] = []
-    @State private var isLoading = false
-    
-    var body: some View {
-        List {
-            if isLoading {
-                HStack {
-                    Spacer()
-                    ProgressView()
-                    Spacer()
-                }
-                .padding()
-            } else if transactions.isEmpty {
-                VStack(spacing: 16) {
-                    Image(systemName: "list.bullet.rectangle")
-                        .font(.system(size: 50))
-                        .foregroundColor(.secondary)
-                    
-                    Text("No Transactions")
-                        .font(.headline)
-                        .foregroundColor(.primary)
-                    
-                    Text("Your subscription transactions will appear here.")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 40)
-            } else {
-                ForEach(transactions) { transaction in
-                    TransactionRow(transaction: transaction)
-                }
-            }
-        }
-        .navigationTitle("Transactions")
-        .navigationBarTitleDisplayMode(.inline)
-        .task {
-            await loadTransactions()
-        }
-    }
-    
-    private func loadTransactions() async {
-        isLoading = true
-        // TODO: Implement transaction loading from backend
-        // For now, using placeholder data
-        await MainActor.run {
-            self.transactions = []
-            self.isLoading = false
-        }
-    }
-}
-
-// MARK: - Transaction Row
-
-struct TransactionRow: View {
-    let transaction: SubscriptionTransaction
-    
-    var body: some View {
-        HStack(spacing: 16) {
-            // Transaction icon
-            Image(systemName: transaction.type == .payment ? "arrow.down.circle.fill" : "arrow.up.circle.fill")
-                .font(.title2)
-                .foregroundColor(transaction.type == .payment ? .green : .red)
-                .frame(width: 40)
-            
-            // Transaction details
-            VStack(alignment: .leading, spacing: 4) {
-                Text(transaction.description)
-                    .font(.headline)
-                    .foregroundColor(.primary)
-                
-                Text(transaction.date, style: .date)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-            
-            Spacer()
-            
-            // Amount
-            Text(transaction.amount)
-                .font(.headline)
-                .foregroundColor(transaction.type == .payment ? .green : .red)
-        }
-        .padding(.vertical, 8)
-    }
-}
-
-// MARK: - Learn More View
-
-struct LearnMoreView: View {
+struct RealEstateLearnMoreView: View {
     @Environment(\.dismiss) var dismiss
     
     var body: some View {
         NavigationView {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
-                    Text("Automotive Flight Package")
+                    Text("Real Estate Flight Package")
                         .font(.title2)
                         .fontWeight(.bold)
                     
-                    Text("Turn every car into a commercial. With 50 videos per month per drone, your inventory shines like never before. On average, members save over $2,000 per month compared to on-demand shoots.")
+                    Text("Showcase properties from stunning aerial perspectives. With 50 videos per month per drone, your listings stand out like never before. On average, members save over $2,000 per month compared to on-demand shoots.")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
@@ -582,13 +411,13 @@ struct LearnMoreView: View {
                         // Feature 2
                         VStack(alignment: .leading, spacing: 8) {
                             HStack(spacing: 8) {
-                                Text("🚗")
+                                Text("🏠")
                                     .font(.title2)
                                 Text("Dedicated drone & pilot access")
                                     .font(.headline)
                                     .foregroundColor(.primary)
                             }
-                            Text("One drone team reserved exclusively for your dealership.")
+                            Text("One drone team reserved exclusively for your real estate business.")
                                 .font(.subheadline)
                                 .foregroundColor(.secondary)
                                 .padding(.leading, 32)
@@ -614,7 +443,7 @@ struct LearnMoreView: View {
                             HStack(spacing: 8) {
                                 Text("💼")
                                     .font(.title2)
-                                Text("Dealer-exclusive analytics dashboard")
+                                Text("Agent-exclusive analytics dashboard")
                                     .font(.headline)
                                     .foregroundColor(.primary)
                             }
@@ -655,71 +484,9 @@ struct LearnMoreView: View {
     }
 }
 
-struct FeatureRow: View {
-    let icon: String
-    let text: String
-    
-    var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: icon)
-                .foregroundColor(.green)
-            Text(text)
-                .font(.subheadline)
-        }
-    }
-}
+// MARK: - Real Estate Subscription Selection View
 
-struct PlanRow: View {
-    let name: String
-    let price: String
-    let features: [String]
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text(name)
-                    .font(.headline)
-                Spacer()
-                Text(price)
-                    .font(.subheadline)
-                    .foregroundColor(.blue)
-            }
-            
-            ForEach(features, id: \.self) { feature in
-                HStack(spacing: 8) {
-                    Image(systemName: "checkmark")
-                        .font(.caption)
-                        .foregroundColor(.green)
-                    Text(feature)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-            }
-        }
-        .padding()
-        .background(Color(.systemGray6))
-        .cornerRadius(8)
-    }
-}
-
-// MARK: - Subscription Transaction Model
-
-struct SubscriptionTransaction: Identifiable {
-    let id: UUID
-    let description: String
-    let amount: String
-    let date: Date
-    let type: TransactionType
-    
-    enum TransactionType {
-        case payment
-        case refund
-    }
-}
-
-// MARK: - Subscription Selection View
-
-struct SubscriptionSelectionView: View {
+struct RealEstateSubscriptionSelectionView: View {
     @ObservedObject var subscriptionService: SubscriptionService
     @EnvironmentObject var authService: AuthService
     let onSubscriptionCreated: () -> Void
@@ -728,23 +495,23 @@ struct SubscriptionSelectionView: View {
     @State private var showMembershipDetails = false
     @State private var hasLoadedPlans = false // Prevent multiple loads
     
-    // Automotive product ID from Stripe
-    private let automotiveProductId = "prod_TOW3rxsrI5xCs3"
+    // Real Estate product ID from Stripe
+    private let realEstateProductId = "prod_TPbEVKDoBBsN08"
     
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
                 // Header
                 VStack(spacing: 12) {
-                    Image(systemName: "car.circle.fill")
+                    Image(systemName: "house.circle.fill")
                         .font(.system(size: 60))
                         .foregroundColor(.blue)
                     
-                    Text("Become a Buzz Auto member")
+                    Text("Buy a Buzz Real Estate Bundle")
                         .font(.title2)
                         .fontWeight(.bold)
                     
-                    Text("Turn every car into a commercial. With 50 videos per month per drone, your inventory shines like never before. On average, members save over $2,000 per month compared to on-demand shoots.")
+                    Text("At Buzz, our pilots have a passion for creating inspiring content. Our advanced licensed drone pilots and camera operators are dedicated to capturing quality content for your real estate business. We film local—we're a global brand working locally on the ground to create an immersive video experience that showcases your properties and facilities.")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
@@ -758,6 +525,22 @@ struct SubscriptionSelectionView: View {
                 
                 // What's included section
                 VStack(alignment: .leading, spacing: 20) {
+                    Text("$1,500 Business Video Bundle for Real Estate")
+                        .font(.title3)
+                        .fontWeight(.bold)
+                        .padding(.horizontal)
+                    
+                    Text("Video content is essential for attracting customers online. Your potential buyers are ready and eager to explore your properties through engaging video content. Post your videos online to reach more people and showcase your listings in the best light.")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .padding(.horizontal)
+                    
+                    // Divider
+                    Divider()
+                        .padding(.horizontal)
+                        .padding(.vertical, 8)
+                    
+                    // What's included header
                     Text("What's included:")
                         .font(.title3)
                         .fontWeight(.bold)
@@ -766,48 +549,31 @@ struct SubscriptionSelectionView: View {
                     VStack(alignment: .leading, spacing: 24) {
                         // Feature 1
                         HStack(alignment: .top, spacing: 12) {
-                            Image(systemName: "bolt.fill")
+                            Image(systemName: "camera.fill")
                                 .font(.system(size: 24))
                                 .foregroundColor(.orange)
                                 .frame(width: 32)
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text("Up to 50 videos per month per drone")
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Product Placement & Close-Ups")
                                     .font(.headline)
                                     .foregroundColor(.primary)
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text("Full editing and post-production included.")
-                                        .font(.subheadline)
-                                        .foregroundColor(.secondary)
-                                    Text("• 10 30-second high-resolution videos")
-                                        .font(.subheadline)
-                                        .foregroundColor(.secondary)
-                                    Text("• 10 enticising Facebook or Linkedin posts")
-                                        .font(.subheadline)
-                                        .foregroundColor(.secondary)
-                                    Text("• 10 creative 3x3 grid for Instagram")
-                                        .font(.subheadline)
-                                        .foregroundColor(.secondary)
-                                    Text("• 10 informative Instagram stories")
-                                        .font(.subheadline)
-                                        .foregroundColor(.secondary)
-                                    Text("• 10 Captivating Tiktoks")
-                                        .font(.subheadline)
-                                        .foregroundColor(.secondary)
-                                }
+                                Text("Professional close-up shots that highlight the unique features and details of your properties, showcasing every detail that makes your listings special.")
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
                             }
                         }
                         
                         // Feature 2
                         HStack(alignment: .top, spacing: 12) {
-                            Image(systemName: "car.fill")
+                            Image(systemName: "video.fill")
                                 .font(.system(size: 24))
                                 .foregroundColor(.blue)
                                 .frame(width: 32)
                             VStack(alignment: .leading, spacing: 4) {
-                                Text("Dedicated drone & pilot access")
+                                Text("Steadicam Interior Footage")
                                     .font(.headline)
                                     .foregroundColor(.primary)
-                                Text("One skilled and talented drone team reserved exclusively for your dealership, dedicating to to capturing quality content.")
+                                Text("Smooth, cinematic interior tours that give potential buyers an immersive experience of the property's layout and flow.")
                                     .font(.subheadline)
                                     .foregroundColor(.secondary)
                             }
@@ -815,15 +581,15 @@ struct SubscriptionSelectionView: View {
                         
                         // Feature 3
                         HStack(alignment: .top, spacing: 12) {
-                            Image(systemName: "video.fill")
+                            Image(systemName: "building.2.fill")
                                 .font(.system(size: 24))
                                 .foregroundColor(.purple)
                                 .frame(width: 32)
                             VStack(alignment: .leading, spacing: 4) {
-                                Text("Priority scheduling")
+                                Text("Exterior & Building Footage")
                                     .font(.headline)
                                     .foregroundColor(.primary)
-                                Text("Guaranteed next-day shoot availability.")
+                                Text("Stunning exterior shots that capture the property's curb appeal, architecture, and surrounding environment from ground level.")
                                     .font(.subheadline)
                                     .foregroundColor(.secondary)
                             }
@@ -831,41 +597,41 @@ struct SubscriptionSelectionView: View {
                         
                         // Feature 4
                         HStack(alignment: .top, spacing: 12) {
-                            Image(systemName: "chart.bar.fill")
-                                .font(.system(size: 24))
-                                .foregroundColor(.green)
-                                .frame(width: 32)
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("Online traffic boosting")
-                                    .font(.headline)
-                                    .foregroundColor(.primary)
-                                Text("90% of vehicle buyers do research online before purchasing.")
-                                    .font(.subheadline)
-                                    .foregroundColor(.secondary)
-                            }
-                        }
-                        
-                        // Feature 5
-                        HStack(alignment: .top, spacing: 12) {
-                            Image(systemName: "cloud.sun.fill")
+                            Image(systemName: "airplane")
                                 .font(.system(size: 24))
                                 .foregroundColor(.cyan)
                                 .frame(width: 32)
                             VStack(alignment: .leading, spacing: 4) {
-                                Text("Weather & site-planning support")
+                                Text("Drone Aerial Footage")
                                     .font(.headline)
                                     .foregroundColor(.primary)
-                                Text("We handle logistics, FAA checks, pilot licences, and drone registration permits.")
+                                Text("Breathtaking aerial perspectives of your business and neighborhood. Available only for applicable businesses, these shots provide a unique bird's-eye view that sets your listings apart.")
                                     .font(.subheadline)
                                     .foregroundColor(.secondary)
                             }
                         }
                         
-                        // Membership details link
+                        // Feature 5 - Why Buzz
+                        HStack(alignment: .top, spacing: 12) {
+                            Image(systemName: "heart.fill")
+                                .font(.system(size: 24))
+                                .foregroundColor(.red)
+                                .frame(width: 32)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Passionate Professionals, Local Focus")
+                                    .font(.headline)
+                                    .foregroundColor(.primary)
+                                Text("At Buzz, our pilots have a passion for creating inspiring content. We're a global brand working locally on the ground—whether you own a local coffee shop, boutique, or bakery, Buzz has got you covered. We create an immersive video experience to showcase your products and facility.")
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        
+                        // Bundle details link
                         Button(action: {
                             showMembershipDetails = true
                         }) {
-                            Text("See membership details and terms")
+                            Text("See bundle details and terms")
                                 .font(.subheadline)
                                 .foregroundColor(.blue)
                                 .underline()
@@ -898,7 +664,7 @@ struct SubscriptionSelectionView: View {
         .navigationBarTitleDisplayMode(.large)
         .onAppear {
             // Load plans when view appears
-            print("🛒 SubscriptionSelectionView appeared")
+            print("🛒 RealEstateSubscriptionSelectionView appeared")
             guard !hasLoadedPlans else {
                 print("⏭️ Plans already loaded")
                 return
@@ -909,13 +675,13 @@ struct SubscriptionSelectionView: View {
             }
         }
         .sheet(isPresented: $showMembershipDetails) {
-            MembershipDetailsView()
+            RealEstateMembershipDetailsView()
         }
         .sheet(isPresented: $showPlanSelection) {
             PlanSelectionView(
                 subscriptionService: subscriptionService,
                 onSubscriptionCreated: onSubscriptionCreated,
-                productId: automotiveProductId
+                productId: realEstateProductId
             )
         }
     }
@@ -927,14 +693,14 @@ struct SubscriptionSelectionView: View {
             return
         }
         
-        // Clear existing plans first to ensure we get Automotive plans
+        // Clear existing plans first to ensure we get Real Estate plans
         await MainActor.run {
             subscriptionService.availablePlans = []
         }
         
-        print("🔍 Fetching subscription plans for Automotive product: \(automotiveProductId)")
-        let plans = await subscriptionService.fetchAvailablePlans(productId: automotiveProductId)
-        print("📦 Fetched \(plans.count) plans for Automotive")
+        print("🔍 Fetching subscription plans for Real Estate product: \(realEstateProductId)")
+        let plans = await subscriptionService.fetchAvailablePlans(productId: realEstateProductId)
+        print("📦 Fetched \(plans.count) plans for Real Estate")
         
         // If we got an error message but no plans, log it
         if plans.isEmpty {
@@ -952,184 +718,23 @@ struct SubscriptionSelectionView: View {
     }
 }
 
-// MARK: - Plan Selection View
+// MARK: - Real Estate Membership Details View
 
-struct PlanSelectionView: View {
-    @ObservedObject var subscriptionService: SubscriptionService
-    @EnvironmentObject var authService: AuthService
-    let onSubscriptionCreated: () -> Void
-    let productId: String? // Optional product ID to filter plans
-    @Environment(\.dismiss) var dismiss
-    
-    @State private var selectedPlan: SubscriptionPlan?
-    @State private var isProcessingPayment = false
-    @State private var showError = false
-    @State private var errorMessage = ""
-    @State private var hasLoadedPlans = false
-    
-    var body: some View {
-        NavigationView {
-            ScrollView {
-                VStack(spacing: 24) {
-                    // Plans
-                    if subscriptionService.isLoading && subscriptionService.availablePlans.isEmpty {
-                        ProgressView()
-                            .padding()
-                    } else if subscriptionService.availablePlans.isEmpty {
-                        VStack(spacing: 12) {
-                            Text("No plans available")
-                                .foregroundColor(.secondary)
-                            if let error = subscriptionService.errorMessage {
-                                Text(error)
-                                    .font(.caption)
-                                    .foregroundColor(.red)
-                                    .multilineTextAlignment(.center)
-                                    .padding(.horizontal)
-                            }
-                        }
-                        .padding()
-                    } else {
-                        VStack(spacing: 16) {
-                            ForEach(subscriptionService.availablePlans) { plan in
-                                PlanSelectionCard(
-                                    plan: plan,
-                                    isSelected: selectedPlan?.id == plan.id,
-                                    onSelect: {
-                                        selectedPlan = plan
-                                    }
-                                )
-                            }
-                        }
-                        .padding(.horizontal)
-                    }
-                    
-                    // Subscribe button
-                    if let plan = selectedPlan {
-                        Button(action: {
-                            Task {
-                                await subscribeToPlan(plan)
-                            }
-                        }) {
-                            HStack {
-                                if isProcessingPayment {
-                                    ProgressView()
-                                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                                }
-                                Text(isProcessingPayment ? "Processing..." : "Subscribe to \(plan.name)")
-                                    .fontWeight(.semibold)
-                            }
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color.blue)
-                            .foregroundColor(.white)
-                            .cornerRadius(12)
-                        }
-                        .disabled(isProcessingPayment)
-                        .padding(.horizontal)
-                        .padding(.bottom, 20)
-                    }
-                }
-                .padding(.top)
-            }
-            .navigationTitle("Choose Plan")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Cancel") {
-                        dismiss()
-                    }
-                }
-            }
-            .alert("Error", isPresented: $showError) {
-                Button("OK", role: .cancel) {}
-            } message: {
-                Text(errorMessage)
-            }
-            .onAppear {
-                // If a product ID is provided, reload plans for that product
-                if let productId = productId, !hasLoadedPlans {
-                    hasLoadedPlans = true
-                    Task {
-                        print("🔄 PlanSelectionView: Loading plans for product: \(productId)")
-                        // Clear existing plans first
-                        await MainActor.run {
-                            subscriptionService.availablePlans = []
-                        }
-                        // Load plans for the specific product
-                        let plans = await subscriptionService.fetchAvailablePlans(productId: productId)
-                        print("🔄 PlanSelectionView: Loaded \(plans.count) plans")
-                        for plan in plans {
-                            print("   - \(plan.name)")
-                        }
-                    }
-                } else if productId == nil {
-                    print("🔄 PlanSelectionView: No product ID provided, using existing plans")
-                }
-            }
-        }
-    }
-    
-    private func subscribeToPlan(_ plan: SubscriptionPlan) async {
-        guard let currentUser = authService.currentUser else {
-            errorMessage = "Please sign in to subscribe"
-            showError = true
-            return
-        }
-        
-        isProcessingPayment = true
-        
-        do {
-            // Create subscription
-            let response = try await subscriptionService.createSubscription(
-                customerId: currentUser.id,
-                priceId: plan.priceId
-            )
-            
-            // Present payment sheet
-            let paymentResult = try await subscriptionService.presentSubscriptionPaymentSheet(
-                clientSecret: response.clientSecret,
-                customerId: response.customerId,
-                customerEphemeralKeySecret: response.ephemeralKeySecret
-            )
-            
-            switch paymentResult {
-            case .completed:
-                // Payment successful, refresh subscription
-                _ = try await subscriptionService.fetchCurrentSubscription(customerId: currentUser.id)
-                onSubscriptionCreated()
-            case .cancelled:
-                // User cancelled, do nothing
-                break
-            case .failed(let error):
-                errorMessage = error.localizedDescription
-                showError = true
-            }
-        } catch {
-            errorMessage = error.localizedDescription
-            showError = true
-        }
-        
-        isProcessingPayment = false
-    }
-}
-
-// MARK: - Membership Details View
-
-struct MembershipDetailsView: View {
+struct RealEstateMembershipDetailsView: View {
     @Environment(\.dismiss) var dismiss
     @State private var showSlideshow = false
     
-    private let slideshowURL = "https://mzapuczjijqjzdcujetx.supabase.co/storage/v1/object/public/presentations/car_commercial_pkg.pdf"
+    private let slideshowURL = "https://mzapuczjijqjzdcujetx.supabase.co/storage/v1/object/public/presentations/real_estate_pkg.pdf"
     
     var body: some View {
         NavigationView {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
-                    Text("Membership Details & Terms")
+                    Text("Bundle Details & Terms")
                         .font(.title2)
                         .fontWeight(.bold)
                     
-                    Text("Learn more about Buzz Auto membership benefits and policies.")
+                    Text("Learn more about Buzz Real Estate bundle benefits and policies.")
                         .font(.body)
                         .foregroundColor(.secondary)
                     
@@ -1140,7 +745,7 @@ struct MembershipDetailsView: View {
                         HStack {
                             Image(systemName: "play.rectangle.fill")
                                 .font(.title3)
-                            Text("View Membership Presentation")
+                            Text("View Bundle Presentation")
                                 .font(.headline)
                         }
                         .frame(maxWidth: .infinity)
@@ -1164,7 +769,7 @@ struct MembershipDetailsView: View {
                 }
                 .padding()
             }
-            .navigationTitle("Details & Terms")
+            .navigationTitle("Bundle Details & Terms")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
@@ -1183,7 +788,7 @@ struct MembershipDetailsView: View {
                             .foregroundColor(.gray)
                         Text("Presentation URL Not Configured")
                             .font(.headline)
-                        Text("Please upload your presentation to Supabase Storage and update the URL in MembershipDetailsView")
+                        Text("Please upload your presentation to Supabase Storage and update the URL in RealEstateMembershipDetailsView")
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                             .multilineTextAlignment(.center)
@@ -1199,99 +804,8 @@ struct MembershipDetailsView: View {
     }
 }
 
-// MARK: - Safari View for displaying web content
-import SafariServices
-
-struct SafariView: UIViewControllerRepresentable {
-    let url: URL
-    
-    func makeUIViewController(context: Context) -> SFSafariViewController {
-        return SFSafariViewController(url: url)
-    }
-    
-    func updateUIViewController(_ uiViewController: SFSafariViewController, context: Context) {
-        // No update needed
-    }
-}
-
-// MARK: - Plan Selection Card
-
-struct PlanSelectionCard: View {
-    let plan: SubscriptionPlan
-    let isSelected: Bool
-    let onSelect: () -> Void
-    
-    var body: some View {
-        Button(action: onSelect) {
-            VStack(alignment: .leading, spacing: 16) {
-                HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(plan.name)
-                            .font(.title3)
-                            .fontWeight(.bold)
-                            .foregroundColor(.primary)
-                        
-                        if let description = plan.description {
-                            Text(description)
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                    
-                    Spacer()
-                    
-                    // Price
-                    VStack(alignment: .trailing, spacing: 4) {
-                        Text(plan.displayPrice)
-                            .font(.title2)
-                            .fontWeight(.bold)
-                            .foregroundColor(.blue)
-                        if !plan.displayInterval.isEmpty {
-                            Text("/\(plan.displayInterval)")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                }
-                
-                // Features
-                if let features = plan.features {
-                    VStack(alignment: .leading, spacing: 8) {
-                        ForEach(features, id: \.self) { feature in
-                            HStack(spacing: 8) {
-                                Image(systemName: "checkmark.circle.fill")
-                                    .font(.caption)
-                                    .foregroundColor(.green)
-                                Text(feature)
-                                    .font(.subheadline)
-                                    .foregroundColor(.primary)
-                            }
-                        }
-                    }
-                }
-                
-                // Selection indicator
-                HStack {
-                    Spacer()
-                    Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                        .font(.title3)
-                        .foregroundColor(isSelected ? .blue : .gray)
-                }
-            }
-            .padding()
-            .background(isSelected ? Color.blue.opacity(0.1) : Color(.systemGray6))
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(isSelected ? Color.blue : Color.clear, lineWidth: 2)
-            )
-            .cornerRadius(12)
-        }
-        .buttonStyle(PlainButtonStyle())
-    }
-}
-
 #Preview {
-    FlightPackageView()
+    RealEstatePackageView()
         .environmentObject(AuthService())
 }
 

@@ -1193,7 +1193,12 @@ struct EditBookingView: View {
                                     specialization: specialization,
                                     isSelected: selectedSpecialization == specialization
                                 ) {
-                                    selectedSpecialization = specialization
+                                    // Toggle selection: if already selected, deselect it
+                                    if selectedSpecialization == specialization {
+                                        selectedSpecialization = nil
+                                    } else {
+                                        selectedSpecialization = specialization
+                                    }
                                 }
                             }
                         }

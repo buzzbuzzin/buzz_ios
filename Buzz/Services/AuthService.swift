@@ -18,6 +18,7 @@ class AuthService: ObservableObject {
     @Published var isAuthenticated = false
     @Published var isLoading = false
     @Published var errorMessage: String?
+    @Published var shouldDelayNavigation = false // Flag to delay navigation for promotion flow
     
     private let supabase = SupabaseClient.shared.client
     
@@ -68,7 +69,7 @@ class AuthService: ObservableObject {
     
     // MARK: - Email/Password Auth
     
-    func signUpWithEmail(email: String, password: String, userType: UserType, firstName: String, lastName: String, callSign: String?) async throws {
+    func signUpWithEmail(email: String, password: String, userType: UserType, firstName: String, lastName: String, callSign: String?, role: CustomerRole?, specialization: BookingSpecialization?) async throws {
         isLoading = true
         errorMessage = nil
         
@@ -82,7 +83,7 @@ class AuthService: ObservableObject {
             let userId = response.user.id
             
             // Create profile
-            try await createProfile(userId: userId, userType: userType, firstName: firstName, lastName: lastName, callSign: callSign, email: email)
+            try await createProfile(userId: userId, userType: userType, firstName: firstName, lastName: lastName, callSign: callSign, email: email, role: role, specialization: specialization)
             
             // Supabase creates a session automatically after signup
             // Even if email is unconfirmed, user can still login
@@ -372,7 +373,7 @@ class AuthService: ObservableObject {
         }
     }
     
-    private func createProfile(userId: UUID, userType: UserType, firstName: String? = nil, lastName: String? = nil, callSign: String?, email: String? = nil, phone: String? = nil) async throws {
+    private func createProfile(userId: UUID, userType: UserType, firstName: String? = nil, lastName: String? = nil, callSign: String?, email: String? = nil, phone: String? = nil, role: CustomerRole? = nil, specialization: BookingSpecialization? = nil) async throws {
         var profile: [String: AnyJSON] = [
             "id": .string(userId.uuidString),
             "user_type": .string(userType.rawValue),
@@ -393,6 +394,12 @@ class AuthService: ObservableObject {
         }
         if let phone = phone {
             profile["phone"] = .string(phone)
+        }
+        if let role = role {
+            profile["role"] = .string(role.rawValue)
+        }
+        if let specialization = specialization {
+            profile["specialization"] = .string(specialization.rawValue)
         }
         
         try await supabase

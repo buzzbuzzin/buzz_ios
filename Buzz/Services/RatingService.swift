@@ -177,6 +177,8 @@ class RatingService: ObservableObject {
                 gender: nil,
                 profilePictureUrl: nil,
                 communicationPreference: .email,
+                role: nil,
+                specialization: nil,
                 createdAt: now,
                 balance: nil,
                 stripeAccountId: nil
@@ -192,6 +194,8 @@ class RatingService: ObservableObject {
                 gender: nil,
                 profilePictureUrl: nil,
                 communicationPreference: .both,
+                role: nil,
+                specialization: nil,
                 createdAt: now,
                 balance: nil,
                 stripeAccountId: nil
@@ -207,6 +211,8 @@ class RatingService: ObservableObject {
                 gender: nil,
                 profilePictureUrl: nil,
                 communicationPreference: .email,
+                role: nil,
+                specialization: nil,
                 createdAt: now,
                 balance: nil,
                 stripeAccountId: nil
@@ -222,6 +228,8 @@ class RatingService: ObservableObject {
                 gender: nil,
                 profilePictureUrl: nil,
                 communicationPreference: .text,
+                role: nil,
+                specialization: nil,
                 createdAt: now,
                 balance: nil,
                 stripeAccountId: nil
@@ -237,6 +245,8 @@ class RatingService: ObservableObject {
                 gender: nil,
                 profilePictureUrl: nil,
                 communicationPreference: .email,
+                role: nil,
+                specialization: nil,
                 createdAt: now,
                 balance: nil,
                 stripeAccountId: nil
@@ -252,6 +262,8 @@ class RatingService: ObservableObject {
                 gender: nil,
                 profilePictureUrl: nil,
                 communicationPreference: .both,
+                role: nil,
+                specialization: nil,
                 createdAt: now,
                 balance: nil,
                 stripeAccountId: nil
@@ -341,6 +353,8 @@ class RatingService: ObservableObject {
                 gender: nil,
                 profilePictureUrl: "https://i.pravatar.cc/150?img=11",
                 communicationPreference: nil,
+                role: nil,
+                specialization: nil,
                 createdAt: now,
                 balance: nil,
                 stripeAccountId: nil
@@ -356,6 +370,8 @@ class RatingService: ObservableObject {
                 gender: nil,
                 profilePictureUrl: "https://i.pravatar.cc/150?img=16",
                 communicationPreference: nil,
+                role: nil,
+                specialization: nil,
                 createdAt: now,
                 balance: nil,
                 stripeAccountId: nil
@@ -371,6 +387,8 @@ class RatingService: ObservableObject {
                 gender: nil,
                 profilePictureUrl: "https://i.pravatar.cc/150?img=25",
                 communicationPreference: nil,
+                role: nil,
+                specialization: nil,
                 createdAt: now,
                 balance: nil,
                 stripeAccountId: nil
@@ -386,6 +404,8 @@ class RatingService: ObservableObject {
                 gender: nil,
                 profilePictureUrl: "https://i.pravatar.cc/150?img=27",
                 communicationPreference: nil,
+                role: nil,
+                specialization: nil,
                 createdAt: now,
                 balance: nil,
                 stripeAccountId: nil
@@ -401,6 +421,8 @@ class RatingService: ObservableObject {
                 gender: nil,
                 profilePictureUrl: "https://i.pravatar.cc/150?img=35",
                 communicationPreference: nil,
+                role: nil,
+                specialization: nil,
                 createdAt: now,
                 balance: nil,
                 stripeAccountId: nil
@@ -416,6 +438,8 @@ class RatingService: ObservableObject {
                 gender: nil,
                 profilePictureUrl: "https://i.pravatar.cc/150?img=41",
                 communicationPreference: nil,
+                role: nil,
+                specialization: nil,
                 createdAt: now,
                 balance: nil,
                 stripeAccountId: nil

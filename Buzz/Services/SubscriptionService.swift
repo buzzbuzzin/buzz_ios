@@ -66,14 +66,27 @@ class SubscriptionService: ObservableObject {
     // MARK: - Fetch Available Plans
     
     /// Fetches available subscription plans
-    func fetchAvailablePlans() async -> [SubscriptionPlan] {
+    /// - Parameter productId: Optional Stripe product ID. If nil, uses the default product
+    func fetchAvailablePlans(productId: String? = nil) async -> [SubscriptionPlan] {
         isLoading = true
         errorMessage = nil
         
         do {
+            struct PlansRequest: Codable {
+                let product_id: String?
+            }
+            
+            let request = PlansRequest(product_id: productId)
+            
+            if let productId = productId {
+                print("📤 Sending product_id to edge function: \(productId)")
+            } else {
+                print("📤 No product_id provided, using default")
+            }
+            
             let response: PlansResponse = try await supabase.functions
                 .invoke("get-subscription-plans", options: FunctionInvokeOptions(
-                    body: [:] as [String: String]
+                    body: request
                 ))
             
             isLoading = false
@@ -348,9 +361,15 @@ struct SubscriptionPlan: Codable, Identifiable {
     }
     
     var displayInterval: String {
+        // If interval is empty, return empty string (no fallback)
+        guard !interval.isEmpty else {
+            return ""
+        }
+        
         switch interval.lowercased() {
         case "month": return "month"
         case "year": return "year"
+        case "booking": return "booking"
         default: return interval
         }
     }

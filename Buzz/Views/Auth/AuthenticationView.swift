@@ -69,10 +69,8 @@ struct AuthenticationView: View {
                 SignUpView()
             }
             .onChange(of: authService.isAuthenticated) { _, isAuth in
-                // Dismiss signup sheet when authentication succeeds
-                if isAuth {
-                    showSignUp = false
-                }
+                // Don't dismiss signup sheet immediately - let SignUpView handle promotion flow
+                // The SignUpView will dismiss itself after showing promotion if needed
             }
         }
     }
@@ -512,7 +510,8 @@ struct UserTypeSelectionSheet: View {
                     HStack(spacing: 12) {
                         UserTypeButton(
                             title: "Pilot",
-                            icon: "airplane",
+                            icon: "PilotIcon",
+                            isCustomImage: true,
                             isSelected: userType == .pilot
                         ) {
                             userType = .pilot
@@ -521,6 +520,7 @@ struct UserTypeSelectionSheet: View {
                         UserTypeButton(
                             title: "Customer",
                             icon: "person.fill",
+                            isCustomImage: false,
                             isSelected: userType == .customer
                         ) {
                             userType = .customer
