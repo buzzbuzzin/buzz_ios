@@ -140,17 +140,14 @@ struct DroneRegistrationView: View {
         .navigationTitle("Drone Registration")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
-                Button(action: {
-                    guard isAuthenticated else {
-                        errorMessage = "Please authenticate first"
-                        showError = true
-                        return
+            if isAuthenticated {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button(action: {
+                        showImageSourceSheet = true
+                    }) {
+                        Image(systemName: "plus")
+                            .font(.system(size: 16, weight: .medium))
                     }
-                    showImageSourceSheet = true
-                }) {
-                    Image(systemName: "plus")
-                        .font(.system(size: 16, weight: .medium))
                 }
             }
         }
