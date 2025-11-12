@@ -1,0 +1,526 @@
+//
+//  OCRService.swift
+//  Buzz
+//
+//  Created by Xinyu Fang on 11/1/25.
+//
+
+import Foundation
+import Vision
+import UIKit
+import PDFKit
+
+@MainActor
+class OCRService {
+    
+    // MARK: - Extract Text from Image or PDF
+    
+    func extractText(from data: Data, fileType: RegistrationFileType) async throws -> String {
+        if fileType == .pdf {
+            return try await extractTextFromPDF(data: data)
+        } else {
+            return try await extractTextFromImage(data: data)
+        }
+    }
+    
+    // MARK: - Extract Text from Image
+    
+    private func extractTextFromImage(data: Data) async throws -> String {
+        guard let image = UIImage(data: data) else {
+            throw NSError(
+                domain: "OCRService",
+                code: -1,
+                userInfo: [NSLocalizedDescriptionKey: "Failed to create image from data"]
+            )
+        }
+        
+        guard let cgImage = image.cgImage else {
+            throw NSError(
+                domain: "OCRService",
+                code: -2,
+                userInfo: [NSLocalizedDescriptionKey: "Failed to get CGImage from UIImage"]
+            )
+        }
+        
+        return try await withCheckedThrowingContinuation { continuation in
+            let request = VNRecognizeTextRequest { request, error in
+                if let error = error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+                
+                guard let observations = request.results as? [VNRecognizedTextObservation] else {
+                    continuation.resume(returning: "")
+                    return
+                }
+                
+                let recognizedStrings = observations.compactMap { observation in
+                    observation.topCandidates(1).first?.string
+                }
+                
+                let fullText = recognizedStrings.joined(separator: "\n")
+                continuation.resume(returning: fullText)
+            }
+            
+            // Use accurate recognition for better results
+            request.recognitionLevel = .accurate
+            request.recognitionLanguages = ["en-US"]
+            request.usesLanguageCorrection = true
+            
+            let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
+            
+            do {
+                try handler.perform([request])
+            } catch {
+                continuation.resume(throwing: error)
+            }
+        }
+    }
+    
+    // MARK: - Extract Text from PDF
+    
+    private func extractTextFromPDF(data: Data) async throws -> String {
+        guard let pdfDocument = PDFDocument(data: data) else {
+            throw NSError(
+                domain: "OCRService",
+                code: -3,
+                userInfo: [NSLocalizedDescriptionKey: "Failed to create PDF document from data"]
+            )
+        }
+        
+        var fullText = ""
+        
+        // Extract text from all pages
+        for pageIndex in 0..<pdfDocument.pageCount {
+            guard let page = pdfDocument.page(at: pageIndex) else { continue }
+            
+            // Try to extract text directly from PDF (if it's text-based)
+            if let pageText = page.string {
+                fullText += pageText + "\n"
+            } else {
+                // If PDF is image-based, convert page to image and use OCR
+                let pageRect = page.bounds(for: .mediaBox)
+                let renderer = UIGraphicsImageRenderer(size: pageRect.size)
+                let pageImage = renderer.image { context in
+                    context.cgContext.translateBy(x: 0, y: pageRect.size.height)
+                    context.cgContext.scaleBy(x: 1.0, y: -1.0)
+                    page.draw(with: .mediaBox, to: context.cgContext)
+                }
+                
+                if let cgImage = pageImage.cgImage {
+                    let pageText = try await extractTextFromImage(cgImage: cgImage)
+                    fullText += pageText + "\n"
+                }
+            }
+        }
+        
+        return fullText
+    }
+    
+    private func extractTextFromImage(cgImage: CGImage) async throws -> String {
+        return try await withCheckedThrowingContinuation { continuation in
+            let request = VNRecognizeTextRequest { request, error in
+                if let error = error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+                
+                guard let observations = request.results as? [VNRecognizedTextObservation] else {
+                    continuation.resume(returning: "")
+                    return
+                }
+                
+                let recognizedStrings = observations.compactMap { observation in
+                    observation.topCandidates(1).first?.string
+                }
+                
+                let fullText = recognizedStrings.joined(separator: "\n")
+                continuation.resume(returning: fullText)
+            }
+            
+            request.recognitionLevel = .accurate
+            request.recognitionLanguages = ["en-US"]
+            request.usesLanguageCorrection = true
+            
+            let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
+            
+            do {
+                try handler.perform([request])
+            } catch {
+                continuation.resume(throwing: error)
+            }
+        }
+    }
+    
+    // MARK: - Parse Drone Registration Information
+    
+    func parseDroneRegistrationInfo(from text: String) -> DroneRegistrationInfo {
+        var info = DroneRegistrationInfo()
+        
+        print("🔍 OCR DEBUG: Starting to parse drone registration info")
+        print("🔍 OCR DEBUG: Extracted text length: \(text.count) characters")
+        print("🔍 OCR DEBUG: First 500 characters of extracted text:")
+        print(String(text.prefix(500)))
+        print("🔍 OCR DEBUG: ========================================")
+        
+        // Registered Owner
+        if let owner = extractField(from: text, patterns: [
+            "REGISTERED OWNER[\\s:]+([A-Za-z0-9\\s,.-]+)",
+            "OWNER[\\s:]+([A-Za-z0-9\\s,.-]+)",
+            "REGISTRANT[\\s:]+([A-Za-z0-9\\s,.-]+)"
+        ]) {
+            info.registeredOwner = owner.trimmingCharacters(in: .whitespacesAndNewlines)
+            print("✅ OCR DEBUG: Registered Owner found: '\(info.registeredOwner ?? "nil")'")
+        } else {
+            print("❌ OCR DEBUG: Registered Owner NOT found")
+        }
+        
+        // UAS Manufacturer
+        if let manufacturer = extractField(from: text, patterns: [
+            "MANUFACTURER[\\s:]+([A-Za-z0-9\\s,.-]+)",
+            "UAS MANUFACTURER[\\s:]+([A-Za-z0-9\\s,.-]+)",
+            "MAKE[\\s:]+([A-Za-z0-9\\s,.-]+)"
+        ]) {
+            info.manufacturer = manufacturer.trimmingCharacters(in: .whitespacesAndNewlines)
+            print("✅ OCR DEBUG: Manufacturer found: '\(info.manufacturer ?? "nil")'")
+        } else {
+            print("❌ OCR DEBUG: Manufacturer NOT found")
+        }
+        
+        // UAS Model
+        if let model = extractField(from: text, patterns: [
+            "MODEL[\\s:]+([A-Za-z0-9\\s,.-]+)",
+            "UAS MODEL[\\s:]+([A-Za-z0-9\\s,.-]+)"
+        ]) {
+            info.model = model.trimmingCharacters(in: .whitespacesAndNewlines)
+            print("✅ OCR DEBUG: Model found: '\(info.model ?? "nil")'")
+        } else {
+            print("❌ OCR DEBUG: Model NOT found")
+        }
+        
+        // Serial Number
+        if let serialNumber = extractField(from: text, patterns: [
+            "SERIAL NUMBER[\\s:]+([A-Za-z0-9\\s-]+)",
+            "SERIAL[\\s:]+([A-Za-z0-9\\s-]+)",
+            "S/N[\\s:]+([A-Za-z0-9\\s-]+)"
+        ]) {
+            info.serialNumber = serialNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+            print("✅ OCR DEBUG: Serial Number found: '\(info.serialNumber ?? "nil")'")
+        } else {
+            print("❌ OCR DEBUG: Serial Number NOT found")
+        }
+        
+        // Registration Number
+        if let registrationNumber = extractField(from: text, patterns: [
+            "REGISTRATION NUMBER[\\s:]+([A-Z0-9-]+)",
+            "REGISTRATION[\\s:]+([A-Z0-9-]+)",
+            "N-NUMBER[\\s:]+([A-Z0-9-]+)",
+            "N[\\s:]+([A-Z0-9-]+)"
+        ]) {
+            info.registrationNumber = registrationNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+            print("✅ OCR DEBUG: Registration Number found: '\(info.registrationNumber ?? "nil")'")
+        } else {
+            print("❌ OCR DEBUG: Registration Number NOT found")
+        }
+        
+        // Extract both dates - handle case where "ISSUED" and "EXPIRES" appear together
+        print("🔍 OCR DEBUG: Searching for ISSUED and EXPIRES dates...")
+        
+        // First, try to find both dates when they appear together (common in forms)
+        if let (issuedDate, expiresDate) = extractBothDatesTogether(from: text) {
+            info.issued = issuedDate
+            info.expires = expiresDate
+            print("✅ OCR DEBUG: Found both dates together - Issued: '\(issuedDate)', Expires: '\(expiresDate)'")
+        } else {
+            // Fallback: try to extract them separately
+            print("🔍 OCR DEBUG: Dates not found together, trying separate extraction...")
+            
+            // Extract Issued date - look for "Issued:" followed by a date
+            if let issued = extractDateWithContext(from: text, keyword: "ISSUED", excludeKeywords: []) {
+                info.issued = issued
+                print("✅ OCR DEBUG: Issued date found: '\(info.issued ?? "nil")'")
+            } else {
+                print("❌ OCR DEBUG: Issued date NOT found")
+            }
+            
+            // Extract Expires date - look for "Expires:" followed by a date
+            if let expires = extractDateWithContext(from: text, keyword: "EXPIR", excludeKeywords: []) {
+                info.expires = expires
+                print("✅ OCR DEBUG: Expires date found: '\(info.expires ?? "nil")'")
+            } else {
+                print("❌ OCR DEBUG: Expires date NOT found")
+            }
+        }
+        
+        print("🔍 OCR DEBUG: ========================================")
+        print("🔍 OCR DEBUG: Final parsed info:")
+        print("   - Registered Owner: \(info.registeredOwner ?? "nil")")
+        print("   - Manufacturer: \(info.manufacturer ?? "nil")")
+        print("   - Model: \(info.model ?? "nil")")
+        print("   - Serial Number: \(info.serialNumber ?? "nil")")
+        print("   - Registration Number: \(info.registrationNumber ?? "nil")")
+        print("   - Issued: \(info.issued ?? "nil")")
+        print("   - Expires: \(info.expires ?? "nil")")
+        print("🔍 OCR DEBUG: ========================================")
+        
+        return info
+    }
+    
+    // MARK: - Helper Methods
+    
+    private func extractField(from text: String, patterns: [String]) -> String? {
+        for pattern in patterns {
+            if let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive, .anchorsMatchLines]) {
+                let nsString = text as NSString
+                let results = regex.matches(in: text, options: [], range: NSRange(location: 0, length: nsString.length))
+                
+                if let match = results.first, match.numberOfRanges > 1 {
+                    let range = match.range(at: 1)
+                    if range.location != NSNotFound {
+                        var extracted = nsString.substring(with: range)
+                        // Remove common suffixes that might be on the same line
+                        if let newlineIndex = extracted.firstIndex(of: "\n") {
+                            extracted = String(extracted[..<newlineIndex])
+                        }
+                        return extracted.trimmingCharacters(in: .whitespacesAndNewlines)
+                    }
+                }
+            }
+        }
+        return nil
+    }
+    
+    private func extractDate(from text: String, patterns: [String]) -> String? {
+        for pattern in patterns {
+            if let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive, .dotMatchesLineSeparators]) {
+                let nsString = text as NSString
+                let results = regex.matches(in: text, options: [], range: NSRange(location: 0, length: nsString.length))
+                
+                // Try to find the best match (first one that looks like a valid date)
+                for match in results {
+                    if match.numberOfRanges > 1 {
+                        let range = match.range(at: 1)
+                        if range.location != NSNotFound {
+                            var extracted = nsString.substring(with: range)
+                            // Clean up the extracted date
+                            extracted = extracted.trimmingCharacters(in: .whitespacesAndNewlines)
+                            // Remove any trailing text that might have been captured
+                            if let newlineIndex = extracted.firstIndex(of: "\n") {
+                                extracted = String(extracted[..<newlineIndex])
+                            }
+                            // Validate it looks like a date (contains / or -)
+                            if extracted.contains("/") || extracted.contains("-") {
+                                return extracted.trimmingCharacters(in: .whitespacesAndNewlines)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return nil
+    }
+    
+    private func extractBothDatesTogether(from text: String) -> (issued: String, expires: String)? {
+        // Look for pattern like "ISSUED: EXPIRES:" or "ISSUED: ... EXPIRES:" followed by two dates
+        let pattern = "(?i)(?:ISSUED[\\s:]+|ISSUE[\\s]+DATE[\\s:]+).*?(?:EXPIRES[\\s:]+|EXPIRATION[\\s:]+|EXPIRY[\\s:]+).*?([0-9]{1,2}[/-][0-9]{1,2}[/-][0-9]{2,4}).*?([0-9]{1,2}[/-][0-9]{1,2}[/-][0-9]{2,4})"
+        
+        if let regex = try? NSRegularExpression(pattern: pattern, options: [.dotMatchesLineSeparators]) {
+            let nsString = text as NSString
+            let results = regex.matches(in: text, options: [], range: NSRange(location: 0, length: nsString.length))
+            
+            if let match = results.first, match.numberOfRanges >= 3 {
+                let firstDateRange = match.range(at: 1)
+                let secondDateRange = match.range(at: 2)
+                
+                if firstDateRange.location != NSNotFound && secondDateRange.location != NSNotFound {
+                    let firstDate = nsString.substring(with: firstDateRange).trimmingCharacters(in: .whitespacesAndNewlines)
+                    let secondDate = nsString.substring(with: secondDateRange).trimmingCharacters(in: .whitespacesAndNewlines)
+                    
+                    if firstDate.contains("/") || firstDate.contains("-"),
+                       secondDate.contains("/") || secondDate.contains("-") {
+                        print("   ✅ Found both dates together - First: '\(firstDate)', Second: '\(secondDate)'")
+                        return (firstDate, secondDate)
+                    }
+                }
+            }
+        }
+        
+        // Alternative: Look for "ISSUED:" and "EXPIRES:" on same line or adjacent lines, then find dates
+        let uppercaseText = text.uppercased()
+        let uppercaseNsString = uppercaseText as NSString
+        
+        // Find "ISSUED" and "EXPIRES" positions
+        let issuedRange = uppercaseNsString.range(of: "ISSUED", options: [])
+        let expiresRange = uppercaseNsString.range(of: "EXPIRES", options: [])
+        
+        if issuedRange.location != NSNotFound && expiresRange.location != NSNotFound && issuedRange.location < expiresRange.location {
+            // Check if they're close together (within 50 characters)
+            let distance = expiresRange.location - (issuedRange.location + issuedRange.length)
+            if distance < 50 {
+                // Look for dates after "EXPIRES"
+                let afterExpiresStart = expiresRange.location + expiresRange.length
+                let afterExpiresLength = min(50, uppercaseNsString.length - afterExpiresStart)
+                if afterExpiresLength > 0 {
+                    let afterExpiresRange = NSRange(location: afterExpiresStart, length: afterExpiresLength)
+                    let afterExpires = uppercaseNsString.substring(with: afterExpiresRange)
+                    
+                    print("   🔍 Text after EXPIRES: '\(afterExpires)'")
+                    
+                    // Find two dates in the text after "EXPIRES"
+                    let datePattern = "([0-9]{1,2}[/-][0-9]{1,2}[/-][0-9]{2,4})"
+                    if let regex = try? NSRegularExpression(pattern: datePattern, options: []) {
+                        let results = regex.matches(in: afterExpires, options: [], range: NSRange(location: 0, length: afterExpires.count))
+                        
+                        print("   🔍 Found \(results.count) date(s) after EXPIRES")
+                        
+                        if results.count >= 2 {
+                            let firstDateRange = results[0].range(at: 1)
+                            let secondDateRange = results[1].range(at: 1)
+                            
+                            if firstDateRange.location != NSNotFound && secondDateRange.location != NSNotFound {
+                                let firstDate = (afterExpires as NSString).substring(with: firstDateRange).trimmingCharacters(in: .whitespacesAndNewlines)
+                                let secondDate = (afterExpires as NSString).substring(with: secondDateRange).trimmingCharacters(in: .whitespacesAndNewlines)
+                                
+                                print("   ✅ Found both dates near EXPIRES - First: '\(firstDate)', Second: '\(secondDate)'")
+                                return (firstDate, secondDate)
+                            }
+                        } else if results.count == 1 {
+                            // Only one date found after EXPIRES - the first date might be between ISSUED and EXPIRES
+                            // Try looking between "ISSUED" and "EXPIRES" for the first date
+                            let betweenStart = issuedRange.location + issuedRange.length
+                            let betweenLength = expiresRange.location - betweenStart
+                            if betweenLength > 0 {
+                                let betweenRange = NSRange(location: betweenStart, length: betweenLength)
+                                let betweenText = uppercaseNsString.substring(with: betweenRange)
+                                
+                                print("   🔍 Text between ISSUED and EXPIRES: '\(betweenText)'")
+                                
+                                // Look for dates in the text between "ISSUED" and "EXPIRES"
+                                if let betweenRegex = try? NSRegularExpression(pattern: datePattern, options: []) {
+                                    let betweenResults = betweenRegex.matches(in: betweenText, options: [], range: NSRange(location: 0, length: betweenText.count))
+                                    
+                                    if betweenResults.count >= 1 {
+                                        let firstDateRange = betweenResults[0].range(at: 1)
+                                        let firstDate = (betweenText as NSString).substring(with: firstDateRange).trimmingCharacters(in: .whitespacesAndNewlines)
+                                        
+                                        // Get the second date from after EXPIRES
+                                        let secondDateRange = results[0].range(at: 1)
+                                        let secondDate = (afterExpires as NSString).substring(with: secondDateRange).trimmingCharacters(in: .whitespacesAndNewlines)
+                                        
+                                        print("   ✅ Found dates - Issued: '\(firstDate)', Expires: '\(secondDate)'")
+                                        return (firstDate, secondDate)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        return nil
+    }
+    
+    private func extractDateWithContext(from text: String, keyword: String, excludeKeywords: [String]) -> String? {
+        let uppercaseText = text.uppercased()
+        let keywordUpper = keyword.uppercased()
+        let nsString = text as NSString
+        let uppercaseNsString = uppercaseText as NSString
+        
+        print("   🔍 Searching for keyword: '\(keywordUpper)'")
+        print("   🔍 Excluding keywords: \(excludeKeywords)")
+        
+        // Find all occurrences of the keyword in the text
+        var searchRange = NSRange(location: 0, length: uppercaseNsString.length)
+        var foundRanges: [NSRange] = []
+        
+        while searchRange.location < uppercaseNsString.length {
+            let foundRange = uppercaseNsString.range(of: keywordUpper, options: [], range: searchRange)
+            if foundRange.location != NSNotFound {
+                foundRanges.append(foundRange)
+                searchRange = NSRange(location: foundRange.location + foundRange.length, length: uppercaseNsString.length - (foundRange.location + foundRange.length))
+            } else {
+                break
+            }
+        }
+        
+        print("   🔍 Found \(foundRanges.count) occurrence(s) of '\(keywordUpper)'")
+        
+        // For each occurrence, check if it's a valid match and extract the date
+        for (index, keywordRange) in foundRanges.enumerated() {
+            print("   🔍 Checking occurrence \(index + 1) at position \(keywordRange.location)")
+            
+            // Get context around the keyword (20 chars before, 50 chars after)
+            let contextStart = max(0, keywordRange.location - 20)
+            let contextLength = min(70, uppercaseNsString.length - contextStart)
+            let contextRange = NSRange(location: contextStart, length: contextLength)
+            
+            if contextRange.location + contextRange.length <= uppercaseNsString.length {
+                let context = uppercaseNsString.substring(with: contextRange)
+                print("   🔍 Context: '\(context)'")
+                
+                // Check if any excluded keywords are in the context
+                var shouldExclude = false
+                for excludeKeyword in excludeKeywords {
+                    if context.contains(excludeKeyword.uppercased()) {
+                        print("   ❌ Excluding match because context contains '\(excludeKeyword.uppercased())'")
+                        shouldExclude = true
+                        break
+                    }
+                }
+                
+                if !shouldExclude {
+                    // Look for date pattern after the keyword
+                    let afterKeywordStart = keywordRange.location + keywordRange.length
+                    let afterKeywordLength = min(30, nsString.length - afterKeywordStart)
+                    if afterKeywordLength > 0 {
+                        let afterKeywordRange = NSRange(location: afterKeywordStart, length: afterKeywordLength)
+                        let afterKeyword = nsString.substring(with: afterKeywordRange)
+                        print("   🔍 Text after keyword: '\(afterKeyword)'")
+                        
+                        // Match date pattern: MM/DD/YYYY or MM-DD-YYYY
+                        let datePattern = "([0-9]{1,2}[/-][0-9]{1,2}[/-][0-9]{2,4})"
+                        if let regex = try? NSRegularExpression(pattern: datePattern, options: []) {
+                            let results = regex.matches(in: afterKeyword, options: [], range: NSRange(location: 0, length: afterKeyword.count))
+                            
+                            print("   🔍 Found \(results.count) date pattern match(es)")
+                            
+                            if let firstMatch = results.first, firstMatch.numberOfRanges > 1 {
+                                let dateRange = firstMatch.range(at: 1)
+                                if dateRange.location != NSNotFound {
+                                    let extracted = (afterKeyword as NSString).substring(with: dateRange)
+                                    print("   ✅ Extracted date: '\(extracted)'")
+                                    if extracted.contains("/") || extracted.contains("-") {
+                                        let cleaned = extracted.trimmingCharacters(in: .whitespacesAndNewlines)
+                                        print("   ✅ Returning cleaned date: '\(cleaned)'")
+                                        return cleaned
+                                    }
+                                }
+                            }
+                        } else {
+                            print("   ❌ Failed to create regex for date pattern")
+                        }
+                    } else {
+                        print("   ❌ No text after keyword (length: \(afterKeywordLength))")
+                    }
+                }
+            }
+        }
+        
+        print("   ❌ No valid date found for keyword '\(keywordUpper)'")
+        return nil
+    }
+}
+
+// MARK: - Drone Registration Info Structure
+
+struct DroneRegistrationInfo {
+    var registeredOwner: String?
+    var manufacturer: String?
+    var model: String?
+    var serialNumber: String?
+    var registrationNumber: String?
+    var issued: String?
+    var expires: String?
+}
+

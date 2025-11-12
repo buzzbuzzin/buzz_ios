@@ -279,11 +279,15 @@ struct DroneRegistrationView: View {
                 }
                 
                 let data = try Data(contentsOf: url)
-                let fileName = url.lastPathComponent
+                // Generate unique filename to avoid conflicts
+                let originalFileName = url.lastPathComponent
+                let fileExtension = url.pathExtension
+                let fileNameWithoutExtension = (originalFileName as NSString).deletingPathExtension
+                let uniqueFileName = "\(UUID().uuidString)_\(fileNameWithoutExtension).\(fileExtension)"
                 _ = try await registrationService.uploadRegistration(
                     pilotId: userId,
                     data: data,
-                    fileName: fileName,
+                    fileName: uniqueFileName,
                     fileType: .pdf
                 )
                 await loadRegistrations()
@@ -320,55 +324,123 @@ struct DroneRegistrationRow: View {
     let onTap: () -> Void
     let onDelete: () -> Void
     
+    var hasExtractedInfo: Bool {
+        registration.registeredOwner != nil ||
+        registration.manufacturer != nil ||
+        registration.model != nil ||
+        registration.serialNumber != nil ||
+        registration.registrationNumber != nil ||
+        registration.issued != nil ||
+        registration.expires != nil
+    }
+    
     var body: some View {
-        HStack(spacing: 12) {
-            // File icon
-            Image(systemName: registration.fileType == .pdf ? "doc.fill" : "photo.fill")
-                .font(.title2)
-                .foregroundColor(.blue)
-                .frame(width: 50)
-            
-            // File info
-            VStack(alignment: .leading, spacing: 4) {
-                Text(registration.fileType == .pdf ? "PDF Document" : "Image")
-                    .font(.headline)
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 12) {
+                // File icon
+                Image(systemName: registration.fileType == .pdf ? "doc.fill" : "photo.fill")
+                    .font(.title2)
+                    .foregroundColor(.blue)
+                    .frame(width: 50)
                 
-                Text("Uploaded \(registration.uploadedAt.formatted(date: .abbreviated, time: .shortened))")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                // File info
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(registration.fileType == .pdf ? "PDF Document" : "Image")
+                        .font(.headline)
+                    
+                    Text("Uploaded \(registration.uploadedAt.formatted(date: .abbreviated, time: .shortened))")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                
+                Spacer()
+                
+                // Action buttons
+                HStack(spacing: 8) {
+                    // View button
+                    Button(action: {
+                        print("DEBUG DroneRegistrationRow: View button tapped")
+                        onTap()
+                    }) {
+                        Image(systemName: "eye.fill")
+                            .font(.body)
+                            .foregroundColor(.blue)
+                            .frame(width: 44, height: 44)
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                    
+                    // Delete button
+                    Button(action: {
+                        print("DEBUG DroneRegistrationRow: Delete button tapped")
+                        onDelete()
+                    }) {
+                        Image(systemName: "trash.fill")
+                            .font(.body)
+                            .foregroundColor(.red)
+                            .frame(width: 44, height: 44)
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                }
             }
             
-            Spacer()
-            
-            // Action buttons
-            HStack(spacing: 8) {
-                // View button
-                Button(action: {
-                    print("DEBUG DroneRegistrationRow: View button tapped")
-                    onTap()
-                }) {
-                    Image(systemName: "eye.fill")
-                        .font(.body)
-                        .foregroundColor(.blue)
-                        .frame(width: 44, height: 44)
+            // Display extracted OCR information if available
+            if hasExtractedInfo {
+                VStack(alignment: .leading, spacing: 6) {
+                    Divider()
+                    
+                    Text("Extracted Information")
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.secondary)
+                        .textCase(.uppercase)
+                    
+                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], alignment: .leading, spacing: 8) {
+                        if let owner = registration.registeredOwner {
+                            RegistrationInfoRow(label: "Owner", value: owner)
+                        }
+                        if let manufacturer = registration.manufacturer {
+                            RegistrationInfoRow(label: "Manufacturer", value: manufacturer)
+                        }
+                        if let model = registration.model {
+                            RegistrationInfoRow(label: "Model", value: model)
+                        }
+                        if let serialNumber = registration.serialNumber {
+                            RegistrationInfoRow(label: "Serial Number", value: serialNumber)
+                        }
+                        if let registrationNumber = registration.registrationNumber {
+                            RegistrationInfoRow(label: "Registration", value: registrationNumber)
+                        }
+                        if let issued = registration.issued {
+                            RegistrationInfoRow(label: "Issued", value: issued)
+                        }
+                        if let expires = registration.expires {
+                            RegistrationInfoRow(label: "Expires", value: expires)
+                        }
+                    }
                 }
-                .buttonStyle(PlainButtonStyle())
-                
-                // Delete button
-                Button(action: {
-                    print("DEBUG DroneRegistrationRow: Delete button tapped")
-                    onDelete()
-                }) {
-                    Image(systemName: "trash.fill")
-                        .font(.body)
-                        .foregroundColor(.red)
-                        .frame(width: 44, height: 44)
-                }
-                .buttonStyle(PlainButtonStyle())
+                .padding(.leading, 62) // Align with content above
             }
         }
         .padding(.vertical, 8)
         .contentShape(Rectangle())
+    }
+}
+
+// MARK: - Registration Info Row Component
+
+struct RegistrationInfoRow: View {
+    let label: String
+    let value: String
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(label)
+                .font(.caption2)
+                .foregroundColor(.secondary)
+            Text(value)
+                .font(.caption)
+                .fontWeight(.medium)
+        }
     }
 }
 

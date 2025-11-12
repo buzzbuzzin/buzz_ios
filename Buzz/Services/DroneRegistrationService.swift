@@ -19,6 +19,7 @@ class DroneRegistrationService: ObservableObject {
     
     private let supabase = SupabaseClient.shared.client
     private let bucketName = "drone-registrations"
+    private let ocrService = OCRService()
     
     // MARK: - Upload Drone Registration
     
@@ -70,16 +71,50 @@ class DroneRegistrationService: ObservableObject {
                     .upload(
                         filePath,
                         data: data,
-                        options: FileOptions(contentType: fileType == .pdf ? "application/pdf" : "image/jpeg")
+                        options: FileOptions(
+                            contentType: fileType == .pdf ? "application/pdf" : "image/jpeg",
+                            upsert: false
+                        )
                     )
                 print("DEBUG DroneRegistration: Storage upload successful")
-            } catch {
-                print("DEBUG DroneRegistration: Storage upload failed: \(error.localizedDescription)")
-                throw NSError(
-                    domain: "DroneRegistrationService",
-                    code: -2,
-                    userInfo: [NSLocalizedDescriptionKey: "Storage upload failed: \(error.localizedDescription). Check storage RLS policies."]
-                )
+            } catch let uploadError {
+                // If file already exists, try to delete and re-upload
+                if uploadError.localizedDescription.contains("already exists") || uploadError.localizedDescription.contains("duplicate") {
+                    print("DEBUG DroneRegistration: File exists, attempting to remove and re-upload...")
+                    do {
+                        // Try to remove existing file
+                        try? await supabase.storage
+                            .from(bucketName)
+                            .remove(paths: [filePath])
+                        
+                        // Upload again
+                        let _ = try await supabase.storage
+                            .from(bucketName)
+                            .upload(
+                                filePath,
+                                data: data,
+                                options: FileOptions(
+                                    contentType: fileType == .pdf ? "application/pdf" : "image/jpeg",
+                                    upsert: false
+                                )
+                            )
+                        print("DEBUG DroneRegistration: Storage upload successful after retry")
+                    } catch {
+                        print("DEBUG DroneRegistration: Storage upload failed after retry: \(error.localizedDescription)")
+                        throw NSError(
+                            domain: "DroneRegistrationService",
+                            code: -2,
+                            userInfo: [NSLocalizedDescriptionKey: "Storage upload failed: \(error.localizedDescription). Please try again with a different filename."]
+                        )
+                    }
+                } else {
+                    print("DEBUG DroneRegistration: Storage upload failed: \(uploadError.localizedDescription)")
+                    throw NSError(
+                        domain: "DroneRegistrationService",
+                        code: -2,
+                        userInfo: [NSLocalizedDescriptionKey: "Storage upload failed: \(uploadError.localizedDescription). Check storage RLS policies."]
+                    )
+                }
             }
             
             // Get public URL
@@ -88,14 +123,61 @@ class DroneRegistrationService: ObservableObject {
                 .getPublicURL(path: filePath)
             print("DEBUG DroneRegistration: Public URL: \(publicURL.absoluteString)")
             
+            // Perform OCR extraction
+            var ocrInfo: DroneRegistrationInfo?
+            do {
+                print("DEBUG DroneRegistration: Starting OCR extraction...")
+                let extractedText = try await ocrService.extractText(from: data, fileType: fileType)
+                print("DEBUG DroneRegistration: OCR extracted text length: \(extractedText.count)")
+                ocrInfo = ocrService.parseDroneRegistrationInfo(from: extractedText)
+                print("DEBUG DroneRegistration: OCR parsing completed")
+                if let info = ocrInfo {
+                    print("DEBUG DroneRegistration: Registered Owner: \(info.registeredOwner ?? "nil")")
+                    print("DEBUG DroneRegistration: Manufacturer: \(info.manufacturer ?? "nil")")
+                    print("DEBUG DroneRegistration: Model: \(info.model ?? "nil")")
+                    print("DEBUG DroneRegistration: Serial Number: \(info.serialNumber ?? "nil")")
+                    print("DEBUG DroneRegistration: Registration Number: \(info.registrationNumber ?? "nil")")
+                    print("DEBUG DroneRegistration: Issued: \(info.issued ?? "nil")")
+                    print("DEBUG DroneRegistration: Expires: \(info.expires ?? "nil")")
+                }
+            } catch {
+                print("DEBUG DroneRegistration: OCR extraction failed: \(error.localizedDescription)")
+                // Continue with upload even if OCR fails
+            }
+            
             // Save registration record to database
-            let registration: [String: AnyJSON] = [
+            var registration: [String: AnyJSON] = [
                 "id": .string(UUID().uuidString),
                 "pilot_id": .string(pilotId.uuidString),
                 "file_url": .string(publicURL.absoluteString),
                 "file_type": .string(fileType.rawValue),
                 "uploaded_at": .string(ISO8601DateFormatter().string(from: Date()))
             ]
+            
+            // Add OCR extracted fields if available
+            if let info = ocrInfo {
+                if let owner = info.registeredOwner {
+                    registration["registered_owner"] = .string(owner)
+                }
+                if let manufacturer = info.manufacturer {
+                    registration["manufacturer"] = .string(manufacturer)
+                }
+                if let model = info.model {
+                    registration["model"] = .string(model)
+                }
+                if let serialNumber = info.serialNumber {
+                    registration["serial_number"] = .string(serialNumber)
+                }
+                if let registrationNumber = info.registrationNumber {
+                    registration["registration_number"] = .string(registrationNumber)
+                }
+                if let issued = info.issued {
+                    registration["issued"] = .string(issued)
+                }
+                if let expires = info.expires {
+                    registration["expires"] = .string(expires)
+                }
+            }
             
             print("DEBUG DroneRegistration: Attempting database insert...")
             do {
