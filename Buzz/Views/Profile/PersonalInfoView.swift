@@ -66,7 +66,7 @@ struct PersonalInfoView: View {
 //            .buttonStyle(PlainButtonStyle())
             
             // Identity Verification Card
-            NavigationLink(destination: IdentityVerificationView()) {
+            NavigationLink(destination: GovernmentIDView()) {
                 PersonalInfoCard(
                     title: "Identity Verification",
                     value: "Verify your identity",
