@@ -69,70 +69,70 @@ struct DroneRegistrationView: View {
                         action: { showImageSourceSheet = true }
                     )
                 } else {
-                    VStack(spacing: 0) {
-                        ScrollView {
-                            VStack(spacing: 16) {
-                                ForEach(registrationService.registrations) { registration in
-                                    DroneRegistrationRow(
-                                        registration: registration,
-                                        onTap: {
-                                            print("DEBUG DroneRegistrationView: Eye icon tapped")
-                                            print("DEBUG DroneRegistrationView: Registration ID: \(registration.id)")
-                                            print("DEBUG DroneRegistrationView: Registration URL: \(registration.fileUrl)")
-                                            print("DEBUG DroneRegistrationView: Registration type: \(registration.fileType)")
-                                            // Use Task to ensure state update happens on main thread
-                                            Task { @MainActor in
-                                                self.selectedRegistration = registration
-                                                print("DEBUG DroneRegistrationView: selectedRegistration set to: \(self.selectedRegistration?.id.uuidString ?? "nil")")
-                                            }
-                                        },
-                                        onDelete: {
-                                            registrationToDelete = registration
-                                            showDeleteConfirmation = true
-                                        },
-                                        onEdit: {
-                                            registrationToEdit = registration
-                                            showEditSheet = true
+                    ScrollView {
+                        VStack(spacing: 16) {
+                            // Registration cards
+                            ForEach(registrationService.registrations) { registration in
+                                DroneRegistrationRow(
+                                    registration: registration,
+                                    onTap: {
+                                        print("DEBUG DroneRegistrationView: Eye icon tapped")
+                                        print("DEBUG DroneRegistrationView: Registration ID: \(registration.id)")
+                                        print("DEBUG DroneRegistrationView: Registration URL: \(registration.fileUrl)")
+                                        print("DEBUG DroneRegistrationView: Registration type: \(registration.fileType)")
+                                        // Use Task to ensure state update happens on main thread
+                                        Task { @MainActor in
+                                            self.selectedRegistration = registration
+                                            print("DEBUG DroneRegistrationView: selectedRegistration set to: \(self.selectedRegistration?.id.uuidString ?? "nil")")
                                         }
-                                    )
+                                    },
+                                    onDelete: {
+                                        registrationToDelete = registration
+                                        showDeleteConfirmation = true
+                                    },
+                                    onEdit: {
+                                        registrationToEdit = registration
+                                        showEditSheet = true
+                                    }
+                                )
+                            }
+                            
+                            // Notes section
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text("Notes")
+                                    .font(.caption)
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(.secondary)
+                                    .textCase(.uppercase)
+                                
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text("1. OCR may not working properly to parse out correct information from your uploaded file. It is your responsibility to double check and make sure the data is correct.")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                    
+                                    Text("2. Your data will be kept safe and is used to verify your eligibility to operate your drones. This ensures public safety and protects you and others from risks.")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                    
+                                    Text("3. Per FAA regulation, register your drone at FAADroneZone whether flying under the Exception for Limited Recreational Operations or Part 107. All drones must be registered, except those that weigh 0.55 pounds or less (less than 250 grams) and are flown under the Exception for Limited Recreational Operations. Drones registered under the Exception for Limited Recreational Operations cannot be flown under Part 107.")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                    
+                                    Link("Learn more about registering your drone", destination: URL(string: "https://www.faa.gov/uas/getting_started/register_drone")!)
+                                        .font(.caption)
+                                        .foregroundColor(.blue)
                                 }
                             }
                             .padding()
-                        }
-                        .background(Color(.systemGroupedBackground))
-                        .refreshable {
-                            await loadRegistrations()
-                        }
-                        
-                        // Notes section in gray background
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("Notes")
-                                .font(.caption)
-                                .fontWeight(.semibold)
-                                .foregroundColor(.secondary)
-                                .textCase(.uppercase)
-                            
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text("1. OCR may not working properly to parse out correct information from your uploaded file. It is your responsibility to double check and make sure the data is correct.")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                                
-                                Text("2. Your data will be kept safe and is used to verify your eligibility to operate your drones. This ensures public safety and protects you and others from risks.")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                                
-                                Text("3. Per FAA regulation, register your drone at FAADroneZone whether flying under the Exception for Limited Recreational Operations or Part 107. All drones must be registered, except those that weigh 0.55 pounds or less (less than 250 grams) and are flown under the Exception for Limited Recreational Operations. Drones registered under the Exception for Limited Recreational Operations cannot be flown under Part 107.")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                                
-                                Link("Learn more about registering your drone", destination: URL(string: "https://www.faa.gov/uas/getting_started/register_drone")!)
-                                    .font(.caption)
-                                    .foregroundColor(.blue)
-                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color(.systemGray6))
+                            .cornerRadius(12)
                         }
                         .padding()
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color(.systemGray6))
+                    }
+                    .background(Color(.systemGroupedBackground))
+                    .refreshable {
+                        await loadRegistrations()
                     }
                 }
             }
