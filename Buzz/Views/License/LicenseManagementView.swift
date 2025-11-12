@@ -545,6 +545,7 @@ struct EditPilotLicenseView: View {
     @State private var isSaving = false
     @State private var errorMessage: String?
     @State private var showError = false
+    @State private var showCompletionDatePicker = false
     
     // Date formatters
     private let dateFormatter: DateFormatter = {
@@ -636,12 +637,44 @@ struct EditPilotLicenseView: View {
                     Text("Completion Date")
                         .font(.caption)
                         .foregroundColor(.secondary)
-                    DatePicker(
-                        "",
-                        selection: $completionDate,
-                        displayedComponents: [.date]
-                    )
-                    .datePickerStyle(.wheel)
+                    
+                    if showCompletionDatePicker {
+                        VStack(alignment: .leading, spacing: 8) {
+                            DatePicker(
+                                "",
+                                selection: $completionDate,
+                                displayedComponents: [.date]
+                            )
+                            .datePickerStyle(.wheel)
+                            
+                            Button(action: {
+                                withAnimation {
+                                    showCompletionDatePicker = false
+                                }
+                            }) {
+                                Text("Done")
+                                    .font(.system(size: 16, weight: .medium))
+                                    .foregroundColor(.blue)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 8)
+                            }
+                        }
+                    } else {
+                        HStack {
+                            Text(dateFormatter.string(from: completionDate))
+                                .foregroundColor(.primary)
+                            Spacer()
+                            Button(action: {
+                                withAnimation {
+                                    showCompletionDatePicker = true
+                                }
+                            }) {
+                                Image(systemName: "calendar")
+                                    .font(.system(size: 16, weight: .medium))
+                                    .foregroundColor(.blue)
+                            }
+                        }
+                    }
                 }
                 
                 VStack(alignment: .leading, spacing: 4) {

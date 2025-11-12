@@ -64,7 +64,7 @@ struct DroneRegistrationView: View {
                     EmptyStateView(
                         icon: "airplane",
                         title: "No Drone Registrations",
-                        message: "Upload your drone registration file to verify your drone",
+                        message: "Upload your drone registration files to verify your drones",
                         actionTitle: "Upload Registration",
                         action: { showImageSourceSheet = true }
                     )
@@ -135,6 +135,21 @@ struct DroneRegistrationView: View {
         }
         .navigationTitle("Drone Registration")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button(action: {
+                    guard isAuthenticated else {
+                        errorMessage = "Please authenticate first"
+                        showError = true
+                        return
+                    }
+                    showImageSourceSheet = true
+                }) {
+                    Image(systemName: "plus")
+                        .font(.system(size: 16, weight: .medium))
+                }
+            }
+        }
         .confirmationDialog("Upload Registration", isPresented: $showImageSourceSheet, titleVisibility: .visible) {
             Button("Take Photo") {
                 guard isAuthenticated else {
@@ -556,11 +571,20 @@ struct EditDroneRegistrationView: View {
     @State private var model: String
     @State private var serialNumber: String
     @State private var registrationNumber: String
-    @State private var issued: String
-    @State private var expires: String
+    @State private var issued: Date
+    @State private var expires: Date
     @State private var isSaving = false
     @State private var errorMessage: String?
     @State private var showError = false
+    @State private var showIssuedPicker = false
+    @State private var showExpiresPicker = false
+    
+    // Date formatter for MM/dd/yyyy format
+    private let dateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MM/dd/yyyy"
+        return formatter
+    }()
     
     init(registration: DroneRegistration, registrationService: DroneRegistrationService, onSave: @escaping () -> Void, onCancel: @escaping () -> Void) {
         self.registration = registration
@@ -573,28 +597,153 @@ struct EditDroneRegistrationView: View {
         _model = State(initialValue: registration.model ?? "")
         _serialNumber = State(initialValue: registration.serialNumber ?? "")
         _registrationNumber = State(initialValue: registration.registrationNumber ?? "")
-        _issued = State(initialValue: registration.issued ?? "")
-        _expires = State(initialValue: registration.expires ?? "")
+        
+        // Parse the date strings to Date objects
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "MM/dd/yyyy"
+        
+        let parsedIssued: Date
+        if let issuedString = registration.issued, !issuedString.isEmpty {
+            parsedIssued = dateFormatter.date(from: issuedString) ?? Date()
+        } else {
+            parsedIssued = Date()
+        }
+        _issued = State(initialValue: parsedIssued)
+        
+        let parsedExpires: Date
+        if let expiresString = registration.expires, !expiresString.isEmpty {
+            parsedExpires = dateFormatter.date(from: expiresString) ?? Date()
+        } else {
+            parsedExpires = Date()
+        }
+        _expires = State(initialValue: parsedExpires)
     }
     
     var body: some View {
         Form {
             Section(header: Text("Drone Registration Information")) {
-                TextField("Registered Owner", text: $registeredOwner)
-                TextField("Manufacturer", text: $manufacturer)
-                TextField("Model", text: $model)
-                TextField("Serial Number", text: $serialNumber)
-                TextField("Registration Number", text: $registrationNumber)
-                TextField("Issued Date", text: $issued)
-                    .placeholder(when: issued.isEmpty) {
-                        Text("e.g., 02/23/2023")
-                            .foregroundColor(.secondary)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Owner")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    TextField("Enter owner name", text: $registeredOwner)
+                }
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Manufacturer")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    TextField("Enter manufacturer", text: $manufacturer)
+                }
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Model")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    TextField("Enter model", text: $model)
+                }
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Serial Number")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    TextField("Enter serial number", text: $serialNumber)
+                }
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Registration")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    TextField("Enter registration number", text: $registrationNumber)
+                }
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Issued")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    
+                    if showIssuedPicker {
+                        VStack(alignment: .leading, spacing: 8) {
+                            DatePicker(
+                                "",
+                                selection: $issued,
+                                displayedComponents: [.date]
+                            )
+                            .datePickerStyle(.wheel)
+                            
+                            Button(action: {
+                                withAnimation {
+                                    showIssuedPicker = false
+                                }
+                            }) {
+                                Text("Done")
+                                    .font(.system(size: 16, weight: .medium))
+                                    .foregroundColor(.blue)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 8)
+                            }
+                        }
+                    } else {
+                        HStack {
+                            Text(dateFormatter.string(from: issued))
+                                .foregroundColor(.primary)
+                            Spacer()
+                            Button(action: {
+                                withAnimation {
+                                    showIssuedPicker = true
+                                }
+                            }) {
+                                Image(systemName: "calendar")
+                                    .font(.system(size: 16, weight: .medium))
+                                    .foregroundColor(.blue)
+                            }
+                        }
                     }
-                TextField("Expires Date", text: $expires)
-                    .placeholder(when: expires.isEmpty) {
-                        Text("e.g., 02/23/2026")
-                            .foregroundColor(.secondary)
+                }
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Expires")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    
+                    if showExpiresPicker {
+                        VStack(alignment: .leading, spacing: 8) {
+                            DatePicker(
+                                "",
+                                selection: $expires,
+                                displayedComponents: [.date]
+                            )
+                            .datePickerStyle(.wheel)
+                            
+                            Button(action: {
+                                withAnimation {
+                                    showExpiresPicker = false
+                                }
+                            }) {
+                                Text("Done")
+                                    .font(.system(size: 16, weight: .medium))
+                                    .foregroundColor(.blue)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 8)
+                            }
+                        }
+                    } else {
+                        HStack {
+                            Text(dateFormatter.string(from: expires))
+                                .foregroundColor(.primary)
+                            Spacer()
+                            Button(action: {
+                                withAnimation {
+                                    showExpiresPicker = true
+                                }
+                            }) {
+                                Image(systemName: "calendar")
+                                    .font(.system(size: 16, weight: .medium))
+                                    .foregroundColor(.blue)
+                            }
+                        }
                     }
+                }
             }
         }
         .navigationTitle("Edit Registration")
@@ -623,6 +772,10 @@ struct EditDroneRegistrationView: View {
         isSaving = true
         Task {
             do {
+                // Format dates as MM/dd/yyyy strings
+                let issuedString = dateFormatter.string(from: issued)
+                let expiresString = dateFormatter.string(from: expires)
+                
                 try await registrationService.updateRegistrationOCRFields(
                     registrationId: registration.id,
                     registeredOwner: registeredOwner.isEmpty ? nil : registeredOwner,
@@ -630,8 +783,8 @@ struct EditDroneRegistrationView: View {
                     model: model.isEmpty ? nil : model,
                     serialNumber: serialNumber.isEmpty ? nil : serialNumber,
                     registrationNumber: registrationNumber.isEmpty ? nil : registrationNumber,
-                    issued: issued.isEmpty ? nil : issued,
-                    expires: expires.isEmpty ? nil : expires
+                    issued: issuedString,
+                    expires: expiresString
                 )
                 await MainActor.run {
                     isSaving = false
