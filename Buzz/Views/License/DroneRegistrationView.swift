@@ -26,6 +26,8 @@ struct DroneRegistrationView: View {
     @State private var selectedRegistration: DroneRegistration?
     @State private var registrationToDelete: DroneRegistration?
     @State private var showDeleteConfirmation = false
+    @State private var registrationToEdit: DroneRegistration?
+    @State private var showEditSheet = false
     
     var body: some View {
         VStack(spacing: 0) {
@@ -85,6 +87,10 @@ struct DroneRegistrationView: View {
                                 onDelete: {
                                     registrationToDelete = registration
                                     showDeleteConfirmation = true
+                                },
+                                onEdit: {
+                                    registrationToEdit = registration
+                                    showEditSheet = true
                                 }
                             )
                         }
@@ -169,6 +175,25 @@ struct DroneRegistrationView: View {
                 print("DEBUG DroneRegistrationView: Sheet appeared for registration: \(registration.id)")
                 print("DEBUG DroneRegistrationView: File URL: \(registration.fileUrl)")
                 print("DEBUG DroneRegistrationView: File Type: \(registration.fileType)")
+            }
+        }
+        .sheet(item: $registrationToEdit) { registration in
+            NavigationStack {
+                EditDroneRegistrationView(
+                    registration: registration,
+                    registrationService: registrationService,
+                    onSave: {
+                        showEditSheet = false
+                        registrationToEdit = nil
+                        Task {
+                            await loadRegistrations()
+                        }
+                    },
+                    onCancel: {
+                        showEditSheet = false
+                        registrationToEdit = nil
+                    }
+                )
             }
         }
         .task {
@@ -323,16 +348,7 @@ struct DroneRegistrationRow: View {
     let registration: DroneRegistration
     let onTap: () -> Void
     let onDelete: () -> Void
-    
-    var hasExtractedInfo: Bool {
-        registration.registeredOwner != nil ||
-        registration.manufacturer != nil ||
-        registration.model != nil ||
-        registration.serialNumber != nil ||
-        registration.registrationNumber != nil ||
-        registration.issued != nil ||
-        registration.expires != nil
-    }
+    let onEdit: () -> Void
     
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -383,43 +399,70 @@ struct DroneRegistrationRow: View {
                 }
             }
             
-            // Display extracted OCR information if available
-            if hasExtractedInfo {
-                VStack(alignment: .leading, spacing: 6) {
-                    Divider()
-                    
+            // Always display extracted OCR information section
+            VStack(alignment: .leading, spacing: 6) {
+                Divider()
+                
+                HStack {
                     Text("Extracted Information")
                         .font(.caption)
                         .fontWeight(.semibold)
                         .foregroundColor(.secondary)
                         .textCase(.uppercase)
                     
-                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], alignment: .leading, spacing: 8) {
-                        if let owner = registration.registeredOwner {
-                            RegistrationInfoRow(label: "Owner", value: owner)
-                        }
-                        if let manufacturer = registration.manufacturer {
-                            RegistrationInfoRow(label: "Manufacturer", value: manufacturer)
-                        }
-                        if let model = registration.model {
-                            RegistrationInfoRow(label: "Model", value: model)
-                        }
-                        if let serialNumber = registration.serialNumber {
-                            RegistrationInfoRow(label: "Serial Number", value: serialNumber)
-                        }
-                        if let registrationNumber = registration.registrationNumber {
-                            RegistrationInfoRow(label: "Registration", value: registrationNumber)
-                        }
-                        if let issued = registration.issued {
-                            RegistrationInfoRow(label: "Issued", value: issued)
-                        }
-                        if let expires = registration.expires {
-                            RegistrationInfoRow(label: "Expires", value: expires)
-                        }
+                    Spacer()
+                    
+                    // Edit button
+                    Button(action: {
+                        print("DEBUG DroneRegistrationRow: Edit button tapped")
+                        onEdit()
+                    }) {
+                        Image(systemName: "pencil")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundColor(.blue)
                     }
+                    .buttonStyle(PlainButtonStyle())
                 }
-                .padding(.leading, 62) // Align with content above
+                
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], alignment: .leading, spacing: 8) {
+                    RegistrationInfoRow(
+                        label: "Owner",
+                        value: registration.registeredOwner ?? "",
+                        isEmpty: registration.registeredOwner == nil
+                    )
+                    RegistrationInfoRow(
+                        label: "Manufacturer",
+                        value: registration.manufacturer ?? "",
+                        isEmpty: registration.manufacturer == nil
+                    )
+                    RegistrationInfoRow(
+                        label: "Model",
+                        value: registration.model ?? "",
+                        isEmpty: registration.model == nil
+                    )
+                    RegistrationInfoRow(
+                        label: "Serial Number",
+                        value: registration.serialNumber ?? "",
+                        isEmpty: registration.serialNumber == nil
+                    )
+                    RegistrationInfoRow(
+                        label: "Registration",
+                        value: registration.registrationNumber ?? "",
+                        isEmpty: registration.registrationNumber == nil
+                    )
+                    RegistrationInfoRow(
+                        label: "Issued",
+                        value: registration.issued ?? "",
+                        isEmpty: registration.issued == nil
+                    )
+                    RegistrationInfoRow(
+                        label: "Expires",
+                        value: registration.expires ?? "",
+                        isEmpty: registration.expires == nil
+                    )
+                }
             }
+            .padding(.leading, 62) // Align with content above
         }
         .padding(.vertical, 8)
         .contentShape(Rectangle())
@@ -431,16 +474,150 @@ struct DroneRegistrationRow: View {
 struct RegistrationInfoRow: View {
     let label: String
     let value: String
+    var isEmpty: Bool = false
     
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(label)
-                .font(.caption2)
-                .foregroundColor(.secondary)
-            Text(value)
-                .font(.caption)
-                .fontWeight(.medium)
+            HStack(spacing: 4) {
+                Text(label)
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                if isEmpty {
+                    Image(systemName: "exclamationmark.circle.fill")
+                        .font(.system(size: 8))
+                        .foregroundColor(.orange)
+                }
+            }
+            if value.isEmpty {
+                Text("—")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .italic()
+            } else {
+                Text(value)
+                    .font(.caption)
+                    .fontWeight(.medium)
+            }
         }
     }
+}
+
+// MARK: - Edit Drone Registration View
+
+struct EditDroneRegistrationView: View {
+    let registration: DroneRegistration
+    @ObservedObject var registrationService: DroneRegistrationService
+    let onSave: () -> Void
+    let onCancel: () -> Void
+    
+    @State private var registeredOwner: String
+    @State private var manufacturer: String
+    @State private var model: String
+    @State private var serialNumber: String
+    @State private var registrationNumber: String
+    @State private var issued: String
+    @State private var expires: String
+    @State private var isSaving = false
+    @State private var errorMessage: String?
+    @State private var showError = false
+    
+    init(registration: DroneRegistration, registrationService: DroneRegistrationService, onSave: @escaping () -> Void, onCancel: @escaping () -> Void) {
+        self.registration = registration
+        self.registrationService = registrationService
+        self.onSave = onSave
+        self.onCancel = onCancel
+        
+        _registeredOwner = State(initialValue: registration.registeredOwner ?? "")
+        _manufacturer = State(initialValue: registration.manufacturer ?? "")
+        _model = State(initialValue: registration.model ?? "")
+        _serialNumber = State(initialValue: registration.serialNumber ?? "")
+        _registrationNumber = State(initialValue: registration.registrationNumber ?? "")
+        _issued = State(initialValue: registration.issued ?? "")
+        _expires = State(initialValue: registration.expires ?? "")
+    }
+    
+    var body: some View {
+        Form {
+            Section(header: Text("Drone Registration Information")) {
+                TextField("Registered Owner", text: $registeredOwner)
+                TextField("Manufacturer", text: $manufacturer)
+                TextField("Model", text: $model)
+                TextField("Serial Number", text: $serialNumber)
+                TextField("Registration Number", text: $registrationNumber)
+                TextField("Issued Date", text: $issued)
+                    .placeholder(when: issued.isEmpty) {
+                        Text("e.g., 02/23/2023")
+                            .foregroundColor(.secondary)
+                    }
+                TextField("Expires Date", text: $expires)
+                    .placeholder(when: expires.isEmpty) {
+                        Text("e.g., 02/23/2026")
+                            .foregroundColor(.secondary)
+                    }
+            }
+        }
+        .navigationTitle("Edit Registration")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarLeading) {
+                Button("Cancel") {
+                    onCancel()
+                }
+            }
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button("Save") {
+                    saveChanges()
+                }
+                .disabled(isSaving)
+            }
+        }
+        .alert("Error", isPresented: $showError) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(errorMessage ?? "Unknown error")
+        }
+    }
+    
+    private func saveChanges() {
+        isSaving = true
+        Task {
+            do {
+                try await registrationService.updateRegistrationOCRFields(
+                    registrationId: registration.id,
+                    registeredOwner: registeredOwner.isEmpty ? nil : registeredOwner,
+                    manufacturer: manufacturer.isEmpty ? nil : manufacturer,
+                    model: model.isEmpty ? nil : model,
+                    serialNumber: serialNumber.isEmpty ? nil : serialNumber,
+                    registrationNumber: registrationNumber.isEmpty ? nil : registrationNumber,
+                    issued: issued.isEmpty ? nil : issued,
+                    expires: expires.isEmpty ? nil : expires
+                )
+                await MainActor.run {
+                    isSaving = false
+                    onSave()
+                }
+            } catch {
+                await MainActor.run {
+                    isSaving = false
+                    errorMessage = error.localizedDescription
+                    showError = true
+                }
+            }
+        }
+    }
+}
+
+// MARK: - View Extension for Placeholder
+
+extension View {
+    func placeholder<Content: View>(
+        when shouldShow: Bool,
+        alignment: Alignment = .leading,
+        @ViewBuilder placeholder: () -> Content) -> some View {
+            ZStack(alignment: alignment) {
+                placeholder().opacity(shouldShow ? 1 : 0)
+                self
+            }
+        }
 }
 

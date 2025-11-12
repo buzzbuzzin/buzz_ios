@@ -279,6 +279,85 @@ class DroneRegistrationService: ObservableObject {
         }
     }
     
+    // MARK: - Update Registration OCR Fields
+    
+    func updateRegistrationOCRFields(
+        registrationId: UUID,
+        registeredOwner: String?,
+        manufacturer: String?,
+        model: String?,
+        serialNumber: String?,
+        registrationNumber: String?,
+        issued: String?,
+        expires: String?
+    ) async throws {
+        isLoading = true
+        errorMessage = nil
+        
+        do {
+            var updates: [String: AnyJSON] = [:]
+            
+            if let registeredOwner = registeredOwner, !registeredOwner.isEmpty {
+                updates["registered_owner"] = .string(registeredOwner)
+            } else {
+                updates["registered_owner"] = .null
+            }
+            
+            if let manufacturer = manufacturer, !manufacturer.isEmpty {
+                updates["manufacturer"] = .string(manufacturer)
+            } else {
+                updates["manufacturer"] = .null
+            }
+            
+            if let model = model, !model.isEmpty {
+                updates["model"] = .string(model)
+            } else {
+                updates["model"] = .null
+            }
+            
+            if let serialNumber = serialNumber, !serialNumber.isEmpty {
+                updates["serial_number"] = .string(serialNumber)
+            } else {
+                updates["serial_number"] = .null
+            }
+            
+            if let registrationNumber = registrationNumber, !registrationNumber.isEmpty {
+                updates["registration_number"] = .string(registrationNumber)
+            } else {
+                updates["registration_number"] = .null
+            }
+            
+            if let issued = issued, !issued.isEmpty {
+                updates["issued"] = .string(issued)
+            } else {
+                updates["issued"] = .null
+            }
+            
+            if let expires = expires, !expires.isEmpty {
+                updates["expires"] = .string(expires)
+            } else {
+                updates["expires"] = .null
+            }
+            
+            try await supabase
+                .from("drone_registrations")
+                .update(updates)
+                .eq("id", value: registrationId.uuidString)
+                .execute()
+            
+            // Refresh the registrations list
+            if let registration = registrations.first(where: { $0.id == registrationId }) {
+                try await fetchRegistrations(pilotId: registration.pilotId)
+            }
+            
+            isLoading = false
+        } catch {
+            isLoading = false
+            errorMessage = error.localizedDescription
+            throw error
+        }
+    }
+    
     // MARK: - Compress Image
     
     func compressImage(_ image: UIImage, maxSizeInBytes: Int = 2_000_000) -> Data? {

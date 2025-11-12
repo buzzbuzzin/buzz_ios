@@ -510,6 +510,247 @@ class OCRService {
         print("   ❌ No valid date found for keyword '\(keywordUpper)'")
         return nil
     }
+    
+    // MARK: - Extract Completion Date (supports written and numeric formats)
+    
+    private func extractCompletionDate(from text: String) -> String? {
+        let uppercaseText = text.uppercased()
+        let nsString = text as NSString
+        let uppercaseNsString = uppercaseText as NSString
+        
+        // First, try to find "Course Completion Date:" or "Completion Date:"
+        let keywords = ["COURSE COMPLETION DATE", "COMPLETION DATE", "DATE"]
+        
+        for keyword in keywords {
+            let keywordUpper = keyword.uppercased()
+            let keywordRange = uppercaseNsString.range(of: keywordUpper, options: [])
+            
+            if keywordRange.location != NSNotFound {
+                // Look for date after the keyword
+                let afterKeywordStart = keywordRange.location + keywordRange.length
+                let afterKeywordLength = min(50, nsString.length - afterKeywordStart)
+                if afterKeywordLength > 0 {
+                    let afterKeywordRange = NSRange(location: afterKeywordStart, length: afterKeywordLength)
+                    let afterKeyword = nsString.substring(with: afterKeywordRange)
+                    
+                    print("   🔍 Text after '\(keyword)': '\(afterKeyword)'")
+                    
+                    // Try written date format first (e.g., "November 2, 2024")
+                    let writtenDatePattern = "([A-Z][a-z]+\\s+[0-9]{1,2},?\\s+[0-9]{4})"
+                    if let regex = try? NSRegularExpression(pattern: writtenDatePattern, options: []) {
+                        let results = regex.matches(in: afterKeyword, options: [], range: NSRange(location: 0, length: afterKeyword.count))
+                        
+                        if let firstMatch = results.first, firstMatch.numberOfRanges > 1 {
+                            let dateRange = firstMatch.range(at: 1)
+                            if dateRange.location != NSNotFound {
+                                let extracted = (afterKeyword as NSString).substring(with: dateRange)
+                                print("   ✅ Found written date: '\(extracted)'")
+                                return extracted.trimmingCharacters(in: .whitespacesAndNewlines)
+                            }
+                        }
+                    }
+                    
+                    // Fallback: Try numeric date format (e.g., "11/2/2024" or "11-2-2024")
+                    let numericDatePattern = "([0-9]{1,2}[/-][0-9]{1,2}[/-][0-9]{2,4})"
+                    if let regex = try? NSRegularExpression(pattern: numericDatePattern, options: []) {
+                        let results = regex.matches(in: afterKeyword, options: [], range: NSRange(location: 0, length: afterKeyword.count))
+                        
+                        if let firstMatch = results.first, firstMatch.numberOfRanges > 1 {
+                            let dateRange = firstMatch.range(at: 1)
+                            if dateRange.location != NSNotFound {
+                                let extracted = (afterKeyword as NSString).substring(with: dateRange)
+                                print("   ✅ Found numeric date: '\(extracted)'")
+                                return extracted.trimmingCharacters(in: .whitespacesAndNewlines)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        return nil
+    }
+    
+    // MARK: - Extract Certificate Number (captures full number with dashes)
+    
+    private func extractCertificateNumber(from text: String) -> String? {
+        let uppercaseText = text.uppercased()
+        let nsString = text as NSString
+        let uppercaseNsString = uppercaseText as NSString
+        
+        print("   🔍 Searching for certificate number...")
+        
+        // Look for "Certificate Number" (most specific)
+        let keywords = [
+            "COURSE COMPLETION CERTIFICATE NUMBER",
+            "CERTIFICATE NUMBER"
+        ]
+        
+        for keyword in keywords {
+            let keywordRange = uppercaseNsString.range(of: keyword, options: [])
+            
+            if keywordRange.location != NSNotFound {
+                // Look for certificate number after the keyword
+                let afterKeywordStart = keywordRange.location + keywordRange.length
+                let afterKeywordLength = min(40, nsString.length - afterKeywordStart)
+                if afterKeywordLength > 0 {
+                    let afterKeywordRange = NSRange(location: afterKeywordStart, length: afterKeywordLength)
+                    let afterKeyword = nsString.substring(with: afterKeywordRange)
+                    
+                    print("   🔍 Text after '\(keyword)': '\(afterKeyword)'")
+                    
+                    // Extract all digits and any dash-like characters
+                    // The pattern should match: digits followed by dash-like char, digits, dash-like char, digits
+                    // Handle Unicode dashes: regular dash (-), en-dash (–), em-dash (—), etc.
+                    let dashPattern = "[\\-\\u2013\\u2014\\u2015]"  // Regular dash, en-dash, em-dash, horizontal bar
+                    let pattern = "([0-9]+\(dashPattern)[0-9]+\(dashPattern)[0-9]+)"
+                    
+                    if let regex = try? NSRegularExpression(pattern: pattern, options: []) {
+                        let results = regex.matches(in: afterKeyword, options: [], range: NSRange(location: 0, length: afterKeyword.count))
+                        
+                        if let firstMatch = results.first, firstMatch.numberOfRanges > 1 {
+                            let numberRange = firstMatch.range(at: 1)
+                            if numberRange.location != NSNotFound {
+                                var extracted = (afterKeyword as NSString).substring(with: numberRange)
+                                extracted = extracted.trimmingCharacters(in: .whitespacesAndNewlines)
+                                
+                                // Remove any trailing text
+                                if let newlineIndex = extracted.firstIndex(of: "\n") {
+                                    extracted = String(extracted[..<newlineIndex])
+                                }
+                                
+                                // Normalize all dash types to regular dash
+                                extracted = extracted.replacingOccurrences(of: "\u{2013}", with: "-")  // en-dash
+                                extracted = extracted.replacingOccurrences(of: "\u{2014}", with: "-")  // em-dash
+                                extracted = extracted.replacingOccurrences(of: "\u{2015}", with: "-")  // horizontal bar
+                                extracted = extracted.replacingOccurrences(of: " ", with: "")
+                                
+                                print("   ✅ Found certificate number: '\(extracted)'")
+                                return extracted
+                            }
+                        }
+                    }
+                    
+                    // Fallback: Extract all digits and reconstruct with dashes
+                    // Look for pattern: 7 digits, separator, 8 digits, separator, 5 digits
+                    let allDigitsPattern = "([0-9]{7,8}[^0-9]+[0-9]{7,9}[^0-9]+[0-9]{4,6})"
+                    if let regex = try? NSRegularExpression(pattern: allDigitsPattern, options: []) {
+                        let results = regex.matches(in: afterKeyword, options: [], range: NSRange(location: 0, length: afterKeyword.count))
+                        
+                        if let firstMatch = results.first, firstMatch.numberOfRanges > 1 {
+                            let numberRange = firstMatch.range(at: 1)
+                            if numberRange.location != NSNotFound {
+                                var extracted = (afterKeyword as NSString).substring(with: numberRange)
+                                
+                                // Extract just the digits
+                                let digitsOnly = extracted.components(separatedBy: CharacterSet.decimalDigits.inverted).joined()
+                                
+                                // Reconstruct with dashes: typically 7-8-5 digits
+                                if digitsOnly.count >= 18 {
+                                    let part1 = String(digitsOnly.prefix(7))
+                                    let part2 = String(digitsOnly.dropFirst(7).prefix(8))
+                                    let part3 = String(digitsOnly.dropFirst(15))
+                                    let reconstructed = "\(part1)-\(part2)-\(part3)"
+                                    
+                                    print("   ✅ Found certificate number (reconstructed): '\(reconstructed)'")
+                                    return reconstructed
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Last resort: Search the entire text for the pattern
+        print("   🔍 Trying to find certificate number pattern in entire text...")
+        // Look for pattern with any dash character: 7-8-5 digits
+        let dashPattern = "[\\-\\u2013\\u2014\\u2015]"
+        let fullTextPattern = "([0-9]{7}\(dashPattern)[0-9]{8}\(dashPattern)[0-9]{5})"
+        if let regex = try? NSRegularExpression(pattern: fullTextPattern, options: []) {
+            let results = regex.matches(in: text, options: [], range: NSRange(location: 0, length: nsString.length))
+            
+            if let firstMatch = results.first, firstMatch.numberOfRanges > 1 {
+                let numberRange = firstMatch.range(at: 1)
+                if numberRange.location != NSNotFound {
+                    var extracted = nsString.substring(with: numberRange)
+                    // Normalize dashes
+                    extracted = extracted.replacingOccurrences(of: "\u{2013}", with: "-")
+                    extracted = extracted.replacingOccurrences(of: "\u{2014}", with: "-")
+                    extracted = extracted.replacingOccurrences(of: "\u{2015}", with: "-")
+                    print("   ✅ Found certificate number (full text search): '\(extracted)'")
+                    return extracted.trimmingCharacters(in: .whitespacesAndNewlines)
+                }
+            }
+        }
+        
+        print("   ❌ No certificate number found")
+        return nil
+    }
+    
+    // MARK: - Parse Pilot License Information
+    
+    func parsePilotLicenseInfo(from text: String) -> PilotLicenseInfo {
+        var info = PilotLicenseInfo()
+        
+        print("🔍 OCR DEBUG: Starting to parse pilot license info")
+        print("🔍 OCR DEBUG: Extracted text length: \(text.count) characters")
+        print("🔍 OCR DEBUG: First 500 characters of extracted text:")
+        print(String(text.prefix(500)))
+        print("🔍 OCR DEBUG: ========================================")
+        
+        // Name - Look for "Your Name:" or "Name:"
+        if let name = extractField(from: text, patterns: [
+            "YOUR NAME[\\s:]+([A-Za-z0-9\\s,.-]+)",
+            "NAME[\\s:]+([A-Za-z0-9\\s,.-]+)",
+            "PILOT NAME[\\s:]+([A-Za-z0-9\\s,.-]+)"
+        ]) {
+            info.name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+            print("✅ OCR DEBUG: Name found: '\(info.name ?? "nil")'")
+        } else {
+            print("❌ OCR DEBUG: Name NOT found")
+        }
+        
+        // Course Completed
+        if let course = extractField(from: text, patterns: [
+            "COURSE COMPLETED[\\s:]+([A-Za-z0-9\\s,.-]+)",
+            "COURSE[\\s:]+([A-Za-z0-9\\s,.-]+)",
+            "COMPLETED[\\s:]+([A-Za-z0-9\\s,.-]+)"
+        ]) {
+            info.courseCompleted = course.trimmingCharacters(in: .whitespacesAndNewlines)
+            print("✅ OCR DEBUG: Course Completed found: '\(info.courseCompleted ?? "nil")'")
+        } else {
+            print("❌ OCR DEBUG: Course Completed NOT found")
+        }
+        
+        // Completion Date - Look for "Course Completion Date:" or "Date:"
+        // Support both numeric dates (MM/DD/YYYY) and written dates (November 2, 2024)
+        print("🔍 OCR DEBUG: Searching for completion date...")
+        if let date = extractCompletionDate(from: text) {
+            info.completionDate = date
+            print("✅ OCR DEBUG: Completion Date found: '\(info.completionDate ?? "nil")'")
+        } else {
+            print("❌ OCR DEBUG: Completion Date NOT found")
+        }
+        
+        // Certificate Number - Look for full certificate number with dashes
+        if let certNumber = extractCertificateNumber(from: text) {
+            info.certificateNumber = certNumber
+            print("✅ OCR DEBUG: Certificate Number found: '\(info.certificateNumber ?? "nil")'")
+        } else {
+            print("❌ OCR DEBUG: Certificate Number NOT found")
+        }
+        
+        print("🔍 OCR DEBUG: ========================================")
+        print("🔍 OCR DEBUG: Final parsed pilot license info:")
+        print("   - Name: \(info.name ?? "nil")")
+        print("   - Course Completed: \(info.courseCompleted ?? "nil")")
+        print("   - Completion Date: \(info.completionDate ?? "nil")")
+        print("   - Certificate Number: \(info.certificateNumber ?? "nil")")
+        print("🔍 OCR DEBUG: ========================================")
+        
+        return info
+    }
 }
 
 // MARK: - Drone Registration Info Structure
@@ -522,5 +763,14 @@ struct DroneRegistrationInfo {
     var registrationNumber: String?
     var issued: String?
     var expires: String?
+}
+
+// MARK: - Pilot License Info Structure
+
+struct PilotLicenseInfo {
+    var name: String?
+    var courseCompleted: String?
+    var completionDate: String?
+    var certificateNumber: String?
 }
 

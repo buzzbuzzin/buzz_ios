@@ -19,12 +19,22 @@ struct PilotLicense: Codable, Identifiable {
     let fileType: LicenseFileType
     let uploadedAt: Date
     
+    // OCR extracted fields
+    let name: String?
+    let courseCompleted: String?
+    let completionDate: String?
+    let certificateNumber: String?
+    
     enum CodingKeys: String, CodingKey {
         case id
         case pilotId = "pilot_id"
         case fileUrl = "file_url"
         case fileType = "file_type"
         case uploadedAt = "uploaded_at"
+        case name = "name"
+        case courseCompleted = "course_completed"
+        case completionDate = "completion_date"
+        case certificateNumber = "certificate_number"
     }
 }
 
