@@ -70,32 +70,36 @@ struct DroneRegistrationView: View {
                     )
                 } else {
                     VStack(spacing: 0) {
-                        List {
-                            ForEach(registrationService.registrations) { registration in
-                                DroneRegistrationRow(
-                                    registration: registration,
-                                    onTap: {
-                                        print("DEBUG DroneRegistrationView: Eye icon tapped")
-                                        print("DEBUG DroneRegistrationView: Registration ID: \(registration.id)")
-                                        print("DEBUG DroneRegistrationView: Registration URL: \(registration.fileUrl)")
-                                        print("DEBUG DroneRegistrationView: Registration type: \(registration.fileType)")
-                                        // Use Task to ensure state update happens on main thread
-                                        Task { @MainActor in
-                                            self.selectedRegistration = registration
-                                            print("DEBUG DroneRegistrationView: selectedRegistration set to: \(self.selectedRegistration?.id.uuidString ?? "nil")")
+                        ScrollView {
+                            VStack(spacing: 16) {
+                                ForEach(registrationService.registrations) { registration in
+                                    DroneRegistrationRow(
+                                        registration: registration,
+                                        onTap: {
+                                            print("DEBUG DroneRegistrationView: Eye icon tapped")
+                                            print("DEBUG DroneRegistrationView: Registration ID: \(registration.id)")
+                                            print("DEBUG DroneRegistrationView: Registration URL: \(registration.fileUrl)")
+                                            print("DEBUG DroneRegistrationView: Registration type: \(registration.fileType)")
+                                            // Use Task to ensure state update happens on main thread
+                                            Task { @MainActor in
+                                                self.selectedRegistration = registration
+                                                print("DEBUG DroneRegistrationView: selectedRegistration set to: \(self.selectedRegistration?.id.uuidString ?? "nil")")
+                                            }
+                                        },
+                                        onDelete: {
+                                            registrationToDelete = registration
+                                            showDeleteConfirmation = true
+                                        },
+                                        onEdit: {
+                                            registrationToEdit = registration
+                                            showEditSheet = true
                                         }
-                                    },
-                                    onDelete: {
-                                        registrationToDelete = registration
-                                        showDeleteConfirmation = true
-                                    },
-                                    onEdit: {
-                                        registrationToEdit = registration
-                                        showEditSheet = true
-                                    }
-                                )
+                                    )
+                                }
                             }
+                            .padding()
                         }
+                        .background(Color(.systemGroupedBackground))
                         .refreshable {
                             await loadRegistrations()
                         }
@@ -398,7 +402,7 @@ struct DroneRegistrationRow: View {
     let onEdit: () -> Void
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
                 // File icon
                 Image(systemName: registration.fileType == .pdf ? "doc.fill" : "photo.fill")
@@ -520,8 +524,10 @@ struct DroneRegistrationRow: View {
             }
             .padding(.leading, 62) // Align with content above
         }
-        .padding(.vertical, 8)
-        .contentShape(Rectangle())
+        .padding()
+        .background(Color(.systemBackground))
+        .cornerRadius(12)
+        .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
     }
 }
 
