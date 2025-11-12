@@ -18,6 +18,7 @@ class AuthService: ObservableObject {
     @Published var isAuthenticated = false
     @Published var isLoading = false
     @Published var errorMessage: String?
+    @Published var shouldDelayNavigation = false // Flag to delay navigation for promotion flow
     
     private let supabase = SupabaseClient.shared.client
     

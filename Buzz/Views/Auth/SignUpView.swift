@@ -25,6 +25,13 @@ struct SignUpView: View {
     @State private var errorMessage = ""
     @State private var isSigningUp = false
     @State private var customerSignUpPage: Int = 1 // 1 for basic info, 2 for role selection, 3 for specialization, 4 for confirmation
+    @State private var showPackagePromotion = false
+    @State private var promotionType: PromotionType? = nil
+    
+    enum PromotionType {
+        case automotive
+        case realEstate
+    }
     
     var body: some View {
         NavigationView {
@@ -227,8 +234,46 @@ struct SignUpView: View {
             }
             .onChange(of: authService.isAuthenticated) { _, isAuthenticated in
                 if isAuthenticated {
-                    // User is now authenticated, dismiss the signup view
-                    dismiss()
+                    // Check if we should show package promotion for Automotive or Real Estate
+                    if userType == .customer, let specialization = selectedSpecialization {
+                        if specialization == .automotive {
+                            // Delay navigation to allow promotion to show
+                            authService.shouldDelayNavigation = true
+                            promotionType = .automotive
+                            showPackagePromotion = true
+                        } else if specialization == .realEstate {
+                            // Delay navigation to allow promotion to show
+                            authService.shouldDelayNavigation = true
+                            promotionType = .realEstate
+                            showPackagePromotion = true
+                        } else {
+                            // For other specializations, just dismiss
+                            dismiss()
+                        }
+                    } else {
+                        // For pilots or customers without matching specialization, dismiss
+                        dismiss()
+                    }
+                }
+            }
+            .fullScreenCover(isPresented: $showPackagePromotion) {
+                if promotionType == .automotive {
+                    AutomotivePackagePromotionView()
+                        .environmentObject(authService)
+                } else if promotionType == .realEstate {
+                    RealEstatePackagePromotionView()
+                        .environmentObject(authService)
+                }
+            }
+            .onChange(of: showPackagePromotion) { _, isShowing in
+                // When promotion view is dismissed, dismiss the sign up view
+                if !isShowing {
+                    // Allow navigation to proceed
+                    authService.shouldDelayNavigation = false
+                    // Small delay to ensure promotion view is fully dismissed
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        dismiss()
+                    }
                 }
             }
         }

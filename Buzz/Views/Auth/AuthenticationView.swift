@@ -69,10 +69,8 @@ struct AuthenticationView: View {
                 SignUpView()
             }
             .onChange(of: authService.isAuthenticated) { _, isAuth in
-                // Dismiss signup sheet when authentication succeeds
-                if isAuth {
-                    showSignUp = false
-                }
+                // Don't dismiss signup sheet immediately - let SignUpView handle promotion flow
+                // The SignUpView will dismiss itself after showing promotion if needed
             }
         }
     }
