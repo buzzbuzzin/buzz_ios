@@ -295,6 +295,42 @@ struct SignUpView: View {
         }
     }
     
+    private var showPasswordMismatch: Bool {
+        !password.isEmpty && !confirmPassword.isEmpty && password != confirmPassword
+    }
+    
+    private var showPasswordValidationError: Bool {
+        !password.isEmpty && !isValidPassword(password)
+    }
+    
+    private var passwordValidationError: String? {
+        guard !password.isEmpty else { return nil }
+        
+        var errors: [String] = []
+        
+        if password.count < 8 {
+            errors.append("at least 8 characters")
+        }
+        
+        if password.rangeOfCharacter(from: CharacterSet.lowercaseLetters) == nil {
+            errors.append("lowercase letter")
+        }
+        
+        if password.rangeOfCharacter(from: CharacterSet.uppercaseLetters) == nil {
+            errors.append("uppercase letter")
+        }
+        
+        if password.rangeOfCharacter(from: CharacterSet.decimalDigits) == nil {
+            errors.append("digit")
+        }
+        
+        if errors.isEmpty {
+            return nil
+        }
+        
+        return "Missing: " + errors.joined(separator: ", ")
+    }
+    
     private var isCustomerPage1Valid: Bool {
         !firstName.isEmpty &&
         !lastName.isEmpty &&
@@ -466,9 +502,23 @@ struct SignUpView: View {
                     .foregroundColor(.primary)
                 SecureField("Min 8 chars: uppercase, lowercase, digit", text: $password)
                     .textContentType(.newPassword)
+                    .onChange(of: password) { _, _ in
+                        // Trigger validation when password changes
+                    }
                     .padding()
                     .background(Color(.systemGray6))
                     .cornerRadius(10)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(showPasswordValidationError ? Color.red : Color.clear, lineWidth: 1)
+                    )
+                
+                // Password validation error
+                if let error = passwordValidationError {
+                    Text(error)
+                        .font(.caption)
+                        .foregroundColor(.red)
+                }
             }
             
             // Confirm Password
@@ -479,9 +529,23 @@ struct SignUpView: View {
                     .foregroundColor(.primary)
                 SecureField("Confirm your password", text: $confirmPassword)
                     .textContentType(.newPassword)
+                    .onChange(of: confirmPassword) { _, _ in
+                        // Trigger validation when confirm password changes
+                    }
                     .padding()
                     .background(Color(.systemGray6))
                     .cornerRadius(10)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(showPasswordMismatch ? Color.red : Color.clear, lineWidth: 1)
+                    )
+                
+                // Password mismatch warning
+                if showPasswordMismatch {
+                    Text("Password mismatch")
+                        .font(.caption)
+                        .foregroundColor(.red)
+                }
             }
         }
     }
@@ -717,9 +781,23 @@ struct SignUpView: View {
                     .foregroundColor(.primary)
                 SecureField("Min 8 chars: uppercase, lowercase, digit", text: $password)
                     .textContentType(.newPassword)
+                    .onChange(of: password) { _, _ in
+                        // Trigger validation when password changes
+                    }
                     .padding()
                     .background(Color(.systemGray6))
                     .cornerRadius(10)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(showPasswordValidationError ? Color.red : Color.clear, lineWidth: 1)
+                    )
+                
+                // Password validation error
+                if let error = passwordValidationError {
+                    Text(error)
+                        .font(.caption)
+                        .foregroundColor(.red)
+                }
             }
             
             // Confirm Password
@@ -730,9 +808,23 @@ struct SignUpView: View {
                     .foregroundColor(.primary)
                 SecureField("Confirm your entered password", text: $confirmPassword)
                     .textContentType(.newPassword)
+                    .onChange(of: confirmPassword) { _, _ in
+                        // Trigger validation when confirm password changes
+                    }
                     .padding()
                     .background(Color(.systemGray6))
                     .cornerRadius(10)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(showPasswordMismatch ? Color.red : Color.clear, lineWidth: 1)
+                    )
+                
+                // Password mismatch warning
+                if showPasswordMismatch {
+                    Text("Password mismatch")
+                        .font(.caption)
+                        .foregroundColor(.red)
+                }
             }
             
             // Call Sign
