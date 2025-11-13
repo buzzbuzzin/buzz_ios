@@ -35,7 +35,9 @@ class ProfileService: ObservableObject {
             updates["last_name"] = .string(lastName)
         }
         if let callSign = callSign {
-            updates["call_sign"] = .string(callSign)
+            // Normalize callsign to uppercase before saving
+            let normalizedCallSign = callSign.uppercased().trimmingCharacters(in: .whitespacesAndNewlines)
+            updates["call_sign"] = .string(normalizedCallSign)
         }
         if let email = email {
             updates["email"] = .string(email)
@@ -68,10 +70,14 @@ class ProfileService: ObservableObject {
     
     func checkCallSignAvailability(callSign: String) async throws -> Bool {
         do {
+            // Normalize callsign to uppercase for case-insensitive comparison
+            let normalizedCallSign = callSign.uppercased().trimmingCharacters(in: .whitespacesAndNewlines)
+            
+            // Use case-insensitive comparison by checking for uppercase version
             let profiles: [UserProfile] = try await supabase
                 .from("profiles")
                 .select()
-                .eq("call_sign", value: callSign)
+                .eq("call_sign", value: normalizedCallSign)
                 .execute()
                 .value
             

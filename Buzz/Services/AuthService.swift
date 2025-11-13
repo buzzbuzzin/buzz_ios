@@ -387,7 +387,9 @@ class AuthService: ObservableObject {
             profile["last_name"] = .string(lastName)
         }
         if let callSign = callSign {
-            profile["call_sign"] = .string(callSign)
+            // Normalize callsign to uppercase before saving
+            let normalizedCallSign = callSign.uppercased().trimmingCharacters(in: .whitespacesAndNewlines)
+            profile["call_sign"] = .string(normalizedCallSign)
         }
         if let email = email {
             profile["email"] = .string(email)

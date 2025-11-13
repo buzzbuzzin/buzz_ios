@@ -530,18 +530,29 @@ struct UserTypeSelectionSheet: View {
                 .padding(.horizontal)
                 
                 if userType == .pilot {
-                    VStack(spacing: 8) {
+                    VStack(alignment: .leading, spacing: 8) {
                         TextField("Call Sign", text: $callSign)
                             .textContentType(.nickname)
                             .autocapitalization(.allCharacters)
+                            .autocorrectionDisabled()
+                            .onChange(of: callSign) { _, newValue in
+                                // Filter to only allow letters and convert to uppercase
+                                let filtered = newValue.uppercased().filter { $0.isLetter }
+                                if filtered != newValue {
+                                    callSign = filtered
+                                } else {
+                                    callSign = newValue.uppercased()
+                                }
+                            }
                             .padding()
                             .background(Color(.systemGray6))
                             .cornerRadius(10)
                             .padding(.horizontal)
                         
-                        Text("Your unique pilot identifier")
+                        Text("Your unique pilot identifier (letters only)")
                             .font(.caption)
                             .foregroundColor(.secondary)
+                            .padding(.horizontal)
                     }
                 }
                 

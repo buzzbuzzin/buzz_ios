@@ -55,7 +55,7 @@ struct ChangePasswordView: View {
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                     
-                    SecureField("New Password", text: $newPassword)
+                    SecureField("Min 8 chars: uppercase, lowercase, digit", text: $newPassword)
                         .textFieldStyle(PlainTextFieldStyle())
                         .padding()
                         .background(Color(.systemGray6))
@@ -128,11 +128,33 @@ struct ChangePasswordView: View {
         !currentPassword.isEmpty &&
         !newPassword.isEmpty &&
         newPassword == confirmPassword &&
-        newPassword.count >= 6
+        isValidPassword(newPassword)
+    }
+    
+    private func isValidPassword(_ password: String) -> Bool {
+        // Minimum 8 characters
+        guard password.count >= 8 else { return false }
+        
+        // Check for at least one lowercase letter
+        let hasLowercase = password.rangeOfCharacter(from: CharacterSet.lowercaseLetters) != nil
+        
+        // Check for at least one uppercase letter
+        let hasUppercase = password.rangeOfCharacter(from: CharacterSet.uppercaseLetters) != nil
+        
+        // Check for at least one digit
+        let hasDigit = password.rangeOfCharacter(from: CharacterSet.decimalDigits) != nil
+        
+        return hasLowercase && hasUppercase && hasDigit
     }
     
     private func changePassword() {
-        guard isFormValid else { return }
+        guard isFormValid else {
+            if !isValidPassword(newPassword) {
+                errorMessage = "Password must be at least 8 characters and include uppercase, lowercase, and a digit"
+                showError = true
+            }
+            return
+        }
         
         isLoading = true
         Task {

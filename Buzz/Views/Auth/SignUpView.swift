@@ -24,6 +24,8 @@ struct SignUpView: View {
     @State private var showError = false
     @State private var errorMessage = ""
     @State private var isSigningUp = false
+    @State private var callSignValidationError: String? = nil
+    @State private var isCheckingCallSignAvailability = false
     @State private var customerSignUpPage: Int = 1 // 1 for basic info, 2 for role selection, 3 for specialization, 4 for confirmation
     @State private var showPackagePromotion = false
     @State private var promotionType: PromotionType? = nil
@@ -299,7 +301,23 @@ struct SignUpView: View {
         !email.isEmpty &&
         !password.isEmpty &&
         password == confirmPassword &&
-        password.count >= 6
+        isValidPassword(password)
+    }
+    
+    private func isValidPassword(_ password: String) -> Bool {
+        // Minimum 8 characters
+        guard password.count >= 8 else { return false }
+        
+        // Check for at least one lowercase letter
+        let hasLowercase = password.rangeOfCharacter(from: CharacterSet.lowercaseLetters) != nil
+        
+        // Check for at least one uppercase letter
+        let hasUppercase = password.rangeOfCharacter(from: CharacterSet.uppercaseLetters) != nil
+        
+        // Check for at least one digit
+        let hasDigit = password.rangeOfCharacter(from: CharacterSet.decimalDigits) != nil
+        
+        return hasLowercase && hasUppercase && hasDigit
     }
     
     private var isFormValid: Bool {
@@ -311,8 +329,71 @@ struct SignUpView: View {
             !email.isEmpty &&
             !password.isEmpty &&
             password == confirmPassword &&
-            password.count >= 6 &&
-            !callSign.isEmpty
+            isValidPassword(password) &&
+            !callSign.isEmpty &&
+            callSignValidationError == nil &&
+            !isCheckingCallSignAvailability
+        }
+    }
+    
+    private func validateCallSign() {
+        let normalizedCallSign = callSign.uppercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        // Reset validation error
+        callSignValidationError = nil
+        
+        // Empty callsign is allowed (will be checked in isFormValid)
+        guard !normalizedCallSign.isEmpty else {
+            return
+        }
+        
+        // Check if callsign contains only letters (should already be filtered, but double-check)
+        if !normalizedCallSign.allSatisfy({ $0.isLetter }) {
+            callSignValidationError = "Call sign can only contain letters"
+            return
+        }
+        
+        // Check for reserved word "Maverick" (case-insensitive)
+        if normalizedCallSign == "MAVERICK" {
+            callSignValidationError = "Call sign 'Maverick' is reserved and cannot be used"
+            return
+        }
+        
+        // Check uniqueness (async)
+        checkCallSignAvailability()
+    }
+    
+    private func checkCallSignAvailability() {
+        let normalizedCallSign = callSign.uppercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        guard !normalizedCallSign.isEmpty else {
+            return
+        }
+        
+        isCheckingCallSignAvailability = true
+        
+        Task {
+            do {
+                // Use ProfileService to check availability
+                let profileService = ProfileService()
+                let isAvailable = try await profileService.checkCallSignAvailability(callSign: normalizedCallSign)
+                
+                await MainActor.run {
+                    isCheckingCallSignAvailability = false
+                    
+                    if !isAvailable {
+                        callSignValidationError = "This call sign is already taken"
+                    } else {
+                        callSignValidationError = nil
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    isCheckingCallSignAvailability = false
+                    // Don't show error for check failure - will be caught during signup
+                    callSignValidationError = nil
+                }
+            }
         }
     }
     
@@ -383,7 +464,7 @@ struct SignUpView: View {
                     .font(.subheadline)
                     .fontWeight(.medium)
                     .foregroundColor(.primary)
-                SecureField("Enter your password", text: $password)
+                SecureField("Min 8 chars: uppercase, lowercase, digit", text: $password)
                     .textContentType(.newPassword)
                     .padding()
                     .background(Color(.systemGray6))
@@ -634,7 +715,7 @@ struct SignUpView: View {
                     .font(.subheadline)
                     .fontWeight(.medium)
                     .foregroundColor(.primary)
-                SecureField("Enter your password", text: $password)
+                SecureField("Min 8 chars: uppercase, lowercase, digit", text: $password)
                     .textContentType(.newPassword)
                     .padding()
                     .background(Color(.systemGray6))
@@ -647,7 +728,7 @@ struct SignUpView: View {
                     .font(.subheadline)
                     .fontWeight(.medium)
                     .foregroundColor(.primary)
-                SecureField("Confirm your password", text: $confirmPassword)
+                SecureField("Confirm your entered password", text: $confirmPassword)
                     .textContentType(.newPassword)
                     .padding()
                     .background(Color(.systemGray6))
@@ -660,30 +741,115 @@ struct SignUpView: View {
                     .font(.subheadline)
                     .fontWeight(.medium)
                     .foregroundColor(.primary)
-                TextField("Enter your call sign", text: $callSign)
+                TextField("Capitalized letters only, e.g., CALLSIGN", text: $callSign)
                     .textContentType(.nickname)
                     .autocapitalization(.allCharacters)
+                    .autocorrectionDisabled()
+                    .onChange(of: callSign) { _, newValue in
+                        // Filter to only allow letters and convert to uppercase
+                        let filtered = newValue.uppercased().filter { $0.isLetter }
+                        if filtered != newValue {
+                            callSign = filtered
+                        } else {
+                            callSign = newValue.uppercased()
+                        }
+                        
+                        // Validate callsign as user types
+                        validateCallSign()
+                    }
                     .padding()
                     .background(Color(.systemGray6))
                     .cornerRadius(10)
-                Text("Your unique pilot identifier")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(callSignValidationError != nil ? Color.red : Color.clear, lineWidth: 1)
+                    )
+                
+                // Validation message or hint
+                if let error = callSignValidationError {
+                    Text(error)
+                        .font(.caption)
+                        .foregroundColor(.red)
+                } else if !callSign.isEmpty {
+                    if isCheckingCallSignAvailability {
+                        Text("Checking availability...")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    } else {
+                        Text("Your unique pilot identifier")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                } else {
+                    Text("Your unique pilot identifier")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
             }
         }
     }
     
     private func signUp() {
+        // Final validation before signup
+        if userType == .pilot {
+            let normalizedCallSign = callSign.uppercased().trimmingCharacters(in: .whitespacesAndNewlines)
+            
+            // Check if callsign is valid
+            if normalizedCallSign.isEmpty {
+                errorMessage = "Call sign is required for pilots"
+                showError = true
+                return
+            }
+            
+            // Check for reserved word
+            if normalizedCallSign == "MAVERICK" {
+                errorMessage = "Call sign 'Maverick' is reserved and cannot be used"
+                showError = true
+                return
+            }
+            
+            // Ensure callsign only contains letters
+            if !normalizedCallSign.allSatisfy({ $0.isLetter }) {
+                errorMessage = "Call sign can only contain letters"
+                showError = true
+                return
+            }
+        }
+        
+        // Validate password before signup
+        if !isValidPassword(password) {
+            errorMessage = "Password must be at least 8 characters and include uppercase, lowercase, and a digit"
+            showError = true
+            return
+        }
+        
         isSigningUp = true
         Task {
             do {
+                // Double-check availability before signup
+                if userType == .pilot {
+                    let normalizedCallSign = callSign.uppercased().trimmingCharacters(in: .whitespacesAndNewlines)
+                    let profileService = ProfileService()
+                    let isAvailable = try await profileService.checkCallSignAvailability(callSign: normalizedCallSign)
+                    
+                    if !isAvailable {
+                        await MainActor.run {
+                            isSigningUp = false
+                            callSignValidationError = "This call sign is already taken"
+                            errorMessage = "This call sign is already taken. Please choose a different one."
+                            showError = true
+                        }
+                        return
+                    }
+                }
+                
                 try await authService.signUpWithEmail(
                     email: email,
                     password: password,
                     userType: userType,
                     firstName: firstName,
                     lastName: lastName,
-                    callSign: userType == .pilot ? callSign : nil,
+                    callSign: userType == .pilot ? callSign.uppercased().trimmingCharacters(in: .whitespacesAndNewlines) : nil,
                     role: userType == .customer ? role : nil,
                     specialization: userType == .customer ? selectedSpecialization : nil
                 )
@@ -694,7 +860,14 @@ struct SignUpView: View {
                 
             } catch {
                 isSigningUp = false
-                errorMessage = error.localizedDescription
+                // Check if error is related to callsign uniqueness
+                let errorDescription = error.localizedDescription
+                if errorDescription.lowercased().contains("call") || errorDescription.lowercased().contains("unique") || errorDescription.lowercased().contains("duplicate") {
+                    callSignValidationError = "This call sign is already taken"
+                    errorMessage = "This call sign is already taken. Please choose a different one."
+                } else {
+                    errorMessage = errorDescription
+                }
                 showError = true
             }
         }
