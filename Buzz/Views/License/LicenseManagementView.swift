@@ -28,6 +28,10 @@ struct LicenseManagementView: View {
     @State private var showDeleteConfirmation = false
     @State private var licenseToEdit: PilotLicense?
     @State private var showEditSheet = false
+    @State private var showLicenseTypeSelection = false
+    @State private var selectedLicenseType: LicenseType?
+    @State private var customLicenseType: String = ""
+    @State private var pendingUploadAction: (() -> Void)?
     
     var body: some View {
         VStack(spacing: 0) {
@@ -141,6 +145,18 @@ struct LicenseManagementView: View {
         }
         .navigationTitle("Licenses")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if isAuthenticated {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button {
+                        showUploadOptions = true
+                    } label: {
+                        Image(systemName: "plus")
+                    }
+                    .accessibilityLabel("Add License")
+                }
+            }
+        }
         .confirmationDialog("Upload License", isPresented: $showUploadOptions, titleVisibility: .visible) {
             Button("Take Photo") {
                 guard isAuthenticated else {
@@ -148,8 +164,11 @@ struct LicenseManagementView: View {
                     showError = true
                     return
                 }
-                imageSourceType = .camera
-                showImagePicker = true
+                pendingUploadAction = {
+                    imageSourceType = .camera
+                    showImagePicker = true
+                }
+                showLicenseTypeSelection = true
             }
             Button("Choose from Photo Library") {
                 guard isAuthenticated else {
@@ -157,8 +176,11 @@ struct LicenseManagementView: View {
                     showError = true
                     return
                 }
-                imageSourceType = .photoLibrary
-                showImagePicker = true
+                pendingUploadAction = {
+                    imageSourceType = .photoLibrary
+                    showImagePicker = true
+                }
+                showLicenseTypeSelection = true
             }
             Button("Choose File") {
                 guard isAuthenticated else {
@@ -166,9 +188,29 @@ struct LicenseManagementView: View {
                     showError = true
                     return
                 }
-                showDocumentPicker = true
+                pendingUploadAction = {
+                    showDocumentPicker = true
+                }
+                showLicenseTypeSelection = true
             }
             Button("Cancel", role: .cancel) {}
+        }
+        .sheet(isPresented: $showLicenseTypeSelection) {
+            LicenseTypeSelectionView(
+                selectedType: $selectedLicenseType,
+                customType: $customLicenseType,
+                onConfirm: {
+                    showLicenseTypeSelection = false
+                    pendingUploadAction?()
+                    pendingUploadAction = nil
+                },
+                onCancel: {
+                    showLicenseTypeSelection = false
+                    selectedLicenseType = nil
+                    customLicenseType = ""
+                    pendingUploadAction = nil
+                }
+            )
         }
         .sheet(isPresented: $showImagePicker) {
             ImagePicker(image: $selectedImage, sourceType: imageSourceType)
@@ -301,6 +343,7 @@ struct LicenseManagementView: View {
         }
         
         let userId = currentUser.id
+        let licenseTypeString = getLicenseTypeString()
         
         Task {
             do {
@@ -309,8 +352,12 @@ struct LicenseManagementView: View {
                     pilotId: userId,
                     data: imageData,
                     fileName: fileName,
-                    fileType: .image
+                    fileType: .image,
+                    licenseType: licenseTypeString
                 )
+                // Reset license type selection
+                selectedLicenseType = nil
+                customLicenseType = ""
                 await loadLicenses()
             } catch {
                 errorMessage = error.localizedDescription
@@ -342,19 +389,44 @@ struct LicenseManagementView: View {
                 }
                 
                 let data = try Data(contentsOf: url)
-                let fileName = url.lastPathComponent
+                // Generate unique filename to allow multiple uploads of same file
+                let originalFileName = url.lastPathComponent
+                let fileExtension = (originalFileName as NSString).pathExtension
+                let uniqueFileName: String
+                if fileExtension.isEmpty {
+                    // If no extension, just append UUID
+                    uniqueFileName = "\(originalFileName)_\(UUID().uuidString)"
+                } else {
+                    let fileNameWithoutExtension = (originalFileName as NSString).deletingPathExtension
+                    uniqueFileName = "\(fileNameWithoutExtension)_\(UUID().uuidString).\(fileExtension)"
+                }
+                let licenseTypeString = getLicenseTypeString()
                 _ = try await licenseService.uploadLicense(
                     pilotId: userId,
                     data: data,
-                    fileName: fileName,
-                    fileType: .pdf
+                    fileName: uniqueFileName,
+                    fileType: .pdf,
+                    licenseType: licenseTypeString
                 )
+                // Reset license type selection
+                selectedLicenseType = nil
+                customLicenseType = ""
                 await loadLicenses()
             } catch {
                 errorMessage = error.localizedDescription
                 showError = true
             }
         }
+    }
+    
+    private func getLicenseTypeString() -> String? {
+        if let selected = selectedLicenseType {
+            if selected == .custom {
+                return customLicenseType.isEmpty ? nil : customLicenseType
+            }
+            return selected.rawValue
+        }
+        return nil
     }
     
     private func deleteLicense(license: PilotLicense) {
@@ -395,7 +467,7 @@ struct LicenseRow: View {
                 
                 // File info
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(license.fileType == .pdf ? "PDF Document" : "Image")
+                    Text(license.licenseType ?? (license.fileType == .pdf ? "PDF Document" : "Image"))
                         .font(.headline)
                     
                     Text("Uploaded \(license.uploadedAt.formatted(date: .abbreviated, time: .shortened))")
@@ -814,6 +886,68 @@ struct DocumentPicker: UIViewControllerRepresentable {
         
         func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
             parent.dismiss()
+        }
+    }
+}
+
+// MARK: - License Type Selection View
+
+struct LicenseTypeSelectionView: View {
+    @Binding var selectedType: LicenseType?
+    @Binding var customType: String
+    let onConfirm: () -> Void
+    let onCancel: () -> Void
+    
+    @State private var showCustomTextField = false
+    
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section(header: Text("Select License Type")) {
+                    ForEach(LicenseType.allCases, id: \.self) { type in
+                        Button(action: {
+                            selectedType = type
+                            if type == .custom {
+                                showCustomTextField = true
+                            } else {
+                                showCustomTextField = false
+                            }
+                        }) {
+                            HStack {
+                                Text(type.displayName)
+                                    .foregroundColor(.primary)
+                                Spacer()
+                                if selectedType == type {
+                                    Image(systemName: "checkmark")
+                                        .foregroundColor(.blue)
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                if showCustomTextField && selectedType == .custom {
+                    Section(header: Text("Enter Your License Type")) {
+                        TextField("Enter license type", text: $customType)
+                            .textInputAutocapitalization(.words)
+                    }
+                }
+            }
+            .navigationTitle("License Type")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") {
+                        onCancel()
+                    }
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Continue") {
+                        onConfirm()
+                    }
+                    .disabled(selectedType == nil || (selectedType == .custom && customType.isEmpty))
+                }
+            }
         }
     }
 }

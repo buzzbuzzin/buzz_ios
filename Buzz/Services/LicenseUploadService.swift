@@ -23,7 +23,7 @@ class LicenseUploadService: ObservableObject {
     
     // MARK: - Upload License
     
-    func uploadLicense(pilotId: UUID, data: Data, fileName: String, fileType: LicenseFileType) async throws -> String {
+    func uploadLicense(pilotId: UUID, data: Data, fileName: String, fileType: LicenseFileType, licenseType: String? = nil) async throws -> String {
         isLoading = true
         errorMessage = nil
         
@@ -138,6 +138,11 @@ class LicenseUploadService: ObservableObject {
                 "file_type": .string(fileType.rawValue),
                 "uploaded_at": .string(ISO8601DateFormatter().string(from: Date()))
             ]
+            
+            // Add license type if provided
+            if let licenseType = licenseType, !licenseType.isEmpty {
+                license["license_type"] = .string(licenseType)
+            }
             
             // Add OCR extracted fields if available
             if let info = ocrInfo {

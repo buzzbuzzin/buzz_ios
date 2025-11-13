@@ -12,12 +12,32 @@ enum LicenseFileType: String, Codable {
     case image
 }
 
+enum LicenseType: String, Codable, CaseIterable {
+    case part107 = "Part 107"
+    case part107Recurrent = "Part 107 recurrent"
+    case part108 = "Part 108"
+    case transportCanada = "Transport Canada"
+    case custom = "Custom"
+    
+    var displayName: String {
+        switch self {
+        case .custom:
+            return "Other (Enter license type)"
+        default:
+            return self.rawValue
+        }
+    }
+}
+
 struct PilotLicense: Codable, Identifiable {
     let id: UUID
     let pilotId: UUID
     let fileUrl: String
     let fileType: LicenseFileType
     let uploadedAt: Date
+    
+    // License type
+    let licenseType: String?
     
     // OCR extracted fields
     let name: String?
@@ -31,6 +51,7 @@ struct PilotLicense: Codable, Identifiable {
         case fileUrl = "file_url"
         case fileType = "file_type"
         case uploadedAt = "uploaded_at"
+        case licenseType = "license_type"
         case name = "name"
         case courseCompleted = "course_completed"
         case completionDate = "completion_date"

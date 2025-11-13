@@ -161,6 +161,8 @@ CREATE TABLE IF NOT EXISTS pilot_licenses (
     file_url TEXT NOT NULL,
     file_type TEXT NOT NULL CHECK (file_type IN ('pdf', 'image')),
     uploaded_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc', NOW()) NOT NULL,
+    -- License type
+    license_type TEXT,
     -- OCR extracted fields
     name TEXT,
     course_completed TEXT,
@@ -190,9 +192,16 @@ CREATE POLICY "Pilots can delete their own licenses"
     ON pilot_licenses FOR DELETE 
     USING (auth.uid() = pilot_id);
 
--- Add OCR fields to pilot_licenses if they don't exist (for migrations)
+-- Add license_type and OCR fields to pilot_licenses if they don't exist (for migrations)
 DO $$ 
 BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'pilot_licenses' AND column_name = 'license_type'
+    ) THEN
+        ALTER TABLE pilot_licenses ADD COLUMN license_type TEXT;
+    END IF;
+    
     IF NOT EXISTS (
         SELECT 1 FROM information_schema.columns 
         WHERE table_name = 'pilot_licenses' AND column_name = 'name'
