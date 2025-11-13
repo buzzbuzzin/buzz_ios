@@ -826,8 +826,12 @@ struct NewsArticleDetailView: View {
 struct AvailabilityView: View {
     @EnvironmentObject var authService: AuthService
     @StateObject private var bookingService = BookingService()
+    @StateObject private var blockoutService = AvailabilityBlockoutService()
     @State private var selectedDate = Date()
     @State private var currentMonth = Date()
+    @State private var showBlockoutSheet = false
+    @State private var blockoutToEdit: AvailabilityBlockout? = nil
+    @State private var editingBlockout: AvailabilityBlockout? = nil
     
     private let calendar = Calendar.current
     private let dateFormatter: DateFormatter = {
@@ -845,6 +849,40 @@ struct AvailabilityView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
+                // Blockout Button Section
+                VStack(spacing: 12) {
+                    Button(action: {
+                        editingBlockout = nil
+                        showBlockoutSheet = true
+                    }) {
+                        HStack {
+                            Image(systemName: "calendar.badge.minus")
+                                .font(.system(size: 16, weight: .semibold))
+                            Text("Block Out Availability")
+                                .font(.headline)
+                        }
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(Color.black)
+                        .cornerRadius(12)
+                    }
+                    .padding(.horizontal)
+                    
+                    // Show existing blockouts count
+                    if !blockoutService.blockouts.isEmpty {
+                        HStack {
+                            Image(systemName: "info.circle.fill")
+                                .foregroundColor(.black)
+                            Text("\(blockoutService.blockouts.count) blockout\(blockoutService.blockouts.count == 1 ? "" : "s") active")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(.horizontal)
+                    }
+                }
+                .padding(.top, 8)
+                
                 // Month Navigation
                 HStack {
                     Button(action: {
@@ -900,6 +938,7 @@ struct AvailabilityView: View {
                                     date: date,
                                     isSelected: calendar.isDate(date, inSameDayAs: selectedDate),
                                     hasBooking: hasBookingOnDate(date),
+                                    isBlocked: hasBlockoutOnDate(date),
                                     isCurrentMonth: calendar.isDate(date, equalTo: currentMonth, toGranularity: .month),
                                     isToday: calendar.isDateInToday(date),
                                     bookingCount: bookingCountForDate(date)
@@ -917,50 +956,147 @@ struct AvailabilityView: View {
                 }
                 
                 // Selected Date Details
-                if hasBookingOnDate(selectedDate) {
+                VStack(alignment: .leading, spacing: 16) {
+                    // Show bookings for selected date
+                    if hasBookingOnDate(selectedDate) {
+                        VStack(alignment: .leading, spacing: 16) {
+                            Text("Bookings on \(formatDate(selectedDate))")
+                                .font(.headline)
+                                .padding(.horizontal)
+                            
+                            ForEach(bookingsForDate(selectedDate)) { booking in
+                                NavigationLink(destination: BookingDetailView(booking: booking)) {
+                                    BookingCalendarCard(booking: booking)
+                                }
+                                .buttonStyle(PlainButtonStyle())
+                            }
+                        }
+                        .padding(.top)
+                    } else {
+                        VStack(spacing: 8) {
+                            Image(systemName: "calendar.badge.plus")
+                                .font(.system(size: 40))
+                                .foregroundColor(.secondary)
+                            Text("No bookings on \(formatDate(selectedDate))")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(.vertical, 40)
+                    }
+                }
+                
+                // Active Blockouts Section
+                if !blockoutService.blockouts.isEmpty {
                     VStack(alignment: .leading, spacing: 16) {
-                        Text("Bookings on \(formatDate(selectedDate))")
+                        Text("Active Blockouts")
                             .font(.headline)
                             .padding(.horizontal)
                         
-                        ForEach(bookingsForDate(selectedDate)) { booking in
-                            NavigationLink(destination: BookingDetailView(booking: booking)) {
-                                BookingCalendarCard(booking: booking)
-                            }
-                            .buttonStyle(PlainButtonStyle())
+                        ForEach(blockoutService.blockouts) { blockout in
+                            BlockoutCard(
+                                blockout: blockout,
+                                onEdit: {
+                                    editingBlockout = blockout
+                                },
+                                onDelete: {
+                                    Task {
+                                        try? await blockoutService.deleteBlockout(blockoutId: blockout.id)
+                                    }
+                                }
+                            )
                         }
                     }
-                    .padding(.top)
-                } else {
-                    VStack(spacing: 8) {
-                        Image(systemName: "calendar.badge.plus")
-                            .font(.system(size: 40))
-                            .foregroundColor(.secondary)
-                        Text("No bookings on \(formatDate(selectedDate))")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                    }
-                    .padding(.vertical, 40)
+                    .padding(.top, 24)
                 }
             }
             .padding(.vertical)
         }
         .navigationTitle("Availability")
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $showBlockoutSheet) {
+            BlockoutCreationView(
+                blockoutService: blockoutService,
+                pilotId: authService.currentUser?.id ?? UUID(),
+                blockoutToEdit: nil
+            )
+        }
+        .sheet(item: $editingBlockout) { blockout in
+            BlockoutCreationView(
+                blockoutService: blockoutService,
+                pilotId: authService.currentUser?.id ?? UUID(),
+                blockoutToEdit: blockout
+            )
+        }
         .task {
-            await loadBookings()
+            await loadData()
         }
         .refreshable {
-            await loadBookings()
+            await loadData()
         }
     }
     
-    private func loadBookings() async {
+    private func loadData() async {
         guard let currentUser = authService.currentUser,
               let userProfile = authService.userProfile,
               userProfile.userType == .pilot else { return }
         
-        try? await bookingService.fetchMyBookings(userId: currentUser.id, isPilot: true)
+        async let bookingsTask = bookingService.fetchMyBookings(userId: currentUser.id, isPilot: true)
+        async let blockoutsTask = blockoutService.fetchBlockouts(pilotId: currentUser.id)
+        
+        _ = try? await bookingsTask
+        _ = try? await blockoutsTask
+    }
+    
+    private func isDateBlocked(_ date: Date) -> Bool {
+        return blockoutService.isDateBlocked(date)
+    }
+    
+    private func hasBlockoutOnDate(_ date: Date) -> Bool {
+        // Check if any blockout exists for this day (not just specific time)
+        return blockoutService.blockouts.contains { blockout in
+            let calendar = Calendar.current
+            let dateStart = calendar.startOfDay(for: date)
+            let dateEnd = calendar.date(byAdding: .day, value: 1, to: dateStart) ?? dateStart
+            
+            // For non-recurring blockouts
+            if blockout.recurrenceType == .none {
+                return blockout.startDate < dateEnd && blockout.endDate >= dateStart
+            }
+            
+            // For recurring blockouts, check if this day matches the pattern
+            // Check if date is within recurrence range
+            if let recurrenceEndDate = blockout.recurrenceEndDate {
+                guard date >= calendar.startOfDay(for: blockout.startDate) && date <= recurrenceEndDate else {
+                    return false
+                }
+            } else {
+                guard date >= calendar.startOfDay(for: blockout.startDate) else {
+                    return false
+                }
+            }
+            
+            // Check if day matches recurrence pattern
+            switch blockout.recurrenceType {
+            case .none:
+                return false
+            case .daily:
+                return true // Daily matches any day
+            case .weekly:
+                let startWeekday = calendar.component(.weekday, from: blockout.startDate)
+                let dateWeekday = calendar.component(.weekday, from: date)
+                return startWeekday == dateWeekday
+            case .weekdays:
+                let weekday = calendar.component(.weekday, from: date)
+                return weekday >= 2 && weekday <= 6 // Monday to Friday
+            case .weekends:
+                let weekday = calendar.component(.weekday, from: date)
+                return weekday == 1 || weekday == 7 // Saturday or Sunday
+            case .monthly:
+                let startDay = calendar.component(.day, from: blockout.startDate)
+                let dateDay = calendar.component(.day, from: date)
+                return startDay == dateDay
+            }
+        }
     }
     
     private func generateDaysForMonth() -> [Date?] {
@@ -1029,6 +1165,7 @@ struct CalendarDayView: View {
     let date: Date
     let isSelected: Bool
     let hasBooking: Bool
+    let isBlocked: Bool
     let isCurrentMonth: Bool
     let isToday: Bool
     let bookingCount: Int
@@ -1041,7 +1178,12 @@ struct CalendarDayView: View {
                 .font(.system(size: 16, weight: isToday ? .bold : .regular))
                 .foregroundColor(dayTextColor)
             
-            if hasBooking {
+            if isBlocked {
+                // Show gray indicator for blocked days
+                Circle()
+                    .fill(Color.gray)
+                    .frame(width: 6, height: 6)
+            } else if hasBooking {
                 HStack(spacing: 2) {
                     ForEach(0..<min(bookingCount, 3), id: \.self) { _ in
                         Circle()
@@ -1080,6 +1222,8 @@ struct CalendarDayView: View {
     private var backgroundColor: Color {
         if isSelected {
             return .blue
+        } else if isBlocked {
+            return .gray.opacity(0.3)
         } else if isToday {
             return .blue.opacity(0.1)
         } else {
@@ -1560,5 +1704,269 @@ struct ProgressRequirementRow: View {
             }
         }
         .padding(.vertical, 4)
+    }
+}
+
+// MARK: - Blockout Creation View
+
+struct BlockoutCreationView: View {
+    @ObservedObject var blockoutService: AvailabilityBlockoutService
+    let pilotId: UUID
+    let blockoutToEdit: AvailabilityBlockout?
+    @Environment(\.dismiss) var dismiss
+    
+    @State private var label: String = ""
+    @State private var startDate = Date()
+    @State private var endDate = Date().addingTimeInterval(3600) // Default 1 hour
+    @State private var recurrenceType: RecurrenceType = .none
+    @State private var recurrenceEndDate: Date? = nil
+    @State private var showRecurrenceEndDate = false
+    @State private var isCreating = false
+    
+    private var isEditMode: Bool {
+        blockoutToEdit != nil
+    }
+    
+    // Initialize state based on blockoutToEdit
+    init(blockoutService: AvailabilityBlockoutService, pilotId: UUID, blockoutToEdit: AvailabilityBlockout?) {
+        self.blockoutService = blockoutService
+        self.pilotId = pilotId
+        self.blockoutToEdit = blockoutToEdit
+        
+        // Pre-populate fields if editing
+        if let blockout = blockoutToEdit {
+            _label = State(initialValue: blockout.label ?? "")
+            _startDate = State(initialValue: blockout.startDate)
+            _endDate = State(initialValue: blockout.endDate)
+            _recurrenceType = State(initialValue: blockout.recurrenceType)
+            _recurrenceEndDate = State(initialValue: blockout.recurrenceEndDate)
+            _showRecurrenceEndDate = State(initialValue: blockout.recurrenceEndDate != nil)
+        }
+    }
+    
+    private let dateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        return formatter
+    }()
+    
+    var body: some View {
+        NavigationView {
+            Form {
+                Section(header: HStack {
+                    Image(systemName: "tag.fill")
+                        .foregroundColor(.gray)
+                    Text("Label")
+                }) {
+                    TextField("e.g., Vacation, Family Time, Maintenance", text: $label)
+                        .textInputAutocapitalization(.words)
+                }
+                
+                Section(header: HStack {
+                    Image(systemName: "calendar")
+                        .foregroundColor(.gray)
+                    Text("Date & Time")
+                }) {
+                    DatePicker("Starts", selection: $startDate, displayedComponents: [.date, .hourAndMinute])
+                    
+                    DatePicker("Ends", selection: $endDate, displayedComponents: [.date, .hourAndMinute])
+                }
+                
+                Section(header: HStack {
+                    Image(systemName: "repeat")
+                        .foregroundColor(.gray)
+                    Text("Recurrence")
+                }) {
+                    Picker("Repeat", selection: $recurrenceType) {
+                        ForEach(RecurrenceType.allCases, id: \.self) { type in
+                            Text(type.displayName).tag(type)
+                        }
+                    }
+                    
+                    if recurrenceType != .none {
+                        HStack {
+                            Image(systemName: "calendar.badge.clock")
+                                .foregroundColor(.gray)
+                                .font(.title3)
+                            Toggle("Set End Date for Recurrence", isOn: $showRecurrenceEndDate)
+                        }
+                        
+                        if showRecurrenceEndDate {
+                            HStack {
+                                Image(systemName: "calendar.badge.exclamationmark")
+                                    .foregroundColor(.gray)
+                                    .font(.title3)
+                                DatePicker("Recurrence End Date", selection: Binding(
+                                    get: { recurrenceEndDate ?? Calendar.current.date(byAdding: .month, value: 1, to: startDate) ?? Date() },
+                                    set: { recurrenceEndDate = $0 }
+                                ), displayedComponents: [.date])
+                            }
+                        }
+                    }
+                }
+                
+                Section {
+                    Button(action: {
+                        Task {
+                            await createBlockout()
+                        }
+                    }) {
+                        HStack {
+                            Spacer()
+                            if isCreating {
+                                ProgressView()
+                                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                            } else {
+                                Text(isEditMode ? "Edit Blockout" : "Create Blockout")
+                                    .fontWeight(.semibold)
+                            }
+                            Spacer()
+                        }
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(isCreating || endDate <= startDate ? Color.gray : Color.black)
+                        .cornerRadius(10)
+                    }
+                    .disabled(isCreating || endDate <= startDate)
+                }
+                .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                .listRowBackground(Color.clear)
+            }
+            .navigationTitle(isEditMode ? "Edit Blockout" : "Block Out Availability")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+            }
+            .onAppear {
+                // Ensure fields are populated if editing (backup to init)
+                if let blockout = blockoutToEdit {
+                    label = blockout.label ?? ""
+                    startDate = blockout.startDate
+                    endDate = blockout.endDate
+                    recurrenceType = blockout.recurrenceType
+                    recurrenceEndDate = blockout.recurrenceEndDate
+                    showRecurrenceEndDate = blockout.recurrenceEndDate != nil
+                }
+            }
+        }
+    }
+    
+    private func createBlockout() async {
+        isCreating = true
+        
+        let finalRecurrenceEndDate = (recurrenceType != .none && showRecurrenceEndDate) ? recurrenceEndDate : nil
+        
+        do {
+            if let blockout = blockoutToEdit {
+                // Update existing blockout
+                try await blockoutService.updateBlockout(
+                    blockoutId: blockout.id,
+                    label: label.isEmpty ? nil : label,
+                    startDate: startDate,
+                    endDate: endDate,
+                    recurrenceType: recurrenceType,
+                    recurrenceEndDate: finalRecurrenceEndDate
+                )
+            } else {
+                // Create new blockout
+                try await blockoutService.createBlockout(
+                    pilotId: pilotId,
+                    label: label.isEmpty ? nil : label,
+                    startDate: startDate,
+                    endDate: endDate,
+                    recurrenceType: recurrenceType,
+                    recurrenceEndDate: finalRecurrenceEndDate
+                )
+            }
+            dismiss()
+        } catch {
+            // Error handling - could show an alert here
+            print("Error \(isEditMode ? "updating" : "creating") blockout: \(error)")
+        }
+        
+        isCreating = false
+    }
+}
+
+// MARK: - Blockout Card
+
+struct BlockoutCard: View {
+    let blockout: AvailabilityBlockout
+    let onEdit: () -> Void
+    let onDelete: () -> Void
+    @State private var showActionSheet = false
+    
+    private let dateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        return formatter
+    }()
+    
+    var body: some View {
+        Button(action: {
+            showActionSheet = true
+        }) {
+            HStack(spacing: 12) {
+                // Blockout Indicator
+                Circle()
+                    .fill(Color.gray)
+                    .frame(width: 8, height: 8)
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    if let label = blockout.label, !label.isEmpty {
+                        Text(label)
+                            .font(.headline)
+                            .foregroundColor(.primary)
+                    } else {
+                        Text("Blocked Out")
+                            .font(.headline)
+                            .foregroundColor(.primary)
+                    }
+                    
+                    Text("\(dateFormatter.string(from: blockout.startDate)) - \(dateFormatter.string(from: blockout.endDate))")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    
+                    if blockout.recurrenceType != .none {
+                        HStack(spacing: 4) {
+                            Image(systemName: "repeat")
+                                .font(.caption2)
+                                .foregroundColor(.gray)
+                            Text(blockout.recurrenceType.displayName)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+                
+                Spacer()
+                
+                Image(systemName: "chevron.right")
+                    .foregroundColor(.gray)
+                    .font(.system(size: 14))
+            }
+            .padding()
+            .background(Color(.secondarySystemBackground))
+            .cornerRadius(12)
+            .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 2)
+        }
+        .buttonStyle(PlainButtonStyle())
+        .padding(.horizontal)
+        .confirmationDialog("Blockout Options", isPresented: $showActionSheet, titleVisibility: .visible) {
+            Button("Edit") {
+                onEdit()
+            }
+            Button("Remove", role: .destructive) {
+                onDelete()
+            }
+            Button("Cancel", role: .cancel) { }
+        }
     }
 }
