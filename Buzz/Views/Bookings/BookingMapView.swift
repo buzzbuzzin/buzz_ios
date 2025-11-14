@@ -101,29 +101,70 @@ struct BookingMapView: View {
     }
     
     private func centerOnUserLocation(animated: Bool = true) {
-        guard let userLocation = locationManager.currentLocation else {
-            // If no location available, request permission and try again
-            locationManager.requestPermission()
-            if locationManager.authorizationStatus == .authorizedWhenInUse || locationManager.authorizationStatus == .authorizedAlways {
-                locationManager.startLocationUpdates()
+        // If we have location, center immediately
+        if let userLocation = locationManager.currentLocation {
+            let newRegion = MKCoordinateRegion(
+                center: userLocation,
+                span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
+            )
+            
+            if animated {
+                withAnimation(.easeInOut(duration: 0.5)) {
+                    region = newRegion
+                }
+            } else {
+                region = newRegion
             }
+            hasInitializedLocation = true
             return
         }
         
-        // Zoom to user location with a close-up view (street-scale)
-        let newRegion = MKCoordinateRegion(
-            center: userLocation,
-            span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
-        )
-        
-        if animated {
-            withAnimation(.easeInOut(duration: 0.5)) {
-                region = newRegion
-            }
-        } else {
-            region = newRegion
+        // If no location available, request permission and start updates
+        if locationManager.authorizationStatus == .notDetermined {
+            locationManager.requestPermission()
         }
-        hasInitializedLocation = true
+        
+        // Start location updates if we have permission, or wait for permission to be granted
+        Task {
+            // Wait for permission to be granted (if it was just requested)
+            if locationManager.authorizationStatus == .notDetermined {
+                // Wait up to 2 seconds for user to respond to permission request
+                for _ in 0..<4 {
+                    try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+                    if locationManager.authorizationStatus != .notDetermined {
+                        break
+                    }
+                }
+            }
+            
+            // Start location updates if we have permission
+            if locationManager.authorizationStatus == .authorizedWhenInUse || locationManager.authorizationStatus == .authorizedAlways {
+                locationManager.startLocationUpdates()
+                
+                // Wait for location to become available (up to 3 seconds)
+                for _ in 0..<6 {
+                    try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+                    if let userLocation = locationManager.currentLocation {
+                        await MainActor.run {
+                            let newRegion = MKCoordinateRegion(
+                                center: userLocation,
+                                span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
+                            )
+                            
+                            if animated {
+                                withAnimation(.easeInOut(duration: 0.5)) {
+                                    region = newRegion
+                                }
+                            } else {
+                                region = newRegion
+                            }
+                            hasInitializedLocation = true
+                        }
+                        return
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -203,6 +244,11 @@ class BookingMapLocationManager: NSObject, ObservableObject, CLLocationManagerDe
     
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         authorizationStatus = manager.authorizationStatus
+        
+        // If permission was just granted, start location updates
+        if authorizationStatus == .authorizedWhenInUse || authorizationStatus == .authorizedAlways {
+            startLocationUpdates()
+        }
         
         // In simulator, set default location if permission not granted
         if locationHelper.isRunningInSimulator && 

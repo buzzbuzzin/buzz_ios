@@ -4,5 +4,7 @@
 <dict>
 	<key>NSFaceIDUsageDescription</key>
 	<string>Buzz needs to use Face ID to securely verify your identity before accessing sensitive information like government IDs and identity verification.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Buzz needs your location to show weather conditions, display your position on maps, and provide flight safety information.</string>
 </dict>
 </plist>

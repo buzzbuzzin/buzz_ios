@@ -226,21 +226,55 @@ struct FlightRadarView: View {
     }
     
     private func centerOnUserLocation() {
-        guard let userLocation = locationManager.currentLocation else {
-            // If no location available, request permission and try again
-            locationManager.requestPermission()
-            if locationManager.authorizationStatus == .authorizedWhenInUse || locationManager.authorizationStatus == .authorizedAlways {
-                locationManager.startLocationUpdates()
+        // If we have location, center immediately
+        if let userLocation = locationManager.currentLocation {
+            withAnimation(.easeInOut(duration: 0.5)) {
+                region = MKCoordinateRegion(
+                    center: userLocation,
+                    span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
+                )
             }
             return
         }
         
-        // Zoom to user location with a close-up view
-        withAnimation(.easeInOut(duration: 0.5)) {
-            region = MKCoordinateRegion(
-                center: userLocation,
-                span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
-            )
+        // If no location available, request permission and start updates
+        if locationManager.authorizationStatus == .notDetermined {
+            locationManager.requestPermission()
+        }
+        
+        // Start location updates if we have permission, or wait for permission to be granted
+        Task {
+            // Wait for permission to be granted (if it was just requested)
+            if locationManager.authorizationStatus == .notDetermined {
+                // Wait up to 2 seconds for user to respond to permission request
+                for _ in 0..<4 {
+                    try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+                    if locationManager.authorizationStatus != .notDetermined {
+                        break
+                    }
+                }
+            }
+            
+            // Start location updates if we have permission
+            if locationManager.authorizationStatus == .authorizedWhenInUse || locationManager.authorizationStatus == .authorizedAlways {
+                locationManager.startLocationUpdates()
+                
+                // Wait for location to become available (up to 3 seconds)
+                for _ in 0..<6 {
+                    try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+                    if let userLocation = locationManager.currentLocation {
+                        await MainActor.run {
+                            withAnimation(.easeInOut(duration: 0.5)) {
+                                region = MKCoordinateRegion(
+                                    center: userLocation,
+                                    span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
+                                )
+                            }
+                        }
+                        return
+                    }
+                }
+            }
         }
     }
     
@@ -549,6 +583,11 @@ class FlightRadarLocationManager: NSObject, ObservableObject, CLLocationManagerD
     
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         authorizationStatus = manager.authorizationStatus
+        
+        // If permission was just granted, start location updates
+        if authorizationStatus == .authorizedWhenInUse || authorizationStatus == .authorizedAlways {
+            startLocationUpdates()
+        }
         
         // In simulator, set default location if permission not granted
         if locationHelper.isRunningInSimulator && 

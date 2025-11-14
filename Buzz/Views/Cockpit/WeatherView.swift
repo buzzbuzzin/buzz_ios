@@ -126,7 +126,7 @@ struct WeatherView: View {
             try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
         }
         
-        // Load current location weather (will use Ithaca if device location unavailable)
+        // Load current location weather
         await loadCurrentLocationWeather()
         
         // Load upcoming booking
@@ -142,15 +142,31 @@ struct WeatherView: View {
         guard let userProfile = authService.userProfile,
               userProfile.userType == .pilot else { return }
         
-        // Try to get current location, with fallback to Ithaca for demo
-        var location: CLLocationCoordinate2D
-        var locationName: String
+        // Wait for location to be available - check multiple times if needed
+        var deviceLocation: CLLocationCoordinate2D? = locationManager.currentLocation
         
-        if let deviceLocation = locationManager.currentLocation {
-            location = deviceLocation
+        // If location is not immediately available, wait a bit and check again
+        if deviceLocation == nil {
+            // Wait for location updates (up to 3 seconds)
+            for _ in 0..<6 {
+                try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+                deviceLocation = locationManager.currentLocation
+                if deviceLocation != nil {
+                    break
+                }
+            }
+        }
+        
+        // Only proceed if we have a location
+        guard let location = deviceLocation else {
+            print("Unable to get device location for weather")
+            return
+        }
             
             // Reverse geocode to get location name
             let geocoder = CLGeocoder()
+        var locationName: String = "Current Location"
+        
             do {
                 let placemarks = try await geocoder.reverseGeocodeLocation(CLLocation(latitude: location.latitude, longitude: location.longitude))
                 if let placemark = placemarks.first {
@@ -158,20 +174,10 @@ struct WeatherView: View {
                         locationName = "\(city), \(state)"
                     } else if let name = placemark.name {
                         locationName = name
-                    } else {
-                        locationName = "Current Location"
-                    }
-                } else {
-                    locationName = "Current Location"
                 }
-            } catch {
-                locationName = "Current Location"
             }
-        } else {
-            // Use Ithaca, NY as demo location if device location is not available
-            location = CLLocationCoordinate2D(latitude: 42.4430, longitude: -76.5019)
-            locationName = "Ithaca, NY"
-            currentLocationName = locationName
+        } catch {
+            print("Error reverse geocoding: \(error.localizedDescription)")
         }
         
         // Fetch weather
@@ -279,6 +285,11 @@ class WeatherLocationManager: NSObject, ObservableObject, CLLocationManagerDeleg
     
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         authorizationStatus = manager.authorizationStatus
+        
+        // If permission was just granted, start location updates
+        if authorizationStatus == .authorizedWhenInUse || authorizationStatus == .authorizedAlways {
+            startLocationUpdates()
+        }
         
         // In simulator, set default location if permission not granted
         if locationHelper.isRunningInSimulator && 
