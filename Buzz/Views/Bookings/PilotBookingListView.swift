@@ -6,20 +6,45 @@
 //
 
 import SwiftUI
+import CoreLocation
+import Combine
 
 struct PilotBookingListView: View {
     @EnvironmentObject var authService: AuthService
     @StateObject private var bookingService = BookingService()
+    @StateObject private var locationManager = BookingMapLocationManager()
     @State private var selectedBooking: Booking?
     @State private var showMapView = false
     @State private var showConversations = false
     @State private var selectedCategory: BookingSpecialization? = nil
+    @State private var radiusMiles: Double = 25.0 // Default 25 miles
+    @State private var isRadiusExpanded = false // Collapse/expand radius filter
+    
+    // Radius options: 5, 25, 50, 100, 200 miles
+    private let radiusOptions: [Double] = [5, 25, 50, 100, 200]
+    private let maxRadius: Double = 200
     
     var filteredBookings: [Booking] {
+        var bookings = bookingService.availableBookings
+        
+        // Filter by category
         if let category = selectedCategory {
-            return bookingService.availableBookings.filter { $0.specialization == category }
+            bookings = bookings.filter { $0.specialization == category }
         }
-        return bookingService.availableBookings
+        
+        // Filter by radius if location is available
+        if let pilotLocation = locationManager.currentLocation {
+            let pilotCLLocation = CLLocation(latitude: pilotLocation.latitude, longitude: pilotLocation.longitude)
+            let radiusMeters = radiusMiles * 1609.34 // Convert miles to meters
+            
+            bookings = bookings.filter { booking in
+                let bookingLocation = CLLocation(latitude: booking.locationLat, longitude: booking.locationLng)
+                let distance = pilotCLLocation.distance(from: bookingLocation)
+                return distance <= radiusMeters
+            }
+        }
+        
+        return bookings
     }
     
     var body: some View {
@@ -60,6 +85,76 @@ struct PilotBookingListView: View {
                     }
                     .padding(.horizontal)
                     .padding(.vertical, 12)
+                }
+                .background(Color(.systemBackground))
+                
+                Divider()
+                
+                // Radius Filter
+                VStack(spacing: 0) {
+                    HStack {
+                        Image(systemName: "location.circle.fill")
+                            .foregroundColor(.blue)
+                            .font(.system(size: 16))
+                        
+                        Text("Search Radius")
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                        
+                        Spacer()
+                        
+                        Text(String(format: "%.0f mi", radiusMiles))
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.blue)
+                            .frame(minWidth: 50)
+                        
+                        // Collapse/Expand button
+                        Button(action: {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                isRadiusExpanded.toggle()
+                            }
+                        }) {
+                            Image(systemName: isRadiusExpanded ? "chevron.up" : "chevron.down")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundColor(.blue)
+                                .padding(4)
+                        }
+                    }
+                    .padding(.horizontal)
+                    .padding(.vertical, 8)
+                    
+                    if isRadiusExpanded {
+                        VStack(spacing: 4) {
+                            // Slider
+                            Slider(value: $radiusMiles, in: 1...maxRadius, step: 1)
+                                .tint(.blue)
+                                .padding(.horizontal)
+                            
+                            // Quick selection buttons
+                            HStack(spacing: 8) {
+                                ForEach(radiusOptions, id: \.self) { radius in
+                                    Button(action: {
+                                        withAnimation {
+                                            radiusMiles = radius
+                                        }
+                                    }) {
+                                        Text("\(Int(radius))")
+                                            .font(.caption)
+                                            .fontWeight(radiusMiles == radius ? .bold : .regular)
+                                            .padding(.horizontal, 12)
+                                            .padding(.vertical, 4)
+                                            .background(radiusMiles == radius ? Color.blue : Color(.systemGray5))
+                                            .foregroundColor(radiusMiles == radius ? .white : .primary)
+                                            .cornerRadius(12)
+                                    }
+                                }
+                            }
+                            .padding(.horizontal)
+                            .padding(.bottom, 8)
+                        }
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                    }
                 }
                 .background(Color(.systemBackground))
                 
@@ -134,6 +229,8 @@ struct PilotBookingListView: View {
             }
         }
         .task {
+            locationManager.requestPermission()
+            locationManager.startLocationUpdates()
             await loadBookings()
         }
     }
