@@ -439,5 +439,100 @@ class MessageService: ObservableObject {
             )
         ]
     }
+    
+    // MARK: - Soft Delete Messages
+    
+    func softDeleteDirectMessages(fromUserId: UUID, toUserId: UUID) async throws {
+        // Check if demo mode is enabled
+        if DemoModeManager.shared.isDemoModeEnabled {
+            // In demo mode, just remove from local array
+            directMessages.removeAll()
+            return
+        }
+        
+        // Real backend call - mark messages as deleted by current user
+        let conversationId = Self.conversationId(fromUserId: fromUserId, toUserId: toUserId)
+        
+        let updates: [String: AnyJSON] = [
+            "deleted_at": .string(ISO8601DateFormatter().string(from: Date())),
+            "deleted_by": .string(fromUserId.uuidString)
+        ]
+        
+        try await supabase
+            .from("direct_messages")
+            .update(updates)
+            .or("from_user_id.eq.\(fromUserId.uuidString),to_user_id.eq.\(fromUserId.uuidString)")
+            .or("from_user_id.eq.\(toUserId.uuidString),to_user_id.eq.\(toUserId.uuidString)")
+            .execute()
+    }
+    
+    func softDeleteBookingMessages(bookingId: UUID, userId: UUID) async throws {
+        // Check if demo mode is enabled
+        if DemoModeManager.shared.isDemoModeEnabled {
+            // In demo mode, just remove from local array
+            messages.removeAll { $0.bookingId == bookingId }
+            return
+        }
+        
+        // Real backend call - mark messages as deleted by current user
+        let updates: [String: AnyJSON] = [
+            "deleted_at": .string(ISO8601DateFormatter().string(from: Date())),
+            "deleted_by": .string(userId.uuidString)
+        ]
+        
+        try await supabase
+            .from("messages")
+            .update(updates)
+            .eq("booking_id", value: bookingId.uuidString)
+            .execute()
+    }
+    
+    // MARK: - Mark Messages as Unread
+    
+    func markDirectMessagesAsUnread(fromUserId: UUID, toUserId: UUID) async throws {
+        // Check if demo mode is enabled
+        if DemoModeManager.shared.isDemoModeEnabled {
+            // In demo mode, update local array
+            for i in directMessages.indices {
+                if directMessages[i].fromUserId == fromUserId && directMessages[i].toUserId == toUserId {
+                    directMessages[i].isRead = false
+                }
+            }
+            return
+        }
+        
+        // Real backend call
+        let updates: [String: AnyJSON] = ["is_read": .bool(false)]
+        
+        try await supabase
+            .from("direct_messages")
+            .update(updates)
+            .eq("from_user_id", value: fromUserId.uuidString)
+            .eq("to_user_id", value: toUserId.uuidString)
+            .execute()
+    }
+    
+    func markBookingMessagesAsUnread(bookingId: UUID, userId: UUID) async throws {
+        // Check if demo mode is enabled
+        if DemoModeManager.shared.isDemoModeEnabled {
+            // In demo mode, update local array
+            for i in messages.indices {
+                if messages[i].bookingId == bookingId && messages[i].toUserId == userId {
+                    messages[i].isRead = false
+                }
+            }
+            return
+        }
+        
+        // Real backend call
+        let updates: [String: AnyJSON] = ["is_read": .bool(false)]
+        
+        try await supabase
+            .from("messages")
+            .update(updates)
+            .eq("booking_id", value: bookingId.uuidString)
+            .eq("to_user_id", value: userId.uuidString)
+            .execute()
+    }
 }
 

@@ -16,6 +16,9 @@ struct ConversationsListView: View {
     @State private var conversations: [ConversationItem] = []
     @State private var directMessageConversations: [DirectMessageConversationItem] = []
     @State private var isLoading = false
+    @State private var showDeleteConfirmation = false
+    @State private var conversationToDelete: UUID?
+    @State private var isDirectMessageDelete = false
     
     var body: some View {
         NavigationView {
@@ -47,12 +50,14 @@ struct ConversationsListView: View {
                                             }
                                         },
                                         onDelete: {
-                                            // TODO: Implement delete conversation
-                                            print("Delete conversation with \(conversation.partnerId)")
+                                            conversationToDelete = conversation.partnerId
+                                            isDirectMessageDelete = true
+                                            showDeleteConfirmation = true
                                         },
                                         onMarkUnread: {
-                                            // TODO: Implement mark as unread
-                                            print("Mark conversation as unread with \(conversation.partnerId)")
+                                            Task {
+                                                await markDirectMessageAsUnread(partnerId: conversation.partnerId)
+                                            }
                                         }
                                     )
                                 }
@@ -73,12 +78,14 @@ struct ConversationsListView: View {
                                             }
                                         },
                                         onDelete: {
-                                            // TODO: Implement delete conversation
-                                            print("Delete booking conversation \(conversation.id)")
+                                            conversationToDelete = conversation.id
+                                            isDirectMessageDelete = false
+                                            showDeleteConfirmation = true
                                         },
                                         onMarkUnread: {
-                                            // TODO: Implement mark as unread
-                                            print("Mark booking conversation as unread \(conversation.id)")
+                                            Task {
+                                                await markBookingMessagesAsUnread(bookingId: conversation.id)
+                                            }
                                         }
                                     )
                                 }
@@ -94,6 +101,16 @@ struct ConversationsListView: View {
             .navigationBarTitleDisplayMode(.large)
             .task {
                 await loadConversations()
+            }
+            .alert("Delete Conversation", isPresented: $showDeleteConfirmation) {
+                Button("Cancel", role: .cancel) { }
+                Button("Delete", role: .destructive) {
+                    Task {
+                        await performDelete()
+                    }
+                }
+            } message: {
+                Text("By deleting this conversation, it will be removed from your device. For security reasons, messages will be kept on our servers for up to 7 days before permanent deletion.")
             }
         }
     }
@@ -173,6 +190,53 @@ struct ConversationsListView: View {
         } catch {
             isLoading = false
             print("Error loading conversations: \(error)")
+        }
+    }
+    
+    private func performDelete() async {
+        guard let conversationId = conversationToDelete,
+              let currentUser = authService.currentUser else { return }
+        
+        do {
+            if isDirectMessageDelete {
+                // Soft delete direct messages
+                try await messageService.softDeleteDirectMessages(fromUserId: currentUser.id, toUserId: conversationId)
+                // Remove from UI
+                directMessageConversations.removeAll { $0.partnerId == conversationId }
+            } else {
+                // Soft delete booking messages
+                try await messageService.softDeleteBookingMessages(bookingId: conversationId, userId: currentUser.id)
+                // Remove from UI
+                conversations.removeAll { $0.id == conversationId }
+            }
+        } catch {
+            print("Error deleting conversation: \(error)")
+        }
+        
+        conversationToDelete = nil
+    }
+    
+    private func markDirectMessageAsUnread(partnerId: UUID) async {
+        guard let currentUser = authService.currentUser else { return }
+        
+        do {
+            try await messageService.markDirectMessagesAsUnread(fromUserId: partnerId, toUserId: currentUser.id)
+            // Reload conversations to update UI
+            await loadConversations()
+        } catch {
+            print("Error marking direct messages as unread: \(error)")
+        }
+    }
+    
+    private func markBookingMessagesAsUnread(bookingId: UUID) async {
+        guard let currentUser = authService.currentUser else { return }
+        
+        do {
+            try await messageService.markBookingMessagesAsUnread(bookingId: bookingId, userId: currentUser.id)
+            // Reload conversations to update UI
+            await loadConversations()
+        } catch {
+            print("Error marking booking messages as unread: \(error)")
         }
     }
 }
@@ -408,9 +472,10 @@ struct SwipeableConversationRow<Content: View>: View {
                                     .fill(Color.blue.opacity(0.12))
                             )
                     }
-                    .padding(.leading, 16)
+                    .buttonStyle(.plain)
+                    .padding(.leading, 8)
                     Spacer()
-                        .frame(width: 30) // Gap between button and content
+                        .frame(width: 15) // Gap between button and content
                 }
                 
                 Spacer()
@@ -418,7 +483,7 @@ struct SwipeableConversationRow<Content: View>: View {
                 // Delete (swipe left)
                 HStack(spacing: 0) {
                     Spacer()
-                        .frame(width: 30) // Gap between content and button
+                        .frame(width: 15) // Gap between content and button
                     Button(action: {
                         withAnimation {
                             offset = 0
@@ -437,7 +502,8 @@ struct SwipeableConversationRow<Content: View>: View {
                                     .fill(Color.red)
                             )
                     }
-                    .padding(.trailing, 16)
+                    .buttonStyle(.plain)
+                    .padding(.trailing, 8)
                 }
             }
             
@@ -449,20 +515,20 @@ struct SwipeableConversationRow<Content: View>: View {
                     DragGesture()
                         .onChanged { value in
                             let dragAmount = value.translation.width
-                            // Limit swipe distance (42 for button + 30 for gap + 16 for edge padding)
+                            // Limit swipe distance (42 for button + 15 for gap + 8 for edge padding)
                             if dragAmount > 0 {
                                 // Swipe right - show unread
-                                offset = min(dragAmount, 88)
+                                offset = min(dragAmount, 65)
                             } else {
                                 // Swipe left - show delete
-                                offset = max(dragAmount, -88)
+                                offset = max(dragAmount, -65)
                             }
                         }
                         .onEnded { value in
                             withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                if abs(value.translation.width) > 40 {
+                                if abs(value.translation.width) > 30 {
                                     // Snap to action
-                                    offset = value.translation.width > 0 ? 88 : -88
+                                    offset = value.translation.width > 0 ? 65 : -65
                                 } else {
                                     // Snap back
                                     offset = 0

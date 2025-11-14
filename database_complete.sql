@@ -209,6 +209,53 @@ CREATE TRIGGER validate_call_sign_trigger
 COMMENT ON COLUMN profiles.call_sign IS 
 'Pilot call sign - must be unique (case-insensitive), uppercase, letters only. Reserved words like "MAVERICK" are not allowed.';
 
+-- ============================================================================
+-- SOFT DELETE FUNCTIONS
+-- ============================================================================
+
+-- Function to permanently delete old soft-deleted messages
+-- This function removes messages that have been soft-deleted for more than 7 days
+CREATE OR REPLACE FUNCTION delete_old_soft_deleted_messages()
+RETURNS void AS $$
+BEGIN
+    -- Delete messages soft-deleted more than 7 days ago
+    DELETE FROM messages
+    WHERE deleted_at IS NOT NULL
+    AND deleted_at < NOW() - INTERVAL '7 days';
+    
+    -- Delete direct messages soft-deleted more than 7 days ago
+    DELETE FROM direct_messages
+    WHERE deleted_at IS NOT NULL
+    AND deleted_at < NOW() - INTERVAL '7 days';
+END;
+$$ LANGUAGE plpgsql;
+
+-- Alternative: Create a trigger-based approach for auto-deletion
+-- This function will be called when querying messages to filter out old deleted ones
+CREATE OR REPLACE FUNCTION filter_deleted_messages()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- Automatically hard-delete messages that have been soft-deleted for more than 7 days
+    DELETE FROM messages
+    WHERE deleted_at IS NOT NULL
+    AND deleted_at < NOW() - INTERVAL '7 days';
+    
+    DELETE FROM direct_messages
+    WHERE deleted_at IS NOT NULL
+    AND deleted_at < NOW() - INTERVAL '7 days';
+    
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Note: To schedule automatic cleanup, you can use pg_cron (if available in Supabase):
+-- CREATE EXTENSION IF NOT EXISTS pg_cron;
+-- SELECT cron.schedule('delete-old-messages', '0 2 * * *', 'SELECT delete_old_soft_deleted_messages()');
+
+-- ============================================================================
+-- ROW LEVEL SECURITY POLICIES
+-- ============================================================================
+
 -- Drop existing policies if they exist (for idempotency)
 DROP POLICY IF EXISTS "Public profiles are viewable by everyone" ON profiles;
 DROP POLICY IF EXISTS "Users can insert their own profile" ON profiles;
@@ -763,7 +810,9 @@ CREATE TABLE IF NOT EXISTS messages (
     to_user_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
     text TEXT NOT NULL,
     is_read BOOLEAN DEFAULT FALSE NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc', NOW()) NOT NULL
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc', NOW()) NOT NULL,
+    deleted_at TIMESTAMP WITH TIME ZONE,
+    deleted_by UUID REFERENCES profiles(id)
 );
 
 -- Enable Row Level Security
@@ -779,8 +828,8 @@ CREATE POLICY "Users can view messages for their bookings"
     ON messages FOR SELECT
     TO authenticated
     USING (
-        auth.uid() = from_user_id 
-        OR auth.uid() = to_user_id
+        (auth.uid() = from_user_id OR auth.uid() = to_user_id)
+        AND (deleted_at IS NULL OR deleted_by != auth.uid())
     );
 
 CREATE POLICY "Users can send messages"
@@ -791,7 +840,7 @@ CREATE POLICY "Users can send messages"
 CREATE POLICY "Users can update their own messages"
     ON messages FOR UPDATE
     TO authenticated
-    USING (auth.uid() = from_user_id);
+    USING (auth.uid() = from_user_id OR auth.uid() = to_user_id);
 
 -- ----------------------------------------------------------------------------
 -- Direct Messages Table
@@ -802,7 +851,9 @@ CREATE TABLE IF NOT EXISTS direct_messages (
     to_user_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
     text TEXT NOT NULL,
     is_read BOOLEAN DEFAULT FALSE NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc', NOW()) NOT NULL
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc', NOW()) NOT NULL,
+    deleted_at TIMESTAMP WITH TIME ZONE,
+    deleted_by UUID REFERENCES profiles(id)
 );
 
 -- Enable Row Level Security
@@ -818,8 +869,8 @@ CREATE POLICY "Users can view their direct messages"
     ON direct_messages FOR SELECT
     TO authenticated
     USING (
-        auth.uid() = from_user_id 
-        OR auth.uid() = to_user_id
+        (auth.uid() = from_user_id OR auth.uid() = to_user_id)
+        AND (deleted_at IS NULL OR deleted_by != auth.uid())
     );
 
 CREATE POLICY "Users can send direct messages"
@@ -830,7 +881,7 @@ CREATE POLICY "Users can send direct messages"
 CREATE POLICY "Users can update their direct messages"
     ON direct_messages FOR UPDATE
     TO authenticated
-    USING (auth.uid() = from_user_id);
+    USING (auth.uid() = from_user_id OR auth.uid() = to_user_id);
 
 -- ----------------------------------------------------------------------------
 -- Training Courses Table
@@ -1067,12 +1118,14 @@ CREATE INDEX IF NOT EXISTS idx_messages_booking_id ON messages(booking_id);
 CREATE INDEX IF NOT EXISTS idx_messages_from_user_id ON messages(from_user_id);
 CREATE INDEX IF NOT EXISTS idx_messages_to_user_id ON messages(to_user_id);
 CREATE INDEX IF NOT EXISTS idx_messages_created_at ON messages(created_at);
+CREATE INDEX IF NOT EXISTS idx_messages_deleted_at ON messages(deleted_at);
 
 -- Direct Messages indexes
 CREATE INDEX IF NOT EXISTS idx_direct_messages_from_user_id ON direct_messages(from_user_id);
 CREATE INDEX IF NOT EXISTS idx_direct_messages_to_user_id ON direct_messages(to_user_id);
 CREATE INDEX IF NOT EXISTS idx_direct_messages_created_at ON direct_messages(created_at);
 CREATE INDEX IF NOT EXISTS idx_direct_messages_conversation ON direct_messages(from_user_id, to_user_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_direct_messages_deleted_at ON direct_messages(deleted_at);
 
 -- Course enrollments indexes
 CREATE INDEX IF NOT EXISTS idx_course_enrollments_pilot_id ON course_enrollments(pilot_id);
