@@ -177,6 +177,24 @@ struct PublicProfileView: View {
                     .padding(.vertical, 8)
                 }
                 
+                // Message Button Section (only show if not own profile)
+                if !isOwnProfile {
+                    Section {
+                        NavigationLink(destination: DirectMessageView(pilotId: pilotId, pilotProfile: profile)) {
+                            HStack {
+                                Image(systemName: "message.fill")
+                                    .font(.title3)
+                                    .foregroundColor(.blue)
+                                Text("Send Message")
+                                    .font(.headline)
+                                Spacer()
+                            }
+                            .padding(.vertical, 8)
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                    }
+                }
+                
                 // Badges Section
                 Section {
                     if badgeService.badges.isEmpty {

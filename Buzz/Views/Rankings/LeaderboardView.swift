@@ -10,6 +10,19 @@ import SwiftUI
 struct LeaderboardView: View {
     @StateObject private var rankingService = RankingService()
     @State private var showTierInfo = false
+    @State private var searchText = ""
+    
+    var filteredLeaderboard: [PilotStats] {
+        if searchText.isEmpty {
+            return rankingService.leaderboard
+        }
+        return rankingService.leaderboard.filter { stats in
+            if let callsign = stats.callsign {
+                return callsign.localizedCaseInsensitiveContains(searchText)
+            }
+            return false
+        }
+    }
     
     var body: some View {
         VStack {
@@ -23,6 +36,18 @@ struct LeaderboardView: View {
                 )
             } else {
                 List {
+                    // Search Bar Section
+                    Section {
+                        HStack {
+                            Image(systemName: "magnifyingglass")
+                                .foregroundColor(.secondary)
+                            TextField("Search by callsign", text: $searchText)
+                                .textInputAutocapitalization(.never)
+                                .autocorrectionDisabled()
+                        }
+                        .padding(.vertical, 4)
+                    }
+                    
                     // Tier Information Section
                     Section {
                         Button(action: {
@@ -55,11 +80,20 @@ struct LeaderboardView: View {
                     
                     // Leaderboard Section
                     Section {
-                        ForEach(Array(rankingService.leaderboard.enumerated()), id: \.element.id) { index, stats in
-                            NavigationLink(destination: PublicProfileView(pilotId: stats.pilotId)) {
-                                LeaderboardRow(rank: index + 1, stats: stats)
+                        if filteredLeaderboard.isEmpty && !searchText.isEmpty {
+                            Text("No pilots found matching \"\(searchText)\"")
+                                .foregroundColor(.secondary)
+                                .padding(.vertical, 8)
+                        } else {
+                            ForEach(filteredLeaderboard, id: \.id) { stats in
+                                NavigationLink(destination: PublicProfileView(pilotId: stats.pilotId)) {
+                                    LeaderboardRow(
+                                        rank: (rankingService.leaderboard.firstIndex(where: { $0.id == stats.id }) ?? 0) + 1,
+                                        stats: stats
+                                    )
+                                }
+                                .buttonStyle(PlainButtonStyle())
                             }
-                            .buttonStyle(PlainButtonStyle())
                         }
                     }
                 }
