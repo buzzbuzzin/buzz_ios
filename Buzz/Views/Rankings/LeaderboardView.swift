@@ -66,7 +66,7 @@ struct LeaderboardView: View {
                     }
                 }
             }
-            .navigationTitle("Rankings")
+            .navigationTitle("Leaderboard")
             .navigationBarTitleDisplayMode(.large)
             .task {
                 await loadLeaderboard()
@@ -100,32 +100,29 @@ struct LeaderboardRow: View {
             }
             
             // Stats
-            VStack(alignment: .leading, spacing: 4) {
-                HStack {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
                     Text(stats.tierName)
                         .font(.headline)
                     
-                    Spacer()
-                    
-                    HStack(spacing: 4) {
-                        Image(systemName: "star.fill")
-                            .font(.caption)
-                        Text("Tier \(stats.tier)")
+                    if let callsign = stats.callsign, !callsign.isEmpty {
+                        Text("@\(callsign)")
                             .font(.subheadline)
+                            .foregroundColor(.secondary)
                     }
-                    .foregroundColor(tierColor)
                 }
                 
-                HStack {
+                Spacer()
+                
+                // Flight hours and flights on the right
+                VStack(alignment: .trailing, spacing: 4) {
                     HStack(spacing: 4) {
                         Image(systemName: "clock.fill")
                             .font(.caption)
-                        Text(String(format: "%.1f hrs", stats.totalFlightHours))
+                        Text(String(format: "%.0f hours", stats.totalFlightHours))
                             .font(.caption)
                     }
                     .foregroundColor(.secondary)
-                    
-                    Spacer()
                     
                     Text("\(stats.completedBookings) flights")
                         .font(.caption)
@@ -142,17 +139,6 @@ struct LeaderboardRow: View {
         case 2: return .gray
         case 3: return .orange
         default: return .blue
-        }
-    }
-    
-    private var tierColor: Color {
-        switch stats.tier {
-        case 0: return .gray      // Ensign
-        case 1: return .blue      // Sub Lieutenant
-        case 2: return .green     // Lieutenant
-        case 3: return .orange    // Commander
-        case 4: return .purple    // Captain
-        default: return .gray
         }
     }
 }

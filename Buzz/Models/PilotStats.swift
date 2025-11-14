@@ -12,6 +12,7 @@ struct PilotStats: Codable, Identifiable {
     var totalFlightHours: Double
     var completedBookings: Int
     var tier: Int
+    var callsign: String?
     
     var id: UUID { pilotId }
     
@@ -20,6 +21,7 @@ struct PilotStats: Codable, Identifiable {
         case totalFlightHours = "total_flight_hours"
         case completedBookings = "completed_bookings"
         case tier
+        case callsign = "call_sign"
     }
     
     // Tier calculation based on flight hours

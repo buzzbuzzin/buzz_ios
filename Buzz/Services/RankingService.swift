@@ -131,13 +131,25 @@ class RankingService: ObservableObject {
         
         // Real backend call
         do {
-            let stats: [PilotStats] = try await supabase
+            // Join with profiles to get callsign
+            let response = try await supabase
                 .from("pilot_stats")
-                .select()
+                .select("*, profiles(call_sign)")
                 .order("total_flight_hours", ascending: false)
                 .limit(limit)
                 .execute()
-                .value
+            
+            // Parse the response manually to extract callsign from nested profiles object
+            let data = try JSONDecoder().decode([LeaderboardResponse].self, from: response.data)
+            let stats = data.map { response in
+                PilotStats(
+                    pilotId: response.pilotId,
+                    totalFlightHours: response.totalFlightHours,
+                    completedBookings: response.completedBookings,
+                    tier: response.tier,
+                    callsign: response.callSign
+                )
+            }
             
             await MainActor.run {
                 self.leaderboard = stats
@@ -162,111 +174,195 @@ class RankingService: ObservableObject {
                 pilotId: UUID(),
                 totalFlightHours: 850.5,
                 completedBookings: 187,
-                tier: 4 // Captain
+                tier: 4, // Captain
+                callsign: "WOLF"
             ),
             PilotStats(
                 pilotId: UUID(),
                 totalFlightHours: 720.3,
                 completedBookings: 165,
-                tier: 4 // Captain
+                tier: 4, // Captain
+                callsign: "EAGLE"
             ),
             PilotStats(
                 pilotId: UUID(),
                 totalFlightHours: 680.2,
                 completedBookings: 142,
-                tier: 4 // Captain
+                tier: 4, // Captain
+                callsign: "FALCON"
             ),
             PilotStats(
                 pilotId: UUID(),
                 totalFlightHours: 550.8,
                 completedBookings: 128,
-                tier: 4 // Captain
+                tier: 4, // Captain
+                callsign: "HAWK"
             ),
             PilotStats(
                 pilotId: UUID(),
                 totalFlightHours: 485.4,
                 completedBookings: 115,
-                tier: 4 // Captain
+                tier: 4, // Captain
+                callsign: "RAVEN"
             ),
             PilotStats(
                 pilotId: UUID(),
                 totalFlightHours: 420.2,
                 completedBookings: 98,
-                tier: 4 // Captain
+                tier: 4, // Captain
+                callsign: "PHOENIX"
             ),
             PilotStats(
                 pilotId: UUID(),
                 totalFlightHours: 385.6,
                 completedBookings: 87,
-                tier: 3 // Commander
+                tier: 3, // Commander
+                callsign: "THUNDER"
             ),
             PilotStats(
                 pilotId: UUID(),
                 totalFlightHours: 350.3,
                 completedBookings: 76,
-                tier: 3 // Commander
+                tier: 3, // Commander
+                callsign: "STORM"
             ),
             PilotStats(
                 pilotId: UUID(),
                 totalFlightHours: 320.1,
                 completedBookings: 65,
-                tier: 3 // Commander
+                tier: 3, // Commander
+                callsign: "LIGHTNING"
             ),
             PilotStats(
                 pilotId: UUID(),
                 totalFlightHours: 275.7,
                 completedBookings: 58,
-                tier: 3 // Commander
+                tier: 3, // Commander
+                callsign: "BLAZE"
             ),
             PilotStats(
                 pilotId: UUID(),
                 totalFlightHours: 185.4,
                 completedBookings: 52,
-                tier: 2 // Lieutenant
+                tier: 2, // Lieutenant
+                callsign: "SKY"
             ),
             PilotStats(
                 pilotId: UUID(),
                 totalFlightHours: 145.8,
                 completedBookings: 45,
-                tier: 2 // Lieutenant
+                tier: 2, // Lieutenant
+                callsign: "CLOUD"
             ),
             PilotStats(
                 pilotId: UUID(),
                 totalFlightHours: 120.3,
                 completedBookings: 32,
-                tier: 2 // Lieutenant
+                tier: 2, // Lieutenant
+                callsign: "WIND"
             ),
             PilotStats(
                 pilotId: UUID(),
                 totalFlightHours: 85.2,
                 completedBookings: 28,
-                tier: 2 // Lieutenant
+                tier: 2, // Lieutenant
+                callsign: "BREEZE"
             ),
             PilotStats(
                 pilotId: UUID(),
                 totalFlightHours: 60.6,
                 completedBookings: 18,
-                tier: 1 // Sub Lieutenant
+                tier: 1, // Sub Lieutenant
+                callsign: "WAVE"
             ),
             PilotStats(
                 pilotId: UUID(),
                 totalFlightHours: 42.3,
                 completedBookings: 12,
-                tier: 1 // Sub Lieutenant
+                tier: 1, // Sub Lieutenant
+                callsign: "TIDE"
             ),
             PilotStats(
                 pilotId: UUID(),
                 totalFlightHours: 18.5,
                 completedBookings: 6,
-                tier: 0 // Ensign
+                tier: 0, // Ensign
+                callsign: "RIFFLE"
             ),
             PilotStats(
                 pilotId: UUID(),
                 totalFlightHours: 7.2,
                 completedBookings: 3,
-                tier: 0 // Ensign
+                tier: 0, // Ensign
+                callsign: "STREAM"
             )
         ]
+    }
+}
+
+// MARK: - Helper struct for decoding joined response
+private struct LeaderboardResponse: Codable {
+    let pilotId: UUID
+    let totalFlightHours: Double
+    let completedBookings: Int
+    let tier: Int
+    let profiles: ProfileCallSignOrArray?
+    
+    enum CodingKeys: String, CodingKey {
+        case pilotId = "pilot_id"
+        case totalFlightHours = "total_flight_hours"
+        case completedBookings = "completed_bookings"
+        case tier
+        case profiles
+    }
+    
+    var callSign: String? {
+        switch profiles {
+        case .single(let profile):
+            return profile?.callSign
+        case .array(let profiles):
+            return profiles.first?.callSign
+        case .none:
+            return nil
+        }
+    }
+}
+
+private enum ProfileCallSignOrArray: Codable {
+    case single(ProfileCallSign?)
+    case array([ProfileCallSign])
+    
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        if let array = try? container.decode([ProfileCallSign].self) {
+            self = .array(array)
+        } else if let single = try? container.decode(ProfileCallSign.self) {
+            self = .single(single)
+        } else {
+            self = .single(nil)
+        }
+    }
+    
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        switch self {
+        case .single(let profile):
+            if let profile = profile {
+                try container.encode(profile)
+            } else {
+                try container.encodeNil()
+            }
+        case .array(let profiles):
+            try container.encode(profiles)
+        }
+    }
+}
+
+private struct ProfileCallSign: Codable {
+    let callSign: String?
+    
+    enum CodingKeys: String, CodingKey {
+        case callSign = "call_sign"
     }
 }
 
