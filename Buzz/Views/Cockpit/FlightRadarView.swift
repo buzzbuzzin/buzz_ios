@@ -264,11 +264,11 @@ struct FlightRadarView: View {
                     try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
                     if let userLocation = locationManager.currentLocation {
                         await MainActor.run {
-                            withAnimation(.easeInOut(duration: 0.5)) {
-                                region = MKCoordinateRegion(
-                                    center: userLocation,
-                                    span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
-                                )
+        withAnimation(.easeInOut(duration: 0.5)) {
+            region = MKCoordinateRegion(
+                center: userLocation,
+                span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
+            )
                             }
                         }
                         return

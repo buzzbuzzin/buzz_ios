@@ -175,8 +175,8 @@ struct WeatherView: View {
                     } else if let name = placemark.name {
                         locationName = name
                 }
-            }
-        } catch {
+                }
+            } catch {
             print("Error reverse geocoding: \(error.localizedDescription)")
         }
         

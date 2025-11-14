@@ -140,25 +140,25 @@ struct BookingMapView: View {
             // Start location updates if we have permission
             if locationManager.authorizationStatus == .authorizedWhenInUse || locationManager.authorizationStatus == .authorizedAlways {
                 locationManager.startLocationUpdates()
-                
+        
                 // Wait for location to become available (up to 3 seconds)
                 for _ in 0..<6 {
                     try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
                     if let userLocation = locationManager.currentLocation {
                         await MainActor.run {
-                            let newRegion = MKCoordinateRegion(
-                                center: userLocation,
-                                span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
-                            )
-                            
-                            if animated {
-                                withAnimation(.easeInOut(duration: 0.5)) {
-                                    region = newRegion
-                                }
-                            } else {
-                                region = newRegion
-                            }
-                            hasInitializedLocation = true
+        let newRegion = MKCoordinateRegion(
+            center: userLocation,
+            span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
+        )
+        
+        if animated {
+            withAnimation(.easeInOut(duration: 0.5)) {
+                region = newRegion
+            }
+        } else {
+            region = newRegion
+        }
+        hasInitializedLocation = true
                         }
                         return
                     }
