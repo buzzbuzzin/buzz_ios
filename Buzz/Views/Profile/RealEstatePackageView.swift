@@ -44,13 +44,25 @@ struct RealEstatePackageView: View {
                     // Show management view if subscription exists
                     VStack(spacing: 0) {
                         // Tab selector (currently only one tab, but structure allows for expansion)
-                        Picker("Package Tab", selection: $selectedTab) {
+                        HStack(spacing: 0) {
                             ForEach(PackageTab.allCases, id: \.self) { tab in
-                                Text(tab.rawValue).tag(tab)
+                                Button(action: {
+                                    selectedTab = tab
+                                }) {
+                                    Text(tab.rawValue)
+                                        .font(.subheadline)
+                                        .fontWeight(selectedTab == tab ? .semibold : .regular)
+                                        .foregroundColor(selectedTab == tab ? .blue : .secondary)
+                                        .padding(.horizontal, 16)
+                                        .padding(.vertical, 8)
+                                        .background(selectedTab == tab ? Color.blue.opacity(0.1) : Color.clear)
+                                        .cornerRadius(8)
+                                }
                             }
+                            Spacer()
                         }
-                        .pickerStyle(.segmented)
-                        .padding()
+                        .padding(.horizontal)
+                        .padding(.vertical, 12)
                         
                         // Content based on selected tab
                         ScrollView {

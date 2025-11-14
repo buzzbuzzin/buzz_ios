@@ -295,6 +295,7 @@ struct ProfileView: View {
                                 Image(systemName: "clock")
                                     .foregroundColor(.secondary)
                                     .font(.body)
+                                    .frame(width: 24)
                                 Text("Flight Hours")
                                     .foregroundColor(.primary)
                                 Spacer()
@@ -307,6 +308,7 @@ struct ProfileView: View {
                                 Image(systemName: "checkmark.circle")
                                     .foregroundColor(.secondary)
                                     .font(.body)
+                                    .frame(width: 24)
                                 Text("Completed Bookings")
                                     .foregroundColor(.primary)
                                 Spacer()
@@ -327,6 +329,7 @@ struct ProfileView: View {
                             Image(systemName: "checkmark.circle")
                                 .foregroundColor(.secondary)
                                 .font(.body)
+                                .frame(width: 24)
                             Text("Completed Bookings")
                                 .foregroundColor(.primary)
                             Spacer()
@@ -347,6 +350,7 @@ struct ProfileView: View {
                                 Image(systemName: "dollarsign.circle.fill")
                                     .foregroundColor(.green)
                                     .font(.body)
+                                    .frame(width: 24)
                                 Text("Balance")
                                     .foregroundColor(.primary)
                                 Spacer()
@@ -361,6 +365,7 @@ struct ProfileView: View {
                                 Image(systemName: "star")
                                     .foregroundColor(.secondary)
                                     .font(.body)
+                                    .frame(width: 24)
                                 Text("View All Reviews")
                                     .foregroundColor(.primary)
                             }
@@ -376,6 +381,7 @@ struct ProfileView: View {
                                 Image(systemName: "person.badge.key.fill")
                                     .foregroundColor(.secondary)
                                     .font(.body)
+                                    .frame(width: 24)
                                 Text("Government ID")
                                     .foregroundColor(.primary)
                             }
@@ -386,6 +392,7 @@ struct ProfileView: View {
                                 Image(systemName: "doc.badge.plus")
                                     .foregroundColor(.secondary)
                                     .font(.body)
+                                    .frame(width: 24)
                                 Text("Pilot Licenses")
                                     .foregroundColor(.primary)
                             }
@@ -396,6 +403,7 @@ struct ProfileView: View {
                                 Image(systemName: "airplane")
                                     .foregroundColor(.secondary)
                                     .font(.body)
+                                    .frame(width: 24)
                                 Text("Drone Registration")
                                     .foregroundColor(.primary)
                             }
@@ -415,6 +423,7 @@ struct ProfileView: View {
                                 Image(systemName: "car.circle.fill")
                                     .foregroundColor(.secondary)
                                     .font(.body)
+                                    .frame(width: 24)
                                 Text("Buzz Auto")
                                     .foregroundColor(.primary)
                             }
@@ -425,6 +434,7 @@ struct ProfileView: View {
                                 Image(systemName: "house.circle.fill")
                                     .foregroundColor(.secondary)
                                     .font(.body)
+                                    .frame(width: 24)
                                 Text("Buzz Real Estate")
                                     .foregroundColor(.primary)
                             }
@@ -443,6 +453,7 @@ struct ProfileView: View {
                             Image(systemName: "gearshape")
                                 .foregroundColor(.secondary)
                                 .font(.body)
+                                .frame(width: 24)
                             Text("Settings")
                                 .foregroundColor(.primary)
                         }
@@ -455,6 +466,7 @@ struct ProfileView: View {
                                 Image(systemName: "creditcard")
                                     .foregroundColor(.secondary)
                                     .font(.body)
+                                    .frame(width: 24)
                                 Text("Saved Payments")
                                     .foregroundColor(.primary)
                             }
@@ -467,6 +479,7 @@ struct ProfileView: View {
                                 Image(systemName: "doc.text.fill")
                                     .foregroundColor(.secondary)
                                     .font(.body)
+                                    .frame(width: 24)
                                 Text("Tax Document")
                                     .foregroundColor(.primary)
                             }
@@ -477,6 +490,7 @@ struct ProfileView: View {
                                 Image(systemName: "creditcard.fill")
                                     .foregroundColor(.secondary)
                                     .font(.body)
+                                    .frame(width: 24)
                                 Text("Payment Account")
                                     .foregroundColor(.primary)
                             }
@@ -488,6 +502,7 @@ struct ProfileView: View {
                             Image(systemName: "questionmark.circle")
                                 .foregroundColor(.secondary)
                                 .font(.body)
+                                .frame(width: 24)
                             Text("Get help")
                                 .foregroundColor(.primary)
                         }
@@ -500,6 +515,7 @@ struct ProfileView: View {
                             Image(systemName: "rectangle.portrait.and.arrow.right")
                                 .foregroundColor(.red)
                                 .font(.body)
+                                .frame(width: 24)
                             Text("Sign Out")
                                 .foregroundColor(.red)
                         }
