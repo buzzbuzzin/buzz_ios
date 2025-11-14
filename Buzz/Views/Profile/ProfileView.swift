@@ -46,9 +46,9 @@ struct ProfileView: View {
                         
                         // Profile Picture and Info (centered)
                         VStack(spacing: 8) {
-                            // Profile Picture (clickable to upload/verify)
+                            // Profile Picture (clickable to upload)
                             Button(action: {
-                                // Only allow pilots to update profile picture with verification
+                                // Show warning for pilots, then allow upload
                                 if authService.userProfile?.userType == .pilot {
                                     showVerificationWarning = true
                                 } else {
@@ -521,13 +521,13 @@ struct ProfileView: View {
             } message: {
                 Text("Are you sure you want to sign out?")
             }
-            .alert("Profile Picture Verification", isPresented: $showVerificationWarning) {
+            .alert("Profile Picture Guidelines", isPresented: $showVerificationWarning) {
                 Button("Cancel", role: .cancel) {}
-                Button("Continue") {
-                    startSelfieVerification()
+                Button("I Understand") {
+                    showImageSourceSheet = true
                 }
             } message: {
-                Text("To update your profile picture, you'll need to verify your identity with Stripe. You'll be asked to provide your government-issued ID and take a selfie. The selfie will be compared to your ID to ensure it's legitimate.")
+                Text("Please use a real selfie that matches your face. If you use a fake selfie and it is reported by others, your account may be suspended as a penalty.")
             }
             .alert("Error", isPresented: $showError) {
                 Button("OK", role: .cancel) {}
@@ -594,79 +594,21 @@ struct ProfileView: View {
         }
     }
     
-    private func startSelfieVerification() {
-        guard let currentUser = authService.currentUser else { return }
-        
-        Task {
-            do {
-                // Get user email
-                let email = currentUser.email ?? authService.userProfile?.email
-                
-                // Create verification session
-                let clientSecret = try await profilePictureService.createSelfieVerificationSession(
-                    userId: currentUser.id,
-                    email: email
-                )
-                
-                // Get the root view controller to present the verification sheet
-                guard let windowScene = await UIApplication.shared.connectedScenes.first as? UIWindowScene,
-                      let rootViewController = await windowScene.windows.first?.rootViewController else {
-                    await MainActor.run {
-                        errorMessage = "Unable to present verification"
-                        showError = true
-                    }
-                    return
-                }
-                
-                // Find the topmost view controller
-                var topController = rootViewController
-                while let presented = topController.presentedViewController {
-                    topController = presented
-                }
-                
-                // Present Stripe Identity verification flow
-                let result = try await profilePictureService.presentSelfieVerificationFlow(
-                    clientSecret: clientSecret,
-                    from: topController
-                )
-                
-                // Extract session ID from client secret
-                let sessionId = extractSessionId(from: clientSecret)
-                
-                // Handle verification and upload
-                try await profilePictureService.handleSelfieVerificationAndUpload(
-                    result,
-                    userId: currentUser.id,
-                    sessionId: sessionId
-                )
-                
-                // Refresh profile to show new picture
-                await authService.checkAuthStatus()
-                
-            } catch {
-                await MainActor.run {
-                    errorMessage = error.localizedDescription
-                    showError = true
-                }
-            }
-        }
-    }
-    
-    /// Extracts session ID from client secret (format: vs_xxx_secret_yyy)
-    private func extractSessionId(from clientSecret: String) -> String? {
-        let components = clientSecret.components(separatedBy: "_secret_")
-        return components.first
-    }
     
     private func uploadProfilePicture(image: UIImage) {
         guard let currentUser = authService.currentUser else { return }
         
         Task {
             do {
-                _ = try await profilePictureService.uploadProfilePicture(userId: currentUser.id, image: image)
+                print("DEBUG ProfileView: Starting profile picture upload...")
+                let url = try await profilePictureService.uploadProfilePicture(userId: currentUser.id, image: image)
+                print("DEBUG ProfileView: Upload completed, URL: \(url)")
                 // Refresh profile to show new picture
+                print("DEBUG ProfileView: Refreshing auth status...")
                 await authService.checkAuthStatus()
+                print("DEBUG ProfileView: Auth status refreshed")
             } catch {
+                print("DEBUG ProfileView: Upload error: \(error.localizedDescription)")
                 await MainActor.run {
                     errorMessage = error.localizedDescription
                     showError = true

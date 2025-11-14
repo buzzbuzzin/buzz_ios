@@ -52,9 +52,20 @@ class ProfilePictureService: ObservableObject {
             print("DEBUG: Uploading to path: \(fileName)")
             print("DEBUG: Current auth.uid(): \(session.user.id.uuidString)")
             print("DEBUG: Access token length: \(session.accessToken.count)")
+            print("DEBUG: Image data size: \(imageData.count) bytes")
+            
+            // Try to remove existing file first to ensure clean upload
+            do {
+                try? await supabase.storage
+                    .from(bucketName)
+                    .remove(paths: [fileName])
+                print("DEBUG: Attempted to remove existing file (if any)")
+            } catch {
+                print("DEBUG: Note - Could not remove existing file (may not exist): \(error.localizedDescription)")
+            }
             
             // Upload to Supabase Storage
-            // Try upload first, if it fails with "already exists", try update
+            print("DEBUG: Starting upload...")
             do {
                 let _ = try await supabase.storage
                     .from(bucketName)
@@ -64,41 +75,26 @@ class ProfilePictureService: ObservableObject {
                         options: FileOptions(
                             cacheControl: "3600",
                             contentType: "image/jpeg",
-                            upsert: false
+                            upsert: true  // Automatically replace if file exists
                         )
                     )
+                print("DEBUG: Upload successful")
             } catch {
-                // If file already exists, try to update it
-                if error.localizedDescription.contains("already exists") || error.localizedDescription.contains("duplicate") {
-                    print("DEBUG: File exists, attempting update...")
-                    // Delete existing file first, then upload new one
-                    try? await supabase.storage
-                        .from(bucketName)
-                        .remove(paths: [fileName])
-                    
-                    let _ = try await supabase.storage
-                        .from(bucketName)
-                        .upload(
-                            fileName,
-                            data: imageData,
-                            options: FileOptions(
-                                cacheControl: "3600",
-                                contentType: "image/jpeg",
-                                upsert: false
-                            )
-                        )
-                } else {
-                    throw error
-                }
+                print("DEBUG: Upload error: \(error.localizedDescription)")
+                throw error
             }
             
             // Get public URL
+            print("DEBUG: Getting public URL...")
             let publicURL = try supabase.storage
                 .from(bucketName)
                 .getPublicURL(path: fileName)
+            print("DEBUG: Public URL: \(publicURL.absoluteString)")
             
             // Update profile with new picture URL
+            print("DEBUG: Updating profile in database...")
             try await updateProfilePicture(userId: userId, pictureUrl: publicURL.absoluteString)
+            print("DEBUG: Profile updated successfully")
             
             isUploading = false
             return publicURL.absoluteString
