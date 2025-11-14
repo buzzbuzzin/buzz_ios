@@ -12,65 +12,66 @@ struct LeaderboardView: View {
     @State private var showTierInfo = false
     
     var body: some View {
-        NavigationView {
-            VStack {
-                if rankingService.isLoading {
-                    LoadingView(message: "Loading leaderboard...")
-                } else if rankingService.leaderboard.isEmpty {
-                    EmptyStateView(
-                        icon: "chart.bar",
-                        title: "No Rankings Yet",
-                        message: "Be the first pilot to complete a booking and appear on the leaderboard!"
-                    )
-                } else {
-                    List {
-                        // Tier Information Section
-                        Section {
-                            Button(action: {
-                                withAnimation {
-                                    showTierInfo.toggle()
-                                }
-                            }) {
-                                HStack {
-                                    Image(systemName: "info.circle.fill")
-                                        .foregroundColor(.blue)
-                                    Text("Ranking System")
-                                        .font(.headline)
-                                    Spacer()
-                                    Image(systemName: showTierInfo ? "chevron.up" : "chevron.down")
-                                        .foregroundColor(.secondary)
-                                        .font(.caption)
-                                }
+        VStack {
+            if rankingService.isLoading {
+                LoadingView(message: "Loading leaderboard...")
+            } else if rankingService.leaderboard.isEmpty {
+                EmptyStateView(
+                    icon: "chart.bar",
+                    title: "No Rankings Yet",
+                    message: "Be the first pilot to complete a booking and appear on the leaderboard!"
+                )
+            } else {
+                List {
+                    // Tier Information Section
+                    Section {
+                        Button(action: {
+                            withAnimation {
+                                showTierInfo.toggle()
                             }
-                            .buttonStyle(PlainButtonStyle())
-                            
-                            if showTierInfo {
-                                VStack(alignment: .leading, spacing: 16) {
-                                    ForEach(0..<5) { tier in
-                                        TierInfoRow(tier: tier)
-                                    }
-                                }
-                                .padding(.vertical, 8)
+                        }) {
+                            HStack {
+                                Image(systemName: "info.circle.fill")
+                                    .foregroundColor(.blue)
+                                Text("Ranking System")
+                                    .font(.headline)
+                                Spacer()
+                                Image(systemName: showTierInfo ? "chevron.up" : "chevron.down")
+                                    .foregroundColor(.secondary)
+                                    .font(.caption)
                             }
                         }
+                        .buttonStyle(PlainButtonStyle())
                         
-                        // Leaderboard Section
-                        Section {
-                            ForEach(Array(rankingService.leaderboard.enumerated()), id: \.element.id) { index, stats in
+                        if showTierInfo {
+                            VStack(alignment: .leading, spacing: 16) {
+                                ForEach(0..<5) { tier in
+                                    TierInfoRow(tier: tier)
+                                }
+                            }
+                            .padding(.vertical, 8)
+                        }
+                    }
+                    
+                    // Leaderboard Section
+                    Section {
+                        ForEach(Array(rankingService.leaderboard.enumerated()), id: \.element.id) { index, stats in
+                            NavigationLink(destination: PublicProfileView(pilotId: stats.pilotId)) {
                                 LeaderboardRow(rank: index + 1, stats: stats)
                             }
+                            .buttonStyle(PlainButtonStyle())
                         }
                     }
-                    .refreshable {
-                        await loadLeaderboard()
-                    }
+                }
+                .refreshable {
+                    await loadLeaderboard()
                 }
             }
-            .navigationTitle("Leaderboard")
-            .navigationBarTitleDisplayMode(.large)
-            .task {
-                await loadLeaderboard()
-            }
+        }
+        .navigationTitle("Leaderboard")
+        .navigationBarTitleDisplayMode(.large)
+        .task {
+            await loadLeaderboard()
         }
     }
     

@@ -36,186 +36,198 @@ struct ProfileView: View {
         return max(years, 0)
     }
     
+    var profileHeaderContent: some View {
+        HStack(spacing: 16) {
+            Spacer()
+            
+            // Profile Picture and Info (centered)
+            VStack(spacing: 8) {
+                // Profile Picture (clickable to upload)
+                Button(action: {
+                    // Show warning for pilots, then allow upload
+                    if authService.userProfile?.userType == .pilot {
+                        showVerificationWarning = true
+                    } else {
+                        showImageSourceSheet = true
+                    }
+                }) {
+                    Group {
+                        if let pictureUrl = authService.userProfile?.profilePictureUrl,
+                           let url = URL(string: pictureUrl) {
+                            AsyncImage(url: url) { phase in
+                                switch phase {
+                                case .empty:
+                                    ProgressView()
+                                        .frame(width: 90, height: 90)
+                                case .success(let image):
+                                    image
+                                        .resizable()
+                                        .scaledToFill()
+                                        .frame(width: 90, height: 90)
+                                        .clipShape(Circle())
+                                case .failure:
+                                    Image(systemName: authService.userProfile?.userType == .pilot ? "airplane.circle.fill" : "person.circle.fill")
+                                        .font(.system(size: 90))
+                                        .foregroundColor(.blue)
+                                @unknown default:
+                                    EmptyView()
+                                }
+                            }
+                        } else {
+                            Image(systemName: authService.userProfile?.userType == .pilot ? "airplane.circle.fill" : "person.circle.fill")
+                                .font(.system(size: 90))
+                                .foregroundColor(.blue)
+                        }
+                    }
+                    .overlay(
+                        Circle()
+                            .stroke(Color.blue.opacity(0.3), lineWidth: 2)
+                    )
+                    .overlay(
+                        Image(systemName: "camera.fill")
+                            .font(.system(size: 16))
+                            .foregroundColor(.white)
+                            .padding(6)
+                            .background(Color.blue)
+                            .clipShape(Circle())
+                            .offset(x: 32, y: 32)
+                    )
+                }
+                .buttonStyle(PlainButtonStyle())
+                
+                // Name, Call Sign, and Ratings below picture
+                VStack(alignment: .center, spacing: 4) {
+                    // For pilots, show callsign instead of first name
+                    if authService.userProfile?.userType == .pilot {
+                        if let callSign = authService.userProfile?.callSign, !callSign.isEmpty {
+                            Text("@\(callSign)")
+                                .font(.headline)
+                                .fontWeight(.bold)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.8)
+                        } else {
+                            Text("Pilot")
+                                .font(.headline)
+                                .fontWeight(.bold)
+                        }
+                    } else {
+                        Text(authService.userProfile?.firstName ?? "User")
+                            .font(.title2)
+                            .fontWeight(.bold)
+                    }
+                    
+                    // Ratings below call sign
+                    if isLoadingRatings && ratingSummary == nil {
+                        ProgressView()
+                            .scaleEffect(0.8)
+                    } else if let summary = ratingSummary {
+                        HStack(spacing: 4) {
+                            Image(systemName: "star.fill")
+                                .foregroundColor(.yellow)
+                                .font(.caption)
+                            Text(String(format: "%.1f", summary.averageRating))
+                                .font(.caption)
+                                .fontWeight(.semibold)
+                            Text("(\(summary.totalRatings))")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+                    } else {
+                        HStack(spacing: 4) {
+                            Image(systemName: "star.fill")
+                                .foregroundColor(.gray)
+                                .font(.caption)
+                            Text("—")
+                                .font(.caption)
+                                .fontWeight(.semibold)
+                                .foregroundColor(.secondary)
+                            Text("No ratings")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+            }
+            
+            Spacer()
+            
+            // Statistics on the right
+            if authService.userProfile?.userType == .pilot, let stats = rankingService.pilotStats {
+                VStack(alignment: .leading, spacing: 16) {
+                    // Flights
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("\(completedBookingsCount)")
+                            .font(.title2)
+                            .fontWeight(.bold)
+                        Text("Flights")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    // Flight Hours
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(String(format: "%.0f", stats.totalFlightHours))
+                            .font(.title2)
+                            .fontWeight(.bold)
+                        Text("Flight hours")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    // Years on Buzz
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("\(yearsOnBuzz)")
+                            .font(.title2)
+                            .fontWeight(.bold)
+                        Text("Years on Buzz")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+            } else {
+                // For customers, show Flights and Years on Buzz
+                VStack(alignment: .leading, spacing: 16) {
+                    // Flights
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("\(completedBookingsCount)")
+                            .font(.title2)
+                            .fontWeight(.bold)
+                        Text("Flights")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    Divider()
+                    
+                    // Years on Buzz
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("\(yearsOnBuzz)")
+                            .font(.title2)
+                            .fontWeight(.bold)
+                        Text("Years on Buzz")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+            }
+        }
+        .padding(.vertical, 8)
+    }
+    
     var body: some View {
         NavigationView {
             List {
                 // Profile Header
                 Section {
-                    HStack(spacing: 16) {
-                        Spacer()
-                        
-                        // Profile Picture and Info (centered)
-                        VStack(spacing: 8) {
-                            // Profile Picture (clickable to upload)
-                            Button(action: {
-                                // Show warning for pilots, then allow upload
-                                if authService.userProfile?.userType == .pilot {
-                                    showVerificationWarning = true
-                                } else {
-                                    showImageSourceSheet = true
-                                }
-                            }) {
-                                Group {
-                                    if let pictureUrl = authService.userProfile?.profilePictureUrl,
-                                       let url = URL(string: pictureUrl) {
-                                        AsyncImage(url: url) { phase in
-                                            switch phase {
-                                            case .empty:
-                                                ProgressView()
-                                                    .frame(width: 90, height: 90)
-                                            case .success(let image):
-                                                image
-                                                    .resizable()
-                                                    .scaledToFill()
-                                                    .frame(width: 90, height: 90)
-                                                    .clipShape(Circle())
-                                            case .failure:
-                                                Image(systemName: authService.userProfile?.userType == .pilot ? "airplane.circle.fill" : "person.circle.fill")
-                                                    .font(.system(size: 90))
-                                                    .foregroundColor(.blue)
-                                            @unknown default:
-                                                EmptyView()
-                                            }
-                                        }
-                                    } else {
-                                        Image(systemName: authService.userProfile?.userType == .pilot ? "airplane.circle.fill" : "person.circle.fill")
-                                            .font(.system(size: 90))
-                                            .foregroundColor(.blue)
-                                    }
-                                }
-                                .overlay(
-                                    Circle()
-                                        .stroke(Color.blue.opacity(0.3), lineWidth: 2)
-                                )
-                                .overlay(
-                                    Image(systemName: "camera.fill")
-                                        .font(.system(size: 16))
-                                        .foregroundColor(.white)
-                                        .padding(6)
-                                        .background(Color.blue)
-                                        .clipShape(Circle())
-                                        .offset(x: 32, y: 32)
-                                )
-                            }
-                            .buttonStyle(PlainButtonStyle())
-                            
-                            // Name, Call Sign, and Ratings below picture
-                            VStack(alignment: .center, spacing: 4) {
-                                // For pilots, show callsign instead of first name
-                                if authService.userProfile?.userType == .pilot {
-                                    if let callSign = authService.userProfile?.callSign, !callSign.isEmpty {
-                                        Text("@\(callSign)")
-                                            .font(.headline)
-                                            .fontWeight(.bold)
-                                            .lineLimit(1)
-                                            .minimumScaleFactor(0.8)
-                                    } else {
-                                        Text("Pilot")
-                                            .font(.headline)
-                                            .fontWeight(.bold)
-                                    }
-                                } else {
-                                    Text(authService.userProfile?.firstName ?? "User")
-                                        .font(.title2)
-                                        .fontWeight(.bold)
-                                }
-                                
-                                // Ratings below call sign
-                                if isLoadingRatings && ratingSummary == nil {
-                                    ProgressView()
-                                        .scaleEffect(0.8)
-                                } else if let summary = ratingSummary {
-                                    HStack(spacing: 4) {
-                                        Image(systemName: "star.fill")
-                                            .foregroundColor(.yellow)
-                                            .font(.caption)
-                                        Text(String(format: "%.1f", summary.averageRating))
-                                            .font(.caption)
-                                            .fontWeight(.semibold)
-                                        Text("(\(summary.totalRatings))")
-                                            .font(.caption2)
-                                            .foregroundColor(.secondary)
-                                    }
-                                } else {
-                                    HStack(spacing: 4) {
-                                        Image(systemName: "star.fill")
-                                            .foregroundColor(.gray)
-                                            .font(.caption)
-                                        Text("—")
-                                            .font(.caption)
-                                            .fontWeight(.semibold)
-                                            .foregroundColor(.secondary)
-                                        Text("No ratings")
-                                            .font(.caption2)
-                                            .foregroundColor(.secondary)
-                                    }
-                                }
-                            }
+                    // For pilots, wrap in NavigationLink to public profile
+                    if authService.userProfile?.userType == .pilot, let currentUser = authService.currentUser {
+                        NavigationLink(destination: PublicProfileView(pilotId: currentUser.id)) {
+                            profileHeaderContent
                         }
-                        
-                        Spacer()
-                        
-                        // Statistics on the right
-                        if authService.userProfile?.userType == .pilot, let stats = rankingService.pilotStats {
-                            VStack(alignment: .leading, spacing: 16) {
-                                // Flights
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text("\(completedBookingsCount)")
-                                        .font(.title2)
-                                        .fontWeight(.bold)
-                                    Text("Flights")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                }
-                                
-                                // Flight Hours
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(String(format: "%.0f", stats.totalFlightHours))
-                                        .font(.title2)
-                                        .fontWeight(.bold)
-                                    Text("Flight hours")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                }
-                                
-                                // Years on Buzz
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text("\(yearsOnBuzz)")
-                                        .font(.title2)
-                                        .fontWeight(.bold)
-                                    Text("Years on Buzz")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                }
-                            }
-                        } else {
-                            // For customers, show Flights and Years on Buzz
-                            VStack(alignment: .leading, spacing: 16) {
-                                // Flights
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text("\(completedBookingsCount)")
-                                        .font(.title2)
-                                        .fontWeight(.bold)
-                                    Text("Flights")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                }
-                                
-                                Divider()
-                                
-                                // Years on Buzz
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text("\(yearsOnBuzz)")
-                                        .font(.title2)
-                                        .fontWeight(.bold)
-                                    Text("Years on Buzz")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                }
-                            }
-                        }
+                        .buttonStyle(PlainButtonStyle())
+                    } else {
+                        profileHeaderContent
                     }
-                    .padding(.vertical, 8)
                 }
                 
                 // Badges Section (Pilot only)
