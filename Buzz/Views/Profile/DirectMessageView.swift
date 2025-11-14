@@ -16,6 +16,8 @@ struct DirectMessageView: View {
     @State private var messageText = ""
     @FocusState private var isTextFieldFocused: Bool
     @State private var showLimitAlert = false
+    @State private var showErrorAlert = false
+    @State private var errorMessage = ""
     
     private let maxMessagesBeforeResponse = 3
     
@@ -117,10 +119,10 @@ struct DirectMessageView: View {
                 ScrollViewReader { proxy in
                     ScrollView {
                         LazyVStack(spacing: 12) {
-                            if messageService.isLoading && messageService.messages.isEmpty {
+                            if messageService.isLoading && messageService.directMessages.isEmpty {
                                 ProgressView()
                                     .padding()
-                            } else if messageService.messages.isEmpty {
+                            } else if messageService.directMessages.isEmpty {
                                 VStack(spacing: 8) {
                                     Image(systemName: "message.fill")
                                         .font(.system(size: 40))
@@ -140,8 +142,8 @@ struct DirectMessageView: View {
                                 }
                                 .padding(.top, 40)
                             } else {
-                                ForEach(messageService.messages) { message in
-                                    MessageBubble(
+                                ForEach(messageService.directMessages) { message in
+                                    DirectMessageBubble(
                                         message: message,
                                         isFromCurrentUser: message.fromUserId == currentUserId
                                     )
@@ -150,15 +152,15 @@ struct DirectMessageView: View {
                         }
                         .padding()
                     }
-                    .onChange(of: messageService.messages.count) { _, _ in
-                        if let lastMessage = messageService.messages.last {
+                    .onChange(of: messageService.directMessages.count) { _, _ in
+                        if let lastMessage = messageService.directMessages.last {
                             withAnimation {
                                 proxy.scrollTo(lastMessage.id, anchor: .bottom)
                             }
                         }
                     }
                     .onAppear {
-                        if let lastMessage = messageService.messages.last {
+                        if let lastMessage = messageService.directMessages.last {
                             proxy.scrollTo(lastMessage.id, anchor: .bottom)
                         }
                     }
@@ -211,6 +213,11 @@ struct DirectMessageView: View {
             } message: {
                 Text("You've reached the limit of \(maxMessagesBeforeResponse) messages. Please wait for \(pilotProfile.callSign ?? "the pilot") to respond before sending more messages.")
             }
+            .alert("Error Sending Message", isPresented: $showErrorAlert) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(errorMessage.isEmpty ? "Failed to send message. Please try again." : errorMessage)
+            }
             .task {
                 await loadMessages()
             }
@@ -252,6 +259,43 @@ struct DirectMessageView: View {
                 )
             } catch {
                 print("Error sending message: \(error)")
+                await MainActor.run {
+                    errorMessage = error.localizedDescription
+                    showErrorAlert = true
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Direct Message Bubble
+
+struct DirectMessageBubble: View {
+    let message: DirectMessage
+    let isFromCurrentUser: Bool
+    
+    var body: some View {
+        HStack {
+            if isFromCurrentUser {
+                Spacer(minLength: 60)
+            }
+            
+            VStack(alignment: isFromCurrentUser ? .trailing : .leading, spacing: 4) {
+                Text(message.text)
+                    .font(.body)
+                    .foregroundColor(isFromCurrentUser ? .white : .primary)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(isFromCurrentUser ? Color.blue : Color(.systemGray5))
+                    .cornerRadius(18)
+                
+                Text(message.createdAt.formatted(date: .omitted, time: .shortened))
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+            
+            if !isFromCurrentUser {
+                Spacer(minLength: 60)
             }
         }
     }

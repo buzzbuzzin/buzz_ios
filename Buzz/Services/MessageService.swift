@@ -12,6 +12,7 @@ import Combine
 @MainActor
 class MessageService: ObservableObject {
     @Published var messages: [Message] = []
+    @Published var directMessages: [DirectMessage] = []
     @Published var isLoading = false
     @Published var errorMessage: String?
     
@@ -153,32 +154,44 @@ class MessageService: ObservableObject {
         isLoading = true
         errorMessage = nil
         
-        let conversationId = Self.conversationId(fromUserId: fromUserId, toUserId: toUserId)
-        
         // Check if demo mode is enabled
         if DemoModeManager.shared.isDemoModeEnabled {
             try? await Task.sleep(nanoseconds: 300_000_000) // 0.3 seconds
             
             // For demo, return empty messages
             await MainActor.run {
-                self.messages = []
+                self.directMessages = []
                 self.isLoading = false
             }
             return
         }
         
-        // Real backend call
+        // Real backend call - fetch messages between these two users
         do {
-            let messages: [Message] = try await supabase
-                .from("messages")
+            // Fetch messages where from_user_id is one user and to_user_id is the other, or vice versa
+            let messages1: [DirectMessage] = try await supabase
+                .from("direct_messages")
                 .select()
-                .eq("booking_id", value: conversationId.uuidString)
+                .eq("from_user_id", value: fromUserId.uuidString)
+                .eq("to_user_id", value: toUserId.uuidString)
                 .order("created_at", ascending: true)
                 .execute()
                 .value
             
+            let messages2: [DirectMessage] = try await supabase
+                .from("direct_messages")
+                .select()
+                .eq("from_user_id", value: toUserId.uuidString)
+                .eq("to_user_id", value: fromUserId.uuidString)
+                .order("created_at", ascending: true)
+                .execute()
+                .value
+            
+            // Combine and sort by creation date
+            let allMessages = (messages1 + messages2).sorted(by: { $0.createdAt < $1.createdAt })
+            
             await MainActor.run {
-                self.messages = messages
+                self.directMessages = allMessages
                 self.isLoading = false
             }
         } catch {
@@ -192,106 +205,33 @@ class MessageService: ObservableObject {
     
     /// Send a direct message between two users (not tied to a booking)
     func sendDirectMessage(fromUserId: UUID, toUserId: UUID, text: String) async throws {
-        isLoading = true
         errorMessage = nil
         
-        let conversationId = Self.conversationId(fromUserId: fromUserId, toUserId: toUserId)
+        // Create optimistic message for immediate UI update
+        let optimisticMessage = DirectMessage(
+            id: UUID(),
+            fromUserId: fromUserId,
+            toUserId: toUserId,
+            text: text,
+            createdAt: Date(),
+            isRead: false
+        )
+        
+        // Add optimistically to UI immediately
+        await MainActor.run {
+            self.directMessages.append(optimisticMessage)
+        }
         
         // Check if demo mode is enabled
         if DemoModeManager.shared.isDemoModeEnabled {
-            let newMessage = Message(
-                id: UUID(),
-                bookingId: conversationId,
-                fromUserId: fromUserId,
-                toUserId: toUserId,
-                text: text,
-                createdAt: Date(),
-                isRead: false
-            )
-            
-            await MainActor.run {
-                self.messages.append(newMessage)
-                self.isLoading = false
-            }
+            // Already added optimistically above
             return
         }
         
         // Real backend call
         do {
-            // First, ensure the conversation booking exists (create placeholder if needed)
-            // Check if booking exists
-            let bookingExists: Bool
-            do {
-                let _: [String: AnyJSON] = try await supabase
-                    .from("bookings")
-                    .select("id")
-                    .eq("id", value: conversationId.uuidString)
-                    .single()
-                    .execute()
-                    .value
-                bookingExists = true
-            } catch {
-                bookingExists = false
-            }
-            
-            // Create placeholder booking if it doesn't exist
-            if !bookingExists {
-                // Get user profiles to determine customer/pilot
-                struct UserTypeResponse: Codable {
-                    let userType: String
-                    enum CodingKeys: String, CodingKey {
-                        case userType = "user_type"
-                    }
-                }
-                
-                let fromProfile: UserTypeResponse = try await supabase
-                    .from("profiles")
-                    .select("user_type")
-                    .eq("id", value: fromUserId.uuidString)
-                    .single()
-                    .execute()
-                    .value
-                
-                let toProfile: UserTypeResponse = try await supabase
-                    .from("profiles")
-                    .select("user_type")
-                    .eq("id", value: toUserId.uuidString)
-                    .single()
-                    .execute()
-                    .value
-                
-                // Determine customer and pilot IDs
-                let (customerId, pilotId): (UUID, UUID)
-                if fromProfile.userType == "pilot" {
-                    pilotId = fromUserId
-                    customerId = toUserId
-                } else {
-                    pilotId = toUserId
-                    customerId = fromUserId
-                }
-                
-                // Create placeholder booking for direct messages
-                let placeholderBooking: [String: AnyJSON] = [
-                    "id": .string(conversationId.uuidString),
-                    "customer_id": .string(customerId.uuidString),
-                    "pilot_id": .string(pilotId.uuidString),
-                    "location_lat": .double(0.0),
-                    "location_lng": .double(0.0),
-                    "location_name": .string("Direct Message"),
-                    "description": .string("Direct message conversation"),
-                    "payment_amount": .double(0.0),
-                    "status": .string("accepted") // Set as accepted to allow messaging
-                ]
-                
-                try await supabase
-                    .from("bookings")
-                    .insert(placeholderBooking)
-                    .execute()
-            }
-            
-            // Now insert the message
+            // Insert the direct message
             let messageData: [String: AnyJSON] = [
-                "booking_id": .string(conversationId.uuidString),
                 "from_user_id": .string(fromUserId.uuidString),
                 "to_user_id": .string(toUserId.uuidString),
                 "text": .string(text),
@@ -299,16 +239,31 @@ class MessageService: ObservableObject {
                 "is_read": .bool(false)
             ]
             
-            try await supabase
-                .from("messages")
+            let insertedMessage: DirectMessage = try await supabase
+                .from("direct_messages")
                 .insert(messageData)
+                .select()
+                .single()
                 .execute()
+                .value
             
-            // Refresh messages
-            try await fetchDirectMessages(fromUserId: fromUserId, toUserId: toUserId)
-        } catch {
+            // Replace optimistic message with real message from backend
             await MainActor.run {
-                self.isLoading = false
+                if let index = self.directMessages.firstIndex(where: { $0.id == optimisticMessage.id }) {
+                    self.directMessages[index] = insertedMessage
+                } else {
+                    // If optimistic message not found, just refresh all messages
+                    Task {
+                        try? await self.fetchDirectMessages(fromUserId: fromUserId, toUserId: toUserId)
+                    }
+                }
+            }
+        } catch {
+            // Remove optimistic message on error
+            await MainActor.run {
+                if let index = self.directMessages.firstIndex(where: { $0.id == optimisticMessage.id }) {
+                    self.directMessages.remove(at: index)
+                }
                 self.errorMessage = error.localizedDescription
             }
             throw error
@@ -320,8 +275,8 @@ class MessageService: ObservableObject {
     func countSentMessagesBeforeResponse(fromUserId: UUID, toUserId: UUID) -> Int {
         var count = 0
         
-        // Sort messages chronologically
-        let sortedMessages = messages.sorted(by: { $0.createdAt < $1.createdAt })
+        // Sort direct messages chronologically
+        let sortedMessages = directMessages.sorted(by: { $0.createdAt < $1.createdAt })
         
         // Count consecutive messages from sender before any response
         for message in sortedMessages {
@@ -339,8 +294,100 @@ class MessageService: ObservableObject {
     
     /// Check if the other user has responded
     func hasResponse(fromUserId: UUID, toUserId: UUID) -> Bool {
-        return messages.contains { message in
+        return directMessages.contains { message in
             message.fromUserId == toUserId && message.toUserId == fromUserId
+        }
+    }
+    
+    /// Fetch last message for a booking conversation
+    func fetchLastMessageForBooking(bookingId: UUID) async throws -> Message? {
+        // Check if demo mode is enabled
+        if DemoModeManager.shared.isDemoModeEnabled {
+            return nil
+        }
+        
+        do {
+            let messages: [Message] = try await supabase
+                .from("messages")
+                .select()
+                .eq("booking_id", value: bookingId.uuidString)
+                .order("created_at", ascending: false)
+                .limit(1)
+                .execute()
+                .value
+            
+            return messages.first
+        } catch {
+            return nil
+        }
+    }
+    
+    /// Check if booking has unread messages for user
+    func hasUnreadMessagesForBooking(bookingId: UUID, userId: UUID) async throws -> Bool {
+        // Check if demo mode is enabled
+        if DemoModeManager.shared.isDemoModeEnabled {
+            return false
+        }
+        
+        do {
+            let unreadCount: Int = try await supabase
+                .from("messages")
+                .select("id", head: true, count: .exact)
+                .eq("booking_id", value: bookingId.uuidString)
+                .eq("to_user_id", value: userId.uuidString)
+                .eq("is_read", value: false)
+                .execute()
+                .count ?? 0
+            
+            return unreadCount > 0
+        } catch {
+            return false
+        }
+    }
+    
+    /// Fetch all direct message conversations for the current user
+    func fetchDirectMessageConversations(userId: UUID) async throws -> [DirectMessageConversation] {
+        // Check if demo mode is enabled
+        if DemoModeManager.shared.isDemoModeEnabled {
+            return []
+        }
+        
+        // Get all unique conversations (distinct pairs of users)
+        // This query gets the latest message from each conversation
+        let query = """
+            SELECT DISTINCT ON (
+                LEAST(from_user_id, to_user_id),
+                GREATEST(from_user_id, to_user_id)
+            )
+            id, from_user_id, to_user_id, text, created_at, is_read
+            FROM direct_messages
+            WHERE from_user_id = '\(userId.uuidString)' OR to_user_id = '\(userId.uuidString)'
+            ORDER BY LEAST(from_user_id, to_user_id), GREATEST(from_user_id, to_user_id), created_at DESC
+        """
+        
+        // For now, use a simpler approach - get all messages and group them
+        let allMessages: [DirectMessage] = try await supabase
+            .from("direct_messages")
+            .select()
+            .or("from_user_id.eq.\(userId.uuidString),to_user_id.eq.\(userId.uuidString)")
+            .order("created_at", ascending: false)
+            .execute()
+            .value
+        
+        // Group by conversation partner
+        var conversations: [UUID: DirectMessage] = [:]
+        for message in allMessages {
+            let partnerId = message.fromUserId == userId ? message.toUserId : message.fromUserId
+            if conversations[partnerId] == nil || message.createdAt > (conversations[partnerId]?.createdAt ?? Date.distantPast) {
+                conversations[partnerId] = message
+            }
+        }
+        
+        return conversations.map { partnerId, lastMessage in
+            DirectMessageConversation(
+                partnerId: partnerId,
+                lastMessage: lastMessage
+            )
         }
     }
     
