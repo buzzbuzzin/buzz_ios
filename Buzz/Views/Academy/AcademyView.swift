@@ -776,7 +776,6 @@ struct CourseDetailView: View {
                                         .background(Color.blue)
                                         .cornerRadius(12)
                                 }
-                                .padding(.horizontal)
                                 
                                 Button(action: {
                                     showCompletionConfirmation = true
@@ -795,12 +794,13 @@ struct CourseDetailView: View {
                                 showUnenrollConfirmation = true
                             }) {
                                 Text("Unenroll from Course")
-                                    .font(.subheadline)
+                                    .font(.headline)
+                                    .fontWeight(.semibold)
                                     .foregroundColor(.red)
                                     .frame(maxWidth: .infinity)
-                                    .padding()
+                                    .frame(height: 50)
                                     .background(Color.red.opacity(0.1))
-                                    .cornerRadius(10)
+                                    .cornerRadius(12)
                             }
                         }
                         .padding(.horizontal)
