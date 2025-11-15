@@ -139,6 +139,27 @@ struct CockpitView: View {
                             }
                             .padding(.horizontal, 16)
                         }
+                        
+                        // Community Section
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Community")
+                                .font(.title2)
+                                .fontWeight(.semibold)
+                                .padding(.horizontal, 16)
+                            
+                            LazyVGrid(columns: columns, spacing: 12) {
+                                // TopGun Card
+                                NavigationLink(destination: TopGunView().environmentObject(authService)) {
+                                    CockpitGridCard(
+                                        title: "TopGun",
+                                        icon: "airplane.circle.fill",
+                                        color: .red
+                                    )
+                                }
+                                .buttonStyle(PlainButtonStyle())
+                            }
+                            .padding(.horizontal, 16)
+                        }
                     }
                     .padding(.bottom)
                 }
