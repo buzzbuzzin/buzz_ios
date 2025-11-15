@@ -6,13 +6,23 @@
 //
 
 import SwiftUI
+import Auth
 
 struct CourseContentView: View {
     let course: TrainingCourse
     @StateObject private var academyService = AcademyService()
+    @StateObject private var courseSubscriptionService = CourseSubscriptionService()
+    @EnvironmentObject var authService: AuthService
     @State private var units: [CourseUnit] = []
     @State private var isLoading = false
     @State private var errorMessage: String?
+    @State private var hasSubscription = false
+    @State private var showSubscriptionSheet = false
+    
+    // Check if this is the UAS Pilot Course
+    var isUASPilotCourse: Bool {
+        course.id.uuidString == "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+    }
     
     var mandatoryUnits: [CourseUnit] {
         units.filter { $0.isMandatory }
@@ -70,7 +80,12 @@ struct CourseContentView: View {
                             stepNumber: 1,
                             title: "PICK A BASE PROGRAM",
                             units: step1Units,
-                            course: course
+                            course: course,
+                            hasSubscription: hasSubscription,
+                            isUASPilotCourse: isUASPilotCourse,
+                            onSubscribe: {
+                                showSubscriptionSheet = true
+                            }
                         )
                     }
                     
@@ -80,7 +95,12 @@ struct CourseContentView: View {
                             stepNumber: 2,
                             title: "EXTENSION COURSES",
                             units: step2Units,
-                            course: course
+                            course: course,
+                            hasSubscription: hasSubscription,
+                            isUASPilotCourse: isUASPilotCourse,
+                            onSubscribe: {
+                                showSubscriptionSheet = true
+                            }
                         )
                     }
                     
@@ -90,7 +110,12 @@ struct CourseContentView: View {
                             stepNumber: 3,
                             title: "FURTHER YOUR BASE TRAINING",
                             units: step3Units,
-                            course: course
+                            course: course,
+                            hasSubscription: hasSubscription,
+                            isUASPilotCourse: isUASPilotCourse,
+                            onSubscribe: {
+                                showSubscriptionSheet = true
+                            }
                         )
                     }
                 }
@@ -100,6 +125,18 @@ struct CourseContentView: View {
         .navigationBarTitleDisplayMode(.inline)
         .task {
             await loadUnits()
+            if isUASPilotCourse, let currentUser = authService.currentUser {
+                do {
+                    hasSubscription = try await courseSubscriptionService.checkSubscriptionStatus(pilotId: currentUser.id)
+                } catch {
+                    print("Error checking subscription: \(error)")
+                }
+            }
+        }
+        .sheet(isPresented: $showSubscriptionSheet) {
+            if let currentUser = authService.currentUser {
+                CourseSubscriptionView(course: course, pilotId: currentUser.id)
+            }
         }
     }
     
@@ -153,6 +190,9 @@ struct StepSectionView: View {
     let title: String
     let units: [CourseUnit]
     let course: TrainingCourse
+    let hasSubscription: Bool
+    let isUASPilotCourse: Bool
+    let onSubscribe: () -> Void
     
     var stepColor: Color {
         switch stepNumber {
@@ -173,10 +213,18 @@ struct StepSectionView: View {
             
             VStack(spacing: 12) {
                 ForEach(units) { unit in
-                    NavigationLink(destination: UnitDetailView(unit: unit, course: course)) {
-                        UnitRow(unit: unit)
+                    if isUASPilotCourse && unit.unitNumber >= 4 && !hasSubscription {
+                        // Show locked unit with paywall
+                        Button(action: onSubscribe) {
+                            UnitRow(unit: unit, isLocked: true)
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                    } else {
+                        NavigationLink(destination: UnitDetailView(unit: unit, course: course)) {
+                            UnitRow(unit: unit, isLocked: false)
+                        }
+                        .buttonStyle(PlainButtonStyle())
                     }
-                    .buttonStyle(PlainButtonStyle())
                 }
             }
             .padding(.horizontal)
@@ -188,25 +236,39 @@ struct StepSectionView: View {
 
 struct UnitRow: View {
     let unit: CourseUnit
+    var isLocked: Bool = false
     
     var body: some View {
         HStack(spacing: 16) {
             // Unit Number Badge
             ZStack {
                 Circle()
-                    .fill(Color.blue.opacity(0.2))
+                    .fill(isLocked ? Color.gray.opacity(0.2) : Color.blue.opacity(0.2))
                     .frame(width: 50, height: 50)
                 
-                Text("\(unit.unitNumber)")
-                    .font(.headline)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.blue)
+                if isLocked {
+                    Image(systemName: "lock.fill")
+                        .foregroundColor(.gray)
+                        .font(.headline)
+                } else {
+                    Text("\(unit.unitNumber)")
+                        .font(.headline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.blue)
+                }
             }
             
             VStack(alignment: .leading, spacing: 4) {
-                Text(unit.title)
-                    .font(.headline)
-                    .foregroundColor(.primary)
+                HStack {
+                    Text(unit.title)
+                        .font(.headline)
+                        .foregroundColor(isLocked ? .secondary : .primary)
+                    
+                    if isLocked {
+                        Text("🔒")
+                            .font(.caption)
+                    }
+                }
                 
                 if let description = unit.description {
                     Text(description)
@@ -214,17 +276,31 @@ struct UnitRow: View {
                         .foregroundColor(.secondary)
                         .lineLimit(2)
                 }
+                
+                if isLocked {
+                    Text("Subscribe to unlock")
+                        .font(.caption)
+                        .foregroundColor(.blue)
+                        .fontWeight(.semibold)
+                }
             }
             
             Spacer()
             
-            Image(systemName: "chevron.right")
-                .foregroundColor(.secondary)
-                .font(.caption)
+            if isLocked {
+                Image(systemName: "lock.circle.fill")
+                    .foregroundColor(.gray)
+                    .font(.title3)
+            } else {
+                Image(systemName: "chevron.right")
+                    .foregroundColor(.secondary)
+                    .font(.caption)
+            }
         }
         .padding()
-        .background(Color(.systemGray6))
+        .background(isLocked ? Color(.systemGray5) : Color(.systemGray6))
         .cornerRadius(12)
+        .opacity(isLocked ? 0.7 : 1.0)
     }
 }
 

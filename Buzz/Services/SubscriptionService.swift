@@ -356,7 +356,8 @@ struct SubscriptionPlan: Codable, Identifiable {
         let formatter = NumberFormatter()
         formatter.numberStyle = .currency
         formatter.currencyCode = currency.uppercased()
-        formatter.maximumFractionDigits = 0
+        formatter.maximumFractionDigits = 2
+        formatter.minimumFractionDigits = 2
         return formatter.string(from: NSDecimalNumber(decimal: amount / 100)) ?? "$0"
     }
     

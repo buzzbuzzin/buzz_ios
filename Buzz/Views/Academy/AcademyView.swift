@@ -19,6 +19,9 @@ struct AcademyView: View {
     @State private var isFetching = false // Track if fetch is in progress
     @State private var fetchTask: Task<Void, Never>? = nil // Store the current fetch task
     @State private var showRecurrentNotices = true
+    @StateObject private var courseSubscriptionService = CourseSubscriptionService()
+    @State private var hasSubscription = false
+    @State private var isPromotionCardDismissed = false
     
     func toggleEnrollment(for courseId: UUID) {
         if let index = courses.firstIndex(where: { $0.id == courseId }) {
@@ -79,6 +82,24 @@ struct AcademyView: View {
                             .padding(.bottom, 8)
                         }
                     }
+                    .background(Color(.systemGray6))
+                }
+                
+                // UAS Pilot Course Promotion Section
+                // Show promotion card for UAS Pilot Course (only if not dismissed and no subscription)
+                if let uasCourse = courses.first(where: { 
+                    $0.id.uuidString.lowercased() == "a1b2c3d4-e5f6-7890-abcd-ef1234567890" ||
+                    $0.title.lowercased().contains("uas pilot")
+                }), !hasSubscription && !isPromotionCardDismissed {
+                    UASPilotCoursePromotionCard(
+                        course: uasCourse,
+                        hasSubscription: hasSubscription,
+                        onDismiss: {
+                            isPromotionCardDismissed = true
+                        }
+                    )
+                    .padding(.horizontal)
+                    .padding(.vertical, 8)
                     .background(Color(.systemGray6))
                 }
                 
@@ -153,6 +174,10 @@ struct AcademyView: View {
                                 course: courses.first(where: { $0.id == course.id }) ?? course,
                                 onEnrollmentChange: { 
                                     toggleEnrollment(for: course.id)
+                                    // Reload courses from backend to ensure sync
+                                    Task {
+                                        await loadCourses()
+                                    }
                                 }
                             )) {
                                 CourseCard(course: courses.first(where: { $0.id == course.id }) ?? course)
@@ -167,6 +192,31 @@ struct AcademyView: View {
             .task {
                 await loadCourses()
                 await loadRecurrentNotices()
+                // Check subscription status for promotion card
+                if let currentUser = authService.currentUser {
+                    do {
+                        hasSubscription = try await courseSubscriptionService.checkSubscriptionStatus(pilotId: currentUser.id)
+                    } catch {
+                        print("Error checking subscription: \(error)")
+                    }
+                }
+            }
+            .onAppear {
+                // Reset promotion card dismissal when view appears (so it shows again)
+                isPromotionCardDismissed = false
+                
+                // Refresh courses when view appears (e.g., after returning from course detail)
+                Task {
+                    await loadCourses()
+                    // Refresh subscription status
+                    if let currentUser = authService.currentUser {
+                        do {
+                            hasSubscription = try await courseSubscriptionService.checkSubscriptionStatus(pilotId: currentUser.id)
+                        } catch {
+                            print("Error checking subscription: \(error)")
+                        }
+                    }
+                }
             }
         }
     }
@@ -527,9 +577,12 @@ struct CourseDetailView: View {
     @State private var isEnrolled: Bool
     @State private var showUnenrollConfirmation = false
     @State private var showCompletionConfirmation = false
+    @State private var isUnenrolling = false
+    @State private var unenrollError: String?
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var authService: AuthService
     @StateObject private var badgeService = BadgeService()
+    @StateObject private var academyService = AcademyService()
     
     init(course: TrainingCourse, onEnrollmentChange: @escaping () -> Void) {
         self.course = course
@@ -835,15 +888,21 @@ struct CourseDetailView: View {
         .alert("Unenroll from Course", isPresented: $showUnenrollConfirmation) {
             Button("Cancel", role: .cancel) {}
             Button("Unenroll", role: .destructive) {
-                isEnrolled = false
-                onEnrollmentChange()
-                // Dismiss after unenrolling
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                    dismiss()
+                Task {
+                    await unenrollFromCourse()
                 }
             }
         } message: {
             Text("Are you sure you want to unenroll from \"\(course.title)\"? You will lose access to course materials and progress.")
+        }
+        .alert("Error", isPresented: .constant(unenrollError != nil)) {
+            Button("OK") {
+                unenrollError = nil
+            }
+        } message: {
+            if let error = unenrollError {
+                Text(error)
+            }
         }
         .alert("Complete Course", isPresented: $showCompletionConfirmation) {
             Button("Cancel", role: .cancel) {}
@@ -876,6 +935,35 @@ struct CourseDetailView: View {
             }
         } catch {
             print("Error awarding badge: \(error)")
+        }
+    }
+    
+    private func unenrollFromCourse() async {
+        guard let currentUser = authService.currentUser else { return }
+        
+        isUnenrolling = true
+        unenrollError = nil
+        
+        do {
+            // Call backend service to unenroll
+            try await academyService.unenrollFromCourse(
+                pilotId: currentUser.id,
+                courseId: course.id
+            )
+            
+            // Update local state
+            isEnrolled = false
+            onEnrollmentChange()
+            
+            // Dismiss after unenrolling
+            isUnenrolling = false
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                dismiss()
+            }
+        } catch {
+            isUnenrolling = false
+            unenrollError = "Failed to unenroll: \(error.localizedDescription)"
+            print("Error unenrolling from course: \(error)")
         }
     }
     
@@ -917,6 +1005,103 @@ struct InfoRow: View {
         .padding()
         .background(Color(.systemGray6))
         .cornerRadius(10)
+    }
+}
+
+// MARK: - UAS Pilot Course Promotion Card
+
+struct UASPilotCoursePromotionCard: View {
+    let course: TrainingCourse
+    let hasSubscription: Bool
+    let onDismiss: () -> Void
+    @EnvironmentObject var authService: AuthService
+    @State private var showSubscriptionSheet = false
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Image(systemName: "sparkles")
+                    .foregroundColor(.yellow)
+                    .font(.title2)
+                
+                Text("New Pilot Specials")
+                    .font(.headline)
+                    .fontWeight(.bold)
+                    .foregroundColor(.primary)
+                
+                Spacer()
+                
+                Button(action: onDismiss) {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundColor(.secondary)
+                        .font(.title3)
+                }
+            }
+            
+            if hasSubscription {
+                Text("🎓 You have full access to all course units!")
+                    .font(.subheadline)
+                    .foregroundColor(.green)
+                    .fontWeight(.semibold)
+            } else {
+                Text("🎓 Get full access to the UAS Pilot Course")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Special Price")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Text("$9.99/month")
+                            .font(.title3)
+                            .fontWeight(.bold)
+                            .foregroundColor(.blue)
+                    }
+                    
+                    Spacer()
+                    
+                    Button(action: {
+                        showSubscriptionSheet = true
+                    }) {
+                        Text("Subscribe Now")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 10)
+                            .background(Color.blue)
+                            .cornerRadius(8)
+                    }
+                }
+            }
+            
+            Text("✓ More perks and benefits for future courses")
+                .font(.caption)
+                .foregroundColor(.secondary)
+            
+            Text("✓ Full course access with subscription")
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+        .padding()
+        .background(
+            LinearGradient(
+                gradient: Gradient(colors: [Color.blue.opacity(0.1), Color.purple.opacity(0.1)]),
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        )
+        .cornerRadius(12)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color.blue.opacity(0.3), lineWidth: 1)
+        )
+        .sheet(isPresented: $showSubscriptionSheet) {
+            if let currentUser = authService.currentUser {
+                CourseSubscriptionView(course: course, pilotId: currentUser.id)
+            }
+        }
     }
 }
 
