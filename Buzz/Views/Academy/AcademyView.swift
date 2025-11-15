@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import Foundation
 import Auth
 
 struct AcademyView: View {
@@ -15,6 +16,8 @@ struct AcademyView: View {
     @State private var courses: [TrainingCourse] = []
     @State private var recurrentNotices: [RecurrentTrainingNotice] = []
     @State private var isLoading = false
+    @State private var isFetching = false // Track if fetch is in progress
+    @State private var fetchTask: Task<Void, Never>? = nil // Store the current fetch task
     @State private var showRecurrentNotices = true
     
     func toggleEnrollment(for courseId: UUID) {
@@ -156,9 +159,8 @@ struct AcademyView: View {
                             }
                         }
                     }
-                    .refreshable {
-                        await loadCourses()
-                    }
+                    // .refreshable disabled temporarily due to SwiftUI refresh control cancellation issues
+                    // TODO: Re-enable once cancellation issue is resolved
                 }
             }
             .navigationTitle("Academy")
@@ -170,28 +172,75 @@ struct AcademyView: View {
     }
     
     private func loadCourses() async {
+        // Prevent overlapping requests - if already fetching, skip this call
+        guard !isFetching else {
+            print("⚠️ [AcademyView] Course fetch already in progress, skipping duplicate request")
+            return
+        }
+        
+        let startTime = Date()
+        print("🚀 [AcademyView] Starting course fetch at \(startTime)")
+        
+        isFetching = true
         isLoading = true
         
         // Always fetch from backend - no demo courses
         let academyService = AcademyService()
         if let currentUser = authService.currentUser {
+            print("👤 [AcademyView] Fetching courses for user: \(currentUser.id)")
             do {
                 try await academyService.fetchCoursesWithEnrollment(pilotId: currentUser.id)
+                // Only update courses if fetch was successful
                 courses = academyService.courses
+                let duration = Date().timeIntervalSince(startTime)
+                print("✅ [AcademyView] Successfully fetched \(courses.count) courses in \(String(format: "%.2f", duration))s")
             } catch {
-                print("Error loading courses: \(error)")
-                courses = []
+                let duration = Date().timeIntervalSince(startTime)
+                // Check if error is a cancellation (user refreshed while loading)
+                let nsError = error as NSError
+                if nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled {
+                    // Request was cancelled (likely due to refresh) - don't clear courses
+                    print("❌ [AcademyView] Course fetch cancelled after \(String(format: "%.2f", duration))s")
+        } else {
+                    // Real error - log it but don't clear courses if we have any
+                    print("❌ [AcademyView] Error loading courses after \(String(format: "%.2f", duration))s: \(error)")
+                    // Only clear courses if we don't have any (first load failed)
+                    if courses.isEmpty {
+            courses = []
+                    }
+                }
             }
         } else {
+            print("👤 [AcademyView] Fetching courses without user authentication")
             do {
                 try await academyService.fetchCourses()
+                // Only update courses if fetch was successful
                 courses = academyService.courses
+                let duration = Date().timeIntervalSince(startTime)
+                print("✅ [AcademyView] Successfully fetched \(courses.count) courses in \(String(format: "%.2f", duration))s")
             } catch {
-                print("Error loading courses: \(error)")
-            courses = []
+                let duration = Date().timeIntervalSince(startTime)
+                // Check if error is a cancellation (user refreshed while loading)
+                let nsError = error as NSError
+                if nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled {
+                    // Request was cancelled (likely due to refresh) - don't clear courses
+                    print("❌ [AcademyView] Course fetch cancelled after \(String(format: "%.2f", duration))s")
+                } else {
+                    // Real error - log it but don't clear courses if we have any
+                    print("❌ [AcademyView] Error loading courses after \(String(format: "%.2f", duration))s: \(error)")
+                    // Only clear courses if we don't have any (first load failed)
+                    if courses.isEmpty {
+                        courses = []
+                    }
+                }
+            }
         }
-        }
+        
+        let totalDuration = Date().timeIntervalSince(startTime)
+        print("🏁 [AcademyView] Course fetch completed in \(String(format: "%.2f", totalDuration))s")
+        
         isLoading = false
+        isFetching = false
     }
     
     private func loadRecurrentNotices() async {

@@ -19,6 +19,9 @@ struct FileViewer: View {
     @State private var errorMessage: String?
     @State private var pdfDocument: PDFDocument?
     @State private var image: UIImage?
+    @State private var downloadProgress: Double = 0.0
+    @State private var downloadedBytes: Int64 = 0
+    @State private var totalBytes: Int64 = 0
     
     private let supabase = SupabaseClient.shared.client
     
@@ -66,11 +69,37 @@ struct FileViewer: View {
             
             VStack {
                 if isLoading {
-                    VStack(spacing: 20) {
+                    VStack(spacing: 24) {
                         ProgressView()
                             .scaleEffect(2.0)
-                        Text("Loading file...")
-                            .font(.headline)
+                        
+                        VStack(spacing: 12) {
+                            Text("Downloading file...")
+                                .font(.headline)
+                            
+                            // Progress Bar
+                            VStack(spacing: 8) {
+                                ProgressView(value: downloadProgress)
+                                    .progressViewStyle(LinearProgressViewStyle(tint: .blue))
+                                    .frame(height: 8)
+                                
+                                HStack {
+                                    Text("\(Int(downloadProgress * 100))%")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                    
+                                    Spacer()
+                                    
+                                    if totalBytes > 0 {
+                                        Text(formatBytes(downloadedBytes) + " / " + formatBytes(totalBytes))
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                    }
+                                }
+                            }
+                            .padding(.horizontal, 40)
+                        }
+                        
                         Text(fileUrl)
                             .font(.caption)
                             .foregroundColor(.gray)
@@ -195,10 +224,17 @@ struct FileViewer: View {
         print("DEBUG FileViewer: URL path: \(url.path)")
         print("DEBUG FileViewer: URL host: \(url.host ?? "nil")")
         
+        // Reset progress
+        await MainActor.run {
+            self.downloadProgress = 0.0
+            self.downloadedBytes = 0
+            self.totalBytes = 0
+        }
+        
         do {
             // For public buckets, we can try without auth first
             var request = URLRequest(url: url)
-            request.timeoutInterval = 30.0
+            request.timeoutInterval = 60.0 // Increased timeout for large files
             
             // Try with authentication if available
             do {
@@ -211,8 +247,10 @@ struct FileViewer: View {
                 print("DEBUG FileViewer: Trying without authentication (public bucket)")
             }
             
-            print("DEBUG FileViewer: Starting URLSession download...")
-            let (data, response) = try await URLSession.shared.data(for: request)
+            print("DEBUG FileViewer: Starting URLSession download with progress tracking...")
+            
+            // Use URLSession with delegate to track progress
+            let (data, response) = try await downloadWithProgress(request: request)
             print("DEBUG FileViewer: Download completed, data size: \(data.count) bytes")
             
             if let httpResponse = response as? HTTPURLResponse {
@@ -308,6 +346,80 @@ struct FileViewer: View {
                     self.errorMessage = "Failed to load image. The file may be corrupted or in an unsupported format."
                     self.isLoading = false
                 }
+            }
+        }
+    }
+    
+    // Download with progress tracking
+    private func downloadWithProgress(request: URLRequest) async throws -> (Data, URLResponse) {
+        return try await withCheckedThrowingContinuation { continuation in
+            let delegate = DownloadDelegate { progress, downloaded, total in
+                Task { @MainActor in
+                    self.downloadProgress = progress
+                    self.downloadedBytes = downloaded
+                    self.totalBytes = total
+                }
+            } completion: { result in
+                continuation.resume(with: result)
+            }
+            
+            let configuration = URLSessionConfiguration.default
+            let session = URLSession(configuration: configuration, delegate: delegate, delegateQueue: nil)
+            
+            let task = session.dataTask(with: request)
+            delegate.task = task
+            task.resume()
+        }
+    }
+    
+    // Format bytes to human-readable string
+    private func formatBytes(_ bytes: Int64) -> String {
+        let formatter = ByteCountFormatter()
+        formatter.allowedUnits = [.useKB, .useMB, .useGB]
+        formatter.countStyle = .file
+        return formatter.string(fromByteCount: bytes)
+    }
+}
+
+// MARK: - Download Delegate for Progress Tracking
+
+class DownloadDelegate: NSObject, URLSessionDataDelegate {
+    var task: URLSessionDataTask?
+    var receivedData = Data()
+    var expectedContentLength: Int64 = 0
+    
+    let progressHandler: (Double, Int64, Int64) -> Void
+    let completionHandler: (Result<(Data, URLResponse), Error>) -> Void
+    
+    init(progress: @escaping (Double, Int64, Int64) -> Void, completion: @escaping (Result<(Data, URLResponse), Error>) -> Void) {
+        self.progressHandler = progress
+        self.completionHandler = completion
+    }
+    
+    func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive response: URLResponse, completionHandler: @escaping (URLSession.ResponseDisposition) -> Void) {
+        expectedContentLength = response.expectedContentLength
+        receivedData = Data()
+        completionHandler(.allow)
+    }
+    
+    func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
+        receivedData.append(data)
+        
+        let downloaded = Int64(receivedData.count)
+        let total = expectedContentLength > 0 ? expectedContentLength : downloaded
+        let progress = total > 0 ? Double(downloaded) / Double(total) : 0.0
+        
+        progressHandler(progress, downloaded, total)
+    }
+    
+    func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+        if let error = error {
+            completionHandler(.failure(error))
+        } else {
+            if let response = task.response {
+                completionHandler(.success((receivedData, response)))
+            } else {
+                completionHandler(.failure(NSError(domain: "FileViewer", code: -1, userInfo: [NSLocalizedDescriptionKey: "No response received"])))
             }
         }
     }

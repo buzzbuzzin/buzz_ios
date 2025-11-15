@@ -27,8 +27,8 @@ class BadgeService: ObservableObject {
             // Check if demo mode is enabled
             if DemoModeManager.shared.isDemoModeEnabled {
                 // Demo mode - return sample badges
-                try? await Task.sleep(nanoseconds: 300_000_000) // 0.3 seconds
-                
+            try? await Task.sleep(nanoseconds: 300_000_000) // 0.3 seconds
+            
                 badges = getDemoBadges()
             } else {
                 // Production mode - fetch from database
@@ -56,47 +56,47 @@ class BadgeService: ObservableObject {
     
     private func getDemoBadges() -> [Badge] {
         return [
-            Badge(
-                id: UUID(),
-                courseId: UUID(),
-                courseTitle: "FAA Part 107 Certification Prep",
-                courseCategory: "Safety & Regulations",
-                earnedAt: Date().addingTimeInterval(-86400 * 30), // 30 days ago
-                provider: .buzz,
-                expiresAt: nil,
-                isRecurrent: false
-            ),
-            Badge(
-                id: UUID(),
-                courseId: UUID(),
-                courseTitle: "Advanced Flight Maneuvers",
-                courseCategory: "Flight Operations",
-                earnedAt: Date().addingTimeInterval(-86400 * 15), // 15 days ago
-                provider: .buzz,
-                expiresAt: nil,
-                isRecurrent: false
-            ),
-            Badge(
-                id: UUID(uuidString: "550e8400-e29b-41d4-a716-446655440002") ?? UUID(),
-                courseId: UUID(uuidString: "550e8400-e29b-41d4-a716-446655440001") ?? UUID(), // Matches demo course
-                courseTitle: "Amazon Prime Air Operations",
-                courseCategory: "Flight Operations",
-                earnedAt: Date().addingTimeInterval(-86400 * 358), // ~1 year ago (358 days)
-                provider: .amazon,
-                expiresAt: Date().addingTimeInterval(86400 * 7), // Expires in 7 days
-                isRecurrent: true
-            ),
-            Badge(
-                id: UUID(),
-                courseId: UUID(),
-                courseTitle: "Amazon Safety & Compliance",
-                courseCategory: "Safety & Regulations",
-                earnedAt: Date().addingTimeInterval(-86400 * 180), // 6 months ago
-                provider: .amazon,
-                expiresAt: Date().addingTimeInterval(86400 * 30), // Expires in 30 days
-                isRecurrent: true
-            )
-        ]
+                Badge(
+                    id: UUID(),
+                    courseId: UUID(),
+                    courseTitle: "FAA Part 107 Certification Prep",
+                    courseCategory: "Safety & Regulations",
+                    earnedAt: Date().addingTimeInterval(-86400 * 30), // 30 days ago
+                    provider: .buzz,
+                    expiresAt: nil,
+                    isRecurrent: false
+                ),
+                Badge(
+                    id: UUID(),
+                    courseId: UUID(),
+                    courseTitle: "Advanced Flight Maneuvers",
+                    courseCategory: "Flight Operations",
+                    earnedAt: Date().addingTimeInterval(-86400 * 15), // 15 days ago
+                    provider: .buzz,
+                    expiresAt: nil,
+                    isRecurrent: false
+                ),
+                Badge(
+                    id: UUID(uuidString: "550e8400-e29b-41d4-a716-446655440002") ?? UUID(),
+                    courseId: UUID(uuidString: "550e8400-e29b-41d4-a716-446655440001") ?? UUID(), // Matches demo course
+                    courseTitle: "Amazon Prime Air Operations",
+                    courseCategory: "Flight Operations",
+                    earnedAt: Date().addingTimeInterval(-86400 * 358), // ~1 year ago (358 days)
+                    provider: .amazon,
+                    expiresAt: Date().addingTimeInterval(86400 * 7), // Expires in 7 days
+                    isRecurrent: true
+                ),
+                Badge(
+                    id: UUID(),
+                    courseId: UUID(),
+                    courseTitle: "Amazon Safety & Compliance",
+                    courseCategory: "Safety & Regulations",
+                    earnedAt: Date().addingTimeInterval(-86400 * 180), // 6 months ago
+                    provider: .amazon,
+                    expiresAt: Date().addingTimeInterval(86400 * 30), // Expires in 30 days
+                    isRecurrent: true
+                )
+            ]
     }
     
     // MARK: - Award Badge

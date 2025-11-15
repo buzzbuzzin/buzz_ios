@@ -55,6 +55,13 @@ class AcademyService: ObservableObject {
             isLoading = false
         } catch {
             isLoading = false
+            // Check if error is a cancellation (user refreshed while loading)
+            let nsError = error as NSError
+            if nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled {
+                // Request was cancelled - don't set error message or throw
+                print("Course fetch cancelled (likely due to refresh)")
+                return // Exit silently, don't throw error
+            }
             errorMessage = error.localizedDescription
             print("Error fetching courses: \(error)")
             throw error
@@ -64,19 +71,28 @@ class AcademyService: ObservableObject {
     // MARK: - Fetch Courses with Enrollment Status
     
     func fetchCoursesWithEnrollment(pilotId: UUID) async throws {
+        let startTime = Date()
+        print("📊 [AcademyService] Starting fetchCoursesWithEnrollment for pilot: \(pilotId)")
+        
         isLoading = true
         errorMessage = nil
         
         do {
             // Fetch all courses
+            print("🔍 [AcademyService] Step 1: Fetching all courses...")
+            let step1Start = Date()
             let coursesResponse: [TrainingCourseResponse] = try await supabase
                 .from("training_courses")
                 .select()
                 .order("created_at", ascending: false)
                 .execute()
                 .value
+            let step1Duration = Date().timeIntervalSince(step1Start)
+            print("✅ [AcademyService] Step 1 complete: Fetched \(coursesResponse.count) courses in \(String(format: "%.2f", step1Duration))s")
             
             // Fetch enrollments for this pilot
+            print("🔍 [AcademyService] Step 2: Fetching enrollments...")
+            let step2Start = Date()
             let enrollmentsResponse = try await supabase
                 .from("course_enrollments")
                 .select("course_id, completed_at")
@@ -84,6 +100,12 @@ class AcademyService: ObservableObject {
                 .execute()
             
             let enrollmentsData = try JSONDecoder().decode([CourseEnrollmentResponse].self, from: enrollmentsResponse.data)
+            let step2Duration = Date().timeIntervalSince(step2Start)
+            print("✅ [AcademyService] Step 2 complete: Fetched \(enrollmentsData.count) enrollments in \(String(format: "%.2f", step2Duration))s")
+            
+            // Process data
+            print("🔄 [AcademyService] Step 3: Processing course data...")
+            let step3Start = Date()
             let enrolledCourseIds = Set(enrollmentsData.map { $0.courseId })
             
             // Convert to TrainingCourse models with enrollment status
@@ -107,12 +129,25 @@ class AcademyService: ObservableObject {
                     recurrentDueDate: nil
                 )
             }
+            let step3Duration = Date().timeIntervalSince(step3Start)
+            print("✅ [AcademyService] Step 3 complete: Processed data in \(String(format: "%.2f", step3Duration))s")
+            
+            let totalDuration = Date().timeIntervalSince(startTime)
+            print("🎉 [AcademyService] fetchCoursesWithEnrollment completed successfully in \(String(format: "%.2f", totalDuration))s")
             
             isLoading = false
         } catch {
             isLoading = false
+            let duration = Date().timeIntervalSince(startTime)
+            // Check if error is a cancellation (user refreshed while loading)
+            let nsError = error as NSError
+            if nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled {
+                // Request was cancelled - don't set error message or throw
+                print("❌ [AcademyService] fetchCoursesWithEnrollment cancelled after \(String(format: "%.2f", duration))s")
+                return // Exit silently, don't throw error
+            }
             errorMessage = error.localizedDescription
-            print("Error fetching courses with enrollment: \(error)")
+            print("❌ [AcademyService] fetchCoursesWithEnrollment failed after \(String(format: "%.2f", duration))s: \(error)")
             throw error
         }
     }
