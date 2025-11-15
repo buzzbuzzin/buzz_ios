@@ -1,0 +1,47 @@
+Command line invocation:
+    /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild -project Buzz.xcodeproj -scheme Buzz -destination "platform=iOS Simulator,name=iPhone 15" clean build
+
+Resolve Package Graph
+
+
+Resolved source packages:
+  swift-crypto: https://github.com/apple/swift-crypto.git @ 4.1.0
+  AppCheck: https://github.com/google/app-check.git @ 11.2.0
+  GoogleSignIn: https://github.com/google/GoogleSignIn-iOS @ 9.0.0
+  GoogleUtilities: https://github.com/google/GoogleUtilities.git @ 8.1.0
+  swift-http-types: https://github.com/apple/swift-http-types.git @ 1.5.1
+  GTMAppAuth: https://github.com/google/GTMAppAuth.git @ 5.0.0
+  Stripe: https://github.com/stripe/stripe-ios-spm @ 25.0.0
+  xctest-dynamic-overlay: https://github.com/pointfreeco/xctest-dynamic-overlay @ 1.7.0
+  Promises: https://github.com/google/promises.git @ 2.4.0
+  AppAuth: https://github.com/openid/AppAuth-iOS.git @ 2.0.0
+  Supabase: https://github.com/supabase-community/supabase-swift.git @ 2.36.0
+  GTMSessionFetcher: https://github.com/google/gtm-session-fetcher.git @ 3.5.0
+  swift-asn1: https://github.com/apple/swift-asn1.git @ 1.5.0
+  swift-clocks: https://github.com/pointfreeco/swift-clocks @ 1.0.6
+  swift-concurrency-extras: https://github.com/pointfreeco/swift-concurrency-extras @ 1.3.2
+
+2025-11-15 02:16:59.075 xcodebuild[12546:25664395] [MT] IDERunDestination: Supported platforms for the buildables in the current scheme is empty.
+2025-11-15 02:17:59.377 xcodebuild[12546:25664395] Writing error result bundle to /var/folders/f6/fj42ht9x6rx608243m7m31kc0000gn/T/ResultBundle_2025-15-11_02-17-0059.xcresult
+xcodebuild: error: Unable to find a device matching the provided destination specifier:
+		{ platform:iOS Simulator, OS:latest, name:iPhone 15 }
+
+	The requested device could not be found because no available devices matched the request.
+
+	Available destinations for the "Buzz" scheme:
+		{ platform:iOS, id:dvtdevice-DVTiPhonePlaceholder-iphoneos:placeholder, name:Any iOS Device }
+		{ platform:iOS Simulator, id:dvtdevice-DVTiOSDeviceSimulatorPlaceholder-iphonesimulator:placeholder, name:Any iOS Simulator Device }
+		{ platform:iOS Simulator, arch:arm64, id:E01275D8-9974-4F4B-B90C-56103AB2290B, OS:26.0.1, name:iPad (A16) }
+		{ platform:iOS Simulator, arch:arm64, id:46E9F9E3-D4D7-4B68-B9AC-AB2FC407BE34, OS:26.0.1, name:iPad Air 11-inch (M3) }
+		{ platform:iOS Simulator, arch:arm64, id:208CADA9-F4CB-4C92-87AD-5DC12C456D94, OS:26.0.1, name:iPad Air 13-inch (M3) }
+		{ platform:iOS Simulator, arch:arm64, id:B8597044-689D-4902-9335-141D80DFBE0C, OS:26.0.1, name:iPad Pro 11-inch (M4) }
+		{ platform:iOS Simulator, arch:arm64, id:CF10CCF2-346D-4BD8-8AE5-0DDF5B9DF06E, OS:26.0.1, name:iPad Pro 13-inch (M4) }
+		{ platform:iOS Simulator, arch:arm64, id:D89AC062-C75E-447A-9D2D-DE145CB051C7, OS:26.0.1, name:iPad mini (A17 Pro) }
+		{ platform:iOS Simulator, arch:arm64, id:7E6B570B-47AF-4F39-AD44-92D205A05180, OS:26.0.1, name:iPhone 16e }
+		{ platform:iOS Simulator, arch:arm64, id:4BE1D8B8-A0FE-48CD-AAEC-11DAAC901CFF, OS:26.0.1, name:iPhone 17 }
+		{ platform:iOS Simulator, arch:arm64, id:6CEAE55B-AE75-4C3B-88D2-D8A8FA9070B0, OS:26.0.1, name:iPhone 17 Pro }
+		{ platform:iOS Simulator, arch:arm64, id:9B9FE072-367D-4500-897C-D43FCEDAB1E2, OS:26.0.1, name:iPhone 17 Pro Max }
+		{ platform:iOS Simulator, arch:arm64, id:4C6CEBF9-60D2-49B9-8674-AEAEEE1653EE, OS:26.0.1, name:iPhone Air }
+
+	Ineligible destinations for the "Buzz" scheme:
+		{ platform:macOS, arch:undefined_arch, variant:Designed for [iPad,iPhone], id:00006000-000630890262801E, name:My Mac, error:Xcode doesn’t support My Mac’s macOS 15.7.1 (24G231).  }

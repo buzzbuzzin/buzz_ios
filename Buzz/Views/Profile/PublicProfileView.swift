@@ -22,7 +22,6 @@ struct PublicProfileView: View {
     @State private var pilotProfile: UserProfile?
     @State private var pilotStats: PilotStats?
     @State private var ratingSummary: UserRatingSummary?
-    @State private var completedBookingsCount = 0
     @State private var completedCourses: [TrainingCourse] = []
     @State private var isLoading = true
     @State private var errorMessage = ""
@@ -157,7 +156,7 @@ struct PublicProfileView: View {
                             VStack(alignment: .leading, spacing: 16) {
                                 // Flights
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text("\(completedBookingsCount)")
+                                    Text("\(stats.completedBookings)")
                                         .font(.title2)
                                         .fontWeight(.bold)
                                     Text("Flights")
@@ -293,13 +292,6 @@ struct PublicProfileView: View {
             
             // Load ratings summary
             ratingSummary = try? await ratingService.getUserRatingSummary(userId: pilotId)
-            
-            // Load completed bookings count
-            do {
-                completedBookingsCount = try await bookingService.getCompletedBookingsCount(userId: pilotId, isPilot: true)
-            } catch {
-                print("Error loading completed bookings count: \(error)")
-            }
             
             // Load badges
             try? await badgeService.fetchPilotBadges(pilotId: pilotId)

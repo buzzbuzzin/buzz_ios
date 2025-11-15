@@ -24,7 +24,7 @@ struct ProfileView: View {
     @State private var imageSourceType: UIImagePickerController.SourceType = .photoLibrary
     @State private var profileImage: UIImage?
     @State private var ratingSummary: UserRatingSummary?
-    @State private var completedBookingsCount = 0
+    @State private var customerBookingsCount = 0  // Only used for customers
     @State private var isLoadingRatings = false
     @State private var errorMessage = ""
     @State private var showError = false
@@ -156,7 +156,7 @@ struct ProfileView: View {
                 VStack(alignment: .leading, spacing: 16) {
                     // Flights
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("\(completedBookingsCount)")
+                        Text("\(stats.completedBookings)")
                             .font(.title2)
                             .fontWeight(.bold)
                         Text("Flights")
@@ -187,9 +187,9 @@ struct ProfileView: View {
             } else {
                 // For customers, show Flights and Years on Buzz
                 VStack(alignment: .leading, spacing: 16) {
-                    // Flights
+                    // Flights (customers don't have pilot_stats, keep using actual bookings count)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("\(completedBookingsCount)")
+                        Text("\(customerBookingsCount)")
                             .font(.title2)
                             .fontWeight(.bold)
                         Text("Flights")
@@ -321,7 +321,7 @@ struct ProfileView: View {
                                 Text("Completed Bookings")
                                     .foregroundColor(.primary)
                                 Spacer()
-                                Text("\(completedBookingsCount)")
+                                Text("\(stats.completedBookings)")
                                     .fontWeight(.medium)
                                     .foregroundColor(.primary)
                             }
@@ -345,7 +345,7 @@ struct ProfileView: View {
                             if isLoadingRatings {
                                 ProgressView()
                             } else {
-                                Text("\(completedBookingsCount)")
+                                Text("\(customerBookingsCount)")
                                     .fontWeight(.medium)
                                     .foregroundColor(.primary)
                             }
@@ -603,11 +603,13 @@ struct ProfileView: View {
                 print("Error loading rating summary: \(error)")
             }
             
-            // Load completed bookings count
-            do {
-                completedBookingsCount = try await bookingService.getCompletedBookingsCount(userId: userId, isPilot: isPilot)
-            } catch {
-                print("Error loading completed bookings count: \(error)")
+            // Load completed bookings count (only for customers, pilots use pilot_stats)
+            if !isPilot {
+                do {
+                    customerBookingsCount = try await bookingService.getCompletedBookingsCount(userId: userId, isPilot: isPilot)
+                } catch {
+                    print("Error loading completed bookings count: \(error)")
+                }
             }
             
             // Load badges if pilot
