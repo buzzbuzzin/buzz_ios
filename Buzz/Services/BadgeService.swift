@@ -24,65 +24,90 @@ class BadgeService: ObservableObject {
         errorMessage = nil
         
         do {
-            // TODO: When backend is ready, implement Supabase query here
-            // For now, return sample badges
-            try? await Task.sleep(nanoseconds: 300_000_000) // 0.3 seconds
-            
-            // Sample badges - in production, fetch from database
-            badges = [
-                Badge(
-                    id: UUID(),
-                    courseId: UUID(),
-                    courseTitle: "FAA Part 107 Certification Prep",
-                    courseCategory: "Safety & Regulations",
-                    earnedAt: Date().addingTimeInterval(-86400 * 30), // 30 days ago
-                    provider: .buzz,
-                    expiresAt: nil,
-                    isRecurrent: false
-                ),
-                Badge(
-                    id: UUID(),
-                    courseId: UUID(),
-                    courseTitle: "Advanced Flight Maneuvers",
-                    courseCategory: "Flight Operations",
-                    earnedAt: Date().addingTimeInterval(-86400 * 15), // 15 days ago
-                    provider: .buzz,
-                    expiresAt: nil,
-                    isRecurrent: false
-                ),
-                Badge(
-                    id: UUID(uuidString: "550e8400-e29b-41d4-a716-446655440002") ?? UUID(),
-                    courseId: UUID(uuidString: "550e8400-e29b-41d4-a716-446655440001") ?? UUID(), // Matches demo course
-                    courseTitle: "Amazon Prime Air Operations",
-                    courseCategory: "Flight Operations",
-                    earnedAt: Date().addingTimeInterval(-86400 * 358), // ~1 year ago (358 days)
-                    provider: .amazon,
-                    expiresAt: Date().addingTimeInterval(86400 * 7), // Expires in 7 days
-                    isRecurrent: true
-                ),
-                Badge(
-                    id: UUID(),
-                    courseId: UUID(),
-                    courseTitle: "Amazon Safety & Compliance",
-                    courseCategory: "Safety & Regulations",
-                    earnedAt: Date().addingTimeInterval(-86400 * 180), // 6 months ago
-                    provider: .amazon,
-                    expiresAt: Date().addingTimeInterval(86400 * 30), // Expires in 30 days
-                    isRecurrent: true
-                )
-            ]
+            // Check if demo mode is enabled
+            if DemoModeManager.shared.isDemoModeEnabled {
+                // Demo mode - return sample badges
+                try? await Task.sleep(nanoseconds: 300_000_000) // 0.3 seconds
+                
+                badges = getDemoBadges()
+            } else {
+                // Production mode - fetch from database
+                let response: [Badge] = try await supabase
+                    .from("badges")
+                    .select()
+                    .eq("pilot_id", value: pilotId.uuidString)
+                    .order("earned_at", ascending: false)
+                    .execute()
+                    .value
+                
+                badges = response
+            }
             
             isLoading = false
         } catch {
             isLoading = false
             errorMessage = error.localizedDescription
+            print("Error fetching badges: \(error)")
             throw error
         }
+    }
+    
+    // MARK: - Demo Data
+    
+    private func getDemoBadges() -> [Badge] {
+        return [
+            Badge(
+                id: UUID(),
+                courseId: UUID(),
+                courseTitle: "FAA Part 107 Certification Prep",
+                courseCategory: "Safety & Regulations",
+                earnedAt: Date().addingTimeInterval(-86400 * 30), // 30 days ago
+                provider: .buzz,
+                expiresAt: nil,
+                isRecurrent: false
+            ),
+            Badge(
+                id: UUID(),
+                courseId: UUID(),
+                courseTitle: "Advanced Flight Maneuvers",
+                courseCategory: "Flight Operations",
+                earnedAt: Date().addingTimeInterval(-86400 * 15), // 15 days ago
+                provider: .buzz,
+                expiresAt: nil,
+                isRecurrent: false
+            ),
+            Badge(
+                id: UUID(uuidString: "550e8400-e29b-41d4-a716-446655440002") ?? UUID(),
+                courseId: UUID(uuidString: "550e8400-e29b-41d4-a716-446655440001") ?? UUID(), // Matches demo course
+                courseTitle: "Amazon Prime Air Operations",
+                courseCategory: "Flight Operations",
+                earnedAt: Date().addingTimeInterval(-86400 * 358), // ~1 year ago (358 days)
+                provider: .amazon,
+                expiresAt: Date().addingTimeInterval(86400 * 7), // Expires in 7 days
+                isRecurrent: true
+            ),
+            Badge(
+                id: UUID(),
+                courseId: UUID(),
+                courseTitle: "Amazon Safety & Compliance",
+                courseCategory: "Safety & Regulations",
+                earnedAt: Date().addingTimeInterval(-86400 * 180), // 6 months ago
+                provider: .amazon,
+                expiresAt: Date().addingTimeInterval(86400 * 30), // Expires in 30 days
+                isRecurrent: true
+            )
+        ]
     }
     
     // MARK: - Award Badge
     
     func awardBadge(pilotId: UUID, courseId: UUID, courseTitle: String, courseCategory: String, provider: Badge.CourseProvider) async throws {
+        // In demo mode, just show a success message without actually inserting into database
+        if DemoModeManager.shared.isDemoModeEnabled {
+            print("Demo Mode: Skipping badge award")
+            return
+        }
+        
         do {
             let badge: [String: AnyJSON] = [
                 "id": .string(UUID().uuidString),

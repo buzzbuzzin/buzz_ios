@@ -41,6 +41,19 @@ struct PublicProfileView: View {
     
     var body: some View {
         List {
+            // Preview Note Section (only show if viewing own profile)
+            if isOwnProfile {
+                Section {
+                    HStack(spacing: 8) {
+                        Text("This is a preview of your public profile as it appears to other pilots.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(.vertical, 8)
+                }
+                .listRowBackground(Color(.systemGray6))
+            }
+            
             if isLoading {
                 Section {
                     HStack {
@@ -255,7 +268,7 @@ struct PublicProfileView: View {
                 }
             }
         }
-        .navigationTitle(isOwnProfile ? "My Profile" : "Pilot Profile")
+        .navigationTitle("Pilot Profile")
         .navigationBarTitleDisplayMode(.large)
         .alert("Error", isPresented: $showError) {
             Button("OK", role: .cancel) {}

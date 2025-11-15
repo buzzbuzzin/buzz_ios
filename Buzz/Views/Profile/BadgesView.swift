@@ -11,6 +11,7 @@ import Auth
 struct BadgesView: View {
     @EnvironmentObject var authService: AuthService
     @StateObject private var badgeService = BadgeService()
+    @StateObject private var demoModeManager = DemoModeManager.shared
     @State private var selectedProvider: Badge.CourseProvider? = nil
     
     private let allProviders: [Badge.CourseProvider] = [.buzz, .amazon, .tmobile, .other]
@@ -31,83 +32,128 @@ struct BadgesView: View {
     }
     
     var body: some View {
-        List {
-            // Filter by Provider
-            Section {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 12) {
-                        ProviderFilterChip(
-                            title: "All",
-                            isSelected: selectedProvider == nil
-                        ) {
-                            selectedProvider = nil
+        ZStack {
+            List {
+                // Demo Mode Indicator
+                if demoModeManager.isDemoModeEnabled {
+                    Section {
+                        HStack {
+                            Image(systemName: "info.circle.fill")
+                                .foregroundColor(.blue)
+                            Text("Demo Mode: Showing sample badges")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
                         }
-                        
-                        ForEach(allProviders, id: \.self) { provider in
+                    }
+                }
+                
+                // Filter by Provider
+                Section {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 12) {
                             ProviderFilterChip(
-                                title: provider.rawValue,
-                                isSelected: selectedProvider == provider,
-                                color: provider.color
+                                title: "All",
+                                isSelected: selectedProvider == nil
                             ) {
-                                selectedProvider = provider
+                                selectedProvider = nil
+                            }
+                            
+                            ForEach(allProviders, id: \.self) { provider in
+                                ProviderFilterChip(
+                                    title: provider.rawValue,
+                                    isSelected: selectedProvider == provider,
+                                    color: provider.color
+                                ) {
+                                    selectedProvider = provider
+                                }
                             }
                         }
+                        .padding(.horizontal)
                     }
-                    .padding(.horizontal)
                 }
-            }
-            
-            // Buzz Badges Section
-            if selectedProvider == nil || selectedProvider == .buzz {
-                Section {
-                    if buzzBadges.isEmpty {
-                        Text("No Buzz course badges yet")
-                            .foregroundColor(.secondary)
-                            .font(.subheadline)
-                    } else {
-                        ForEach(buzzBadges) { badge in
-                            BadgeRow(badge: badge)
+                
+                // Buzz Badges Section
+                if selectedProvider == nil || selectedProvider == .buzz {
+                    Section {
+                        if buzzBadges.isEmpty {
+                            Text("No Buzz course badges yet")
+                                .foregroundColor(.secondary)
+                                .font(.subheadline)
+                        } else {
+                            ForEach(buzzBadges) { badge in
+                                BadgeRow(badge: badge)
+                            }
+                        }
+                    } header: {
+                        Text("Buzz Courses")
+                    }
+                }
+                
+                // Company Badges Section
+                if selectedProvider == nil || (selectedProvider != nil && selectedProvider != .buzz) {
+                    Section {
+                        if companyBadges.isEmpty {
+                            Text("No company course badges yet")
+                                .foregroundColor(.secondary)
+                                .font(.subheadline)
+                        } else {
+                            ForEach(companyBadges) { badge in
+                                BadgeRow(badge: badge)
+                            }
+                        }
+                    } header: {
+                        Text("Company Courses")
+                    }
+                }
+                
+                // Empty State
+                if filteredBadges.isEmpty && !badgeService.isLoading {
+                    Section {
+                        EmptyStateView(
+                            icon: "seal.fill",
+                            title: "No Badges Yet",
+                            message: "Complete training courses to earn badges"
+                        )
+                    }
+                }
+                
+                // Error Message
+                if let errorMessage = badgeService.errorMessage {
+                    Section {
+                        HStack {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundColor(.red)
+                            Text(errorMessage)
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
                         }
                     }
-                } header: {
-                    Text("Buzz Courses")
                 }
             }
             
-            // Company Badges Section
-            if selectedProvider == nil || (selectedProvider != nil && selectedProvider != .buzz) {
-                Section {
-                    if companyBadges.isEmpty {
-                        Text("No company course badges yet")
-                            .foregroundColor(.secondary)
-                            .font(.subheadline)
-                    } else {
-                        ForEach(companyBadges) { badge in
-                            BadgeRow(badge: badge)
-                        }
-                    }
-                } header: {
-                    Text("Company Courses")
-                }
-            }
-            
-            // Empty State
-            if filteredBadges.isEmpty {
-                Section {
-                    EmptyStateView(
-                        icon: "seal.fill",
-                        title: "No Badges Yet",
-                        message: "Complete training courses to earn badges"
-                    )
-                }
+            // Loading Overlay
+            if badgeService.isLoading {
+                ProgressView()
+                    .scaleEffect(1.5)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(Color.black.opacity(0.1))
             }
         }
         .navigationTitle("Badges")
         .navigationBarTitleDisplayMode(.large)
         .task {
-            guard let currentUser = authService.currentUser else { return }
-            try? await badgeService.fetchPilotBadges(pilotId: currentUser.id)
+            await loadBadges()
         }
+        .onChange(of: demoModeManager.isDemoModeEnabled) { oldValue, newValue in
+            Task {
+                await loadBadges()
+            }
+        }
+    }
+    
+    private func loadBadges() async {
+        guard let currentUser = authService.currentUser else { return }
+        try? await badgeService.fetchPilotBadges(pilotId: currentUser.id)
     }
 }
 

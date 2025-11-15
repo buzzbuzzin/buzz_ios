@@ -172,235 +172,26 @@ struct AcademyView: View {
     private func loadCourses() async {
         isLoading = true
         
-        // Check if demo mode is enabled
-        if DemoModeManager.shared.isDemoModeEnabled {
-            // Simulate API call - in production, fetch from backend
-            try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
-            
-            // Fixed UUID for demo Amazon Prime Air Operations course (matches badge)
-            let amazonPrimeAirCourseId = UUID(uuidString: "550e8400-e29b-41d4-a716-446655440001") ?? UUID()
-            
-            // Sample courses data with providers
-            courses = [
-            // Buzz courses
-            TrainingCourse(
-                id: UUID(),
-                title: "FAA Part 107 Certification Prep",
-                description: "Comprehensive course covering all aspects of FAA Part 107 regulations, airspace, weather, and operational safety.",
-                duration: "40 hours",
-                level: .beginner,
-                category: .safety,
-                instructor: "John Smith",
-                instructorPictureUrl: "https://i.pravatar.cc/150?img=11",
-                rating: 4.8,
-                studentsCount: 1250,
-                isEnrolled: false,
-                provider: .buzz,
-                badgeId: nil,
-                isRecurrent: false,
-                recurrentDueDate: nil
-            ),
-            TrainingCourse(
-                id: UUID(),
-                title: "Advanced Flight Maneuvers",
-                description: "Master complex flight patterns, precision flying, and emergency procedures for professional drone operations.",
-                duration: "20 hours",
-                level: .advanced,
-                category: .operations,
-                instructor: "Sarah Johnson",
-                instructorPictureUrl: "https://i.pravatar.cc/150?img=47",
-                rating: 4.9,
-                studentsCount: 890,
-                isEnrolled: false,
-                provider: .buzz,
-                badgeId: nil,
-                isRecurrent: false,
-                recurrentDueDate: nil
-            ),
-            TrainingCourse(
-                id: UUID(),
-                title: "Aerial Photography Mastery",
-                description: "Learn composition, lighting, camera settings, and post-processing techniques for stunning aerial photographs.",
-                duration: "30 hours",
-                level: .intermediate,
-                category: .photography,
-                instructor: "Mike Chen",
-                instructorPictureUrl: "https://i.pravatar.cc/150?img=13",
-                rating: 4.7,
-                studentsCount: 2100,
-                isEnrolled: true,
-                provider: .buzz,
-                badgeId: nil,
-                isRecurrent: false,
-                recurrentDueDate: nil
-            ),
-            // Amazon courses
-            TrainingCourse(
-                id: amazonPrimeAirCourseId,
-                title: "Amazon Prime Air Operations",
-                description: "Specialized training for Amazon Prime Air drone delivery operations, safety protocols, and logistics. This course requires recurrent training every year to maintain certification.",
-                duration: "25 hours",
-                level: .advanced,
-                category: .operations,
-                instructor: "Amazon Training Team",
-                instructorPictureUrl: nil,
-                rating: 4.8,
-                studentsCount: 3200,
-                isEnrolled: true, // Already enrolled and completed
-                provider: .amazon,
-                badgeId: UUID(uuidString: "550e8400-e29b-41d4-a716-446655440002") ?? UUID(), // Demo badge ID
-                isRecurrent: true,
-                recurrentDueDate: Date().addingTimeInterval(86400 * 7) // Due in 7 days
-            ),
-            TrainingCourse(
-                id: UUID(),
-                title: "Amazon Safety & Compliance",
-                description: "Amazon-specific safety regulations and compliance requirements for drone operations.",
-                duration: "15 hours",
-                level: .intermediate,
-                category: .safety,
-                instructor: "Amazon Safety Division",
-                instructorPictureUrl: nil,
-                rating: 4.9,
-                studentsCount: 2800,
-                isEnrolled: false,
-                provider: .amazon,
-                badgeId: nil,
-                isRecurrent: true,
-                recurrentDueDate: Calendar.current.date(byAdding: .month, value: 12, to: Date())
-            ),
-            // T-Mobile courses
-            TrainingCourse(
-                id: UUID(),
-                title: "T-Mobile 5G Network Inspection",
-                description: "Learn to inspect and maintain T-Mobile 5G network infrastructure using drones.",
-                duration: "18 hours",
-                level: .intermediate,
-                category: .inspection,
-                instructor: "T-Mobile Technical Team",
-                instructorPictureUrl: nil,
-                rating: 4.7,
-                studentsCount: 1500,
-                isEnrolled: false,
-                provider: .tmobile,
-                badgeId: nil,
-                isRecurrent: true,
-                recurrentDueDate: Calendar.current.date(byAdding: .month, value: 9, to: Date())
-            ),
-            TrainingCourse(
-                id: UUID(),
-                title: "T-Mobile Emergency Response",
-                description: "Training for emergency response and network restoration using drone technology.",
-                duration: "22 hours",
-                level: .advanced,
-                category: .operations,
-                instructor: "T-Mobile Emergency Operations",
-                instructorPictureUrl: nil,
-                rating: 4.6,
-                studentsCount: 980,
-                isEnrolled: false,
-                provider: .tmobile,
-                badgeId: nil,
-                isRecurrent: true,
-                recurrentDueDate: Calendar.current.date(byAdding: .month, value: 8, to: Date())
-            ),
-            // Additional Buzz courses
-            TrainingCourse(
-                id: UUID(),
-                title: "Cinematic Drone Videography",
-                description: "Create cinematic drone videos with smooth movements, color grading, and professional editing workflows.",
-                duration: "35 hours",
-                level: .intermediate,
-                category: .cinematography,
-                instructor: "Emily Davis",
-                instructorPictureUrl: "https://i.pravatar.cc/150?img=9",
-                rating: 4.9,
-                studentsCount: 1560,
-                isEnrolled: false,
-                provider: .buzz,
-                badgeId: nil,
-                isRecurrent: false,
-                recurrentDueDate: nil
-            ),
-            TrainingCourse(
-                id: UUID(),
-                title: "Infrastructure Inspection Techniques",
-                description: "Professional inspection methods for bridges, buildings, power lines, and industrial facilities using drones.",
-                duration: "25 hours",
-                level: .advanced,
-                category: .inspection,
-                instructor: "Robert Taylor",
-                instructorPictureUrl: "https://i.pravatar.cc/150?img=15",
-                rating: 4.6,
-                studentsCount: 750,
-                isEnrolled: false,
-                provider: .buzz,
-                badgeId: nil,
-                isRecurrent: false,
-                recurrentDueDate: nil
-            ),
-            TrainingCourse(
-                id: UUID(),
-                title: "3D Mapping & Surveying",
-                description: "Learn photogrammetry, LiDAR integration, and create accurate 3D models and maps for surveying applications.",
-                duration: "28 hours",
-                level: .advanced,
-                category: .mapping,
-                instructor: "Lisa Anderson",
-                instructorPictureUrl: "https://i.pravatar.cc/150?img=20",
-                rating: 4.8,
-                studentsCount: 920,
-                isEnrolled: false,
-                provider: .buzz,
-                badgeId: nil,
-                isRecurrent: false,
-                recurrentDueDate: nil
-            ),
-            TrainingCourse(
-                id: UUID(),
-                title: "Weather & Risk Assessment",
-                description: "Understand weather patterns, wind conditions, and risk management for safe drone operations.",
-                duration: "15 hours",
-                level: .beginner,
-                category: .safety,
-                instructor: "David Wilson",
-                instructorPictureUrl: "https://i.pravatar.cc/150?img=33",
-                rating: 4.5,
-                studentsCount: 1340,
-                isEnrolled: false,
-                provider: .buzz,
-                badgeId: nil,
-                isRecurrent: false,
-                recurrentDueDate: nil
-            ),
-            TrainingCourse(
-                id: UUID(),
-                title: "Night Operations & Lighting",
-                description: "Safe operations after sunset, required lighting, and special considerations for night flights.",
-                duration: "12 hours",
-                level: .intermediate,
-                category: .operations,
-                instructor: "Jessica Martinez",
-                instructorPictureUrl: "https://i.pravatar.cc/150?img=22",
-                rating: 4.7,
-                studentsCount: 680,
-                isEnrolled: false,
-                provider: .buzz,
-                badgeId: nil,
-                isRecurrent: false,
-                recurrentDueDate: nil
-            )
-        ]
-        
-        isLoading = false
+        // Always fetch from backend - no demo courses
+        let academyService = AcademyService()
+        if let currentUser = authService.currentUser {
+            do {
+                try await academyService.fetchCoursesWithEnrollment(pilotId: currentUser.id)
+                courses = academyService.courses
+            } catch {
+                print("Error loading courses: \(error)")
+                courses = []
+            }
         } else {
-            // Real backend call - fetch from AcademyService
-            // Note: AcademyService.fetchCourses() is not yet implemented
-            // For now, show empty courses when demo mode is disabled
-            // TODO: Implement backend fetching in AcademyService
+            do {
+                try await academyService.fetchCourses()
+                courses = academyService.courses
+            } catch {
+                print("Error loading courses: \(error)")
             courses = []
-            isLoading = false
         }
+        }
+        isLoading = false
     }
     
     private func loadRecurrentNotices() async {
@@ -903,31 +694,40 @@ struct CourseDetailView: View {
                                 // Course already completed
                                 if course.isRecurrent {
                                     // Show renew badge button for recurrent courses
-                                    CustomButton(
-                                        title: "Renew Badge",
-                                        action: {
-                                            // Navigate to course content for renewal
-                                        },
-                                        isDisabled: false
-                                    )
+                                    NavigationLink(destination: CourseContentView(course: course)) {
+                                        Text("Renew Badge")
+                                            .font(.headline)
+                                            .foregroundColor(.white)
+                                            .frame(maxWidth: .infinity)
+                                            .frame(height: 50)
+                                            .background(Color.orange)
+                                            .cornerRadius(12)
+                                    }
+                                    .padding(.horizontal)
                                 } else {
-                                    CustomButton(
-                                        title: "View Course Materials",
-                                        action: {
-                                            // Navigate to course content (future implementation)
-                                        },
-                                        isDisabled: false
-                                    )
+                                    NavigationLink(destination: CourseContentView(course: course)) {
+                                        Text("View Course Materials")
+                                            .font(.headline)
+                                            .foregroundColor(.white)
+                                            .frame(maxWidth: .infinity)
+                                            .frame(height: 50)
+                                            .background(Color.blue)
+                                            .cornerRadius(12)
+                                    }
+                                    .padding(.horizontal)
                                 }
                             } else {
                                 // Enrolled but not completed
-                                CustomButton(
-                                    title: "Continue Learning",
-                                    action: {
-                                        // Navigate to course content (future implementation)
-                                    },
-                                    isDisabled: false
-                                )
+                                NavigationLink(destination: CourseContentView(course: course)) {
+                                    Text("Continue Learning")
+                                        .font(.headline)
+                                        .foregroundColor(.white)
+                                        .frame(maxWidth: .infinity)
+                                        .frame(height: 50)
+                                        .background(Color.blue)
+                                        .cornerRadius(12)
+                                }
+                                .padding(.horizontal)
                                 
                                 Button(action: {
                                     showCompletionConfirmation = true
@@ -956,14 +756,26 @@ struct CourseDetailView: View {
                         }
                         .padding(.horizontal)
                     } else {
-                        CustomButton(
-                            title: "Enroll Now",
-                            action: {
+                        NavigationLink(destination: CourseContentView(course: course)) {
+                            Text("Enroll Now")
+                                .font(.headline)
+                                .foregroundColor(.white)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 50)
+                                .background(Color.blue)
+                                .cornerRadius(12)
+                        }
+                        .simultaneousGesture(TapGesture().onEnded {
                                 isEnrolled = true
                                 onEnrollmentChange()
-                            },
-                            isDisabled: false
-                        )
+                            // Enroll in course via backend
+                            Task {
+                                if let currentUser = authService.currentUser {
+                                    let academyService = AcademyService()
+                                    try? await academyService.enrollInCourse(pilotId: currentUser.id, courseId: course.id)
+                                }
+                            }
+                        })
                         .padding(.horizontal)
                     }
                 }

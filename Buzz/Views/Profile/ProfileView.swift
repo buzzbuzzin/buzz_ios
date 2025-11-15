@@ -244,9 +244,6 @@ struct ProfileView: View {
                                             .font(.subheadline)
                                             .foregroundColor(.secondary)
                                     }
-                                    Image(systemName: "chevron.right")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
                                 }
                                 
                                 if badgeService.badges.isEmpty {

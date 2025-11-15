@@ -17,6 +17,8 @@ enum LicenseType: String, Codable, CaseIterable {
     case part107Recurrent = "Part 107 recurrent"
     case part108 = "Part 108"
     case transportCanada = "Transport Canada"
+    case rocaCertificate = "ROC-A Certificate (CAN)"
+    case restrictedRadiotelephone = "Restricted Radiotelephone Operator Permit (USA)"
     case custom = "Custom"
     
     var displayName: String {
@@ -25,6 +27,34 @@ enum LicenseType: String, Codable, CaseIterable {
             return "Other (Enter license type)"
         default:
             return self.rawValue
+        }
+    }
+    
+    var category: LicenseCategory {
+        switch self {
+        case .part107, .part107Recurrent, .part108, .transportCanada:
+            return .dronePilot
+        case .rocaCertificate, .restrictedRadiotelephone:
+            return .radioOperator
+        case .custom:
+            return .other
+        }
+    }
+}
+
+enum LicenseCategory {
+    case dronePilot
+    case radioOperator
+    case other
+    
+    var title: String {
+        switch self {
+        case .dronePilot:
+            return "Drone Pilot License"
+        case .radioOperator:
+            return "Radio Operator Permit Type"
+        case .other:
+            return "Other"
         }
     }
 }

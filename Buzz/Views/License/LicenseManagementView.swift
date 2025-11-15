@@ -900,11 +900,65 @@ struct LicenseTypeSelectionView: View {
     
     @State private var showCustomTextField = false
     
+    // Group license types by category
+    private var dronePilotLicenses: [LicenseType] {
+        LicenseType.allCases.filter { $0.category == .dronePilot }
+    }
+    
+    private var radioOperatorLicenses: [LicenseType] {
+        LicenseType.allCases.filter { $0.category == .radioOperator }
+    }
+    
+    private var otherLicenses: [LicenseType] {
+        LicenseType.allCases.filter { $0.category == .other }
+    }
+    
     var body: some View {
         NavigationStack {
             Form {
-                Section(header: Text("Select License Type")) {
-                    ForEach(LicenseType.allCases, id: \.self) { type in
+                // Drone Pilot License Section
+                Section(header: Text("Drone Pilot License")) {
+                    ForEach(dronePilotLicenses, id: \.self) { type in
+                        Button(action: {
+                            selectedType = type
+                            showCustomTextField = false
+                        }) {
+                            HStack {
+                                Text(type.displayName)
+                                    .foregroundColor(.primary)
+                                Spacer()
+                                if selectedType == type {
+                                    Image(systemName: "checkmark")
+                                        .foregroundColor(.blue)
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                // Radio Operator Permit Type Section
+                Section(header: Text("Radio Operator Permit Type")) {
+                    ForEach(radioOperatorLicenses, id: \.self) { type in
+                        Button(action: {
+                            selectedType = type
+                            showCustomTextField = false
+                        }) {
+                            HStack {
+                                Text(type.displayName)
+                                    .foregroundColor(.primary)
+                                Spacer()
+                                if selectedType == type {
+                                    Image(systemName: "checkmark")
+                                        .foregroundColor(.blue)
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                // Other Section
+                Section(header: Text("Other")) {
+                    ForEach(otherLicenses, id: \.self) { type in
                         Button(action: {
                             selectedType = type
                             if type == .custom {
