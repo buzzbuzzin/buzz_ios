@@ -94,7 +94,7 @@ struct UnitDetailView: View {
                                 HStack {
                                     Image(systemName: "doc.fill")
                                         .font(.title3)
-                                    Text("Module \(index + 1)")
+                                    Text(getModuleName(unitNumber: unit.unitNumber, index: index))
                                         .font(.headline)
                                     Spacer()
                                     Image(systemName: "chevron.right")
@@ -337,6 +337,25 @@ struct UnitDetailView: View {
             canTakeTest = allCompleted
         } catch {
             print("Error checking if can take test: \(error)")
+        }
+    }
+    
+    // Helper function to get the proper module name based on unit and index
+    private func getModuleName(unitNumber: Int, index: Int) -> String {
+        // For Unit 1, handle special naming for first two items
+        if unitNumber == 1 {
+            switch index {
+            case 0:
+                return "Syllabus"
+            case 1:
+                return "Introduction"
+            default:
+                // For index 2+, display as "Module 1", "Module 2", etc.
+                return "Module \(index - 1)"
+            }
+        } else {
+            // For all other units, use standard numbering
+            return "Module \(index + 1)"
         }
     }
 }
