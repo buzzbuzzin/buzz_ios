@@ -512,7 +512,7 @@ struct ProfileView: View {
                                 .foregroundColor(.secondary)
                                 .font(.body)
                                 .frame(width: 24)
-                            Text("Get help")
+                            Text("Get Help")
                                 .foregroundColor(.primary)
                         }
                     }

@@ -21,6 +21,15 @@ struct HelpView: View {
                 )
             }
             
+            // Chat with us
+            NavigationLink(destination: ChatSupportView()) {
+                HelpCard(
+                    icon: "message.fill",
+                    title: "Chat with us",
+                    description: "Didn't find what you need? Chat with our customer service representatives to solve your problem"
+                )
+            }
+            
             // Get help with a safety issue
             NavigationLink(destination: SafetyIssueView()) {
                 HelpCard(
@@ -39,7 +48,7 @@ struct HelpView: View {
                 )
             }
         }
-        .navigationTitle("Get help")
+        .navigationTitle("Get Help")
         .navigationBarTitleDisplayMode(.inline)
     }
 }
@@ -71,10 +80,6 @@ struct HelpCard: View {
             }
             
             Spacer()
-            
-            Image(systemName: "chevron.right")
-                .font(.caption)
-                .foregroundColor(.secondary)
         }
         .padding(.vertical, 8)
     }
@@ -394,6 +399,138 @@ struct MailComposeView: UIViewControllerRepresentable {
         
         func mailComposeController(_ controller: MFMailComposeViewController, didFinishWith result: MFMailComposeResult, error: Error?) {
             isPresented = false
+        }
+    }
+}
+
+// MARK: - Chat Support View
+
+struct ChatSupportView: View {
+    @State private var messages: [ChatMessage] = []
+    @State private var inputText = ""
+    @State private var isLoading = false
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            // Chat Messages
+            ScrollView {
+                VStack(spacing: 16) {
+                    if messages.isEmpty {
+                        // Welcome message
+                        VStack(spacing: 16) {
+                            Image(systemName: "message.fill")
+                                .font(.system(size: 60))
+                                .foregroundColor(.blue)
+                            
+                            Text("Chat with us")
+                                .font(.title2)
+                                .fontWeight(.bold)
+                            
+                            Text("Hi! How can we help you today?")
+                                .font(.body)
+                                .foregroundColor(.secondary)
+                                .multilineTextAlignment(.center)
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .padding()
+                    } else {
+                        ForEach(messages) { message in
+                            ChatBubble(message: message)
+                        }
+                    }
+                    
+                    if isLoading {
+                        HStack {
+                            ProgressView()
+                                .padding(12)
+                            Spacer()
+                        }
+                    }
+                }
+                .padding()
+            }
+            
+            Divider()
+            
+            // Input Area
+            HStack(spacing: 12) {
+                TextField("Type your message...", text: $inputText)
+                    .textFieldStyle(PlainTextFieldStyle())
+                    .padding(12)
+                    .background(Color(.systemGray6))
+                    .cornerRadius(20)
+                
+                Button(action: sendMessage) {
+                    Image(systemName: "arrow.up.circle.fill")
+                        .font(.system(size: 32))
+                        .foregroundColor(inputText.isEmpty ? .gray : .blue)
+                }
+                .disabled(inputText.isEmpty || isLoading)
+            }
+            .padding()
+        }
+        .navigationTitle("Chat Support")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+    
+    private func sendMessage() {
+        guard !inputText.isEmpty else { return }
+        
+        let userMessage = ChatMessage(text: inputText, isUser: true)
+        messages.append(userMessage)
+        let messageText = inputText
+        inputText = ""
+        isLoading = true
+        
+        // TODO: Integrate with AI chatbot API
+        // Placeholder response
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            let botResponse = ChatMessage(
+                text: "Thank you for your message. AI chatbot integration is coming soon! For immediate assistance, please use the 'Give us feedback' option or email us at hello@buzzbuzzin.com",
+                isUser: false
+            )
+            messages.append(botResponse)
+            isLoading = false
+        }
+    }
+}
+
+// MARK: - Chat Message Model
+
+struct ChatMessage: Identifiable {
+    let id = UUID()
+    let text: String
+    let isUser: Bool
+    let timestamp = Date()
+}
+
+// MARK: - Chat Bubble
+
+struct ChatBubble: View {
+    let message: ChatMessage
+    
+    var body: some View {
+        HStack {
+            if message.isUser {
+                Spacer()
+            }
+            
+            VStack(alignment: message.isUser ? .trailing : .leading, spacing: 4) {
+                Text(message.text)
+                    .padding(12)
+                    .background(message.isUser ? Color.blue : Color(.systemGray5))
+                    .foregroundColor(message.isUser ? .white : .primary)
+                    .cornerRadius(16)
+                
+                Text(message.timestamp, style: .time)
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+            .frame(maxWidth: 280, alignment: message.isUser ? .trailing : .leading)
+            
+            if !message.isUser {
+                Spacer()
+            }
         }
     }
 }
