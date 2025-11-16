@@ -22,6 +22,7 @@ struct GroundSchoolTestView: View {
     @State private var isLoading = true
     @State private var errorMessage: String?
     @State private var questions: [TestQuestion] = []
+    @State private var showQuestionNavigator = false
     
     // Ground School Test ID (fixed UUID)
     private let groundSchoolTestId = UUID(uuidString: "a1b2c3d4-e5f6-7890-abcd-000000000001")!
@@ -31,7 +32,12 @@ struct GroundSchoolTestView: View {
     }
     
     var progress: Double {
-        Double(currentQuestionIndex + 1) / Double(questions.count)
+        guard !questions.isEmpty else { return 0 }
+        return Double(selectedAnswers.count) / Double(questions.count)
+    }
+    
+    var answeredQuestionsCount: Int {
+        selectedAnswers.count
     }
     
     var body: some View {
@@ -104,13 +110,14 @@ struct GroundSchoolTestView: View {
                                         .font(.subheadline)
                                         .foregroundColor(.secondary)
                                     Spacer()
-                                    Text("\(Int(progress * 100))%")
+                                    Text("\(answeredQuestionsCount)/\(questions.count) answered")
                                         .font(.subheadline)
                                         .fontWeight(.semibold)
+                                        .foregroundColor(answeredQuestionsCount == questions.count ? .green : .blue)
                                 }
                                 
                                 ProgressView(value: progress)
-                                    .progressViewStyle(LinearProgressViewStyle(tint: .blue))
+                                    .progressViewStyle(LinearProgressViewStyle(tint: answeredQuestionsCount == questions.count ? .green : .blue))
                             }
                             .padding(.horizontal)
                             .padding(.top)
@@ -169,45 +176,70 @@ struct GroundSchoolTestView: View {
                             }
                             
                             // Navigation Buttons
-                            HStack(spacing: 16) {
-                                if currentQuestionIndex > 0 {
-                                    Button(action: {
-                                        withAnimation {
-                                            currentQuestionIndex -= 1
-                                        }
-                                    }) {
-                                        Text("Previous")
-                                            .font(.headline)
-                                            .foregroundColor(.blue)
-                                            .frame(maxWidth: .infinity)
-                                            .frame(height: 50)
-                                            .background(Color.blue.opacity(0.1))
-                                            .cornerRadius(12)
-                                    }
-                                }
-                                
+                            VStack(spacing: 12) {
+                                // Skip Button (always visible)
                                 Button(action: {
-                                    if currentQuestionIndex < questions.count - 1 {
-                                        withAnimation {
+                                    withAnimation {
+                                        if currentQuestionIndex < questions.count - 1 {
                                             currentQuestionIndex += 1
                                         }
-                                    } else {
-                                        submitTest()
                                     }
                                 }) {
-                                    Text(currentQuestionIndex < questions.count - 1 ? "Next" : "Submit Test")
+                                    Text("Skip")
                                         .font(.headline)
-                                        .foregroundColor(.white)
+                                        .foregroundColor(.primary)
                                         .frame(maxWidth: .infinity)
                                         .frame(height: 50)
-                                        .background(
-                                            selectedAnswers[currentQuestion.id] != nil
-                                                ? Color.blue
-                                                : Color.gray
-                                        )
+                                        .background(Color.gray.opacity(0.2))
                                         .cornerRadius(12)
                                 }
-                                .disabled(selectedAnswers[currentQuestion.id] == nil)
+                                .disabled(currentQuestionIndex == questions.count - 1)
+                                
+                                HStack(spacing: 16) {
+                                    // Previous Button
+                                    if currentQuestionIndex > 0 {
+                                        Button(action: {
+                                            withAnimation {
+                                                currentQuestionIndex -= 1
+                                            }
+                                        }) {
+                                            Text("Previous")
+                                                .font(.headline)
+                                                .foregroundColor(.blue)
+                                                .frame(maxWidth: .infinity)
+                                                .frame(height: 50)
+                                                .background(Color.blue.opacity(0.1))
+                                                .cornerRadius(12)
+                                        }
+                                    }
+                                    
+                                    // Next/Submit Button
+                                    Button(action: {
+                                        if currentQuestionIndex < questions.count - 1 {
+                                            withAnimation {
+                                                currentQuestionIndex += 1
+                                            }
+                                        } else {
+                                            submitTest()
+                                        }
+                                    }) {
+                                        Text(currentQuestionIndex < questions.count - 1 ? "Next" : "Submit Test")
+                                            .font(.headline)
+                                            .foregroundColor(.white)
+                                            .frame(maxWidth: .infinity)
+                                            .frame(height: 50)
+                                            .background(
+                                                (currentQuestionIndex < questions.count - 1)
+                                                    ? (selectedAnswers[currentQuestion.id] != nil ? Color.blue : Color.gray)
+                                                    : (selectedAnswers.count == questions.count ? Color.green : Color.gray)
+                                            )
+                                            .cornerRadius(12)
+                                    }
+                                    .disabled(
+                                        (currentQuestionIndex < questions.count - 1 && selectedAnswers[currentQuestion.id] == nil) ||
+                                        (currentQuestionIndex == questions.count - 1 && selectedAnswers.count != questions.count)
+                                    )
+                                }
                             }
                             .padding(.horizontal)
                             .padding(.bottom)
@@ -231,7 +263,28 @@ struct GroundSchoolTestView: View {
                             dismiss()
                         }
                     }
+                    
+                    if !questions.isEmpty {
+                        ToolbarItem(placement: .navigationBarTrailing) {
+                            Button(action: {
+                                showQuestionNavigator = true
+                            }) {
+                                Image(systemName: "square.grid.3x3.fill")
+                                    .font(.title3)
+                            }
+                        }
+                    }
                 }
+            }
+            .sheet(isPresented: $showQuestionNavigator) {
+                QuestionNavigatorView(
+                    questions: questions,
+                    selectedAnswers: selectedAnswers,
+                    currentQuestionIndex: $currentQuestionIndex,
+                    onDismiss: {
+                        showQuestionNavigator = false
+                    }
+                )
             }
             .task {
                 await loadTestQuestions()
@@ -241,87 +294,71 @@ struct GroundSchoolTestView: View {
     
     private func loadTestQuestions() async {
         print("🚀 [GroundSchoolTestView] Starting to load test questions...")
-        print("🎯 [GroundSchoolTestView] Test ID: \(groundSchoolTestId)")
-        print("📚 [GroundSchoolTestView] Course ID: \(course.id)")
+        print("🌐 [GroundSchoolTestView] Fetching from backend storage...")
         
         isLoading = true
         errorMessage = nil
         
         do {
-            // Fetch the test from database
-            print("🔄 [GroundSchoolTestView] Fetching course tests...")
-            let tests = try await academyService.fetchCourseTests(courseId: course.id)
-            print("📊 [GroundSchoolTestView] Found \(tests.count) test(s) for this course")
+            // Fetch CSV directly from backend storage
+            let csvURL = URL(string: "https://mzapuczjijqjzdcujetx.supabase.co/storage/v1/object/public/course-materials/test-1/ground_school_exam_questions.csv")!
             
-            guard let groundSchoolTest = tests.first(where: { $0.id == groundSchoolTestId }) else {
-                print("❌ [GroundSchoolTestView] Ground School Test not found!")
-                print("📋 [GroundSchoolTestView] Available test IDs: \(tests.map { $0.id })")
-                errorMessage = "Ground School Test not found"
+            print("🔄 [GroundSchoolTestView] Downloading CSV from: \(csvURL)")
+            
+            let (data, response) = try await URLSession.shared.data(from: csvURL)
+            
+            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+                print("❌ [GroundSchoolTestView] Failed to download CSV - invalid response")
+                errorMessage = "Failed to download test questions"
                 isLoading = false
                 return
             }
             
-            print("✅ [GroundSchoolTestView] Found Ground School Test: \(groundSchoolTest.testName)")
+            print("✅ [GroundSchoolTestView] CSV downloaded successfully - \(data.count) bytes")
             
-            // Parse questions from the test
-            print("🔄 [GroundSchoolTestView] Fetching questions from database...")
-            let supabase = SupabaseClient.shared.client
-            let response = try await supabase
-                .from("course_tests")
-                .select("questions")
-                .eq("id", value: groundSchoolTestId.uuidString)
-                .execute()
-            
-            let data = response.data
-            print("📦 [GroundSchoolTestView] Response data size: \(data.count) bytes")
-            
-            guard let jsonArray = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
-                print("❌ [GroundSchoolTestView] Failed to parse response as JSON array")
-                errorMessage = "Failed to load test questions"
+            guard let csvString = String(data: data, encoding: .utf8) else {
+                print("❌ [GroundSchoolTestView] Failed to parse CSV as UTF-8")
+                errorMessage = "Failed to parse test questions"
                 isLoading = false
                 return
             }
             
-            print("📊 [GroundSchoolTestView] JSON array has \(jsonArray.count) item(s)")
+            // Parse CSV
+            print("🔄 [GroundSchoolTestView] Parsing CSV data...")
+            let lines = csvString.components(separatedBy: .newlines)
+            print("📊 [GroundSchoolTestView] CSV has \(lines.count) line(s)")
             
-            guard let firstResult = jsonArray.first else {
-                print("❌ [GroundSchoolTestView] JSON array is empty")
-                errorMessage = "Failed to load test questions"
-                isLoading = false
-                return
-            }
-            
-            guard let questionsData = firstResult["questions"] as? [String: Any] else {
-                print("❌ [GroundSchoolTestView] No 'questions' field in response")
-                print("📋 [GroundSchoolTestView] Available keys: \(firstResult.keys)")
-                errorMessage = "Failed to load test questions"
-                isLoading = false
-                return
-            }
-            
-            guard let questionsArray = questionsData["questions"] as? [[String: Any]] else {
-                print("❌ [GroundSchoolTestView] 'questions' is not an array")
-                errorMessage = "Failed to load test questions"
-                isLoading = false
-                return
-            }
-            
-            print("📚 [GroundSchoolTestView] Found \(questionsArray.count) question(s)")
-            
-            // Parse questions
             var loadedQuestions: [TestQuestion] = []
-            for (index, questionDict) in questionsArray.enumerated() {
-                guard let id = questionDict["id"] as? Int,
-                      let question = questionDict["question"] as? String,
-                      let options = questionDict["options"] as? [String],
-                      let correctAnswer = questionDict["correctAnswer"] as? Int else {
-                    print("⚠️ [GroundSchoolTestView] Skipping question \(index) - invalid format")
+            
+            // Skip header line (line 0)
+            for (index, line) in lines.enumerated() where index > 0 {
+                // Skip empty lines
+                guard !line.trimmingCharacters(in: .whitespaces).isEmpty else { continue }
+                
+                // Parse CSV line - handle quoted fields with commas
+                let fields = parseCSVLine(line)
+                
+                guard fields.count >= 7 else {
+                    print("⚠️ [GroundSchoolTestView] Skipping line \(index) - not enough fields (\(fields.count))")
                     continue
                 }
                 
+                // CSV format: problem_number, problem_area, problem_statement, option_1, option_2, option_3, correct_answer
+                guard let questionNumber = Int(fields[0]),
+                      let correctAnswerIndex = Int(fields[6]) else {
+                    print("⚠️ [GroundSchoolTestView] Skipping line \(index) - invalid number format")
+                    continue
+                }
+                
+                let questionText = fields[2]
+                let options = [fields[3], fields[4], fields[5]]
+                
+                // CSV uses 1-indexed (1, 2, 3), we need 0-indexed (0, 1, 2)
+                let correctAnswer = correctAnswerIndex - 1
+                
                 loadedQuestions.append(TestQuestion(
-                    id: id,
-                    question: question,
+                    id: questionNumber,
+                    question: questionText,
                     options: options,
                     correctAnswer: correctAnswer
                 ))
@@ -343,6 +380,29 @@ struct GroundSchoolTestView: View {
             errorMessage = "Error loading test: \(error.localizedDescription)"
             isLoading = false
         }
+    }
+    
+    // Helper function to parse CSV line with quoted fields
+    private func parseCSVLine(_ line: String) -> [String] {
+        var fields: [String] = []
+        var currentField = ""
+        var insideQuotes = false
+        
+        for char in line {
+            if char == "\"" {
+                insideQuotes.toggle()
+            } else if char == "," && !insideQuotes {
+                fields.append(currentField.trimmingCharacters(in: .whitespaces))
+                currentField = ""
+            } else {
+                currentField.append(char)
+            }
+        }
+        
+        // Add the last field
+        fields.append(currentField.trimmingCharacters(in: .whitespaces))
+        
+        return fields
     }
     
     private func submitTest() {

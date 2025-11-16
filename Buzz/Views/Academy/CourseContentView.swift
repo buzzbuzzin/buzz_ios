@@ -19,6 +19,7 @@ struct CourseContentView: View {
     @State private var hasSubscription = false
     @State private var showSubscriptionSheet = false
     @State private var hasPassedGroundSchoolTest = false
+    @State private var showGroundSchoolTestIntro = false
     @State private var showGroundSchoolTest = false
     
     // Check if this is the UAS Pilot Course
@@ -87,7 +88,7 @@ struct CourseContentView: View {
                             hasPassedTest: hasPassedGroundSchoolTest,
                             onStartTest: {
                                 print("🎯 [CourseContentView] Start Test button tapped")
-                                showGroundSchoolTest = true
+                                showGroundSchoolTestIntro = true
                             }
                         )
                         .onAppear {
@@ -178,6 +179,14 @@ struct CourseContentView: View {
             if let currentUser = authService.currentUser {
                 CourseSubscriptionView(course: course, pilotId: currentUser.id)
             }
+        }
+        .sheet(isPresented: $showGroundSchoolTestIntro) {
+            GroundSchoolTestIntroView(
+                course: course,
+                onStartTest: {
+                    showGroundSchoolTest = true
+                }
+            )
         }
         .sheet(isPresented: $showGroundSchoolTest) {
             if let currentUser = authService.currentUser {
