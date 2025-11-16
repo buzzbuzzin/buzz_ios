@@ -103,6 +103,15 @@ struct CustomerBookingCard: View {
     @StateObject private var profileService = ProfileService()
     @State private var pilotProfile: UserProfile?
     
+    // Check if pilot info should be visible (within 24 hours of scheduled time)
+    private var shouldShowPilotInfo: Bool {
+        guard let scheduledDate = booking.scheduledDate else { return false }
+        let now = Date()
+        let timeUntilBooking = scheduledDate.timeIntervalSince(now)
+        // Show info if within 24 hours (86400 seconds)
+        return timeUntilBooking <= 86400 && timeUntilBooking >= 0
+    }
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
                 HStack {
@@ -112,9 +121,10 @@ struct CustomerBookingCard: View {
                     StatusBadge(status: booking.status)
                 }
                 
-                // Show pilot callsign if assigned (text only, no picture)
+                // Show pilot callsign if assigned and within 24 hours (text only, no picture)
                 if let profile = pilotProfile,
-                   booking.status == .accepted || booking.status == .completed {
+                   (booking.status == .accepted || booking.status == .completed),
+                   shouldShowPilotInfo {
                     HStack(spacing: 4) {
                         Image(systemName: "airplane.fill")
                             .font(.caption)
@@ -128,6 +138,18 @@ struct CustomerBookingCard: View {
                                 .font(.subheadline)
                                 .foregroundColor(.blue)
                         }
+                    }
+                } else if booking.status == .accepted || booking.status == .completed,
+                          booking.pilotId != nil,
+                          !shouldShowPilotInfo {
+                    // Show message if pilot is matched but info not yet available
+                    HStack(spacing: 4) {
+                        Image(systemName: "clock.fill")
+                            .font(.caption)
+                            .foregroundColor(.orange)
+                        Text("A pilot is matched but info will only be available within 24 hours of booking time")
+                            .font(.caption)
+                            .foregroundColor(.orange)
                     }
                 }
                 
@@ -506,6 +528,15 @@ struct CustomerBookingDetailView: View {
     @State private var showCompletionSuccess = false
     @Environment(\.dismiss) var dismiss
     
+    // Check if pilot info should be visible (within 24 hours of scheduled time)
+    private var shouldShowPilotInfo: Bool {
+        guard let scheduledDate = currentBooking.scheduledDate else { return false }
+        let now = Date()
+        let timeUntilBooking = scheduledDate.timeIntervalSince(now)
+        // Show info if within 24 hours (86400 seconds)
+        return timeUntilBooking <= 86400 && timeUntilBooking >= 0
+    }
+    
     init(booking: Booking) {
         self.booking = booking
         _currentBooking = State(initialValue: booking)
@@ -637,68 +668,84 @@ struct CustomerBookingDetailView: View {
                         Label("Pilot", systemImage: "airplane.circle.fill")
                             .font(.headline)
                         
-                        HStack(spacing: 12) {
-                            // Pilot Profile Picture
-                            Group {
-                                if let profile = pilotProfile,
-                                   let pictureUrl = profile.profilePictureUrl,
-                                   let url = URL(string: pictureUrl) {
-                                    AsyncImage(url: url) { phase in
-                                        switch phase {
-                                        case .empty:
-                                            ProgressView()
-                                                .frame(width: 60, height: 60)
-                                        case .success(let image):
-                                            image
-                                                .resizable()
-                                                .scaledToFill()
-                                                .frame(width: 60, height: 60)
-                                                .clipShape(Circle())
-                                        case .failure:
-                                            Image(systemName: "person.circle.fill")
-                                                .font(.system(size: 60))
-                                                .foregroundColor(.blue)
-                                        @unknown default:
-                                            EmptyView()
+                        if shouldShowPilotInfo {
+                            // Show full pilot info if within 24 hours
+                            HStack(spacing: 12) {
+                                // Pilot Profile Picture
+                                Group {
+                                    if let profile = pilotProfile,
+                                       let pictureUrl = profile.profilePictureUrl,
+                                       let url = URL(string: pictureUrl) {
+                                        AsyncImage(url: url) { phase in
+                                            switch phase {
+                                            case .empty:
+                                                ProgressView()
+                                                    .frame(width: 60, height: 60)
+                                            case .success(let image):
+                                                image
+                                                    .resizable()
+                                                    .scaledToFill()
+                                                    .frame(width: 60, height: 60)
+                                                    .clipShape(Circle())
+                                            case .failure:
+                                                Image(systemName: "person.circle.fill")
+                                                    .font(.system(size: 60))
+                                                    .foregroundColor(.blue)
+                                            @unknown default:
+                                                EmptyView()
+                                            }
                                         }
+                                    } else {
+                                        Image(systemName: "person.circle.fill")
+                                            .font(.system(size: 60))
+                                            .foregroundColor(.blue)
                                     }
-                                } else {
-                                    Image(systemName: "person.circle.fill")
-                                        .font(.system(size: 60))
-                                        .foregroundColor(.blue)
+                                }
+                                .frame(width: 60, height: 60)
+                                
+                                // Pilot Callsign
+                                VStack(alignment: .leading, spacing: 4) {
+                                    if let callSign = pilotProfile?.callSign, !callSign.isEmpty {
+                                        Text("@\(callSign)")
+                                            .font(.headline)
+                                    } else {
+                                        Text("Pilot")
+                                            .font(.headline)
+                                    }
+                                }
+                                
+                                Spacer()
+                                
+                                // Message Button (only for accepted/completed bookings)
+                                Button(action: {
+                                    showMessageSheet = true
+                                }) {
+                                    HStack(spacing: 6) {
+                                        Image(systemName: "message.fill")
+                                        Text("Message")
+                                    }
+                                    .font(.subheadline)
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 8)
+                                    .background(Color.blue)
+                                    .cornerRadius(20)
                                 }
                             }
-                            .frame(width: 60, height: 60)
-                            
-                            // Pilot Callsign
-                            VStack(alignment: .leading, spacing: 4) {
-                                if let callSign = pilotProfile?.callSign, !callSign.isEmpty {
-                                    Text("@\(callSign)")
-                                        .font(.headline)
-                                } else {
-                                    Text("Pilot")
-                                        .font(.headline)
-                                }
+                        } else {
+                            // Show message if not within 24 hours
+                            HStack(spacing: 8) {
+                                Image(systemName: "clock.fill")
+                                    .foregroundColor(.orange)
+                                Text("A pilot is matched but info will only be available within 24 hours of booking time")
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
                             }
-                            
-                            Spacer()
-                            
-                            // Message Button (only for accepted/completed bookings)
-                            Button(action: {
-                                showMessageSheet = true
-                            }) {
-                                HStack(spacing: 6) {
-                                    Image(systemName: "message.fill")
-                                    Text("Message")
-                                }
-                                .font(.subheadline)
-                                .fontWeight(.semibold)
-                                .foregroundColor(.white)
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 8)
-                                .background(Color.blue)
-                                .cornerRadius(20)
-                            }
+                            .padding(.vertical, 8)
+                            .padding(.horizontal, 12)
+                            .background(Color.orange.opacity(0.1))
+                            .cornerRadius(8)
                         }
                     }
                     .padding(.horizontal)
@@ -835,11 +882,36 @@ struct CustomerBookingDetailView: View {
                 cancelBooking()
             }
         } message: {
-            if currentBooking.status == .accepted {
-                Text("A pilot has already accepted this booking. Are you sure you want to cancel? This will notify the pilot.")
+            let cancellationMessage: String
+            if let scheduledDate = currentBooking.scheduledDate {
+                let now = Date()
+                let timeUntilBooking = scheduledDate.timeIntervalSince(now)
+                let hoursUntilBooking = timeUntilBooking / 3600
+                
+                if hoursUntilBooking <= 48 && hoursUntilBooking >= 0 {
+                    // Within 48 hours - show refund warning
+                    if currentBooking.status == .accepted {
+                        cancellationMessage = "A pilot has already accepted this booking. Are you sure you want to cancel? This will notify the pilot.\n\n⚠️ Warning: Cancelling within 48 hours of the scheduled booking time will result in only half of the original payment being refunded."
+                    } else {
+                        cancellationMessage = "Are you sure you want to cancel this booking?\n\n⚠️ Warning: Cancelling within 48 hours of the scheduled booking time will result in only half of the original payment being refunded."
+                    }
+                } else {
+                    // More than 48 hours away - normal cancellation
+                    if currentBooking.status == .accepted {
+                        cancellationMessage = "A pilot has already accepted this booking. Are you sure you want to cancel? This will notify the pilot."
+                    } else {
+                        cancellationMessage = "Are you sure you want to cancel this booking?"
+                    }
+                }
             } else {
-                Text("Are you sure you want to cancel this booking?")
+                // No scheduled date - normal cancellation
+                if currentBooking.status == .accepted {
+                    cancellationMessage = "A pilot has already accepted this booking. Are you sure you want to cancel? This will notify the pilot."
+                } else {
+                    cancellationMessage = "Are you sure you want to cancel this booking?"
+                }
             }
+            return Text(cancellationMessage)
         }
         .alert("Error", isPresented: $showError) {
             Button("OK", role: .cancel) {}

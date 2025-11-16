@@ -44,7 +44,7 @@ struct SettingsView: View {
             // Personal Info
             NavigationLink(destination: PersonalInfoView()) {
                 HStack {
-                    Text("Personal info")
+                    Text("Personal Info")
                 }
             }
             
