@@ -35,7 +35,7 @@ struct BadgePreviewCard: View {
                 }
             }
             
-            Text(badge.courseTitle)
+            Text(badge.displayTitle)
                 .font(.caption2)
                 .lineLimit(2)
                 .multilineTextAlignment(.center)

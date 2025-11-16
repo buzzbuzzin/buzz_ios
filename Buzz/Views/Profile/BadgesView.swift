@@ -8,27 +8,55 @@
 import SwiftUI
 import Auth
 
+enum BadgeCategory: String, Hashable {
+    case academy = "Academy"
+    case affiliations = "Affiliations"
+}
+
 struct BadgesView: View {
     @EnvironmentObject var authService: AuthService
     @StateObject private var badgeService = BadgeService()
     @StateObject private var demoModeManager = DemoModeManager.shared
-    @State private var selectedProvider: Badge.CourseProvider? = nil
-    
-    private let allProviders: [Badge.CourseProvider] = [.buzz, .amazon, .tmobile, .other]
+    @State private var selectedCategory: BadgeCategory? = nil
     
     var filteredBadges: [Badge] {
-        if let provider = selectedProvider {
-            return badgeService.badges.filter { $0.provider == provider }
+        guard let category = selectedCategory else {
+            return badgeService.badges
         }
-        return badgeService.badges
+        
+        switch category {
+        case .academy:
+            // Academy badges are course-based badges
+            return badgeService.badges.filter { $0.badgeType == .course || $0.badgeType == nil }
+        case .affiliations:
+            // Affiliations badges are criteria-based badges
+            return badgeService.badges.filter { 
+                if let badgeType = $0.badgeType {
+                    return badgeType != .course
+                }
+                return false
+            }
+        }
     }
     
-    var buzzBadges: [Badge] {
-        badgeService.badges.filter { $0.provider == .buzz }
-    }
-    
-    var companyBadges: [Badge] {
-        badgeService.badges.filter { $0.provider != .buzz }
+    var filteredAvailableBadges: [AvailableBadge] {
+        guard let category = selectedCategory else {
+            return badgeService.availableBadges
+        }
+        
+        switch category {
+        case .academy:
+            // Academy badges are course-based badges
+            return badgeService.availableBadges.filter { $0.badgeType == .course || $0.badgeType == nil }
+        case .affiliations:
+            // Affiliations badges are criteria-based badges
+            return badgeService.availableBadges.filter { 
+                if let badgeType = $0.badgeType {
+                    return badgeType != .course
+                }
+                return false
+            }
+        }
     }
     
     var body: some View {
@@ -47,75 +75,77 @@ struct BadgesView: View {
                     }
                 }
                 
-            // Filter by Provider
+            // Filter by Category
             Section {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 12) {
-                        ProviderFilterChip(
+                        CategoryFilterChip(
                             title: "All",
-                            isSelected: selectedProvider == nil
+                            isSelected: selectedCategory == nil
                         ) {
-                            selectedProvider = nil
+                            selectedCategory = nil
                         }
                         
-                        ForEach(allProviders, id: \.self) { provider in
-                            ProviderFilterChip(
-                                title: provider.rawValue,
-                                isSelected: selectedProvider == provider,
-                                color: provider.color
-                            ) {
-                                selectedProvider = provider
-                            }
+                        CategoryFilterChip(
+                            title: BadgeCategory.academy.rawValue,
+                            isSelected: selectedCategory == .academy,
+                            color: .blue
+                        ) {
+                            selectedCategory = .academy
+                        }
+                        
+                        CategoryFilterChip(
+                            title: BadgeCategory.affiliations.rawValue,
+                            isSelected: selectedCategory == .affiliations,
+                            color: .purple
+                        ) {
+                            selectedCategory = .affiliations
                         }
                     }
                     .padding(.horizontal)
                 }
             }
             
-            // Buzz Badges Section
-            if selectedProvider == nil || selectedProvider == .buzz {
-                Section {
-                    if buzzBadges.isEmpty {
-                        Text("No Buzz course badges yet")
-                            .foregroundColor(.secondary)
-                            .font(.subheadline)
-                    } else {
-                        ForEach(buzzBadges) { badge in
-                            BadgeRow(badge: badge)
-                        }
+            // My Badges Section (All earned badges)
+            Section {
+                if filteredBadges.isEmpty {
+                    Text("No badges earned yet")
+                        .foregroundColor(.secondary)
+                        .font(.subheadline)
+                } else {
+                    ForEach(filteredBadges) { badge in
+                        BadgeRow(badge: badge)
                     }
-                } header: {
-                    Text("Buzz Courses")
                 }
+            } header: {
+                Text("My Badges")
             }
             
-            // Company Badges Section
-            if selectedProvider == nil || (selectedProvider != nil && selectedProvider != .buzz) {
-                Section {
-                    if companyBadges.isEmpty {
-                        Text("No company course badges yet")
-                            .foregroundColor(.secondary)
-                            .font(.subheadline)
-                    } else {
-                        ForEach(companyBadges) { badge in
-                            BadgeRow(badge: badge)
-                        }
+            // All Badges Section (Available badges that can be earned)
+            Section {
+                if filteredAvailableBadges.isEmpty {
+                    Text("No additional badges available")
+                        .foregroundColor(.secondary)
+                        .font(.subheadline)
+                } else {
+                    ForEach(filteredAvailableBadges) { availableBadge in
+                        AvailableBadgeRow(availableBadge: availableBadge)
                     }
-                } header: {
-                    Text("Company Courses")
                 }
+            } header: {
+                Text("All Badges")
             }
             
             // Empty State
-                if filteredBadges.isEmpty && !badgeService.isLoading {
+            if filteredBadges.isEmpty && filteredAvailableBadges.isEmpty && !badgeService.isLoading {
                 Section {
                     EmptyStateView(
                         icon: "seal.fill",
                         title: "No Badges Yet",
-                        message: "Complete training courses to earn badges"
+                        message: "Complete training courses or meet criteria to earn badges"
                     )
                 }
-                }
+            }
                 
                 // Error Message
                 if let errorMessage = badgeService.errorMessage {
@@ -153,7 +183,11 @@ struct BadgesView: View {
     
     private func loadBadges() async {
             guard let currentUser = authService.currentUser else { return }
-            try? await badgeService.fetchPilotBadges(pilotId: currentUser.id)
+            async let badgesTask = badgeService.fetchPilotBadges(pilotId: currentUser.id)
+            async let availableBadgesTask = badgeService.fetchAvailableBadges(pilotId: currentUser.id)
+            
+            try? await badgesTask
+            try? await availableBadgesTask
     }
 }
 
@@ -167,13 +201,16 @@ struct BadgeRow: View {
             HStack(spacing: 16) {
                 // Badge Icon
                 ZStack {
+                    let badgeColor = badge.badgeType?.color ?? badge.provider.color
+                    let badgeIcon = badge.badgeType?.icon ?? badge.provider.icon
+                    
                     Circle()
-                        .fill(badge.provider.color.opacity(0.2))
+                        .fill(badgeColor.opacity(0.2))
                         .frame(width: 60, height: 60)
                     
-                    Image(systemName: badge.provider.icon)
+                    Image(systemName: badgeIcon)
                         .font(.system(size: 30))
-                        .foregroundColor(badge.provider.color)
+                        .foregroundColor(badgeColor)
                     
                     // Expiration indicator overlay
                     if badge.isExpired {
@@ -200,24 +237,24 @@ struct BadgeRow: View {
                 }
                 
                 VStack(alignment: .leading, spacing: 6) {
-                    Text(badge.courseTitle)
+                    Text(badge.displayTitle)
                         .font(.headline)
                         .lineLimit(2)
                     
-                    Text(badge.courseCategory)
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                    
                     HStack(spacing: 4) {
-                        Image(systemName: badge.provider.icon)
+                        let badgeColor = badge.badgeType?.color ?? badge.provider.color
+                        let badgeIcon = badge.badgeType?.icon ?? badge.provider.icon
+                        let providerText = (badge.badgeType == .course || badge.badgeType == nil) ? "Academy" : "Affiliations"
+                        
+                        Image(systemName: badgeIcon)
                             .font(.caption)
-                            .foregroundColor(badge.provider.color)
-                        Text(badge.provider.rawValue)
+                            .foregroundColor(badgeColor)
+                        Text(providerText)
                             .font(.caption)
-                            .foregroundColor(badge.provider.color)
+                            .foregroundColor(badgeColor)
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
-                            .background(badge.provider.color.opacity(0.1))
+                            .background(badgeColor.opacity(0.1))
                             .cornerRadius(4)
                         
                         if badge.isRecurrent {
@@ -274,9 +311,72 @@ struct BadgeRow: View {
     }
 }
 
-// MARK: - Provider Filter Chip
+// MARK: - Available Badge Row
 
-struct ProviderFilterChip: View {
+struct AvailableBadgeRow: View {
+    let availableBadge: AvailableBadge
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 16) {
+                // Badge Icon (grayed out to indicate not earned)
+                ZStack {
+                    Circle()
+                        .fill(availableBadge.providerColor.opacity(0.1))
+                        .frame(width: 60, height: 60)
+                    
+                    Image(systemName: availableBadge.providerIcon)
+                        .font(.system(size: 30))
+                        .foregroundColor(availableBadge.providerColor.opacity(0.5))
+                }
+                
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(availableBadge.courseTitle)
+                        .font(.headline)
+                        .lineLimit(2)
+                    
+                    HStack(spacing: 4) {
+                        let providerText = (availableBadge.badgeType == .course || availableBadge.badgeType == nil) ? "Academy" : "Affiliations"
+                        
+                        Image(systemName: availableBadge.providerIcon)
+                            .font(.caption)
+                            .foregroundColor(availableBadge.providerColor.opacity(0.7))
+                        Text(providerText)
+                            .font(.caption)
+                            .foregroundColor(availableBadge.providerColor.opacity(0.7))
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(availableBadge.providerColor.opacity(0.1))
+                            .cornerRadius(4)
+                        
+                        if availableBadge.isRecurrent {
+                            Text("Recurrent")
+                                .font(.caption)
+                                .foregroundColor(.orange)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Color.orange.opacity(0.1))
+                                .cornerRadius(4)
+                        }
+                    }
+                }
+                
+                Spacer()
+                
+                Image(systemName: "seal")
+                    .foregroundColor(availableBadge.providerColor.opacity(0.3))
+                    .font(.system(size: 24))
+            }
+            .padding(.vertical, 4)
+        }
+        .padding(.vertical, 4)
+        .opacity(0.7) // Slightly faded to indicate not earned
+    }
+}
+
+// MARK: - Category Filter Chip
+
+struct CategoryFilterChip: View {
     let title: String
     let isSelected: Bool
     var color: Color = .blue

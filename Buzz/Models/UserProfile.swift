@@ -83,6 +83,10 @@ struct UserProfile: Codable, Identifiable {
     let createdAt: Date
     let balance: Decimal? // Pilot balance (earnings + tips)
     let stripeAccountId: String? // Stripe Connect account ID for pilots
+    let isExMilitary: Bool? // Ex-military status (awards Ex-Military badge)
+    let isGovernmentEmployee: Bool? // Government employee status (awards Government Employee badge)
+    let hasFaaCertification: Bool? // FAA certification status (awards FAA badge)
+    let isBuzzAffiliate: Bool? // Buzz affiliate status (awards Buzz badge)
     
     enum CodingKeys: String, CodingKey {
         case id
@@ -100,6 +104,10 @@ struct UserProfile: Codable, Identifiable {
         case createdAt = "created_at"
         case balance
         case stripeAccountId = "stripe_account_id"
+        case isExMilitary = "is_ex_military"
+        case isGovernmentEmployee = "is_government_employee"
+        case hasFaaCertification = "has_faa_certification"
+        case isBuzzAffiliate = "is_buzz_affiliate"
     }
     
     var fullName: String {

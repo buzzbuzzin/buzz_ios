@@ -181,7 +181,11 @@ class RatingService: ObservableObject {
                 specialization: nil,
                 createdAt: now,
                 balance: nil,
-                stripeAccountId: nil
+                stripeAccountId: nil,
+                isExMilitary: nil,
+                isGovernmentEmployee: nil,
+                hasFaaCertification: nil,
+                isBuzzAffiliate: nil
             ),
             UserProfile(
                 id: UUID(),
@@ -198,7 +202,11 @@ class RatingService: ObservableObject {
                 specialization: nil,
                 createdAt: now,
                 balance: nil,
-                stripeAccountId: nil
+                stripeAccountId: nil,
+                isExMilitary: nil,
+                isGovernmentEmployee: nil,
+                hasFaaCertification: nil,
+                isBuzzAffiliate: nil
             ),
             UserProfile(
                 id: UUID(),
@@ -215,7 +223,11 @@ class RatingService: ObservableObject {
                 specialization: nil,
                 createdAt: now,
                 balance: nil,
-                stripeAccountId: nil
+                stripeAccountId: nil,
+                isExMilitary: nil,
+                isGovernmentEmployee: nil,
+                hasFaaCertification: nil,
+                isBuzzAffiliate: nil
             ),
             UserProfile(
                 id: UUID(),
@@ -232,7 +244,11 @@ class RatingService: ObservableObject {
                 specialization: nil,
                 createdAt: now,
                 balance: nil,
-                stripeAccountId: nil
+                stripeAccountId: nil,
+                isExMilitary: nil,
+                isGovernmentEmployee: nil,
+                hasFaaCertification: nil,
+                isBuzzAffiliate: nil
             ),
             UserProfile(
                 id: UUID(),
@@ -249,7 +265,11 @@ class RatingService: ObservableObject {
                 specialization: nil,
                 createdAt: now,
                 balance: nil,
-                stripeAccountId: nil
+                stripeAccountId: nil,
+                isExMilitary: nil,
+                isGovernmentEmployee: nil,
+                hasFaaCertification: nil,
+                isBuzzAffiliate: nil
             ),
             UserProfile(
                 id: UUID(),
@@ -266,7 +286,11 @@ class RatingService: ObservableObject {
                 specialization: nil,
                 createdAt: now,
                 balance: nil,
-                stripeAccountId: nil
+                stripeAccountId: nil,
+                isExMilitary: nil,
+                isGovernmentEmployee: nil,
+                hasFaaCertification: nil,
+                isBuzzAffiliate: nil
             )
         ]
         
@@ -357,7 +381,11 @@ class RatingService: ObservableObject {
                 specialization: nil,
                 createdAt: now,
                 balance: nil,
-                stripeAccountId: nil
+                stripeAccountId: nil,
+                isExMilitary: nil,
+                isGovernmentEmployee: nil,
+                hasFaaCertification: nil,
+                isBuzzAffiliate: nil
             ),
             UserProfile(
                 id: UUID(),
@@ -374,7 +402,11 @@ class RatingService: ObservableObject {
                 specialization: nil,
                 createdAt: now,
                 balance: nil,
-                stripeAccountId: nil
+                stripeAccountId: nil,
+                isExMilitary: nil,
+                isGovernmentEmployee: nil,
+                hasFaaCertification: nil,
+                isBuzzAffiliate: nil
             ),
             UserProfile(
                 id: UUID(),
@@ -391,7 +423,11 @@ class RatingService: ObservableObject {
                 specialization: nil,
                 createdAt: now,
                 balance: nil,
-                stripeAccountId: nil
+                stripeAccountId: nil,
+                isExMilitary: nil,
+                isGovernmentEmployee: nil,
+                hasFaaCertification: nil,
+                isBuzzAffiliate: nil
             ),
             UserProfile(
                 id: UUID(),
@@ -408,7 +444,11 @@ class RatingService: ObservableObject {
                 specialization: nil,
                 createdAt: now,
                 balance: nil,
-                stripeAccountId: nil
+                stripeAccountId: nil,
+                isExMilitary: nil,
+                isGovernmentEmployee: nil,
+                hasFaaCertification: nil,
+                isBuzzAffiliate: nil
             ),
             UserProfile(
                 id: UUID(),
@@ -425,7 +465,11 @@ class RatingService: ObservableObject {
                 specialization: nil,
                 createdAt: now,
                 balance: nil,
-                stripeAccountId: nil
+                stripeAccountId: nil,
+                isExMilitary: nil,
+                isGovernmentEmployee: nil,
+                hasFaaCertification: nil,
+                isBuzzAffiliate: nil
             ),
             UserProfile(
                 id: UUID(),
@@ -442,7 +486,11 @@ class RatingService: ObservableObject {
                 specialization: nil,
                 createdAt: now,
                 balance: nil,
-                stripeAccountId: nil
+                stripeAccountId: nil,
+                isExMilitary: nil,
+                isGovernmentEmployee: nil,
+                hasFaaCertification: nil,
+                isBuzzAffiliate: nil
             )
         ]
         

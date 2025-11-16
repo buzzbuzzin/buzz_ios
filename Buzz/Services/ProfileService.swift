@@ -131,7 +131,11 @@ class ProfileService: ObservableObject {
                 specialization: nil,
                 createdAt: Date(),
                 balance: nil,
-                stripeAccountId: nil
+                stripeAccountId: nil,
+                isExMilitary: nil,
+                isGovernmentEmployee: nil,
+                hasFaaCertification: nil,
+                isBuzzAffiliate: nil
             )
         }
         
@@ -182,7 +186,11 @@ class ProfileService: ObservableObject {
                 specialization: nil,
                 createdAt: Date(),
                 balance: nil,
-                stripeAccountId: nil
+                stripeAccountId: nil,
+                isExMilitary: nil,
+                isGovernmentEmployee: nil,
+                hasFaaCertification: nil,
+                isBuzzAffiliate: nil
             )
         }
         
