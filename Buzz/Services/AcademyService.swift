@@ -171,6 +171,89 @@ class AcademyService: ObservableObject {
         }
     }
     
+    // MARK: - Check Ground School Test Status
+    
+    func checkGroundSchoolTestStatus(pilotId: UUID, courseId: UUID) async throws -> Bool {
+        print("🔍 [AcademyService] Checking test status for pilot: \(pilotId)")
+        print("🔍 [AcademyService] Course ID: \(courseId)")
+        
+        do {
+            let response = try await supabase
+                .from("test_results")
+                .select("passed")
+                .eq("pilot_id", value: pilotId.uuidString)
+                .eq("course_id", value: courseId.uuidString)
+                .execute()
+            
+            let data = response.data
+            print("📦 [AcademyService] Response data size: \(data.count) bytes")
+            
+            guard let jsonArray = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+                print("⚠️ [AcademyService] No test results found (empty array)")
+                return false
+            }
+            
+            print("📊 [AcademyService] Found \(jsonArray.count) test result(s)")
+            
+            guard let firstResult = jsonArray.first,
+                  let passed = firstResult["passed"] as? Bool else {
+                print("⚠️ [AcademyService] No test record found or invalid format")
+                return false
+            }
+            
+            print("✅ [AcademyService] Test status: \(passed ? "PASSED" : "FAILED")")
+            return passed
+        } catch {
+            print("❌ [AcademyService] Error checking test status: \(error)")
+            return false
+        }
+    }
+    
+    // MARK: - Fetch Course Tests
+    
+    func fetchCourseTests(courseId: UUID) async throws -> [CourseTest] {
+        do {
+            let response: [CourseTest] = try await supabase
+                .from("course_tests")
+                .select()
+                .eq("course_id", value: courseId.uuidString)
+                .eq("is_active", value: true)
+                .order("order_index", ascending: true)
+                .execute()
+                .value
+            
+            return response
+        } catch {
+            print("Error fetching course tests: \(error)")
+            throw error
+        }
+    }
+    
+    // MARK: - Check Test Status by Test ID
+    
+    func checkTestStatus(pilotId: UUID, testId: UUID) async throws -> Bool {
+        do {
+            let response = try await supabase
+                .from("test_results")
+                .select("passed")
+                .eq("pilot_id", value: pilotId.uuidString)
+                .eq("test_id", value: testId.uuidString)
+                .execute()
+            
+            let data = response.data
+            guard let jsonArray = try JSONSerialization.jsonObject(with: data) as? [[String: Any]],
+                  let firstResult = jsonArray.first,
+                  let passed = firstResult["passed"] as? Bool else {
+                return false
+            }
+            
+            return passed
+        } catch {
+            print("Error checking test status: \(error)")
+            return false
+        }
+    }
+    
     // MARK: - Enroll in Course
     
     func enrollInCourse(pilotId: UUID, courseId: UUID) async throws {

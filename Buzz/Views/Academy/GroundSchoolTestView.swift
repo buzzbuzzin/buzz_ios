@@ -13,72 +13,18 @@ struct GroundSchoolTestView: View {
     let pilotId: UUID
     @Environment(\.dismiss) var dismiss
     @StateObject private var badgeService = BadgeService()
+    @StateObject private var academyService = AcademyService()
     @State private var currentQuestionIndex = 0
     @State private var selectedAnswers: [Int: Int] = [:]
     @State private var showResults = false
     @State private var testScore = 0
     @State private var passed = false
-    @State private var isLoading = false
+    @State private var isLoading = true
     @State private var errorMessage: String?
+    @State private var questions: [TestQuestion] = []
     
-    // Sample test questions - In production, these should come from the database
-    private let questions: [TestQuestion] = [
-        TestQuestion(
-            id: 1,
-            question: "What is the maximum altitude for small unmanned aircraft operations under Part 107?",
-            options: [
-                "100 feet AGL",
-                "400 feet AGL",
-                "500 feet AGL",
-                "1000 feet AGL"
-            ],
-            correctAnswer: 1 // Index 1 = "400 feet AGL"
-        ),
-        TestQuestion(
-            id: 2,
-            question: "What is the minimum visibility required for small UAS operations?",
-            options: [
-                "1 statute mile",
-                "2 statute miles",
-                "3 statute miles",
-                "5 statute miles"
-            ],
-            correctAnswer: 2 // Index 2 = "3 statute miles"
-        ),
-        TestQuestion(
-            id: 3,
-            question: "When must a remote pilot in command conduct a preflight inspection?",
-            options: [
-                "Only before the first flight of the day",
-                "Before each flight",
-                "Only if the aircraft has been damaged",
-                "Only for commercial operations"
-            ],
-            correctAnswer: 1 // Index 1 = "Before each flight"
-        ),
-        TestQuestion(
-            id: 4,
-            question: "What is required for operating a small UAS over people?",
-            options: [
-                "No special requirements",
-                "A waiver from the FAA",
-                "Written permission from property owners",
-                "Only during daylight hours"
-            ],
-            correctAnswer: 1 // Index 1 = "A waiver from the FAA"
-        ),
-        TestQuestion(
-            id: 5,
-            question: "What is the minimum age requirement to obtain a remote pilot certificate?",
-            options: [
-                "16 years old",
-                "18 years old",
-                "21 years old",
-                "No age requirement"
-            ],
-            correctAnswer: 1 // Index 1 = "18 years old"
-        )
-    ]
+    // Ground School Test ID (fixed UUID)
+    private let groundSchoolTestId = UUID(uuidString: "a1b2c3d4-e5f6-7890-abcd-000000000001")!
     
     var currentQuestion: TestQuestion {
         questions[currentQuestionIndex]
@@ -92,7 +38,53 @@ struct GroundSchoolTestView: View {
         NavigationView {
             ScrollView {
                 VStack(spacing: 24) {
-                    if showResults {
+                    if isLoading {
+                        // Loading state
+                        VStack(spacing: 16) {
+                            ProgressView()
+                                .scaleEffect(1.5)
+                            Text("Loading test questions...")
+                                .font(.headline)
+                                .foregroundColor(.secondary)
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .padding()
+                    } else if let errorMessage = errorMessage {
+                        // Error state
+                        VStack(spacing: 16) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .font(.system(size: 50))
+                                .foregroundColor(.red)
+                            Text("Error Loading Test")
+                                .font(.title2)
+                                .fontWeight(.bold)
+                            Text(errorMessage)
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                                .multilineTextAlignment(.center)
+                            Button("Try Again") {
+                                Task {
+                                    await loadTestQuestions()
+                                }
+                            }
+                            .buttonStyle(.bordered)
+                        }
+                        .padding()
+                    } else if questions.isEmpty {
+                        // No questions state
+                        VStack(spacing: 16) {
+                            Image(systemName: "doc.questionmark")
+                                .font(.system(size: 50))
+                                .foregroundColor(.orange)
+                            Text("No Test Questions")
+                                .font(.title2)
+                                .fontWeight(.bold)
+                            Text("This test doesn't have any questions yet.")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        }
+                        .padding()
+                    } else if showResults {
                         // Results View
                         TestResultsView(
                             score: testScore,
@@ -233,7 +225,7 @@ struct GroundSchoolTestView: View {
             .navigationTitle("Ground School Test")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                if !showResults {
+                if !showResults && !isLoading {
                     ToolbarItem(placement: .navigationBarLeading) {
                         Button("Cancel") {
                             dismiss()
@@ -241,6 +233,115 @@ struct GroundSchoolTestView: View {
                     }
                 }
             }
+            .task {
+                await loadTestQuestions()
+            }
+        }
+    }
+    
+    private func loadTestQuestions() async {
+        print("🚀 [GroundSchoolTestView] Starting to load test questions...")
+        print("🎯 [GroundSchoolTestView] Test ID: \(groundSchoolTestId)")
+        print("📚 [GroundSchoolTestView] Course ID: \(course.id)")
+        
+        isLoading = true
+        errorMessage = nil
+        
+        do {
+            // Fetch the test from database
+            print("🔄 [GroundSchoolTestView] Fetching course tests...")
+            let tests = try await academyService.fetchCourseTests(courseId: course.id)
+            print("📊 [GroundSchoolTestView] Found \(tests.count) test(s) for this course")
+            
+            guard let groundSchoolTest = tests.first(where: { $0.id == groundSchoolTestId }) else {
+                print("❌ [GroundSchoolTestView] Ground School Test not found!")
+                print("📋 [GroundSchoolTestView] Available test IDs: \(tests.map { $0.id })")
+                errorMessage = "Ground School Test not found"
+                isLoading = false
+                return
+            }
+            
+            print("✅ [GroundSchoolTestView] Found Ground School Test: \(groundSchoolTest.testName)")
+            
+            // Parse questions from the test
+            print("🔄 [GroundSchoolTestView] Fetching questions from database...")
+            let supabase = SupabaseClient.shared.client
+            let response = try await supabase
+                .from("course_tests")
+                .select("questions")
+                .eq("id", value: groundSchoolTestId.uuidString)
+                .execute()
+            
+            let data = response.data
+            print("📦 [GroundSchoolTestView] Response data size: \(data.count) bytes")
+            
+            guard let jsonArray = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+                print("❌ [GroundSchoolTestView] Failed to parse response as JSON array")
+                errorMessage = "Failed to load test questions"
+                isLoading = false
+                return
+            }
+            
+            print("📊 [GroundSchoolTestView] JSON array has \(jsonArray.count) item(s)")
+            
+            guard let firstResult = jsonArray.first else {
+                print("❌ [GroundSchoolTestView] JSON array is empty")
+                errorMessage = "Failed to load test questions"
+                isLoading = false
+                return
+            }
+            
+            guard let questionsData = firstResult["questions"] as? [String: Any] else {
+                print("❌ [GroundSchoolTestView] No 'questions' field in response")
+                print("📋 [GroundSchoolTestView] Available keys: \(firstResult.keys)")
+                errorMessage = "Failed to load test questions"
+                isLoading = false
+                return
+            }
+            
+            guard let questionsArray = questionsData["questions"] as? [[String: Any]] else {
+                print("❌ [GroundSchoolTestView] 'questions' is not an array")
+                errorMessage = "Failed to load test questions"
+                isLoading = false
+                return
+            }
+            
+            print("📚 [GroundSchoolTestView] Found \(questionsArray.count) question(s)")
+            
+            // Parse questions
+            var loadedQuestions: [TestQuestion] = []
+            for (index, questionDict) in questionsArray.enumerated() {
+                guard let id = questionDict["id"] as? Int,
+                      let question = questionDict["question"] as? String,
+                      let options = questionDict["options"] as? [String],
+                      let correctAnswer = questionDict["correctAnswer"] as? Int else {
+                    print("⚠️ [GroundSchoolTestView] Skipping question \(index) - invalid format")
+                    continue
+                }
+                
+                loadedQuestions.append(TestQuestion(
+                    id: id,
+                    question: question,
+                    options: options,
+                    correctAnswer: correctAnswer
+                ))
+            }
+            
+            print("✅ [GroundSchoolTestView] Successfully parsed \(loadedQuestions.count) question(s)")
+            
+            if loadedQuestions.isEmpty {
+                print("❌ [GroundSchoolTestView] No valid questions found")
+                errorMessage = "No questions found in test"
+            } else {
+                questions = loadedQuestions
+                print("🎉 [GroundSchoolTestView] Test ready with \(questions.count) questions!")
+            }
+            
+            isLoading = false
+        } catch {
+            print("❌ [GroundSchoolTestView] Error loading test: \(error)")
+            errorMessage = "Error loading test: \(error.localizedDescription)"
+            isLoading = false
         }
     }
     
@@ -280,15 +381,17 @@ struct GroundSchoolTestView: View {
             
             let testResult: [String: AnyJSON] = [
                 "pilot_id": .string(pilotId.uuidString),
+                "test_id": .string(groundSchoolTestId.uuidString),
                 "course_id": .string(course.id.uuidString),
                 "score": .integer(score),
                 "passed": .bool(passed),
-                "answers": .object(answersDict)
+                "answers": .object(answersDict),
+                "attempt_number": .integer(1)
             ]
             
             try await supabase
-                .from("ground_school_test_results")
-                .upsert(testResult, onConflict: "pilot_id,course_id")
+                .from("test_results")
+                .upsert(testResult, onConflict: "pilot_id,test_id")
                 .execute()
             
             // If passed, award the ground school badge

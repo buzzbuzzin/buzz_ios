@@ -18,10 +18,17 @@ struct CourseContentView: View {
     @State private var errorMessage: String?
     @State private var hasSubscription = false
     @State private var showSubscriptionSheet = false
+    @State private var hasPassedGroundSchoolTest = false
+    @State private var showGroundSchoolTest = false
     
     // Check if this is the UAS Pilot Course
     var isUASPilotCourse: Bool {
-        course.id.uuidString == "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+        let isUAS = course.id.uuidString.lowercased() == "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+        print("🔍 [CourseContentView] Course ID: \(course.id.uuidString)")
+        print("🔍 [CourseContentView] Course ID (lowercase): \(course.id.uuidString.lowercased())")
+        print("🔍 [CourseContentView] Expected ID: a1b2c3d4-e5f6-7890-abcd-ef1234567890")
+        print("🔍 [CourseContentView] Is UAS Pilot Course: \(isUAS)")
+        return isUAS
     }
     
     var mandatoryUnits: [CourseUnit] {
@@ -74,6 +81,21 @@ struct CourseContentView: View {
                         )
                     }
                     
+                    // Ground School Test Section (for UAS Pilot Course only)
+                    if isUASPilotCourse {
+                        GroundSchoolTestSection(
+                            hasPassedTest: hasPassedGroundSchoolTest,
+                            onStartTest: {
+                                print("🎯 [CourseContentView] Start Test button tapped")
+                                showGroundSchoolTest = true
+                            }
+                        )
+                        .onAppear {
+                            print("✅ [CourseContentView] Showing Ground School Test section")
+                            print("📊 [CourseContentView] Test Status - Passed: \(hasPassedGroundSchoolTest)")
+                        }
+                    }
+                    
                     // Step 1: Pick a Base Program
                     if !step1Units.isEmpty {
                         StepSectionView(
@@ -83,8 +105,12 @@ struct CourseContentView: View {
                             course: course,
                             hasSubscription: hasSubscription,
                             isUASPilotCourse: isUASPilotCourse,
+                            isLockedByTest: isUASPilotCourse && !hasPassedGroundSchoolTest,
                             onSubscribe: {
                                 showSubscriptionSheet = true
+                            },
+                            onTestRequired: {
+                                showGroundSchoolTest = true
                             }
                         )
                     }
@@ -124,12 +150,27 @@ struct CourseContentView: View {
         .navigationTitle("Course Content")
         .navigationBarTitleDisplayMode(.inline)
         .task {
+            print("🚀 [CourseContentView] Loading course content...")
             await loadUnits()
             if isUASPilotCourse, let currentUser = authService.currentUser {
+                print("👤 [CourseContentView] Current user ID: \(currentUser.id)")
                 do {
+                    print("🔄 [CourseContentView] Checking subscription status...")
                     hasSubscription = try await courseSubscriptionService.checkSubscriptionStatus(pilotId: currentUser.id)
+                    print("📋 [CourseContentView] Subscription status: \(hasSubscription)")
+                    
+                    print("🔄 [CourseContentView] Checking Ground School Test status...")
+                    hasPassedGroundSchoolTest = try await academyService.checkGroundSchoolTestStatus(pilotId: currentUser.id, courseId: course.id)
+                    print("📋 [CourseContentView] Ground School Test passed: \(hasPassedGroundSchoolTest)")
                 } catch {
-                    print("Error checking subscription: \(error)")
+                    print("❌ [CourseContentView] Error checking subscription or test status: \(error)")
+                }
+            } else {
+                if !isUASPilotCourse {
+                    print("⚠️ [CourseContentView] Not UAS Pilot Course")
+                }
+                if authService.currentUser == nil {
+                    print("⚠️ [CourseContentView] No current user")
                 }
             }
         }
@@ -138,17 +179,36 @@ struct CourseContentView: View {
                 CourseSubscriptionView(course: course, pilotId: currentUser.id)
             }
         }
+        .sheet(isPresented: $showGroundSchoolTest) {
+            if let currentUser = authService.currentUser {
+                GroundSchoolTestView(course: course, pilotId: currentUser.id)
+                    .onDisappear {
+                        // Refresh test status when test view is dismissed
+                        Task {
+                            do {
+                                hasPassedGroundSchoolTest = try await academyService.checkGroundSchoolTestStatus(pilotId: currentUser.id, courseId: course.id)
+                            } catch {
+                                print("Error refreshing test status: \(error)")
+                            }
+                        }
+                    }
+            }
+        }
     }
     
     private func loadUnits() async {
+        print("📚 [CourseContentView] Loading units for course: \(course.title)")
         isLoading = true
         errorMessage = nil
         
         do {
             units = try await academyService.fetchCourseUnits(courseId: course.id)
+            print("✅ [CourseContentView] Loaded \(units.count) units")
+            print("📊 [CourseContentView] Mandatory units: \(mandatoryUnits.count)")
+            print("📊 [CourseContentView] Step 1 units: \(step1Units.count)")
         } catch {
             errorMessage = error.localizedDescription
-            print("Error loading course units: \(error)")
+            print("❌ [CourseContentView] Error loading course units: \(error)")
         }
         
         isLoading = false
@@ -192,7 +252,9 @@ struct StepSectionView: View {
     let course: TrainingCourse
     let hasSubscription: Bool
     let isUASPilotCourse: Bool
+    var isLockedByTest: Bool = false
     let onSubscribe: () -> Void
+    var onTestRequired: (() -> Void)? = nil
     
     var stepColor: Color {
         switch stepNumber {
@@ -213,10 +275,18 @@ struct StepSectionView: View {
             
             VStack(spacing: 12) {
                 ForEach(units) { unit in
-                    if isUASPilotCourse && unit.unitNumber >= 4 && !hasSubscription {
+                    if isLockedByTest {
+                        // Locked by ground school test
+                        Button(action: {
+                            onTestRequired?()
+                        }) {
+                            UnitRow(unit: unit, isLocked: true, lockReason: "Complete Ground School Test to unlock")
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                    } else if isUASPilotCourse && unit.unitNumber >= 4 && !hasSubscription {
                         // Show locked unit with paywall
                         Button(action: onSubscribe) {
-                            UnitRow(unit: unit, isLocked: true)
+                            UnitRow(unit: unit, isLocked: true, lockReason: "Subscribe to unlock")
                         }
                         .buttonStyle(PlainButtonStyle())
                     } else {
@@ -237,6 +307,7 @@ struct StepSectionView: View {
 struct UnitRow: View {
     let unit: CourseUnit
     var isLocked: Bool = false
+    var lockReason: String = "Subscribe to unlock"
     
     var body: some View {
         HStack(spacing: 16) {
@@ -278,7 +349,7 @@ struct UnitRow: View {
                 }
                 
                 if isLocked {
-                    Text("Subscribe to unlock")
+                    Text(lockReason)
                         .font(.caption)
                         .foregroundColor(.blue)
                         .fontWeight(.semibold)
@@ -301,6 +372,100 @@ struct UnitRow: View {
         .background(isLocked ? Color(.systemGray5) : Color(.systemGray6))
         .cornerRadius(12)
         .opacity(isLocked ? 0.7 : 1.0)
+    }
+}
+
+// MARK: - Ground School Test Section
+
+struct GroundSchoolTestSection: View {
+    let hasPassedTest: Bool
+    let onStartTest: () -> Void
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("GROUND SCHOOL TEST")
+                .font(.headline)
+                .fontWeight(.bold)
+                .foregroundColor(.primary)
+                .padding(.horizontal)
+            
+            VStack(spacing: 12) {
+                HStack(spacing: 16) {
+                    // Test Icon
+                    ZStack {
+                        Circle()
+                            .fill(hasPassedTest ? Color.green.opacity(0.2) : Color.orange.opacity(0.2))
+                            .frame(width: 50, height: 50)
+                        
+                        Image(systemName: hasPassedTest ? "checkmark.seal.fill" : "doc.text.fill")
+                            .foregroundColor(hasPassedTest ? .green : .orange)
+                            .font(.headline)
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Ground School Test")
+                            .font(.headline)
+                            .foregroundColor(.primary)
+                        
+                        Text(hasPassedTest 
+                             ? "You've passed the test! Continue to next section." 
+                             : "Complete units 1-3, then take this test to continue.")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                            .lineLimit(2)
+                        
+                        if hasPassedTest {
+                            HStack(spacing: 4) {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundColor(.green)
+                                    .font(.caption)
+                                Text("Passed")
+                                    .font(.caption)
+                                    .foregroundColor(.green)
+                                    .fontWeight(.semibold)
+                            }
+                        } else {
+                            HStack(spacing: 4) {
+                                Image(systemName: "exclamationmark.circle.fill")
+                                    .foregroundColor(.orange)
+                                    .font(.caption)
+                                Text("Required to continue")
+                                    .font(.caption)
+                                    .foregroundColor(.orange)
+                                    .fontWeight(.semibold)
+                            }
+                        }
+                    }
+                    
+                    Spacer()
+                    
+                    if !hasPassedTest {
+                        Button(action: onStartTest) {
+                            Text("Start Test")
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 8)
+                                .background(Color.orange)
+                                .cornerRadius(8)
+                        }
+                    } else {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundColor(.green)
+                            .font(.title2)
+                    }
+                }
+                .padding()
+                .background(hasPassedTest ? Color.green.opacity(0.05) : Color.orange.opacity(0.05))
+                .cornerRadius(12)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(hasPassedTest ? Color.green.opacity(0.3) : Color.orange.opacity(0.3), lineWidth: 1)
+                )
+            }
+            .padding(.horizontal)
+        }
     }
 }
 
