@@ -157,6 +157,26 @@ struct CockpitView: View {
                                     )
                                 }
                                 .buttonStyle(PlainButtonStyle())
+                                
+                                // Racer Card
+                                NavigationLink(destination: RacerView().environmentObject(authService)) {
+                                    CockpitGridCard(
+                                        title: "Racer",
+                                        icon: "flag.checkered",
+                                        color: .orange
+                                    )
+                                }
+                                .buttonStyle(PlainButtonStyle())
+                                
+                                // Games Card
+                                NavigationLink(destination: GamesView().environmentObject(authService)) {
+                                    CockpitGridCard(
+                                        title: "Games",
+                                        icon: "gamecontroller.fill",
+                                        color: .blue
+                                    )
+                                }
+                                .buttonStyle(PlainButtonStyle())
                             }
                             .padding(.horizontal, 16)
                         }
