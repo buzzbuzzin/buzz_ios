@@ -556,14 +556,15 @@ struct GroundSchoolTestView: View {
                 .upsert(testResult, onConflict: "pilot_id,test_id")
                 .execute()
             
-            // If passed, award the ground school badge
+            // If passed, award the UAA course badge
+            // This replaces the manual "Mark as Completed" flow for the UAS Pilot Course
             if passed {
                 try await badgeService.awardBadge(
                     pilotId: pilotId,
                     courseId: course.id,
-                    courseTitle: "Ground School - UAS Pilot Course",
-                    courseCategory: "Safety & Regulations",
-                    provider: .buzz
+                    courseTitle: course.title,
+                    courseCategory: course.category.rawValue,
+                    provider: Badge.CourseProvider(rawValue: course.provider.rawValue) ?? .buzz
                 )
             }
             

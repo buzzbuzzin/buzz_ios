@@ -584,6 +584,11 @@ struct CourseDetailView: View {
     @StateObject private var badgeService = BadgeService()
     @StateObject private var academyService = AcademyService()
     
+    // Check if this is the UAS Pilot Course
+    private var isUASPilotCourse: Bool {
+        course.id.uuidString.lowercased() == "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+    }
+    
     init(course: TrainingCourse, onEnrollmentChange: @escaping () -> Void) {
         self.course = course
         self.onEnrollmentChange = onEnrollmentChange
@@ -830,16 +835,20 @@ struct CourseDetailView: View {
                                         .cornerRadius(12)
                                 }
                                 
-                                Button(action: {
-                                    showCompletionConfirmation = true
-                                }) {
-                                    Text("Mark as Completed")
-                                        .font(.headline)
-                                        .frame(maxWidth: .infinity)
-                                        .frame(height: 50)
-                                        .background(Color.green)
-                                        .foregroundColor(.white)
-                                        .cornerRadius(12)
+                                // Hide "Mark as Completed" button for UAS Pilot Course
+                                // Badge is now awarded automatically after passing ground school test
+                                if !isUASPilotCourse {
+                                    Button(action: {
+                                        showCompletionConfirmation = true
+                                    }) {
+                                        Text("Mark as Completed")
+                                            .font(.headline)
+                                            .frame(maxWidth: .infinity)
+                                            .frame(height: 50)
+                                            .background(Color.green)
+                                            .foregroundColor(.white)
+                                            .cornerRadius(12)
+                                    }
                                 }
                             }
                             
