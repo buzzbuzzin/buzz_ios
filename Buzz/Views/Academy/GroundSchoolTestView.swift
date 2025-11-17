@@ -23,9 +23,42 @@ struct GroundSchoolTestView: View {
     @State private var errorMessage: String?
     @State private var questions: [TestQuestion] = []
     @State private var showQuestionNavigator = false
+    @State private var showExitAlert = false
+    @State private var selectedChartURL: URL? = nil
+    @State private var showChartViewer = false
     
     // Ground School Test ID (fixed UUID)
     private let groundSchoolTestId = UUID(uuidString: "a1b2c3d4-e5f6-7890-abcd-000000000001")!
+    
+    // Chart URLs mapping based on available files in Supabase storage
+    private let chartURLsMapping: [Int: [URL]] = {
+        let baseURL = "https://mzapuczjijqjzdcujetx.supabase.co/storage/v1/object/public/course-materials/test-1/materials"
+        return [
+            12: [URL(string: "\(baseURL)/Q_12.png")!],
+            15: [URL(string: "\(baseURL)/Q_15.png")!],
+            22: [URL(string: "\(baseURL)/Q_22.png")!],
+            23: [URL(string: "\(baseURL)/Q_23.png")!],
+            25: [URL(string: "\(baseURL)/Q_25.png")!],
+            26: [URL(string: "\(baseURL)/Q_26.png")!],
+            27: [URL(string: "\(baseURL)/Q_27.png")!],
+            28: [URL(string: "\(baseURL)/Q_28_1.png")!, URL(string: "\(baseURL)/Q_28_2.png")!],
+            30: [URL(string: "\(baseURL)/Q_30.png")!],
+            31: [URL(string: "\(baseURL)/Q_31.png")!],
+            32: [URL(string: "\(baseURL)/Q_32.png")!],
+            42: [URL(string: "\(baseURL)/Q_42.png")!],
+            43: [URL(string: "\(baseURL)/Q_43.png")!],
+            44: [URL(string: "\(baseURL)/Q_44.png")!],
+            45: [URL(string: "\(baseURL)/Q_45.png")!],
+            46: [URL(string: "\(baseURL)/Q_46.png")!],
+            47: [URL(string: "\(baseURL)/Q_47.png")!],
+            48: [URL(string: "\(baseURL)/Q_48.png")!],
+            49: [URL(string: "\(baseURL)/Q_49.png")!],
+            50: [URL(string: "\(baseURL)/Q_50.png")!],
+            51: [URL(string: "\(baseURL)/Q_51.png")!],
+            52: [URL(string: "\(baseURL)/Q_52.png")!],
+            53: [URL(string: "\(baseURL)/Q_53.png")!]
+        ]
+    }()
     
     var currentQuestion: TestQuestion {
         questions[currentQuestionIndex]
@@ -41,9 +74,32 @@ struct GroundSchoolTestView: View {
     }
     
     var body: some View {
-        NavigationView {
-            ScrollView {
-                VStack(spacing: 24) {
+        testContentView
+            .navigationTitle("Ground School Test")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                testToolbar
+            }
+            .alert("Exit Test?", isPresented: $showExitAlert) {
+                exitAlert
+            } message: {
+                Text("By exiting you will lose all your test progress and you will have to retake the exam.")
+            }
+            .sheet(isPresented: $showQuestionNavigator) {
+                questionNavigatorSheet
+            }
+            .sheet(isPresented: $showChartViewer) {
+                chartViewerSheet
+            }
+            .task {
+                await loadTestQuestions()
+            }
+    }
+    
+    @ViewBuilder
+    private var testContentView: some View {
+        ScrollView {
+            VStack(spacing: 24) {
                     if isLoading {
                         // Loading state
                         VStack(spacing: 16) {
@@ -129,6 +185,47 @@ struct GroundSchoolTestView: View {
                                     .fontWeight(.semibold)
                                     .padding(.horizontal)
                                 
+                                // Chart images (if available)
+                                if let chartURLs = chartURLsMapping[currentQuestion.id], !chartURLs.isEmpty {
+                                    ScrollView(.horizontal, showsIndicators: false) {
+                                        HStack(spacing: 12) {
+                                            ForEach(chartURLs, id: \.self) { url in
+                                                Button(action: {
+                                                    selectedChartURL = url
+                                                    showChartViewer = true
+                                                }) {
+                                                    AsyncImage(url: url) { image in
+                                                        image
+                                                            .resizable()
+                                                            .aspectRatio(contentMode: .fit)
+                                                            .frame(height: 200)
+                                                            .cornerRadius(8)
+                                                            .overlay(
+                                                                VStack {
+                                                                    Spacer()
+                                                                    HStack {
+                                                                        Spacer()
+                                                                        Image(systemName: "magnifyingglass")
+                                                                            .padding(8)
+                                                                            .background(Color.black.opacity(0.6))
+                                                                            .foregroundColor(.white)
+                                                                            .cornerRadius(6)
+                                                                            .padding(8)
+                                                                    }
+                                                                }
+                                                            )
+                                                    } placeholder: {
+                                                        ProgressView()
+                                                            .frame(height: 200)
+                                                    }
+                                                }
+                                                .buttonStyle(PlainButtonStyle())
+                                            }
+                                        }
+                                        .padding(.horizontal)
+                                    }
+                                }
+                                
                                 // Answer Options
                                 VStack(spacing: 12) {
                                     ForEach(Array(currentQuestion.options.enumerated()), id: \.offset) { index, option in
@@ -139,18 +236,9 @@ struct GroundSchoolTestView: View {
                                                 Text(option)
                                                     .font(.body)
                                                     .foregroundColor(.primary)
+                                                    .multilineTextAlignment(.leading)
                                                 
                                                 Spacer()
-                                                
-                                                if selectedAnswers[currentQuestion.id] == index {
-                                                    Image(systemName: "checkmark.circle.fill")
-                                                        .foregroundColor(.blue)
-                                                        .font(.title3)
-                                                } else {
-                                                    Image(systemName: "circle")
-                                                        .foregroundColor(.secondary)
-                                                        .font(.title3)
-                                                }
                                             }
                                             .padding()
                                             .background(
@@ -252,43 +340,57 @@ struct GroundSchoolTestView: View {
                             .foregroundColor(.red)
                             .padding(.horizontal)
                     }
+            }
+        }
+    }
+    
+    @ToolbarContentBuilder
+    private var testToolbar: some ToolbarContent {
+        if !showResults && !isLoading {
+            ToolbarItem(placement: .navigationBarLeading) {
+                Button("Exit") {
+                    showExitAlert = true
+                }
+                .foregroundColor(.red)
+            }
+            
+            if !questions.isEmpty {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button(action: {
+                        showQuestionNavigator = true
+                    }) {
+                        Image(systemName: "square.grid.3x3.fill")
+                            .font(.title3)
+                    }
                 }
             }
-            .navigationTitle("Ground School Test")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                if !showResults && !isLoading {
-                    ToolbarItem(placement: .navigationBarLeading) {
-                        Button("Cancel") {
-                            dismiss()
-                        }
-                    }
-                    
-                    if !questions.isEmpty {
-                        ToolbarItem(placement: .navigationBarTrailing) {
-                            Button(action: {
-                                showQuestionNavigator = true
-                            }) {
-                                Image(systemName: "square.grid.3x3.fill")
-                                    .font(.title3)
-                            }
-                        }
-                    }
-                }
+        }
+    }
+    
+    @ViewBuilder
+    private var exitAlert: some View {
+        Button("Cancel", role: .cancel) { }
+        Button("Exit", role: .destructive) {
+            dismiss()
+        }
+    }
+    
+    @ViewBuilder
+    private var questionNavigatorSheet: some View {
+        QuestionNavigatorView(
+            questions: questions,
+            selectedAnswers: selectedAnswers,
+            currentQuestionIndex: $currentQuestionIndex,
+            onDismiss: {
+                showQuestionNavigator = false
             }
-            .sheet(isPresented: $showQuestionNavigator) {
-                QuestionNavigatorView(
-                    questions: questions,
-                    selectedAnswers: selectedAnswers,
-                    currentQuestionIndex: $currentQuestionIndex,
-                    onDismiss: {
-                        showQuestionNavigator = false
-                    }
-                )
-            }
-            .task {
-                await loadTestQuestions()
-            }
+        )
+    }
+    
+    @ViewBuilder
+    private var chartViewerSheet: some View {
+        if let chartURL = selectedChartURL {
+            ChartImageViewer(imageURL: chartURL)
         }
     }
     

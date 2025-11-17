@@ -54,7 +54,7 @@ struct GroundSchoolTestIntroView: View {
                                 BulletPoint(text: "Airspace (11 questions)")
                                 BulletPoint(text: "Weather (6 questions")
                                 BulletPoint(text: "Loading & Performance (4 questions)")
-                                BulletPoint(text: "Operations (28 questions")
+                                BulletPoint(text: "Operations (28 questions)")
                             }
                             .padding(.leading, 30)
                         }
@@ -85,7 +85,6 @@ struct GroundSchoolTestIntroView: View {
                     // Start Test Button
                     Button(action: {
                         onStartTest()
-                        dismiss()
                     }) {
                         HStack {
                             Image(systemName: "play.fill")
@@ -104,13 +103,6 @@ struct GroundSchoolTestIntroView: View {
             }
             .navigationTitle("Ground School Test")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Cancel") {
-                        dismiss()
-                    }
-                }
-            }
         }
     }
 }
