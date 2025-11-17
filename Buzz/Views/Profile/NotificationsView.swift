@@ -22,8 +22,6 @@ struct NotificationsView: View {
         case bookingReminders
         case weatherUpdates
         case receivedReviews
-        case rankImprovements
-        case bookingUpdates
         case messages
     }
     
@@ -56,26 +54,6 @@ struct NotificationsView: View {
                 options: notificationService.preferences.receivedReviews,
                 onEdit: {
                     editingNotificationType = .receivedReviews
-                }
-            )
-            
-            NotificationPreferenceCard(
-                title: "Rank Improvements",
-                description: "When your rank or tier improves",
-                icon: "chart.line.uptrend.xyaxis",
-                options: notificationService.preferences.rankImprovements,
-                onEdit: {
-                    editingNotificationType = .rankImprovements
-                }
-            )
-            
-            NotificationPreferenceCard(
-                title: "Booking Updates",
-                description: "Updates on your booking status",
-                icon: "bell.badge",
-                options: notificationService.preferences.bookingUpdates,
-                onEdit: {
-                    editingNotificationType = .bookingUpdates
                 }
             )
             
@@ -204,8 +182,6 @@ struct NotificationEditSheet: View {
         case .bookingReminders: return "Booking Reminders"
         case .weatherUpdates: return "Weather Updates"
         case .receivedReviews: return "Received Reviews"
-        case .rankImprovements: return "Rank Improvements"
-        case .bookingUpdates: return "Booking Updates"
         case .messages: return "Messages"
         }
     }
@@ -215,8 +191,6 @@ struct NotificationEditSheet: View {
         case .bookingReminders: return "Reminders for upcoming bookings"
         case .weatherUpdates: return "Weather information for upcoming bookings"
         case .receivedReviews: return "When you receive new reviews"
-        case .rankImprovements: return "When your rank or tier improves"
-        case .bookingUpdates: return "Updates on your booking status"
         case .messages: return "New messages from customers or pilots"
         }
     }
@@ -226,8 +200,6 @@ struct NotificationEditSheet: View {
         case .bookingReminders: return $preferences.bookingReminders
         case .weatherUpdates: return $preferences.weatherUpdates
         case .receivedReviews: return $preferences.receivedReviews
-        case .rankImprovements: return $preferences.rankImprovements
-        case .bookingUpdates: return $preferences.bookingUpdates
         case .messages: return $preferences.messages
         }
     }
@@ -245,10 +217,6 @@ struct NotificationEditSheet: View {
             _localOptions = State(initialValue: preferences.wrappedValue.weatherUpdates)
         case .receivedReviews:
             _localOptions = State(initialValue: preferences.wrappedValue.receivedReviews)
-        case .rankImprovements:
-            _localOptions = State(initialValue: preferences.wrappedValue.rankImprovements)
-        case .bookingUpdates:
-            _localOptions = State(initialValue: preferences.wrappedValue.bookingUpdates)
         case .messages:
             _localOptions = State(initialValue: preferences.wrappedValue.messages)
         }

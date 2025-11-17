@@ -192,7 +192,7 @@ struct ProfileView: View {
                         Text("\(customerBookingsCount)")
                             .font(.title2)
                             .fontWeight(.bold)
-                        Text("Flights")
+                        Text("Jobs")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }

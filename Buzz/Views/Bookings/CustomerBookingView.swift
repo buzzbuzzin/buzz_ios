@@ -15,10 +15,23 @@ struct CustomerBookingView: View {
     @StateObject private var bookingService = BookingService()
     @State private var showCreateBooking = false
     @State private var showConversations = false
+    @State private var isPromotionCardDismissed = false
     
     var body: some View {
         NavigationView {
-            VStack {
+            VStack(spacing: 0) {
+                // Buzz Bundles Promotion Card
+                if !isPromotionCardDismissed {
+                    BuzzBundlesPromotionCard(
+                        onDismiss: {
+                            isPromotionCardDismissed = true
+                        }
+                    )
+                    .padding(.horizontal)
+                    .padding(.vertical, 8)
+                    .background(Color(.systemGray6))
+                }
+                
                 if bookingService.isLoading {
                     LoadingView(message: "Loading bookings...")
                 } else {
@@ -82,6 +95,10 @@ struct CustomerBookingView: View {
         }
         .task {
             await loadBookings()
+        }
+        .onAppear {
+            // Reset promotion card dismissal when view appears (so it shows again)
+            isPromotionCardDismissed = false
         }
     }
     
@@ -1414,6 +1431,241 @@ struct EditBookingView: View {
                 showError = true
             }
         }
+    }
+}
+
+// MARK: - Buzz Bundles Promotion Card
+
+struct BuzzBundlesPromotionCard: View {
+    let onDismiss: () -> Void
+    @State private var showBundlePage = false
+    
+    var body: some View {
+        Button(action: {
+            showBundlePage = true
+        }) {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Image("Logo")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 32, height: 32)
+                    
+                    Text("Buzz Bundles")
+                        .font(.headline)
+                        .fontWeight(.bold)
+                        .foregroundColor(.primary)
+                    
+                    Spacer()
+                    
+                    Button(action: onDismiss) {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundColor(.secondary)
+                            .font(.title3)
+                    }
+                }
+                
+                Text("Discover our premium bundle packages for easier and cheaper booking!")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundColor(.green)
+                            .font(.caption)
+                        Text("Easier and cheaper booking price")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    HStack(spacing: 6) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundColor(.green)
+                            .font(.caption)
+                        Text("Dedicated customer service")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    HStack(spacing: 6) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundColor(.green)
+                            .font(.caption)
+                        Text("Premium booking experience")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                
+                HStack {
+                    Spacer()
+                    Text("Explore Bundles →")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.blue)
+                }
+            }
+            .padding()
+            .background(
+                LinearGradient(
+                    gradient: Gradient(colors: [Color.purple.opacity(0.1), Color.blue.opacity(0.1)]),
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
+            .cornerRadius(12)
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(Color.purple.opacity(0.3), lineWidth: 1)
+            )
+        }
+        .buttonStyle(PlainButtonStyle())
+        .sheet(isPresented: $showBundlePage) {
+            ClientBundlePage()
+        }
+    }
+}
+
+// MARK: - Client Bundle Page
+
+struct ClientBundlePage: View {
+    @Environment(\.dismiss) var dismiss
+    
+    var body: some View {
+        NavigationView {
+            ScrollView {
+                VStack(spacing: 24) {
+                    // Header
+                    VStack(spacing: 12) {
+                        Image("Logo")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 80, height: 80)
+                        
+                        Text("Buzz Bundles")
+                            .font(.title2)
+                            .fontWeight(.bold)
+                        
+                        Text("Choose from our premium bundle packages designed to make your booking experience easier and more affordable.")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal)
+                    }
+                    .padding(.top, 20)
+                    
+                    // Bundle Cards
+                    VStack(spacing: 16) {
+                        // Automotive Bundle Card
+                        NavigationLink(destination: FlightPackageView()) {
+                            BundleCard(
+                                icon: "car.circle.fill",
+                                title: "Automotive Bundle",
+                                description: "Perfect for car dealerships. Get up to 50 cinematic videos per month with dedicated drone & pilot access.",
+                                color: .blue
+                            )
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                        
+                        // Real Estate Bundle Card
+                        NavigationLink(destination: RealEstatePackageView()) {
+                            BundleCard(
+                                icon: "house.circle.fill",
+                                title: "Real Estate Bundle",
+                                description: "Ideal for real estate professionals. Capture stunning property footage with our specialized real estate package.",
+                                color: .green
+                            )
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                    }
+                    .padding(.horizontal)
+                }
+                .padding(.vertical)
+            }
+            .navigationTitle("Buzz Bundles")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Bundle Card
+
+struct BundleCard: View {
+    let icon: String
+    let title: String
+    let description: String
+    let color: Color
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Image(systemName: icon)
+                    .font(.system(size: 40))
+                    .foregroundColor(color)
+                
+                Spacer()
+                
+                Image(systemName: "chevron.right")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+            }
+            
+            VStack(alignment: .leading, spacing: 8) {
+                Text(title)
+                    .font(.title3)
+                    .fontWeight(.bold)
+                    .foregroundColor(.primary)
+                
+                Text(description)
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                HStack(alignment: .center, spacing: 4) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.caption)
+                        .foregroundColor(.green)
+                    Text("Easier booking")
+                        .font(.caption)
+                        .foregroundColor(.green)
+                }
+                
+                HStack(alignment: .center, spacing: 4) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.caption)
+                        .foregroundColor(.green)
+                    Text("Better pricing")
+                        .font(.caption)
+                        .foregroundColor(.green)
+                }
+                
+                HStack(alignment: .center, spacing: 4) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.caption)
+                        .foregroundColor(.green)
+                    Text("Premium service")
+                        .font(.caption)
+                        .foregroundColor(.green)
+                }
+            }
+        }
+        .padding()
+        .background(Color(.systemGray6))
+        .cornerRadius(12)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(color.opacity(0.3), lineWidth: 2)
+        )
     }
 }
 
