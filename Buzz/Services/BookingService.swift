@@ -34,13 +34,14 @@ class BookingService: ObservableObject {
         requiredMinimumRank: Int = 0,
         paymentIntentId: String? = nil,
         chargeId: String? = nil
-    ) async throws {
+    ) async throws -> Booking {
         isLoading = true
         errorMessage = nil
         
         do {
+            let bookingId = UUID()
             var booking: [String: AnyJSON] = [
-                "id": .string(UUID().uuidString),
+                "id": .string(bookingId.uuidString),
                 "customer_id": .string(customerId.uuidString),
                 "location_lat": .double(location.latitude),
                 "location_lng": .double(location.longitude),
@@ -78,7 +79,17 @@ class BookingService: ObservableObject {
                 .insert(booking)
                 .execute()
             
+            // Fetch the created booking to return
+            let createdBooking: Booking = try await supabase
+                .from("bookings")
+                .select()
+                .eq("id", value: bookingId.uuidString)
+                .single()
+                .execute()
+                .value
+            
             isLoading = false
+            return createdBooking
         } catch {
             isLoading = false
             errorMessage = error.localizedDescription

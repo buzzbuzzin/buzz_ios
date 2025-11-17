@@ -103,13 +103,9 @@ struct CustomerBookingCard: View {
     @StateObject private var profileService = ProfileService()
     @State private var pilotProfile: UserProfile?
     
-    // Check if pilot info should be visible (within 24 hours of scheduled time)
+    // Check if pilot info should be visible (always show if pilot is assigned)
     private var shouldShowPilotInfo: Bool {
-        guard let scheduledDate = booking.scheduledDate else { return false }
-        let now = Date()
-        let timeUntilBooking = scheduledDate.timeIntervalSince(now)
-        // Show info if within 24 hours (86400 seconds)
-        return timeUntilBooking <= 86400 && timeUntilBooking >= 0
+        return booking.pilotId != nil
     }
     
     var body: some View {
@@ -142,15 +138,7 @@ struct CustomerBookingCard: View {
                 } else if booking.status == .accepted || booking.status == .completed,
                           booking.pilotId != nil,
                           !shouldShowPilotInfo {
-                    // Show message if pilot is matched but info not yet available
-                    HStack(spacing: 4) {
-                        Image(systemName: "clock.fill")
-                            .font(.caption)
-                            .foregroundColor(.orange)
-                        Text("A pilot is matched but info will only be available within 24 hours of booking time")
-                            .font(.caption)
-                            .foregroundColor(.orange)
-                    }
+                    // Pilot is matched - this case should not occur since we always show pilot info
                 }
                 
                 // Category badge
@@ -276,62 +264,79 @@ struct CreateBookingView: View {
     @State private var errorMessage = ""
     @State private var showSuccess = false
     @State private var isProcessingPayment = false
+    @State private var showSuccessAnimation = false
+    @State private var shouldShowBookingDetail = false
+    @State private var createdBooking: Booking?
     
     var body: some View {
         NavigationView {
-            Group {
-                if currentStep == 1 {
-                    CreateBookingStep1View(
-                        selectedLocation: $selectedLocation,
-                        locationName: $locationName,
-                        selectedDate: $selectedDate,
-                        startTime: $startTime,
-                        endTime: $endTime,
-                        selectedSpecialization: $selectedSpecialization,
-                        requiredMinimumRank: $requiredMinimumRank,
-                        onNext: {
-                            if isStep1Valid {
-                                currentStep = 2
-                            }
-                        }
-                    )
-                } else {
-                    CreateBookingStep2View(
-                        description: $description,
-                        paymentAmount: $paymentAmount,
-                        estimatedHours: $estimatedHours,
-                        paymentInputType: $paymentInputType,
-                        onBack: {
-                            currentStep = 1
-                        },
-                        onCreate: createBooking,
-                        isLoading: bookingService.isLoading || paymentService.isLoading || isProcessingPayment,
-                        isFormValid: isStep2Valid
-                    )
-                }
-            }
-            .navigationTitle(currentStep == 1 ? "Create Booking" : "Booking Details")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
+            ZStack {
+                Group {
                     if currentStep == 1 {
-                        Button("Cancel") {
-                            dismiss()
+                        CreateBookingStep1View(
+                            selectedLocation: $selectedLocation,
+                            locationName: $locationName,
+                            selectedDate: $selectedDate,
+                            startTime: $startTime,
+                            endTime: $endTime,
+                            selectedSpecialization: $selectedSpecialization,
+                            requiredMinimumRank: $requiredMinimumRank,
+                            onNext: {
+                                if isStep1Valid {
+                                    currentStep = 2
+                                }
+                            }
+                        )
+                    } else {
+                        CreateBookingStep2View(
+                            description: $description,
+                            paymentAmount: $paymentAmount,
+                            estimatedHours: $estimatedHours,
+                            paymentInputType: $paymentInputType,
+                            onBack: {
+                                currentStep = 1
+                            },
+                            onCreate: createBooking,
+                            isLoading: bookingService.isLoading || paymentService.isLoading || isProcessingPayment,
+                            isFormValid: isStep2Valid
+                        )
+                    }
+                }
+                .navigationTitle(currentStep == 1 ? "Create Booking" : "Booking Details")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarLeading) {
+                        if currentStep == 1 {
+                            Button("Cancel") {
+                                dismiss()
+                            }
                         }
                     }
                 }
-            }
-            .alert("Error", isPresented: $showError) {
-                Button("OK", role: .cancel) {}
-            } message: {
-                Text(errorMessage)
-            }
-            .alert("Success", isPresented: $showSuccess) {
-                Button("OK") {
-                    dismiss()
+                .alert("Error", isPresented: $showError) {
+                    Button("OK", role: .cancel) {}
+                } message: {
+                    Text(errorMessage)
                 }
-            } message: {
-                Text("Booking created successfully!")
+                
+                // Navigation to booking detail after animation
+                if let booking = createdBooking, shouldShowBookingDetail {
+                    NavigationLink(
+                        destination: CustomerBookingDetailView(booking: booking),
+                        isActive: $shouldShowBookingDetail
+                    ) {
+                        EmptyView()
+                    }
+                    .hidden()
+                }
+            }
+            .fullScreenCover(isPresented: $showSuccessAnimation) {
+                if let booking = createdBooking {
+                    BookingSuccessAnimationView(
+                        createdBooking: booking,
+                        shouldShowBookingDetail: $shouldShowBookingDetail
+                    )
+                }
             }
         }
     }
@@ -452,7 +457,7 @@ struct CreateBookingView: View {
                 let endDateTime = calendar.date(from: endDateTimeComponents) ?? startTime
                 
                 // Create booking with payment info
-                try await bookingService.createBooking(
+                let newBooking = try await bookingService.createBooking(
                     customerId: customerId,
                     location: location,
                     locationName: locationName.isEmpty ? "Selected Location" : locationName,
@@ -468,7 +473,10 @@ struct CreateBookingView: View {
                 )
                 
                 isProcessingPayment = false
-                showSuccess = true
+                // Store the created booking for navigation
+                createdBooking = newBooking
+                // Show animated success flow instead of simple alert
+                showSuccessAnimation = true
                 
             case .cancelled:
                 isProcessingPayment = false
@@ -528,13 +536,9 @@ struct CustomerBookingDetailView: View {
     @State private var showCompletionSuccess = false
     @Environment(\.dismiss) var dismiss
     
-    // Check if pilot info should be visible (within 24 hours of scheduled time)
+    // Check if pilot info should be visible (always show if pilot is assigned)
     private var shouldShowPilotInfo: Bool {
-        guard let scheduledDate = currentBooking.scheduledDate else { return false }
-        let now = Date()
-        let timeUntilBooking = scheduledDate.timeIntervalSince(now)
-        // Show info if within 24 hours (86400 seconds)
-        return timeUntilBooking <= 86400 && timeUntilBooking >= 0
+        return currentBooking.pilotId != nil
     }
     
     init(booking: Booking) {
@@ -669,7 +673,7 @@ struct CustomerBookingDetailView: View {
                             .font(.headline)
                         
                         if shouldShowPilotInfo {
-                            // Show full pilot info if within 24 hours
+                            // Show full pilot info
                             HStack(spacing: 12) {
                                 // Pilot Profile Picture
                                 Group {
@@ -733,20 +737,8 @@ struct CustomerBookingDetailView: View {
                                     .cornerRadius(20)
                                 }
                             }
-                        } else {
-                            // Show message if not within 24 hours
-                            HStack(spacing: 8) {
-                                Image(systemName: "clock.fill")
-                                    .foregroundColor(.orange)
-                                Text("A pilot is matched but info will only be available within 24 hours of booking time")
-                                    .font(.subheadline)
-                                    .foregroundColor(.secondary)
-                            }
-                            .padding(.vertical, 8)
-                            .padding(.horizontal, 12)
-                            .background(Color.orange.opacity(0.1))
-                            .cornerRadius(8)
                         }
+                        // Pilot info will always show when assigned (no 24-hour constraint)
                     }
                     .padding(.horizontal)
                     
