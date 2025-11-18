@@ -535,6 +535,21 @@ struct RealEstateSubscriptionSelectionView: View {
                 Divider()
                     .padding(.horizontal)
                 
+                // Join now button
+                Button(action: {
+                    showPlanSelection = true
+                }) {
+                    Text("Join now")
+                        .fontWeight(.semibold)
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color.blue)
+                        .foregroundColor(.white)
+                        .cornerRadius(12)
+                }
+                .padding(.horizontal)
+                .padding(.bottom, 8)
+                
                 // What's included section
                 VStack(alignment: .leading, spacing: 20) {
                     Text("$1,500 Business Video Bundle for Real Estate")
@@ -656,21 +671,6 @@ struct RealEstateSubscriptionSelectionView: View {
                 .padding(.bottom, 8)
                 
                 Spacer()
-                
-                // Join now button
-                Button(action: {
-                    showPlanSelection = true
-                }) {
-                    Text("Join now")
-                        .fontWeight(.semibold)
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color.blue)
-                        .foregroundColor(.white)
-                        .cornerRadius(12)
-                }
-                .padding(.horizontal)
-                .padding(.bottom, 20)
             }
         }
         .navigationBarTitleDisplayMode(.large)
@@ -813,6 +813,7 @@ struct RealEstateMembershipDetailsView: View {
                 }
             }
         }
+        .navigationViewStyle(.stack)
     }
 }
 

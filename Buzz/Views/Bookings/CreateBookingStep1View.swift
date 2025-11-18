@@ -136,7 +136,7 @@ struct CreateBookingStep1View: View {
                     }
                     .padding(.horizontal)
                     
-                    Text("Select the minimum rank required for this job")
+                    Text("Booking price varies with different rank.")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                         .padding(.horizontal)
@@ -227,11 +227,12 @@ struct RankInfoView: View {
                         .padding(.horizontal)
                     
                     VStack(spacing: 16) {
-                        RankInfoRow(rank: 0, name: "Ensign", hours: "0 - 24 hours", description: "Entry-level pilots just starting their career. Suitable for basic tasks and learning opportunities.")
-                        RankInfoRow(rank: 1, name: "Sub Lieutenant", hours: "25 - 74 hours", description: "Developed basic skills through initial flight experience. Can handle standard assignments.")
-                        RankInfoRow(rank: 2, name: "Lieutenant", hours: "75 - 199 hours", description: "Experienced pilots with solid track record. Capable of handling complex missions.")
-                        RankInfoRow(rank: 3, name: "Commander", hours: "200 - 499 hours", description: "Highly experienced pilots with extensive expertise. Suitable for critical and demanding projects.")
+                        // Display ranks in descending order: Captain -> Ensign
                         RankInfoRow(rank: 4, name: "Captain", hours: "500+ hours", description: "Elite pilots with exceptional experience. Ideal for the most challenging and high-profile assignments.")
+                        RankInfoRow(rank: 3, name: "Commander", hours: "200 - 499 hours", description: "Highly experienced pilots with extensive expertise. Suitable for critical and demanding projects.")
+                        RankInfoRow(rank: 2, name: "Lieutenant", hours: "75 - 199 hours", description: "Experienced pilots with solid track record. Capable of handling complex missions.")
+                        RankInfoRow(rank: 1, name: "Sub Lieutenant", hours: "25 - 74 hours", description: "Developed basic skills through initial flight experience. Can handle standard assignments.")
+                        RankInfoRow(rank: 0, name: "Ensign", hours: "0 - 24 hours", description: "Entry-level pilots just starting their career. Suitable for basic tasks and learning opportunities.")
                     }
                     .padding(.horizontal)
                 }

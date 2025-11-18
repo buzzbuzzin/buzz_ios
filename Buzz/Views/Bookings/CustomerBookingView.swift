@@ -16,11 +16,13 @@ struct CustomerBookingView: View {
     @State private var showCreateBooking = false
     @State private var showConversations = false
     @State private var isPromotionCardDismissed = false
+    @State private var newlyCreatedBooking: Booking?
+    @State private var navigateToBookingDetail = false
     
     var body: some View {
         NavigationView {
             VStack(spacing: 0) {
-                // Buzz Bundles Promotion Card
+                // Buzz Subscription Promotion Card
                 if !isPromotionCardDismissed {
                     BuzzBundlesPromotionCard(
                         onDismiss: {
@@ -86,9 +88,28 @@ struct CustomerBookingView: View {
                 Task {
                     await loadBookings()
                 }
+                // Navigate to booking detail if a booking was created
+                if let booking = newlyCreatedBooking {
+                    navigateToBookingDetail = true
+                }
             }) {
-                CreateBookingView()
+                CreateBookingView(onBookingCreated: { booking in
+                    newlyCreatedBooking = booking
+                })
+                    .environmentObject(authService)
             }
+            .background(
+                Group {
+                    if let booking = newlyCreatedBooking {
+                        NavigationLink(
+                            destination: CustomerBookingDetailView(booking: booking),
+                            isActive: $navigateToBookingDetail
+                        ) {
+                            EmptyView()
+                        }
+                    }
+                }
+            )
             .sheet(isPresented: $showConversations) {
                 ConversationsListView()
             }
@@ -263,16 +284,22 @@ struct CreateBookingView: View {
     @EnvironmentObject var authService: AuthService
     @StateObject private var bookingService = BookingService()
     @StateObject private var paymentService = PaymentService()
+    @StateObject private var subscriptionService = SubscriptionService()
     @Environment(\.dismiss) var dismiss
+    
+    let onBookingCreated: ((Booking) -> Void)?
+    
+    init(onBookingCreated: ((Booking) -> Void)? = nil) {
+        self.onBookingCreated = onBookingCreated
+    }
     
     @State private var currentStep = 1
     @State private var selectedLocation: CLLocationCoordinate2D?
     @State private var locationName = ""
     @State private var selectedDate = Date()
     @State private var startTime = Calendar.current.date(bySettingHour: 9, minute: 0, second: 0, of: Date()) ?? Date()
-    @State private var endTime = Calendar.current.date(bySettingHour: 17, minute: 0, second: 0, of: Date()) ?? Date()
     @State private var selectedSpecialization: BookingSpecialization?
-    @State private var requiredMinimumRank: Int = 0 // Default to lowest rank (Ensign)
+    @State private var requiredMinimumRank: Int = 4 // Default to highest rank (Captain)
     @State private var description = ""
     @State private var paymentAmount = ""
     @State private var estimatedHours = ""
@@ -284,48 +311,81 @@ struct CreateBookingView: View {
     @State private var showSuccessAnimation = false
     @State private var shouldShowBookingDetail = false
     @State private var createdBooking: Booking?
+    @State private var hasAutomotiveSubscription = false
+    @State private var isFirstAutomotiveBooking = true
+    @State private var isLoadingSubscription = false
     
     var body: some View {
         NavigationView {
             ZStack {
                 Group {
                     if currentStep == 1 {
-                        CreateBookingStep1View(
-                            selectedLocation: $selectedLocation,
-                            locationName: $locationName,
-                            selectedDate: $selectedDate,
-                            startTime: $startTime,
-                            endTime: $endTime,
+                        CreateBookingStep1IndustryView(
                             selectedSpecialization: $selectedSpecialization,
-                            requiredMinimumRank: $requiredMinimumRank,
                             onNext: {
                                 if isStep1Valid {
+                                    // Load subscription status when moving to next step
+                                    Task {
+                                        await checkSubscriptionAndBookingHistory()
+                                    }
                                     currentStep = 2
                                 }
                             }
                         )
-                    } else {
-                        CreateBookingStep2View(
-                            description: $description,
-                            paymentAmount: $paymentAmount,
-                            estimatedHours: $estimatedHours,
-                            paymentInputType: $paymentInputType,
+                    } else if currentStep == 2 {
+                        CreateBookingStep2DetailsView(
+                            selectedLocation: $selectedLocation,
+                            locationName: $locationName,
+                            selectedDate: $selectedDate,
+                            startTime: $startTime,
+                            selectedSpecialization: $selectedSpecialization,
+                            requiredMinimumRank: $requiredMinimumRank,
                             onBack: {
                                 currentStep = 1
                             },
+                            onNext: {
+                                if isStep2Valid {
+                                    currentStep = 3
+                                }
+                            }
+                        )
+                    } else {
+                        CreateBookingStep3PaymentView(
+                            description: $description,
+                            paymentAmount: $paymentAmount,
+                            estimatedHours: $estimatedHours,
+                            selectedSpecialization: $selectedSpecialization,
+                            requiredMinimumRank: $requiredMinimumRank,
+                            hasAutomotiveSubscription: $hasAutomotiveSubscription,
+                            isFirstAutomotiveBooking: $isFirstAutomotiveBooking,
+                            onBack: {
+                                currentStep = 2
+                            },
                             onCreate: createBooking,
-                            isLoading: bookingService.isLoading || paymentService.isLoading || isProcessingPayment,
-                            isFormValid: isStep2Valid
+                            isLoading: bookingService.isLoading || paymentService.isLoading || isProcessingPayment || isLoadingSubscription,
+                            isFormValid: isStep3Valid
                         )
                     }
                 }
-                .navigationTitle(currentStep == 1 ? "Create Booking" : "Booking Details")
+                .navigationTitle(navigationTitle)
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .navigationBarLeading) {
                         if currentStep == 1 {
                             Button("Cancel") {
                                 dismiss()
+                            }
+                        } else if currentStep == 2 {
+                            Button("Cancel") {
+                                dismiss()
+                            }
+                        } else if currentStep == 3 {
+                            Button("Cancel") {
+                                dismiss()
+                            }
+                        } else {
+                            Button("Back") {
+                                currentStep -= 1
                             }
                         }
                     }
@@ -337,52 +397,89 @@ struct CreateBookingView: View {
                 }
                 
                 // Navigation to booking detail after animation
-                if let booking = createdBooking, shouldShowBookingDetail {
-                    NavigationLink(
-                        destination: CustomerBookingDetailView(booking: booking),
-                        isActive: $shouldShowBookingDetail
-                    ) {
-                        EmptyView()
-                    }
-                    .hidden()
-                }
+                // This will be handled by dismissing the sheet and navigating from parent view
             }
             .fullScreenCover(isPresented: $showSuccessAnimation) {
                 if let booking = createdBooking {
                     BookingSuccessAnimationView(
                         createdBooking: booking,
-                        shouldShowBookingDetail: $shouldShowBookingDetail
+                        shouldShowBookingDetail: Binding(
+                            get: { shouldShowBookingDetail },
+                            set: { newValue in
+                                shouldShowBookingDetail = newValue
+                                if newValue {
+                                    // Dismiss the create booking view and navigate to detail
+                                    dismiss()
+                                }
+                            }
+                        )
                     )
+                }
+            }
+            .onChange(of: shouldShowBookingDetail) { _, newValue in
+                if newValue {
+                    // Dismiss this view so parent can navigate
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        dismiss()
+                    }
                 }
             }
         }
     }
     
+    private var navigationTitle: String {
+        switch currentStep {
+        case 1: return "Create Booking"
+        case 2: return "Booking Details"
+        case 3: return "Payment"
+        default: return "Create Booking"
+        }
+    }
+    
     private var isStep1Valid: Bool {
-        selectedLocation != nil && selectedSpecialization != nil
+        selectedSpecialization != nil
     }
     
     private var isStep2Valid: Bool {
-        guard !description.isEmpty,
-              !estimatedHours.isEmpty,
-              let hours = Double(estimatedHours),
-              hours > 0 else {
+        guard selectedLocation != nil,
+              !locationName.isEmpty else {
             return false
         }
         
-        // Check payment based on input type
+        // For Automotive industry, validate start time is not later than noon
+        if selectedSpecialization == .automotive {
+            let calendar = Calendar.current
+            let hour = calendar.component(.hour, from: startTime)
+            if hour > 12 {
+                return false
+            }
+        }
+        
+        return true
+    }
+    
+    private var isStep3Valid: Bool {
+        guard !description.isEmpty else {
+            return false
+        }
+        
+        // For Automotive industry, payment is fixed based on rank
+        if selectedSpecialization == .automotive {
+            return true // Payment is set automatically
+        }
+        
+        // For other industries, validate payment input
+        // Use default 2 hours for validation
+        let defaultHours: Double = 2.0
         if paymentInputType == .totalPayment {
-            // Validate total payment
             guard !paymentAmount.isEmpty,
                   let total = Double(paymentAmount),
                   total > 0 else {
                 return false
             }
-            // Calculate and validate hourly rate meets minimum
-            let hourlyRate = total / hours
+            let hourlyRate = total / defaultHours
             return hourlyRate >= 25.0
         } else {
-            // Validate hourly rate
             guard !paymentAmount.isEmpty,
                   let rate = Double(paymentAmount),
                   rate >= 25.0 else {
@@ -392,26 +489,107 @@ struct CreateBookingView: View {
         }
     }
     
+    private func checkSubscriptionAndBookingHistory() async {
+        guard let currentUser = authService.currentUser,
+              selectedSpecialization == .automotive else {
+            hasAutomotiveSubscription = false
+            isFirstAutomotiveBooking = true
+            return
+        }
+        
+        isLoadingSubscription = true
+        
+        // Check subscription
+        do {
+            if let subscription = try await subscriptionService.fetchCurrentSubscription(customerId: currentUser.id) {
+                hasAutomotiveSubscription = subscription.isActive
+            } else {
+                hasAutomotiveSubscription = false
+            }
+        } catch {
+            print("Error checking subscription: \(error)")
+            hasAutomotiveSubscription = false
+        }
+        
+        // Check if this is first Automotive booking by querying database directly
+        do {
+            let supabase = SupabaseClient.shared.client
+            let bookings: [Booking] = try await supabase
+                .from("bookings")
+                .select()
+                .eq("customer_id", value: currentUser.id.uuidString)
+                .eq("specialization", value: BookingSpecialization.automotive.rawValue)
+                .execute()
+                .value
+            
+            isFirstAutomotiveBooking = bookings.isEmpty
+        } catch {
+            print("Error checking booking history: \(error)")
+            // Assume first booking if we can't check
+            isFirstAutomotiveBooking = true
+        }
+        
+        isLoadingSubscription = false
+    }
+    
     private func createBooking() {
         guard let currentUser = authService.currentUser,
               let location = selectedLocation,
-              let specialization = selectedSpecialization,
-              let payment = Double(paymentAmount),
-              let hours = Double(estimatedHours) else {
+              let specialization = selectedSpecialization else {
             errorMessage = "Please fill in all fields correctly"
             showError = true
             return
+        }
+        
+        // Use default 2 hours for estimated flight hours
+        let hours: Double = 2.0
+        
+        // Calculate payment amount
+        let payment: Decimal
+        if specialization == .automotive {
+            // For Automotive, use fixed pricing based on rank
+            payment = getAutomotivePrice(for: requiredMinimumRank)
+        } else {
+            // For other industries, use user-entered payment
+            guard let paymentValue = Double(paymentAmount) else {
+                errorMessage = "Please enter a valid payment amount"
+                showError = true
+                return
+            }
+            payment = Decimal(paymentValue)
         }
         
         // Process payment first, then create booking
         Task {
             await processPaymentAndCreateBooking(
                 customerId: currentUser.id,
-                paymentAmount: Decimal(payment),
+                paymentAmount: payment,
                 location: location,
                 specialization: specialization,
                 hours: hours
             )
+        }
+    }
+    
+    private func getAutomotivePrice(for rank: Int) -> Decimal {
+        if hasAutomotiveSubscription || isFirstAutomotiveBooking {
+            // First-time user or has subscription: lower prices
+            switch rank {
+            case 4: return Decimal(4000) // Captain
+            case 3: return Decimal(3800) // Commander
+            case 2: return Decimal(3600) // Lieutenant
+            case 1: return Decimal(3400) // Sub Lieutenant
+            default: return Decimal(3400) // Ensign (default to Sub Lieutenant price)
+            }
+        } else {
+            // Returning user without subscription: higher prices
+            switch rank {
+            case 4: return Decimal(7000) // Captain
+            case 3: return Decimal(6800) // Commander
+            case 2: return Decimal(6600) // Lieutenant
+            case 1: return Decimal(6400) // Sub Lieutenant
+            default: return Decimal(6400) // Ensign (default to Sub Lieutenant price)
+            }
         }
     }
     
@@ -453,7 +631,6 @@ struct CreateBookingView: View {
                 let calendar = Calendar.current
                 let dateComponents = calendar.dateComponents([.year, .month, .day], from: selectedDate)
                 let startTimeComponents = calendar.dateComponents([.hour, .minute], from: startTime)
-                let endTimeComponents = calendar.dateComponents([.hour, .minute], from: endTime)
                 
                 var startDateTimeComponents = DateComponents()
                 startDateTimeComponents.year = dateComponents.year
@@ -464,14 +641,14 @@ struct CreateBookingView: View {
                 
                 let startDateTime = calendar.date(from: startDateTimeComponents) ?? selectedDate
                 
-                var endDateTimeComponents = DateComponents()
-                endDateTimeComponents.year = dateComponents.year
-                endDateTimeComponents.month = dateComponents.month
-                endDateTimeComponents.day = dateComponents.day
-                endDateTimeComponents.hour = endTimeComponents.hour
-                endDateTimeComponents.minute = endTimeComponents.minute
-                
-                let endDateTime = calendar.date(from: endDateTimeComponents) ?? startTime
+                // Calculate end time from start time + estimated hours
+                var endDateTime = calendar.date(byAdding: .hour, value: Int(hours), to: startDateTime) ?? startDateTime
+                // Add minutes for fractional hours
+                let fractionalHours = hours - Double(Int(hours))
+                if fractionalHours > 0 {
+                    let minutes = Int(fractionalHours * 60)
+                    endDateTime = calendar.date(byAdding: .minute, value: minutes, to: endDateTime) ?? endDateTime
+                }
                 
                 // Create booking with payment info
                 let newBooking = try await bookingService.createBooking(
@@ -492,8 +669,12 @@ struct CreateBookingView: View {
                 isProcessingPayment = false
                 // Store the created booking for navigation
                 createdBooking = newBooking
-                // Show animated success flow instead of simple alert
+                // Call completion handler to notify parent
+                onBookingCreated?(newBooking)
+                // Show animated success flow
                 showSuccessAnimation = true
+                // After animation, navigate to booking detail
+                // The animation will set shouldShowBookingDetail = true
                 
             case .cancelled:
                 isProcessingPayment = false
@@ -1434,7 +1615,7 @@ struct EditBookingView: View {
     }
 }
 
-// MARK: - Buzz Bundles Promotion Card
+// MARK: - Buzz Subscription Promotion Card
 
 struct BuzzBundlesPromotionCard: View {
     let onDismiss: () -> Void
@@ -1451,7 +1632,7 @@ struct BuzzBundlesPromotionCard: View {
                         .scaledToFit()
                         .frame(width: 32, height: 32)
                     
-                    Text("Buzz Bundles")
+                    Text("Buzz Subscription")
                         .font(.headline)
                         .fontWeight(.bold)
                         .foregroundColor(.primary)
@@ -1500,7 +1681,7 @@ struct BuzzBundlesPromotionCard: View {
                 
                 HStack {
                     Spacer()
-                    Text("Explore Bundles →")
+                    Text("Explore Packages →")
                         .font(.subheadline)
                         .fontWeight(.semibold)
                         .foregroundColor(.blue)
@@ -1543,7 +1724,7 @@ struct ClientBundlePage: View {
                             .scaledToFit()
                             .frame(width: 80, height: 80)
                         
-                        Text("Buzz Bundles")
+                        Text("Buzz Subscription")
                             .font(.title2)
                             .fontWeight(.bold)
                         
@@ -1561,7 +1742,7 @@ struct ClientBundlePage: View {
                         NavigationLink(destination: FlightPackageView()) {
                             BundleCard(
                                 icon: "car.circle.fill",
-                                title: "Automotive Bundle",
+                                title: "Buzz Auto",
                                 description: "Perfect for car dealerships. Get up to 50 cinematic videos per month with dedicated drone & pilot access.",
                                 color: .blue
                             )
@@ -1572,7 +1753,7 @@ struct ClientBundlePage: View {
                         NavigationLink(destination: RealEstatePackageView()) {
                             BundleCard(
                                 icon: "house.circle.fill",
-                                title: "Real Estate Bundle",
+                                title: "Buzz Real Estate",
                                 description: "Ideal for real estate professionals. Capture stunning property footage with our specialized real estate package.",
                                 color: .green
                             )
@@ -1583,7 +1764,7 @@ struct ClientBundlePage: View {
                 }
                 .padding(.vertical)
             }
-            .navigationTitle("Buzz Bundles")
+            .navigationTitle("Buzz Subscription")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
