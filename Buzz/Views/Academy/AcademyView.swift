@@ -52,7 +52,7 @@ struct AcademyView: View {
     }
     
     var body: some View {
-        NavigationView {
+        NavigationStack {
             VStack(spacing: 0) {
                 // Recurrent Training Notices Section
                 if showRecurrentNotices && !recurrentNotices.isEmpty {
@@ -158,16 +158,8 @@ struct AcademyView: View {
                 }
                 .background(Color(.systemGray6))
                 
-                // Courses List
-                if isLoading {
-                    LoadingView(message: "Loading courses...")
-                } else if filteredCourses.isEmpty {
-                    EmptyStateView(
-                        icon: "book.closed",
-                        title: "No Courses Available",
-                        message: "Check back soon for new training courses"
-                    )
-                } else {
+                // Courses List (always present to keep navigation state stable)
+                ZStack {
                     List {
                         ForEach(filteredCourses) { course in
                             NavigationLink(destination: CourseDetailView(
@@ -184,11 +176,23 @@ struct AcademyView: View {
                             }
                         }
                     }
-                    // .refreshable disabled temporarily due to SwiftUI refresh control cancellation issues
-                    // TODO: Re-enable once cancellation issue is resolved
+                    .listStyle(PlainListStyle())
+                    .opacity(filteredCourses.isEmpty ? 0.01 : 1)
+                    .allowsHitTesting(!filteredCourses.isEmpty)
+                    
+                    if isLoading {
+                        LoadingView(message: "Loading courses...")
+                    } else if filteredCourses.isEmpty {
+                        EmptyStateView(
+                            icon: "book.closed",
+                            title: "No Courses Available",
+                            message: "Check back soon for new training courses"
+                        )
+                    }
                 }
             }
             .navigationTitle("Academy")
+            .navigationBarTitleDisplayMode(.large)
             .task {
                 await loadCourses()
                 await loadRecurrentNotices()
@@ -1113,4 +1117,3 @@ struct UASPilotCoursePromotionCard: View {
         }
     }
 }
-
