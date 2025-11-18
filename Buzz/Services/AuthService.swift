@@ -129,7 +129,13 @@ class AuthService: ObservableObject {
             // Mark as authenticated
             if userProfile != nil {
                 isAuthenticated = true
-                shouldShowPremiumIntro = true
+                // Only show premium intro animation for customer accounts, not pilots
+                if userProfile?.userType == .customer {
+                    shouldShowPremiumIntro = true
+                } else {
+                    // For pilots, don't delay navigation since they won't see the animation
+                    shouldDelayNavigation = false
+                }
             }
             
             isLoading = false

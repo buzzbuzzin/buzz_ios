@@ -538,7 +538,13 @@ struct CourseCard: View {
             }
             
             HStack(spacing: 4) {
-                if let pictureUrl = course.instructorPictureUrl,
+                if course.instructor == "Buzz" {
+                    Image("Logo")
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 16, height: 16)
+                        .clipShape(Circle())
+                } else if let pictureUrl = course.instructorPictureUrl,
                    let url = URL(string: pictureUrl) {
                     AsyncImage(url: url) { phase in
                         switch phase {
@@ -699,7 +705,13 @@ struct CourseDetailView: View {
                                 .foregroundColor(.secondary)
                             Spacer()
                             HStack(spacing: 8) {
-                                if let pictureUrl = course.instructorPictureUrl,
+                                if course.instructor == "Buzz" {
+                                    Image("Logo")
+                                        .resizable()
+                                        .scaledToFill()
+                                        .frame(width: 32, height: 32)
+                                        .clipShape(Circle())
+                                } else if let pictureUrl = course.instructorPictureUrl,
                                    let url = URL(string: pictureUrl) {
                                     AsyncImage(url: url) { phase in
                                         switch phase {

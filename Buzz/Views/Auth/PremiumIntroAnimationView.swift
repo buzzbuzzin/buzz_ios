@@ -27,7 +27,7 @@ struct PremiumIntroAnimationView: View {
 
     var body: some View {
         ZStack {
-            Color.black
+            Color(red: 0x28 / 255.0, green: 0x2C / 255.0, blue: 0x35 / 255.0)
                 .ignoresSafeArea()
 
             ScrollView {
