@@ -37,11 +37,6 @@ struct PremiumIntroAnimationView: View {
                             .font(.system(size: 36, weight: .bold, design: .rounded))
                             .foregroundColor(.white)
                             .opacity(titleOpacity)
-
-                        Text("Premium missions across every industry")
-                            .font(.system(size: 18, weight: .medium))
-                            .foregroundColor(.white.opacity(0.8))
-                            .opacity(titleOpacity)
                     }
                     .padding(.top, 20)
 
@@ -58,12 +53,6 @@ struct PremiumIntroAnimationView: View {
                         }
                     }
                     .padding(.horizontal, 24)
-
-                    Text("Unlock premium bookings tailored to your specialization.")
-                        .font(.system(size: 15))
-                        .foregroundColor(.white.opacity(0.75))
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 32)
 
                     Button(action: finishAnimation) {
                         Text("Continue")
