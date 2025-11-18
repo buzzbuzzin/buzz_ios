@@ -7,6 +7,7 @@
 
 import SwiftUI
 import Foundation
+import Auth
 
 struct SignUpView: View {
     @EnvironmentObject var authService: AuthService
@@ -29,6 +30,8 @@ struct SignUpView: View {
     @State private var customerSignUpPage: Int = 1 // 1 for basic info, 2 for role selection, 3 for specialization, 4 for confirmation
     @State private var showPackagePromotion = false
     @State private var promotionType: PromotionType? = nil
+    @State private var showPremiumIntro = false
+    @State private var queuedPromotionType: PromotionType? = nil
     
     enum PromotionType {
         case automotive
@@ -235,28 +238,19 @@ struct SignUpView: View {
                 Text(errorMessage)
             }
             .onChange(of: authService.isAuthenticated) { _, isAuthenticated in
-                if isAuthenticated {
-                    // Check if we should show package promotion for Automotive or Real Estate
-                    if userType == .customer, let specialization = selectedSpecialization {
-                        if specialization == .automotive {
-                            // Delay navigation to allow promotion to show
-                            authService.shouldDelayNavigation = true
-                            promotionType = .automotive
-                            showPackagePromotion = true
-                        } else if specialization == .realEstate {
-                            // Delay navigation to allow promotion to show
-                            authService.shouldDelayNavigation = true
-                            promotionType = .realEstate
-                            showPackagePromotion = true
-                        } else {
-                            // For other specializations, just dismiss
-                            dismiss()
-                        }
-                    } else {
-                        // For pilots or customers without matching specialization, dismiss
-                        dismiss()
-                    }
+                guard isAuthenticated else { return }
+                
+                if userType == .customer {
+                    handleCustomerSignUpSuccess()
+                } else {
+                    dismiss()
                 }
+            }
+            .fullScreenCover(isPresented: $showPremiumIntro) {
+                PremiumIntroAnimationView {
+                    handlePremiumIntroCompletion()
+                }
+                .interactiveDismissDisabled()
             }
             .fullScreenCover(isPresented: $showPackagePromotion) {
                 if promotionType == .automotive {
@@ -278,6 +272,41 @@ struct SignUpView: View {
                     }
                 }
             }
+        }
+    }
+
+    private func handleCustomerSignUpSuccess() {
+        queuedPromotionType = determinePromotionType()
+        authService.shouldDelayNavigation = true
+        showPremiumIntro = true
+    }
+    
+    private func handlePremiumIntroCompletion() {
+        showPremiumIntro = false
+        let promotion = queuedPromotionType
+        queuedPromotionType = nil
+        triggerPromotionIfNeeded(promotion)
+    }
+    
+    private func triggerPromotionIfNeeded(_ promotion: PromotionType?) {
+        if let promotion = promotion {
+            authService.shouldDelayNavigation = true
+            promotionType = promotion
+            showPackagePromotion = true
+        } else {
+            authService.shouldDelayNavigation = false
+            dismiss()
+        }
+    }
+    
+    private func determinePromotionType() -> PromotionType? {
+        switch selectedSpecialization {
+        case .automotive:
+            return .automotive
+        case .realEstate:
+            return .realEstate
+        default:
+            return nil
         }
     }
     
@@ -1075,4 +1104,3 @@ struct ConfirmationRow: View {
         }
     }
 }
-

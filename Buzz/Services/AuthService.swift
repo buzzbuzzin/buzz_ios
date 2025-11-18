@@ -19,6 +19,7 @@ class AuthService: ObservableObject {
     @Published var isLoading = false
     @Published var errorMessage: String?
     @Published var shouldDelayNavigation = false // Flag to delay navigation for promotion flow
+    @Published var shouldShowPremiumIntro = false
     
     private let supabase = SupabaseClient.shared.client
     
@@ -119,6 +120,7 @@ class AuthService: ObservableObject {
                 password: password
             )
             
+            shouldDelayNavigation = true
             currentUser = response.user
             
             // Load profile
@@ -127,12 +129,15 @@ class AuthService: ObservableObject {
             // Mark as authenticated
             if userProfile != nil {
                 isAuthenticated = true
+                shouldShowPremiumIntro = true
             }
             
             isLoading = false
         } catch {
             isLoading = false
             errorMessage = error.localizedDescription
+            shouldDelayNavigation = false
+            shouldShowPremiumIntro = false
             throw error
         }
     }
@@ -430,4 +435,3 @@ class AuthService: ObservableObject {
         }
     }
 }
-

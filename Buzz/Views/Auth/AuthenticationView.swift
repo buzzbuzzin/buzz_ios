@@ -13,6 +13,7 @@ struct AuthenticationView: View {
     @EnvironmentObject var authService: AuthService
     @State private var showSignUp = false
     @State private var selectedTab = 0
+    @State private var showPremiumIntro = false
     
     var body: some View {
         NavigationView {
@@ -71,6 +72,19 @@ struct AuthenticationView: View {
             .onChange(of: authService.isAuthenticated) { _, isAuth in
                 // Don't dismiss signup sheet immediately - let SignUpView handle promotion flow
                 // The SignUpView will dismiss itself after showing promotion if needed
+            }
+            .fullScreenCover(isPresented: $showPremiumIntro) {
+                PremiumIntroAnimationView {
+                    showPremiumIntro = false
+                    authService.shouldShowPremiumIntro = false
+                    authService.shouldDelayNavigation = false
+                }
+                .interactiveDismissDisabled()
+            }
+            .onChange(of: authService.shouldShowPremiumIntro) { _, shouldShow in
+                if shouldShow {
+                    showPremiumIntro = true
+                }
             }
         }
     }
@@ -579,4 +593,3 @@ struct UserTypeSelectionSheet: View {
         }
     }
 }
-
