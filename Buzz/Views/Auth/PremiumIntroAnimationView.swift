@@ -10,10 +10,10 @@ import Combine
 
 struct PremiumIntroAnimationView: View {
     let onFinished: () -> Void
-    private let animationDuration: TimeInterval = 3.6
+    private let animationDuration: TimeInterval = 30.0
     private let flashInterval: TimeInterval = 0.35
     private let specializations = BookingSpecialization.allCases
-    private let collageCardAspectRatio: CGFloat = 1.55
+    private let collageCardAspectRatio: CGFloat = 1.9375
     private let collageColumns = [
         GridItem(.flexible(), spacing: 12),
         GridItem(.flexible(), spacing: 12)
@@ -26,65 +26,57 @@ struct PremiumIntroAnimationView: View {
     @State private var hasCompleted = false
 
     var body: some View {
-        ZStack(alignment: .topTrailing) {
+        ZStack {
             Color.black
                 .ignoresSafeArea()
 
-            VStack(spacing: 28) {
-                Spacer()
+            ScrollView {
+                VStack(spacing: 20) {
+                    VStack(spacing: 8) {
+                        Text("Buzz Presents")
+                            .font(.system(size: 36, weight: .bold, design: .rounded))
+                            .foregroundColor(.white)
+                            .opacity(titleOpacity)
 
-                VStack(spacing: 8) {
-                    Text("Buzz Presents")
-                        .font(.system(size: 36, weight: .bold, design: .rounded))
-                        .foregroundColor(.white)
-                        .opacity(titleOpacity)
-
-                    Text("Premium missions across every industry")
-                        .font(.system(size: 18, weight: .medium))
-                        .foregroundColor(.white.opacity(0.8))
-                        .opacity(titleOpacity)
-                }
-
-                LazyVGrid(columns: collageColumns, spacing: 12) {
-                    ForEach(Array(specializations.enumerated()), id: \.offset) { index, specialization in
-                        PremiumSpecializationCard(
-                            specialization: specialization,
-                            aspectRatio: collageCardAspectRatio,
-                            isHighlighted: highlightedIndices.contains(index)
-                        )
-                        .opacity(collageOpacity)
-                        .scaleEffect(highlightedIndices.contains(index) ? 1.03 : 1.0)
-                        .animation(.easeInOut(duration: flashInterval * 0.7), value: highlightedIndices)
+                        Text("Premium missions across every industry")
+                            .font(.system(size: 18, weight: .medium))
+                            .foregroundColor(.white.opacity(0.8))
+                            .opacity(titleOpacity)
                     }
+                    .padding(.top, 20)
+
+                    LazyVGrid(columns: collageColumns, spacing: 12) {
+                        ForEach(Array(specializations.enumerated()), id: \.offset) { index, specialization in
+                            PremiumSpecializationCard(
+                                specialization: specialization,
+                                aspectRatio: collageCardAspectRatio,
+                                isHighlighted: highlightedIndices.contains(index)
+                            )
+                            .opacity(collageOpacity)
+                            .scaleEffect(highlightedIndices.contains(index) ? 1.03 : 1.0)
+                            .animation(.easeInOut(duration: flashInterval * 0.7), value: highlightedIndices)
+                        }
+                    }
+                    .padding(.horizontal, 24)
+
+                    Text("Unlock premium bookings tailored to your specialization.")
+                        .font(.system(size: 15))
+                        .foregroundColor(.white.opacity(0.75))
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 32)
+
+                    Button(action: finishAnimation) {
+                        Text("Continue")
+                            .font(.headline)
+                            .foregroundColor(.black)
+                            .padding(.horizontal, 40)
+                            .padding(.vertical, 12)
+                            .background(Color.white)
+                            .clipShape(Capsule())
+                    }
+                    .padding(.top, 8)
+                    .padding(.bottom, 20)
                 }
-                .padding(.horizontal, 24)
-
-                Text("Unlock premium bookings tailored to your specialization.")
-                    .font(.system(size: 15))
-                    .foregroundColor(.white.opacity(0.75))
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 32)
-
-                Spacer()
-
-                Button(action: finishAnimation) {
-                    Text("Continue")
-                        .font(.headline)
-                        .foregroundColor(.black)
-                        .padding(.horizontal, 40)
-                        .padding(.vertical, 12)
-                        .background(Color.white)
-                        .clipShape(Capsule())
-                }
-                .padding(.bottom, 40)
-            }
-            .padding(.top, 40)
-
-            Button(action: finishAnimation) {
-                Image(systemName: "xmark.circle.fill")
-                    .font(.system(size: 28))
-                    .foregroundColor(.white.opacity(0.7))
-                    .padding(20)
             }
         }
         .onAppear(perform: startAnimation)

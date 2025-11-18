@@ -1680,7 +1680,7 @@ struct BuzzBundlesPromotionCard: View {
                     }
                 }
                 
-                Text("Discover our premium bundle packages for easier and cheaper booking!")
+                Text("Discover our premium flight packages for easier and cheaper booking!")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
                 
