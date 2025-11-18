@@ -52,7 +52,7 @@ struct GroundSchoolTestIntroView: View {
                             VStack(alignment: .leading, spacing: 8) {
                                 BulletPoint(text: "Regulations (21 questions)")
                                 BulletPoint(text: "Airspace (11 questions)")
-                                BulletPoint(text: "Weather (6 questions")
+                                BulletPoint(text: "Weather (6 questions)")
                                 BulletPoint(text: "Loading & Performance (4 questions)")
                                 BulletPoint(text: "Operations (28 questions)")
                             }

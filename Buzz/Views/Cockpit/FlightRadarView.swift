@@ -464,7 +464,7 @@ enum SafetyStatus {
     var title: String {
         switch self {
         case .safe:
-            return "Safe to Fly"
+            return "No active drones around"
         case .caution:
             return "Caution"
         }
@@ -473,7 +473,7 @@ enum SafetyStatus {
     var message: String {
         switch self {
         case .safe:
-            return "No active drones around"
+            return "Watch out for weather and obstacles"
         case .caution:
             return "Active drones flying nearby"
         }

@@ -118,6 +118,13 @@ struct CourseContentView: View {
                         )
                     }
                     
+                    // Recurrent Training Section (for UAS Pilot Course only)
+                    if isUASPilotCourse {
+                        RecurrentTrainingSectionContent(
+                            isLocked: !hasPassedGroundSchoolTest
+                        )
+                    }
+                    
                     // Step 2: Extension Courses
                     if !step2Units.isEmpty {
                         StepSectionView(
@@ -454,6 +461,82 @@ struct GroundSchoolTestSectionContent: View {
                 .padding()
                 .background(hasPassedTest ? Color.green.opacity(0.1) : Color(.systemGray6))
                 .cornerRadius(12)
+            }
+            .padding(.horizontal)
+        }
+    }
+}
+
+// MARK: - Recurrent Training Section Content
+
+struct RecurrentTrainingSectionContent: View {
+    let isLocked: Bool
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("RECURRENT TRAINING")
+                .font(.headline)
+                .fontWeight(.bold)
+                .foregroundColor(.primary)
+                .padding(.horizontal)
+            
+            VStack(spacing: 12) {
+                HStack(spacing: 16) {
+                    // Recurrent Training Icon
+                    ZStack {
+                        Circle()
+                            .fill(isLocked ? Color.gray.opacity(0.2) : Color.purple.opacity(0.2))
+                            .frame(width: 50, height: 50)
+                        
+                        Image(systemName: isLocked ? "lock.fill" : "arrow.clockwise.circle.fill")
+                            .foregroundColor(isLocked ? .gray : .purple)
+                            .font(.headline)
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("FAA 107 Recurrent Training")
+                            .font(.headline)
+                            .foregroundColor(isLocked ? .secondary : .primary)
+                        
+                        Text("Comprehensive course material to help you pass the 2-year recurrent training requirement. Stay current with FAA Part 107 regulations and maintain your remote pilot certificate.")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                            .lineLimit(3)
+                        
+                        if isLocked {
+                            Text("Complete Ground School Test to unlock")
+                                .font(.caption)
+                                .foregroundColor(.blue)
+                                .fontWeight(.semibold)
+                        } else {
+                            HStack(spacing: 4) {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundColor(.green)
+                                    .font(.caption)
+                                Text("Free")
+                                    .font(.caption)
+                                    .foregroundColor(.green)
+                                    .fontWeight(.semibold)
+                            }
+                        }
+                    }
+                    
+                    Spacer()
+                    
+                    if isLocked {
+                        Image(systemName: "lock.circle.fill")
+                            .foregroundColor(.gray)
+                            .font(.title3)
+                    } else {
+                        Image(systemName: "chevron.right")
+                            .foregroundColor(.secondary)
+                            .font(.caption)
+                    }
+                }
+                .padding()
+                .background(isLocked ? Color(.systemGray5) : Color(.systemGray6))
+                .cornerRadius(12)
+                .opacity(isLocked ? 0.7 : 1.0)
             }
             .padding(.horizontal)
         }
