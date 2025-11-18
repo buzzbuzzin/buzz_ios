@@ -13,8 +13,7 @@ struct UnitDetailView: View {
     let unit: CourseUnit
     let course: TrainingCourse
     @EnvironmentObject var authService: AuthService
-    @State private var showPDFViewer = false
-    @State private var selectedPDFUrl: String?
+    @State private var selectedPDF: PDFSelection?
     @State private var isCompleted = false
     @State private var showTestView = false
     @State private var canTakeTest = false
@@ -88,8 +87,7 @@ struct UnitDetailView: View {
                         
                         ForEach(Array(unit.pdfUrls.enumerated()), id: \.offset) { index, pdfUrl in
                             Button(action: {
-                                selectedPDFUrl = pdfUrl
-                                showPDFViewer = true
+                                selectedPDF = PDFSelection(url: pdfUrl)
                             }) {
                                 HStack {
                                     Image(systemName: "doc.fill")
@@ -109,15 +107,13 @@ struct UnitDetailView: View {
                         }
                     }
                     .padding(.horizontal)
-                    .sheet(isPresented: $showPDFViewer) {
-                        if let pdfUrl = selectedPDFUrl {
-                            NavigationView {
-                                FileViewer(
-                                    fileUrl: pdfUrl,
-                                    fileType: .pdf,
-                                    bucketName: "course-materials"
-                                )
-                            }
+                    .sheet(item: $selectedPDF) { pdfSelection in
+                        NavigationView {
+                            FileViewer(
+                                fileUrl: pdfSelection.url,
+                                fileType: .pdf,
+                                bucketName: "course-materials"
+                            )
                         }
                     }
                 }
@@ -360,6 +356,13 @@ struct UnitDetailView: View {
     }
 }
 
+// MARK: - PDF Selection Wrapper
+
+private struct PDFSelection: Identifiable {
+    let id = UUID()
+    let url: String
+}
+
 // MARK: - Unit Completion Model
 
 struct UnitCompletion: Codable {
@@ -377,4 +380,3 @@ struct UnitCompletion: Codable {
         case completedAt = "completed_at"
     }
 }
-
