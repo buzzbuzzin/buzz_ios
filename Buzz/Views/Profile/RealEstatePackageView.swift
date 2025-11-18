@@ -17,6 +17,7 @@ struct RealEstatePackageView: View {
     @State private var showPauseAlert = false
     @State private var showEndMembershipAlert = false
     @State private var showLearnMore = false
+    @State private var showMembershipDetailsSheet = false
     @State private var isLoadingSubscription = true
     @State private var hasActiveSubscription = false
     @State private var loadTask: Task<Void, Never>?
@@ -90,6 +91,9 @@ struct RealEstatePackageView: View {
                             Task {
                                 await loadSubscription()
                             }
+                        },
+                        onShowMembershipDetails: {
+                            showMembershipDetailsSheet = true
                         }
                     )
                 }
@@ -113,6 +117,10 @@ struct RealEstatePackageView: View {
             }
             .sheet(isPresented: $showLearnMore) {
                 RealEstateLearnMoreView()
+            }
+            .sheet(isPresented: $showMembershipDetailsSheet) {
+                RealEstateMembershipDetailsView()
+                    .interactiveDismissDisabled()
             }
         }
         .onAppear {
@@ -502,9 +510,9 @@ struct RealEstateSubscriptionSelectionView: View {
     @ObservedObject var subscriptionService: SubscriptionService
     @EnvironmentObject var authService: AuthService
     let onSubscriptionCreated: () -> Void
+    let onShowMembershipDetails: () -> Void
     
     @State private var showPlanSelection = false
-    @State private var showMembershipDetails = false
     @State private var hasLoadedPlans = false // Prevent multiple loads
     
     // Real Estate product ID from Stripe
@@ -655,10 +663,8 @@ struct RealEstateSubscriptionSelectionView: View {
                         }
                         
                         // Bundle details link
-                        Button(action: {
-                            showMembershipDetails = true
-                        }) {
-                            Text("See bundle details and terms")
+                        Button(action: onShowMembershipDetails) {
+                            Text("See membership details and terms")
                                 .font(.subheadline)
                                 .foregroundColor(.blue)
                                 .underline()
@@ -685,9 +691,6 @@ struct RealEstateSubscriptionSelectionView: View {
             Task {
                 await loadPlans()
             }
-        }
-        .sheet(isPresented: $showMembershipDetails) {
-            RealEstateMembershipDetailsView()
         }
         .sheet(isPresented: $showPlanSelection) {
             PlanSelectionView(
@@ -821,4 +824,3 @@ struct RealEstateMembershipDetailsView: View {
     RealEstatePackageView()
         .environmentObject(AuthService())
 }
-

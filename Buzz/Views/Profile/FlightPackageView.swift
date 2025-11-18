@@ -17,6 +17,7 @@ struct FlightPackageView: View {
     @State private var showPauseAlert = false
     @State private var showEndMembershipAlert = false
     @State private var showLearnMore = false
+    @State private var showMembershipDetailsSheet = false
     @State private var isLoadingSubscription = true
     @State private var hasActiveSubscription = false
     @State private var loadTask: Task<Void, Never>?
@@ -90,6 +91,9 @@ struct FlightPackageView: View {
                             Task {
                                 await loadSubscription()
                             }
+                        },
+                        onShowMembershipDetails: {
+                            showMembershipDetailsSheet = true
                         }
                     )
                 }
@@ -114,6 +118,10 @@ struct FlightPackageView: View {
             }
             .sheet(isPresented: $showLearnMore) {
                 LearnMoreView()
+            }
+            .sheet(isPresented: $showMembershipDetailsSheet) {
+                MembershipDetailsView()
+                    .interactiveDismissDisabled()
             }
         }
         .onAppear {
@@ -735,9 +743,9 @@ struct SubscriptionSelectionView: View {
     @ObservedObject var subscriptionService: SubscriptionService
     @EnvironmentObject var authService: AuthService
     let onSubscriptionCreated: () -> Void
+    let onShowMembershipDetails: () -> Void
     
     @State private var showPlanSelection = false
-    @State private var showMembershipDetails = false
     @State private var hasLoadedPlans = false // Prevent multiple loads
     
     // Automotive product ID from Stripe
@@ -889,9 +897,7 @@ struct SubscriptionSelectionView: View {
                         }
                         
                         // Membership details link
-                        Button(action: {
-                            showMembershipDetails = true
-                        }) {
+                        Button(action: onShowMembershipDetails) {
                             Text("See membership details and terms")
                                 .font(.subheadline)
                                 .foregroundColor(.blue)
@@ -919,9 +925,6 @@ struct SubscriptionSelectionView: View {
             Task {
                 await loadPlans()
             }
-        }
-        .sheet(isPresented: $showMembershipDetails) {
-            MembershipDetailsView()
         }
         .sheet(isPresented: $showPlanSelection) {
             PlanSelectionView(
@@ -1307,4 +1310,3 @@ struct PlanSelectionCard: View {
     FlightPackageView()
         .environmentObject(AuthService())
 }
-

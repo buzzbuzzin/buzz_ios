@@ -18,15 +18,41 @@ struct CustomerBookingView: View {
     @State private var isPromotionCardDismissed = false
     @State private var newlyCreatedBooking: Booking?
     @State private var navigateToBookingDetail = false
+    @State private var promotionNavigationSelection: BundlePackage?
     
     var body: some View {
         NavigationView {
             VStack(spacing: 0) {
+                // Hidden navigation links for Buzz Auto / Real Estate packages
+                NavigationLink(
+                    destination: FlightPackageView(),
+                    tag: .auto,
+                    selection: $promotionNavigationSelection
+                ) {
+                    EmptyView()
+                }
+                .hidden()
+                
+                NavigationLink(
+                    destination: RealEstatePackageView(),
+                    tag: .realEstate,
+                    selection: $promotionNavigationSelection
+                ) {
+                    EmptyView()
+                }
+                .hidden()
+                
                 // Buzz Subscription Promotion Card
                 if !isPromotionCardDismissed {
                     BuzzBundlesPromotionCard(
                         onDismiss: {
                             isPromotionCardDismissed = true
+                        },
+                        onSelectBundle: { bundle in
+                            // Navigate after the promotion sheet dismisses
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                                promotionNavigationSelection = bundle
+                            }
                         }
                     )
                     .padding(.horizontal)
@@ -1617,8 +1643,16 @@ struct EditBookingView: View {
 
 // MARK: - Buzz Subscription Promotion Card
 
+enum BundlePackage: String, Identifiable {
+    case auto
+    case realEstate
+    
+    var id: String { rawValue }
+}
+
 struct BuzzBundlesPromotionCard: View {
     let onDismiss: () -> Void
+    let onSelectBundle: (BundlePackage) -> Void
     @State private var showBundlePage = false
     
     var body: some View {
@@ -1703,7 +1737,10 @@ struct BuzzBundlesPromotionCard: View {
         }
         .buttonStyle(PlainButtonStyle())
         .sheet(isPresented: $showBundlePage) {
-            ClientBundlePage()
+            ClientBundlePage { bundle in
+                showBundlePage = false
+                onSelectBundle(bundle)
+            }
         }
     }
 }
@@ -1712,6 +1749,7 @@ struct BuzzBundlesPromotionCard: View {
 
 struct ClientBundlePage: View {
     @Environment(\.dismiss) var dismiss
+    let onSelectBundle: (BundlePackage) -> Void
     
     var body: some View {
         NavigationView {
@@ -1739,7 +1777,9 @@ struct ClientBundlePage: View {
                     // Bundle Cards
                     VStack(spacing: 16) {
                         // Automotive Bundle Card
-                        NavigationLink(destination: FlightPackageView()) {
+                        Button(action: {
+                            onSelectBundle(.auto)
+                        }) {
                             BundleCard(
                                 icon: "car.circle.fill",
                                 title: "Buzz Auto",
@@ -1750,7 +1790,9 @@ struct ClientBundlePage: View {
                         .buttonStyle(PlainButtonStyle())
                         
                         // Real Estate Bundle Card
-                        NavigationLink(destination: RealEstatePackageView()) {
+                        Button(action: {
+                            onSelectBundle(.realEstate)
+                        }) {
                             BundleCard(
                                 icon: "house.circle.fill",
                                 title: "Buzz Real Estate",
@@ -1849,4 +1891,3 @@ struct BundleCard: View {
         )
     }
 }
-

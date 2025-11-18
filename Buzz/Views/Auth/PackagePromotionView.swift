@@ -13,6 +13,7 @@ struct AutomotivePackagePromotionView: View {
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var authService: AuthService
     @StateObject private var subscriptionService = SubscriptionService()
+    @State private var showMembershipDetails = false
     
     var body: some View {
         NavigationView {
@@ -21,6 +22,9 @@ struct AutomotivePackagePromotionView: View {
                 onSubscriptionCreated: {
                     // After subscription is created, dismiss the promotion view
                     dismiss()
+                },
+                onShowMembershipDetails: {
+                    showMembershipDetails = true
                 }
             )
             .navigationBarTitleDisplayMode(.large)
@@ -35,6 +39,10 @@ struct AutomotivePackagePromotionView: View {
                     }
                 }
             }
+        }
+        .sheet(isPresented: $showMembershipDetails) {
+            MembershipDetailsView()
+                .interactiveDismissDisabled()
         }
     }
 }
@@ -45,6 +53,7 @@ struct RealEstatePackagePromotionView: View {
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var authService: AuthService
     @StateObject private var subscriptionService = SubscriptionService()
+    @State private var showMembershipDetails = false
     
     var body: some View {
         NavigationView {
@@ -53,6 +62,9 @@ struct RealEstatePackagePromotionView: View {
                 onSubscriptionCreated: {
                     // After subscription is created, dismiss the promotion view
                     dismiss()
+                },
+                onShowMembershipDetails: {
+                    showMembershipDetails = true
                 }
             )
             .navigationBarTitleDisplayMode(.large)
@@ -68,6 +80,9 @@ struct RealEstatePackagePromotionView: View {
                 }
             }
         }
+        .sheet(isPresented: $showMembershipDetails) {
+            RealEstateMembershipDetailsView()
+                .interactiveDismissDisabled()
+        }
     }
 }
-
