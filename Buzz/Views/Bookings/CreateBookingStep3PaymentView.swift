@@ -108,7 +108,7 @@ struct CreateBookingStep3PaymentView: View {
                                             .fontWeight(.semibold)
                                             .foregroundColor(.orange)
                                         
-                                        Text("Subscribe the Buzz Automotive Package to lock in these lower prices for all future bookings. Without the package, your next booking will be priced at:")
+                                        Text("Subscribe to the Buzz Automotive package to lock in a lower price and have peace of mind Buzz will deliver 50 videos to you every month for the next 12 months. Without subscribing, your next booking will be priced at:")
                                             .font(.caption)
                                             .foregroundColor(.secondary)
                                         

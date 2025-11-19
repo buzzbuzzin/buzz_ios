@@ -75,7 +75,7 @@ struct GroundSchoolTestIntroView: View {
                                 BulletPoint(text: "You may skip questions and return to them later")
                                 BulletPoint(text: "All 70 questions must be answered to submit")
                                 BulletPoint(text: "You can review your answers before submitting")
-                                BulletPoint(text: "The test can be retaken if you don't pass")
+                                BulletPoint(text: "The test can be retaken in 24 hours if you don't pass")
                             }
                             .padding(.leading, 30)
                         }

@@ -44,16 +44,16 @@ struct FlightPackagesView: View {
                         }
                         .buttonStyle(PlainButtonStyle())
                         
-                        // Buzz Real Estate Card
-                        NavigationLink(destination: RealEstatePackageView()) {
-                            PackageCard(
-                                icon: "house.circle.fill",
-                                title: "Buzz Real Estate",
-                                description: "At Buzz, our pilots have a passion for creating inspiring content. Our advanced licensed drone pilots and camera operators are dedicated to capturing quality content for your real estate business.",
-                                color: .purple
-                            )
-                        }
-                        .buttonStyle(PlainButtonStyle())
+                        // Buzz Real Estate Card - Hidden for now
+                        // NavigationLink(destination: RealEstatePackageView()) {
+                        //     PackageCard(
+                        //         icon: "house.circle.fill",
+                        //         title: "Buzz Real Estate",
+                        //         description: "At Buzz, our pilots have a passion for creating inspiring content. Our advanced licensed drone pilots and camera operators are dedicated to capturing quality content for your real estate business.",
+                        //         color: .purple
+                        //     )
+                        // }
+                        // .buttonStyle(PlainButtonStyle())
                     }
                     .padding(.horizontal)
                 }
