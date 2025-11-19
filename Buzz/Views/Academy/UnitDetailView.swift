@@ -90,17 +90,38 @@ struct UnitDetailView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                         
                         if isGroundSchoolUnitOne {
+                            // 1. Flowchart (Index 0)
+                            if let flowchartUrl = unit.pdfUrls.first {
+                                Button(action: {
+                                    selectedPDF = PDFSelection(url: flowchartUrl)
+                                }) {
+                                    ModuleButtonContent(title: "Flowchart")
+                                }
+                            }
+                            
+                            // 2. Syllabus
                             NavigationLink(destination: ComingSoonModuleView(title: "Syllabus")) {
                                 ModuleButtonContent(title: "Syllabus")
                             }
                             .buttonStyle(PlainButtonStyle())
-                        }
-                        
-                        ForEach(Array(unit.pdfUrls.enumerated()), id: \.offset) { index, pdfUrl in
-                            Button(action: {
-                                selectedPDF = PDFSelection(url: pdfUrl)
-                            }) {
-                                ModuleButtonContent(title: getModuleName(unitNumber: unit.unitNumber, index: index))
+                            
+                            // 3. Rest of the items (Introduction, Module 1, etc.)
+                            ForEach(Array(unit.pdfUrls.enumerated()), id: \.offset) { index, pdfUrl in
+                                if index > 0 {
+                                    Button(action: {
+                                        selectedPDF = PDFSelection(url: pdfUrl)
+                                    }) {
+                                        ModuleButtonContent(title: getModuleName(unitNumber: unit.unitNumber, index: index))
+                                    }
+                                }
+                            }
+                        } else {
+                            ForEach(Array(unit.pdfUrls.enumerated()), id: \.offset) { index, pdfUrl in
+                                Button(action: {
+                                    selectedPDF = PDFSelection(url: pdfUrl)
+                                }) {
+                                    ModuleButtonContent(title: getModuleName(unitNumber: unit.unitNumber, index: index))
+                                }
                             }
                         }
                     }
