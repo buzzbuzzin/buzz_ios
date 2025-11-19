@@ -29,6 +29,10 @@ struct UnitDetailView: View {
         isUASPilotCourse && unit.unitNumber == 3 && unit.isMandatory
     }
     
+    private var isGroundSchoolUnitOne: Bool {
+        unit.unitNumber == 1 && unit.title.localizedCaseInsensitiveContains("ground school")
+    }
+    
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
@@ -85,24 +89,18 @@ struct UnitDetailView: View {
                             .fontWeight(.semibold)
                             .frame(maxWidth: .infinity, alignment: .leading)
                         
+                        if isGroundSchoolUnitOne {
+                            NavigationLink(destination: ComingSoonModuleView(title: "Syllabus")) {
+                                ModuleButtonContent(title: "Syllabus")
+                            }
+                            .buttonStyle(PlainButtonStyle())
+                        }
+                        
                         ForEach(Array(unit.pdfUrls.enumerated()), id: \.offset) { index, pdfUrl in
                             Button(action: {
                                 selectedPDF = PDFSelection(url: pdfUrl)
                             }) {
-                                HStack {
-                                    Image(systemName: "doc.fill")
-                                        .font(.title3)
-                                    Text(getModuleName(unitNumber: unit.unitNumber, index: index))
-                                        .font(.headline)
-                                    Spacer()
-                                    Image(systemName: "chevron.right")
-                                        .font(.caption)
-                                }
-                                .frame(maxWidth: .infinity)
-                                .padding()
-                                .background(Color.blue)
-                                .foregroundColor(.white)
-                                .cornerRadius(12)
+                                ModuleButtonContent(title: getModuleName(unitNumber: unit.unitNumber, index: index))
                             }
                         }
                     }
@@ -342,7 +340,7 @@ struct UnitDetailView: View {
         if unitNumber == 1 {
             switch index {
             case 0:
-                return "Syllabus"
+                return "Flowchart"
             case 1:
                 return "Introduction"
             default:
@@ -353,6 +351,52 @@ struct UnitDetailView: View {
             // For all other units, use standard numbering
             return "Module \(index + 1)"
         }
+    }
+}
+
+struct ModuleButtonContent: View {
+    let title: String
+    
+    var body: some View {
+        HStack {
+            Image(systemName: "doc.fill")
+                .font(.title3)
+            Text(title)
+                .font(.headline)
+            Spacer()
+            Image(systemName: "chevron.right")
+                .font(.caption)
+        }
+        .frame(maxWidth: .infinity)
+        .padding()
+        .background(Color.blue)
+        .foregroundColor(.white)
+        .cornerRadius(12)
+    }
+}
+
+struct ComingSoonModuleView: View {
+    let title: String
+    
+    var body: some View {
+        VStack(spacing: 16) {
+            Spacer()
+            Image(systemName: "clock.badge.exclamationmark")
+                .font(.system(size: 64, weight: .semibold))
+                .foregroundColor(.orange)
+            Text("Coming Soon!")
+                .font(.largeTitle)
+                .fontWeight(.bold)
+            Text("The \(title) content will be available soon. Check back later for updates.")
+                .font(.body)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal)
+            Spacer()
+        }
+        .padding()
+        .navigationTitle(title)
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 
