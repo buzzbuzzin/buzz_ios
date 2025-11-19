@@ -402,7 +402,7 @@ struct RealEstateLearnMoreView: View {
                         .font(.title2)
                         .fontWeight(.bold)
                     
-                    Text("Showcase properties from stunning aerial perspectives. With 50 videos per month per drone, your listings stand out like never before. On average, members save over $2,000 per month compared to on-demand shoots.")
+                    Text("Showcase properties from stunning aerial perspectives. With 50 videos per month, your listings stand out like never before. On average, members save over $2,000 per month compared to on-demand shoots.")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)

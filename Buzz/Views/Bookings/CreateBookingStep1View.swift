@@ -221,7 +221,7 @@ struct RankInfoView: View {
                         .fontWeight(.bold)
                         .padding(.horizontal)
                     
-                    Text("Pilots are ranked based on their total flight hours. Higher ranks indicate more experience.")
+                    Text("Pilots are ranked based on their total flight hours, trainings, and other metrics. Higher ranks indicate more experience.")
                         .font(.body)
                         .foregroundColor(.secondary)
                         .padding(.horizontal)

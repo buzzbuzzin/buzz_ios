@@ -76,7 +76,9 @@ struct CreateBookingStep2DetailsView: View {
                         displayedComponents: [.date]
                     )
                     .datePickerStyle(.compact)
-                    .padding(.leading)
+                    .labelsHidden()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal)
                 }
                 
                 // Time Section
@@ -245,4 +247,3 @@ struct CreateBookingStep2DetailsView: View {
         }
     }
 }
-

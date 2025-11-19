@@ -218,10 +218,10 @@ struct CustomerBookingCard: View {
                 
                 // Required Minimum Rank
                 HStack(spacing: 4) {
-                    Image(systemName: "star.fill")
-                        .font(.caption)
-                        .foregroundColor(.orange)
-                    Text("Min Rank: \(booking.rankName)")
+//                    Image(systemName: "star.fill")
+//                        .font(.caption)
+//                        .foregroundColor(.orange)
+                    Text("Pilot Rank: \(booking.rankName)")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -1781,7 +1781,7 @@ struct ClientBundlePage: View {
                             .font(.title2)
                             .fontWeight(.bold)
                         
-                        Text("Choose from our premium bundle packages designed to make your booking experience easier and more affordable.")
+                        Text("Choose from our premium packages designed to make your booking experience easier and more affordable. More are coming soon!")
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                             .multilineTextAlignment(.center)

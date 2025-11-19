@@ -58,7 +58,7 @@ struct CreateBookingStep3PaymentView: View {
     var body: some View {
         Form {
             Section("Booking Details") {
-                TextField("Description", text: $description, axis: .vertical)
+                TextField("Enter details about this booking. This could be something that you want pilots to be aware of before or during the flight. ", text: $description, axis: .vertical)
                     .lineLimit(3...6)
             }
             
@@ -96,7 +96,7 @@ struct CreateBookingStep3PaymentView: View {
                                     Image(systemName: "info.circle.fill")
                                         .foregroundColor(.blue)
                                         .font(.caption)
-                                    Text("First-time customer pricing")
+                                    Text("First-month special price")
                                         .font(.caption)
                                         .foregroundColor(.blue)
                                 }
@@ -108,15 +108,15 @@ struct CreateBookingStep3PaymentView: View {
                                             .fontWeight(.semibold)
                                             .foregroundColor(.orange)
                                         
-                                        Text("Purchase the Buzz Automotive Package to lock in these lower prices for all future bookings. Without the package, your next booking will be priced at:")
+                                        Text("Subscribe the Buzz Automotive Package to lock in these lower prices for all future bookings. Without the package, your next booking will be priced at:")
                                             .font(.caption)
                                             .foregroundColor(.secondary)
                                         
                                         VStack(alignment: .leading, spacing: 4) {
-                                            Text("• Captain: $7,000")
-                                            Text("• Commander: $6,800")
-                                            Text("• Lieutenant: $6,600")
-                                            Text("• Sub Lieutenant: $6,400")
+                                            Text("• Captain: $5,000")
+                                            Text("• Commander: $4,750")
+                                            Text("• Lieutenant: $4,500")
+                                            Text("• Sub Lieutenant: $4,250")
                                         }
                                         .font(.caption)
                                         .foregroundColor(.secondary)
@@ -140,7 +140,7 @@ struct CreateBookingStep3PaymentView: View {
                                         .foregroundColor(.orange)
                                 }
                                 
-                                Text("Purchase the Buzz Automotive Package to get lower prices on future bookings!")
+                                Text("Subscribe the Buzz Automotive Package to get lower prices on future bookings!")
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                             }
@@ -309,7 +309,7 @@ struct CreateBookingStep3PaymentView: View {
                     .cornerRadius(10)
                     
                     CustomButton(
-                        title: "Pay",
+                        title: "Book",
                         action: onCreate,
                         isLoading: isLoading,
                         isDisabled: !isFormValid
