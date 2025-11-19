@@ -13,6 +13,7 @@ struct CreateBookingStep2DetailsView: View {
     @Binding var locationName: String
     @Binding var selectedDate: Date
     @Binding var startTime: Date
+    @Binding var endTime: Date?
     @Binding var selectedSpecialization: BookingSpecialization?
     @Binding var requiredMinimumRank: Int
     
@@ -70,12 +71,12 @@ struct CreateBookingStep2DetailsView: View {
                         .padding(.horizontal)
                     
                     DatePicker(
-                        "Booking Date",
+                        "",
                         selection: $selectedDate,
                         displayedComponents: [.date]
                     )
                     .datePickerStyle(.compact)
-                    .padding(.horizontal)
+                    .padding(.leading)
                 }
                 
                 // Time Section
@@ -105,20 +106,65 @@ struct CreateBookingStep2DetailsView: View {
                         }
                     }()
                     
-                    DatePicker(
-                        "Start Time",
-                        selection: $startTime,
-                        in: timeRange,
-                        displayedComponents: [.hourAndMinute]
-                    )
-                    .datePickerStyle(.compact)
+                    // Start Time and End Time in HStack
+                    HStack(alignment: .top, spacing: 12) {
+                        // Start Time on the left
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Start Time")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                            
+                            DatePicker(
+                                "",
+                                selection: $startTime,
+                                in: timeRange,
+                                displayedComponents: [.hourAndMinute]
+                            )
+                            .datePickerStyle(.compact)
+                            .labelsHidden()
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        
+                        // End Time on the right
+                        VStack(alignment: .trailing, spacing: 8) {
+                            HStack(spacing: 4) {
+                                Text("End Time (Optional)")
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                                
+                                // Toggle button to clear end time
+                                if endTime != nil {
+                                    Button(action: {
+                                        endTime = nil
+                                    }) {
+                                        Image(systemName: "xmark.circle.fill")
+                                            .foregroundColor(.secondary)
+                                            .font(.caption)
+                                    }
+                                }
+                            }
+                            
+                            DatePicker(
+                                "",
+                                selection: Binding(
+                                    get: { endTime ?? calendar.date(byAdding: .hour, value: 2, to: startTime) ?? startTime },
+                                    set: { endTime = $0 }
+                                ),
+                                in: startTime...,
+                                displayedComponents: [.hourAndMinute]
+                            )
+                            .datePickerStyle(.compact)
+                            .labelsHidden()
+                        }
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                    }
                     .padding(.horizontal)
                 }
                 
                 // Required Minimum Rank Section
                 VStack(alignment: .leading, spacing: 12) {
                     HStack {
-                        Text("4. Required Minimum Pilot Rank")
+                        Text("4. Pilot Rank")
                             .font(.headline)
                         Spacer()
                         Button(action: {

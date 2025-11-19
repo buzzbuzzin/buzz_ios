@@ -13,6 +13,19 @@ enum BookingStatus: String, Codable {
     case accepted
     case completed
     case cancelled
+    
+    var displayName: String {
+        switch self {
+        case .available:
+            return "standby"
+        case .accepted:
+            return "Active"
+        case .completed:
+            return "completed"
+        case .cancelled:
+            return "cancelled"
+        }
+    }
 }
 
 enum BookingSpecialization: String, Codable, CaseIterable {

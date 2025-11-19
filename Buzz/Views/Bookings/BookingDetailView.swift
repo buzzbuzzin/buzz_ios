@@ -267,7 +267,7 @@ struct BookingDetailView: View {
                     Label("Status", systemImage: "info.circle.fill")
                         .font(.headline)
                     
-                    Text(booking.status.rawValue.capitalized)
+                    Text(booking.status.displayName.capitalized)
                         .font(.body)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 6)

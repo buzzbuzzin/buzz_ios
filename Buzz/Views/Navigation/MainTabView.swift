@@ -47,7 +47,7 @@ struct PilotTabView: View {
             
             ProfileView()
                 .tabItem {
-                    Label("Profile", systemImage: "person.fill")
+                    Label("Account", systemImage: "person.fill")
                 }
         }
     }
@@ -65,12 +65,12 @@ struct CustomerTabView: View {
             
             CustomerActivityView()
                 .tabItem {
-                    Label("Activity", systemImage: "clock.fill")
+                    Label("History", systemImage: "clock.fill")
                 }
             
             ProfileView()
                 .tabItem {
-                    Label("Profile", systemImage: "person.fill")
+                    Label("Account", systemImage: "person.fill")
                 }
         }
     }

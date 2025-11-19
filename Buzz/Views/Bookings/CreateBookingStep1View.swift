@@ -123,7 +123,7 @@ struct CreateBookingStep1View: View {
                 // Required Minimum Rank Section
                 VStack(alignment: .leading, spacing: 12) {
                     HStack {
-                        Text("3. Required Minimum Pilot Rank")
+                        Text("3. Pilot Rank")
                             .font(.headline)
                         Spacer()
                         Button(action: {

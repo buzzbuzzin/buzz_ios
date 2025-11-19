@@ -63,9 +63,9 @@ struct CustomerBookingView: View {
                 if bookingService.isLoading {
                     LoadingView(message: "Loading bookings...")
                 } else {
-                    // Filter: Only show available, accepted, and cancelled bookings (not completed)
+                    // Filter: Only show available and accepted bookings (not completed or cancelled)
                     let filteredBookings = bookingService.myBookings.filter { booking in
-                        booking.status == .available || booking.status == .accepted || booking.status == .cancelled
+                        booking.status == .available || booking.status == .accepted
                     }
                     
                     if filteredBookings.isEmpty {
@@ -280,7 +280,7 @@ struct StatusBadge: View {
     let status: BookingStatus
     
     var body: some View {
-        Text(status.rawValue.capitalized)
+        Text(status.displayName.capitalized)
             .font(.caption)
             .fontWeight(.semibold)
             .padding(.horizontal, 8)
@@ -324,6 +324,7 @@ struct CreateBookingView: View {
     @State private var locationName = ""
     @State private var selectedDate = Date()
     @State private var startTime = Calendar.current.date(bySettingHour: 9, minute: 0, second: 0, of: Date()) ?? Date()
+    @State private var endTime: Date? = nil
     @State private var selectedSpecialization: BookingSpecialization?
     @State private var requiredMinimumRank: Int = 4 // Default to highest rank (Captain)
     @State private var description = ""
@@ -364,6 +365,7 @@ struct CreateBookingView: View {
                             locationName: $locationName,
                             selectedDate: $selectedDate,
                             startTime: $startTime,
+                            endTime: $endTime,
                             selectedSpecialization: $selectedSpecialization,
                             requiredMinimumRank: $requiredMinimumRank,
                             onBack: {
@@ -667,13 +669,26 @@ struct CreateBookingView: View {
                 
                 let startDateTime = calendar.date(from: startDateTimeComponents) ?? selectedDate
                 
-                // Calculate end time from start time + estimated hours
-                var endDateTime = calendar.date(byAdding: .hour, value: Int(hours), to: startDateTime) ?? startDateTime
-                // Add minutes for fractional hours
-                let fractionalHours = hours - Double(Int(hours))
-                if fractionalHours > 0 {
-                    let minutes = Int(fractionalHours * 60)
-                    endDateTime = calendar.date(byAdding: .minute, value: minutes, to: endDateTime) ?? endDateTime
+                // Use provided end time if available, otherwise calculate from start time + estimated hours
+                var endDateTime: Date
+                if let providedEndTime = endTime {
+                    let endTimeComponents = calendar.dateComponents([.hour, .minute], from: providedEndTime)
+                    var endDateTimeComponents = DateComponents()
+                    endDateTimeComponents.year = dateComponents.year
+                    endDateTimeComponents.month = dateComponents.month
+                    endDateTimeComponents.day = dateComponents.day
+                    endDateTimeComponents.hour = endTimeComponents.hour
+                    endDateTimeComponents.minute = endTimeComponents.minute
+                    endDateTime = calendar.date(from: endDateTimeComponents) ?? startDateTime
+                } else {
+                    // Calculate end time from start time + estimated hours
+                    endDateTime = calendar.date(byAdding: .hour, value: Int(hours), to: startDateTime) ?? startDateTime
+                    // Add minutes for fractional hours
+                    let fractionalHours = hours - Double(Int(hours))
+                    if fractionalHours > 0 {
+                        let minutes = Int(fractionalHours * 60)
+                        endDateTime = calendar.date(byAdding: .minute, value: minutes, to: endDateTime) ?? endDateTime
+                    }
                 }
                 
                 // Create booking with payment info
@@ -1437,7 +1452,7 @@ struct EditBookingView: View {
                     // Required Minimum Rank Section
                     VStack(alignment: .leading, spacing: 12) {
                         HStack {
-                            Text("Required Minimum Pilot Rank")
+                            Text("Pilot Rank")
                                 .font(.headline)
                             Spacer()
                             Button(action: {
@@ -1785,19 +1800,6 @@ struct ClientBundlePage: View {
                                 title: "Buzz Auto",
                                 description: "Perfect for car dealerships. Get up to 50 cinematic videos per month with dedicated drone & pilot access.",
                                 color: .blue
-                            )
-                        }
-                        .buttonStyle(PlainButtonStyle())
-                        
-                        // Real Estate Bundle Card
-                        Button(action: {
-                            onSelectBundle(.realEstate)
-                        }) {
-                            BundleCard(
-                                icon: "house.circle.fill",
-                                title: "Buzz Real Estate",
-                                description: "Ideal for real estate professionals. Capture stunning property footage with our specialized real estate package.",
-                                color: .green
                             )
                         }
                         .buttonStyle(PlainButtonStyle())

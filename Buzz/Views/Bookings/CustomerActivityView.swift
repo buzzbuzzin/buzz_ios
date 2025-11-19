@@ -48,7 +48,7 @@ struct CustomerActivityView: View {
                     }
                 }
             }
-            .navigationTitle("Activity")
+            .navigationTitle("History")
         }
         .task {
             await loadBookings()
