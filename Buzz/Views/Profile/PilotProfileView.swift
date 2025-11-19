@@ -1,0 +1,530 @@
+//
+//  PilotProfileView.swift
+//  Buzz
+//
+//  Created for pilot-specific profile view with Statistics section
+//
+
+import SwiftUI
+import Auth
+import PhotosUI
+import UIKit
+
+struct PilotProfileView: View {
+    @EnvironmentObject var authService: AuthService
+    @StateObject private var rankingService = RankingService()
+    @StateObject private var ratingService = RatingService()
+    @StateObject private var profilePictureService = ProfilePictureService()
+    @StateObject private var badgeService = BadgeService()
+    @State private var showSignOutAlert = false
+    @State private var showImagePicker = false
+    @State private var showImageSourceSheet = false
+    @State private var showVerificationWarning = false
+    @State private var imageSourceType: UIImagePickerController.SourceType = .photoLibrary
+    @State private var profileImage: UIImage?
+    @State private var ratingSummary: UserRatingSummary?
+    @State private var isLoadingRatings = false
+    @State private var errorMessage = ""
+    @State private var showError = false
+    
+    var yearsOnBuzz: Int {
+        guard let createdAt = authService.userProfile?.createdAt else { return 0 }
+        let calendar = Calendar.current
+        let years = calendar.dateComponents([.year], from: createdAt, to: Date()).year ?? 0
+        return max(years, 0)
+    }
+    
+    var profileHeaderContent: some View {
+        HStack(spacing: 16) {
+            Spacer()
+            
+            // Profile Picture and Info (centered)
+            VStack(spacing: 8) {
+                // Profile Picture (clickable to upload)
+                Button(action: {
+                    showVerificationWarning = true
+                }) {
+                    Group {
+                        if let pictureUrl = authService.userProfile?.profilePictureUrl,
+                           let url = URL(string: pictureUrl) {
+                            AsyncImage(url: url) { phase in
+                                switch phase {
+                                case .empty:
+                                    ProgressView()
+                                        .frame(width: 90, height: 90)
+                                case .success(let image):
+                                    image
+                                        .resizable()
+                                        .scaledToFill()
+                                        .frame(width: 90, height: 90)
+                                        .clipShape(Circle())
+                                case .failure:
+                                    Image(systemName: "airplane.circle.fill")
+                                        .font(.system(size: 90))
+                                        .foregroundColor(.blue)
+                                @unknown default:
+                                    EmptyView()
+                                }
+                            }
+                        } else {
+                            Image(systemName: "airplane.circle.fill")
+                                .font(.system(size: 90))
+                                .foregroundColor(.blue)
+                        }
+                    }
+                    .overlay(
+                        Circle()
+                            .stroke(Color.blue.opacity(0.3), lineWidth: 2)
+                    )
+                    .overlay(
+                        Image(systemName: "camera.fill")
+                            .font(.system(size: 16))
+                            .foregroundColor(.white)
+                            .padding(6)
+                            .background(Color.blue)
+                            .clipShape(Circle())
+                            .offset(x: 32, y: 32)
+                    )
+                }
+                .buttonStyle(PlainButtonStyle())
+                
+                // Call Sign and Ratings below picture
+                VStack(alignment: .center, spacing: 4) {
+                    if let callSign = authService.userProfile?.callSign, !callSign.isEmpty {
+                        Text("@\(callSign)")
+                            .font(.headline)
+                            .fontWeight(.bold)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
+                    } else {
+                        Text("Pilot")
+                            .font(.headline)
+                            .fontWeight(.bold)
+                    }
+                    
+                    // Ratings below call sign
+                    if isLoadingRatings && ratingSummary == nil {
+                        ProgressView()
+                            .scaleEffect(0.8)
+                    } else if let summary = ratingSummary {
+                        HStack(spacing: 4) {
+                            Image(systemName: "star.fill")
+                                .foregroundColor(.yellow)
+                                .font(.caption)
+                            Text(String(format: "%.1f", summary.averageRating))
+                                .font(.caption)
+                                .fontWeight(.semibold)
+                            Text("(\(summary.totalRatings))")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+                    } else {
+                        HStack(spacing: 4) {
+                            Image(systemName: "star.fill")
+                                .foregroundColor(.gray)
+                                .font(.caption)
+                            Text("—")
+                                .font(.caption)
+                                .fontWeight(.semibold)
+                                .foregroundColor(.secondary)
+                            Text("No ratings")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+            }
+            
+            Spacer()
+            
+            // Statistics on the right
+            if let stats = rankingService.pilotStats {
+                VStack(alignment: .leading, spacing: 16) {
+                    // Flights
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("\(stats.completedBookings)")
+                            .font(.title2)
+                            .fontWeight(.bold)
+                        Text("Flights")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    // Flight Hours
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(String(format: "%.0f", stats.totalFlightHours))
+                            .font(.title2)
+                            .fontWeight(.bold)
+                        Text("Flight hours")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    // Years on Buzz
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("\(yearsOnBuzz)")
+                            .font(.title2)
+                            .fontWeight(.bold)
+                        Text("Years on Buzz")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+            }
+        }
+        .padding(.vertical, 8)
+    }
+    
+    var body: some View {
+        NavigationView {
+            List {
+                // Profile Header
+                Section {
+                    if let currentUser = authService.currentUser {
+                        NavigationLink(destination: PublicProfileView(pilotId: currentUser.id)) {
+                            profileHeaderContent
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                    } else {
+                        profileHeaderContent
+                    }
+                }
+                
+                // Badges Section
+                Section {
+                    NavigationLink(destination: BadgesView()) {
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack {
+                                Text("Badges")
+                                    .font(.headline)
+                                Spacer()
+                                if !badgeService.badges.isEmpty {
+                                    Text("\(badgeService.badges.count)")
+                                        .font(.subheadline)
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+                            
+                            if badgeService.badges.isEmpty {
+                                Text("Complete courses to earn badges")
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                                    .padding(.vertical, 4)
+                            } else {
+                                ScrollView(.horizontal, showsIndicators: false) {
+                                    HStack(spacing: 12) {
+                                        ForEach(badgeService.badges.prefix(5)) { badge in
+                                            BadgePreviewCard(badge: badge)
+                                        }
+                                        
+                                        if badgeService.badges.count > 5 {
+                                            VStack {
+                                                Image(systemName: "ellipsis")
+                                                    .font(.title2)
+                                                    .foregroundColor(.secondary)
+                                                Text("+\(badgeService.badges.count - 5)")
+                                                    .font(.caption)
+                                                    .foregroundColor(.secondary)
+                                            }
+                                            .frame(width: 50, height: 50)
+                                        }
+                                    }
+                                    .padding(.vertical, 4)
+                                }
+                            }
+                        }
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                }
+                
+                // Statistics Section
+                Section("Statistics") {
+                    if let stats = rankingService.pilotStats {
+                        HStack {
+                            VStack(alignment: .leading) {
+                                Text("Tier")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                HStack {
+                                    Text("\(stats.tier)")
+                                        .font(.title2)
+                                        .fontWeight(.bold)
+                                    Text(stats.tierName)
+                                        .font(.subheadline)
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+                            Spacer()
+                        }
+                        
+                        HStack {
+                            Image(systemName: "clock")
+                                .foregroundColor(.secondary)
+                                .font(.body)
+                                .frame(width: 24)
+                            Text("Flight Hours")
+                                .foregroundColor(.primary)
+                            Spacer()
+                            Text(String(format: "%.1f hrs", stats.totalFlightHours))
+                                .fontWeight(.medium)
+                                .foregroundColor(.primary)
+                        }
+                                                    
+                        HStack {
+                            Image(systemName: "checkmark.circle")
+                                .foregroundColor(.secondary)
+                                .font(.body)
+                                .frame(width: 24)
+                            Text("Completed Bookings")
+                                .foregroundColor(.primary)
+                            Spacer()
+                            Text("\(stats.completedBookings)")
+                                .fontWeight(.medium)
+                                .foregroundColor(.primary)
+                        }
+                        
+                        // Balance
+                        NavigationLink(destination: BalanceView()) {
+                            HStack {
+                                Image(systemName: "dollarsign.circle.fill")
+                                    .foregroundColor(.green)
+                                    .font(.body)
+                                    .frame(width: 24)
+                                Text("Balance")
+                                    .foregroundColor(.primary)
+                                Spacer()
+                            }
+                        }
+                        
+                        // View All Reviews
+                        if let currentUser = authService.currentUser {
+                            NavigationLink(destination: RatingsListView(userId: currentUser.id)) {
+                                HStack {
+                                    Image(systemName: "star")
+                                        .foregroundColor(.secondary)
+                                        .font(.body)
+                                        .frame(width: 24)
+                                    Text("View All Reviews")
+                                        .foregroundColor(.primary)
+                                }
+                            }
+                        }
+                    } else if rankingService.isLoading {
+                        HStack {
+                            Spacer()
+                            ProgressView()
+                            Spacer()
+                        }
+                    }
+                }
+                
+                // License Management
+                Section {
+                    NavigationLink(destination: GovernmentIDView()) {
+                        HStack {
+                            Image(systemName: "person.badge.key.fill")
+                                .foregroundColor(.secondary)
+                                .font(.body)
+                                .frame(width: 24)
+                            Text("Government ID")
+                                .foregroundColor(.primary)
+                        }
+                    }
+                    
+                    NavigationLink(destination: LicenseManagementView()) {
+                        HStack {
+                            Image(systemName: "doc.badge.plus")
+                                .foregroundColor(.secondary)
+                                .font(.body)
+                                .frame(width: 24)
+                            Text("Pilot Licenses")
+                                .foregroundColor(.primary)
+                        }
+                    }
+                    
+                    NavigationLink(destination: DroneRegistrationView()) {
+                        HStack {
+                            Image(systemName: "airplane")
+                                .foregroundColor(.secondary)
+                                .font(.body)
+                                .frame(width: 24)
+                            Text("Drone Registration")
+                                .foregroundColor(.primary)
+                        }
+                    }
+                } header: {
+                    Text("License")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+                
+                // Account
+                Section {
+                    NavigationLink(destination: SettingsView()) {
+                        HStack {
+                            Image(systemName: "gearshape")
+                                .foregroundColor(.secondary)
+                                .font(.body)
+                                .frame(width: 24)
+                            Text("Settings")
+                                .foregroundColor(.primary)
+                        }
+                    }
+                    
+                    NavigationLink(destination: TaxDocumentView()) {
+                        HStack {
+                            Image(systemName: "doc.text.fill")
+                                .foregroundColor(.secondary)
+                                .font(.body)
+                                .frame(width: 24)
+                            Text("Tax Document")
+                                .foregroundColor(.primary)
+                        }
+                    }
+                    
+                    NavigationLink(destination: StripeAccountSetupView()) {
+                        HStack {
+                            Image(systemName: "creditcard.fill")
+                                .foregroundColor(.secondary)
+                                .font(.body)
+                                .frame(width: 24)
+                            Text("Payment Account")
+                                .foregroundColor(.primary)
+                        }
+                    }
+                    
+                    NavigationLink(destination: HelpView()) {
+                        HStack {
+                            Image(systemName: "questionmark.circle")
+                                .foregroundColor(.secondary)
+                                .font(.body)
+                                .frame(width: 24)
+                            Text("Get Help")
+                                .foregroundColor(.primary)
+                        }
+                    }
+                                        
+                    Button(role: .destructive) {
+                        showSignOutAlert = true
+                    } label: {
+                        HStack {
+                            Image(systemName: "rectangle.portrait.and.arrow.right")
+                                .foregroundColor(.red)
+                                .font(.body)
+                                .frame(width: 24)
+                            Text("Sign Out")
+                                .foregroundColor(.red)
+                        }
+                    }
+                } header: {
+                    Text("Account")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+            }
+            .navigationTitle("Profile")
+            .alert("Sign Out", isPresented: $showSignOutAlert) {
+                Button("Cancel", role: .cancel) {}
+                Button("Sign Out", role: .destructive) {
+                    Task {
+                        try? await authService.signOut()
+                    }
+                }
+            } message: {
+                Text("Are you sure you want to sign out?")
+            }
+            .alert("Profile Picture Guidelines", isPresented: $showVerificationWarning) {
+                Button("Cancel", role: .cancel) {}
+                Button("I Understand") {
+                    showImageSourceSheet = true
+                }
+            } message: {
+                Text("Please use a real selfie that matches your face. If you use a fake selfie and it is reported by others, your account may be suspended as a penalty.")
+            }
+            .alert("Error", isPresented: $showError) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(errorMessage)
+            }
+            .confirmationDialog("Choose Photo Source", isPresented: $showImageSourceSheet, titleVisibility: .visible) {
+                Button("Take Photo") {
+                    imageSourceType = .camera
+                    showImagePicker = true
+                }
+                Button("Choose from Library") {
+                    imageSourceType = .photoLibrary
+                    showImagePicker = true
+                }
+                if authService.userProfile?.profilePictureUrl != nil {
+                    Button("Remove Photo", role: .destructive) {
+                        removeProfilePicture()
+                    }
+                }
+                Button("Cancel", role: .cancel) {}
+            }
+            .sheet(isPresented: $showImagePicker) {
+                ImagePicker(image: $profileImage, sourceType: imageSourceType)
+            }
+            .onChange(of: profileImage) { _, newImage in
+                if let image = newImage {
+                    uploadProfilePicture(image: image)
+                }
+            }
+        }
+        .task {
+            guard let currentUser = authService.currentUser else { return }
+            
+            let userId = currentUser.id
+            
+            // Load pilot stats
+            try? await rankingService.getPilotStats(pilotId: userId)
+            
+            // Load ratings summary
+            isLoadingRatings = true
+            do {
+                ratingSummary = try await ratingService.getUserRatingSummary(userId: userId)
+            } catch {
+                print("Error loading rating summary: \(error)")
+            }
+            
+            // Load badges
+            try? await badgeService.fetchPilotBadges(pilotId: userId)
+            
+            isLoadingRatings = false
+        }
+    }
+    
+    private func uploadProfilePicture(image: UIImage) {
+        guard let currentUser = authService.currentUser else { return }
+        
+        Task {
+            do {
+                print("DEBUG PilotProfileView: Starting profile picture upload...")
+                let url = try await profilePictureService.uploadProfilePicture(userId: currentUser.id, image: image)
+                print("DEBUG PilotProfileView: Upload completed, URL: \(url)")
+                await authService.checkAuthStatus()
+                print("DEBUG PilotProfileView: Auth status refreshed")
+            } catch {
+                print("DEBUG PilotProfileView: Upload error: \(error.localizedDescription)")
+                await MainActor.run {
+                    errorMessage = error.localizedDescription
+                    showError = true
+                }
+            }
+        }
+    }
+    
+    private func removeProfilePicture() {
+        guard let currentUser = authService.currentUser else { return }
+        
+        Task {
+            do {
+                try await profilePictureService.deleteProfilePicture(userId: currentUser.id)
+                await authService.checkAuthStatus()
+            } catch {
+                print("Error removing profile picture: \(error)")
+            }
+        }
+    }
+}
+

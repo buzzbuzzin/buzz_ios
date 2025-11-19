@@ -842,7 +842,7 @@ struct SubscriptionSelectionView: View {
                                 Text("Dedicated drone & pilot access")
                                     .font(.headline)
                                     .foregroundColor(.primary)
-                                Text("One skilled and talented drone team reserved exclusively for your dealership, dedicating to to capturing quality content.")
+                                Text("One skilled and talented drone team reserved exclusively for your dealership, dedicating to capturing quality content.")
                                     .font(.subheadline)
                                     .foregroundColor(.secondary)
                             }
