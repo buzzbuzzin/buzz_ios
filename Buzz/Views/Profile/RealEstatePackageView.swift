@@ -664,7 +664,7 @@ struct RealEstateSubscriptionSelectionView: View {
                         
                         // Bundle details link
                         Button(action: onShowMembershipDetails) {
-                            Text("See membership details and terms")
+                            Text("See package details and terms")
                                 .font(.subheadline)
                                 .foregroundColor(.blue)
                                 .underline()
@@ -795,7 +795,10 @@ struct RealEstateMembershipDetailsView: View {
             }
             .sheet(isPresented: $showSlideshow) {
                 if let url = URL(string: slideshowURL), slideshowURL != "YOUR_SUPABASE_STORAGE_URL_HERE" {
-                    SafariView(url: url)
+                    NavigationView {
+                        SafariView(url: url)
+                            .navigationBarTitleDisplayMode(.inline)
+                    }
                 } else {
                     VStack(spacing: 20) {
                         Image(systemName: "doc.text.magnifyingglass")

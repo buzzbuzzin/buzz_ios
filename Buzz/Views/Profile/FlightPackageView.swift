@@ -898,7 +898,7 @@ struct SubscriptionSelectionView: View {
                         
                         // Membership details link
                         Button(action: onShowMembershipDetails) {
-                            Text("See membership details and terms")
+                            Text("See package details and terms")
                                 .font(.subheadline)
                                 .foregroundColor(.blue)
                                 .underline()
@@ -1140,7 +1140,7 @@ struct MembershipDetailsView: View {
         NavigationView {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
-                    Text("Membership Details & Terms")
+                    Text("Package Details & Terms")
                         .font(.title2)
                         .fontWeight(.bold)
                     
@@ -1155,7 +1155,7 @@ struct MembershipDetailsView: View {
                         HStack {
                             Image(systemName: "play.rectangle.fill")
                                 .font(.title3)
-                            Text("View Membership Presentation")
+                            Text("View Package Presentation")
                                 .font(.headline)
                         }
                         .frame(maxWidth: .infinity)
@@ -1190,7 +1190,10 @@ struct MembershipDetailsView: View {
             }
             .sheet(isPresented: $showSlideshow) {
                 if let url = URL(string: slideshowURL), slideshowURL != "YOUR_SUPABASE_STORAGE_URL_HERE" {
-                    SafariView(url: url)
+                    NavigationView {
+                        SafariView(url: url)
+                            .navigationBarTitleDisplayMode(.inline)
+                    }
                 } else {
                     VStack(spacing: 20) {
                         Image(systemName: "doc.text.magnifyingglass")
@@ -1217,17 +1220,75 @@ struct MembershipDetailsView: View {
 
 // MARK: - Safari View for displaying web content
 import SafariServices
+import WebKit
 
 struct SafariView: UIViewControllerRepresentable {
     let url: URL
     
-    func makeUIViewController(context: Context) -> SFSafariViewController {
-        return SFSafariViewController(url: url)
+    func makeUIViewController(context: Context) -> WebViewController {
+        let viewController = WebViewController()
+        viewController.loadURL(url)
+        return viewController
     }
     
-    func updateUIViewController(_ uiViewController: SFSafariViewController, context: Context) {
+    func updateUIViewController(_ uiViewController: WebViewController, context: Context) {
         // No update needed
     }
+}
+
+class WebViewController: UIViewController {
+    private var webView: WKWebView!
+    private var urlToLoad: URL?
+    
+    override func loadView() {
+        let webConfiguration = WKWebViewConfiguration()
+        webView = WKWebView(frame: .zero, configuration: webConfiguration)
+        webView.navigationDelegate = self
+        view = webView
+    }
+    
+    func loadURL(_ url: URL) {
+        urlToLoad = url
+        // Load URL if view is already loaded, otherwise it will load in viewDidLoad
+        if isViewLoaded {
+            loadURLIfNeeded()
+        }
+    }
+    
+    private func loadURLIfNeeded() {
+        guard let url = urlToLoad else { return }
+        let request = URLRequest(url: url)
+        webView.load(request)
+    }
+    
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        
+        // Set empty title to avoid showing any text in navigation bar
+        title = ""
+        
+        // Add close button
+        let closeButton = UIBarButtonItem(
+            barButtonSystemItem: .close,
+            target: self,
+            action: #selector(closeButtonTapped)
+        )
+        navigationItem.rightBarButtonItem = closeButton
+        
+        // Configure navigation bar to be visible but without URL bar
+        navigationController?.setNavigationBarHidden(false, animated: false)
+        
+        // Load URL now that view is ready
+        loadURLIfNeeded()
+    }
+    
+    @objc private func closeButtonTapped() {
+        dismiss(animated: true)
+    }
+}
+
+extension WebViewController: WKNavigationDelegate {
+    // Optional: Handle navigation events if needed
 }
 
 // MARK: - Plan Selection Card

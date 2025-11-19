@@ -377,7 +377,7 @@ struct CreateBookingView: View {
                                 }
                             }
                         )
-                    } else {
+                    } else if currentStep == 3 {
                         CreateBookingStep3PaymentView(
                             description: $description,
                             paymentAmount: $paymentAmount,
@@ -389,10 +389,35 @@ struct CreateBookingView: View {
                             onBack: {
                                 currentStep = 2
                             },
-                            onCreate: createBooking,
+                            onCreate: {
+                                // Navigate to confirmation page instead of creating booking directly
+                                currentStep = 4
+                            },
                             isLoading: bookingService.isLoading || paymentService.isLoading || isProcessingPayment || isLoadingSubscription,
                             isFormValid: isStep3Valid
                         )
+                    } else {
+                        // Step 4: Confirmation page
+                        if let location = selectedLocation,
+                           let specialization = selectedSpecialization {
+                            CreateBookingStep4ConfirmView(
+                                locationName: locationName,
+                                selectedLocation: location,
+                                selectedDate: selectedDate,
+                                startTime: startTime,
+                                endTime: endTime,
+                                selectedSpecialization: specialization,
+                                requiredMinimumRank: requiredMinimumRank,
+                                description: description,
+                                paymentAmount: getFinalPaymentAmount(),
+                                estimatedHours: getEstimatedHours(),
+                                onBack: {
+                                    currentStep = 3
+                                },
+                                onPay: createBooking,
+                                isLoading: bookingService.isLoading || paymentService.isLoading || isProcessingPayment || isLoadingSubscription
+                            )
+                        }
                     }
                 }
                 .navigationTitle(navigationTitle)
@@ -408,6 +433,10 @@ struct CreateBookingView: View {
                                 dismiss()
                             }
                         } else if currentStep == 3 {
+                            Button("Cancel") {
+                                dismiss()
+                            }
+                        } else if currentStep == 4 {
                             Button("Cancel") {
                                 dismiss()
                             }
@@ -460,6 +489,7 @@ struct CreateBookingView: View {
         case 1: return "Create Booking"
         case 2: return "Booking Details"
         case 3: return "Payment"
+        case 4: return "Confirm and Pay"
         default: return "Create Booking"
         }
     }
@@ -560,6 +590,28 @@ struct CreateBookingView: View {
         isLoadingSubscription = false
     }
     
+    private func getEstimatedHours() -> Double {
+        // Use default 2 hours for estimated flight hours
+        return 2.0
+    }
+    
+    private func getFinalPaymentAmount() -> Decimal {
+        guard let specialization = selectedSpecialization else {
+            return Decimal(0)
+        }
+        
+        if specialization == .automotive {
+            // For Automotive, use fixed pricing based on rank
+            return getAutomotivePrice(for: requiredMinimumRank)
+        } else {
+            // For other industries, use user-entered payment
+            if let paymentValue = Double(paymentAmount) {
+                return Decimal(paymentValue)
+            }
+            return Decimal(0)
+        }
+    }
+    
     private func createBooking() {
         guard let currentUser = authService.currentUser,
               let location = selectedLocation,
@@ -570,21 +622,15 @@ struct CreateBookingView: View {
         }
         
         // Use default 2 hours for estimated flight hours
-        let hours: Double = 2.0
+        let hours: Double = getEstimatedHours()
         
         // Calculate payment amount
-        let payment: Decimal
-        if specialization == .automotive {
-            // For Automotive, use fixed pricing based on rank
-            payment = getAutomotivePrice(for: requiredMinimumRank)
-        } else {
-            // For other industries, use user-entered payment
-            guard let paymentValue = Double(paymentAmount) else {
-                errorMessage = "Please enter a valid payment amount"
-                showError = true
-                return
-            }
-            payment = Decimal(paymentValue)
+        let payment: Decimal = getFinalPaymentAmount()
+        
+        if payment == 0 {
+            errorMessage = "Please enter a valid payment amount"
+            showError = true
+            return
         }
         
         // Process payment first, then create booking

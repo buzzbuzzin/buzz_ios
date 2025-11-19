@@ -28,6 +28,8 @@ struct ProfileView: View {
     @State private var isLoadingRatings = false
     @State private var errorMessage = ""
     @State private var showError = false
+    @State private var navigateToReviews = false
+    @State private var navigateToFlightPackages = false
     
     var yearsOnBuzz: Int {
         guard let createdAt = authService.userProfile?.createdAt else { return 0 }
@@ -216,8 +218,28 @@ struct ProfileView: View {
     
     var body: some View {
         NavigationView {
-            List {
-                // Profile Header
+            ZStack {
+                // Hidden navigation links (outside List to avoid creating rows)
+                if let currentUser = authService.currentUser {
+                    NavigationLink(
+                        destination: RatingsListView(userId: currentUser.id),
+                        isActive: $navigateToReviews
+                    ) {
+                        EmptyView()
+                    }
+                    .hidden()
+                    
+                    NavigationLink(
+                        destination: FlightPackagesView(),
+                        isActive: $navigateToFlightPackages
+                    ) {
+                        EmptyView()
+                    }
+                    .hidden()
+                }
+                
+                List {
+                    // Profile Header
                 Section {
                     // For pilots, wrap in NavigationLink to public profile
                     if authService.userProfile?.userType == .pilot, let currentUser = authService.currentUser {
@@ -279,81 +301,61 @@ struct ProfileView: View {
                     }
                 }
                 
-                // Statistics Section
-                Section("Statistics") {
-                    if authService.userProfile?.userType == .pilot {
-                        if let stats = rankingService.pilotStats {
-                            HStack {
-                                VStack(alignment: .leading) {
-                                    Text("Tier")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                    HStack {
-                                        Text("\(stats.tier)")
-                                            .font(.title2)
-                                            .fontWeight(.bold)
-                                        Text(stats.tierName)
-                                            .font(.subheadline)
-                                            .foregroundColor(.secondary)
-                                    }
+                // Reviews and Flight Packages Cards
+                if let currentUser = authService.currentUser {
+                    if authService.userProfile?.userType == .customer {
+                        // Two cards side by side for customers
+                        Section {
+                            HStack(spacing: 8) {
+                                Button(action: {
+                                    navigateToReviews = true
+                                }) {
+                                    ProfileCard(
+                                        icon: "star.fill",
+                                        iconColor: .yellow,
+                                        title: "Reviews"
+                                    )
                                 }
-                                Spacer()
+                                .buttonStyle(PlainButtonStyle())
+                                .frame(maxWidth: .infinity)
+                                
+                                Button(action: {
+                                    navigateToFlightPackages = true
+                                }) {
+                                    ProfileCard(
+                                        icon: "gift.fill",
+                                        iconColor: .blue,
+                                        title: "Flight Packages"
+                                    )
+                                }
+                                .buttonStyle(PlainButtonStyle())
+                                .frame(maxWidth: .infinity)
                             }
-                            
-                            HStack {
-                                Image(systemName: "clock")
-                                    .foregroundColor(.secondary)
-                                    .font(.body)
-                                    .frame(width: 24)
-                                Text("Flight Hours")
-                                    .foregroundColor(.primary)
-                                Spacer()
-                                Text(String(format: "%.1f hrs", stats.totalFlightHours))
-                                    .fontWeight(.medium)
-                                    .foregroundColor(.primary)
-                            }
-                                                        
-                            HStack {
-                                Image(systemName: "checkmark.circle")
-                                    .foregroundColor(.secondary)
-                                    .font(.body)
-                                    .frame(width: 24)
-                                Text("Completed Bookings")
-                                    .foregroundColor(.primary)
-                                Spacer()
-                                Text("\(stats.completedBookings)")
-                                    .fontWeight(.medium)
-                                    .foregroundColor(.primary)
-                            }
-                        } else if rankingService.isLoading {
-                            HStack {
-                                Spacer()
-                                ProgressView()
-                                Spacer()
-                            }
+                            .listRowInsets(EdgeInsets())
+                            .listRowBackground(Color.clear)
                         }
                     } else {
-                        // Customer stats
-                        HStack {
-                            Image(systemName: "checkmark.circle")
-                                .foregroundColor(.secondary)
-                                .font(.body)
-                                .frame(width: 24)
-                            Text("Completed Bookings")
-                                .foregroundColor(.primary)
-                            Spacer()
-                            if isLoadingRatings {
-                                ProgressView()
-                            } else {
-                                Text("\(customerBookingsCount)")
-                                    .fontWeight(.medium)
-                                    .foregroundColor(.primary)
+                        // Single card for pilots (only Reviews)
+                        Section {
+                            Button(action: {
+                                navigateToReviews = true
+                            }) {
+                                ProfileCard(
+                                    icon: "star.fill",
+                                    iconColor: .yellow,
+                                    title: "Reviews"
+                                )
                             }
+                            .buttonStyle(PlainButtonStyle())
+                            .listRowInsets(EdgeInsets())
+                            .listRowBackground(Color.clear)
                         }
                     }
-                    
-                    // Balance Section (Pilot only)
-                    if authService.userProfile?.userType == .pilot {
+                }
+                
+                // Balance Section (Pilot only)
+                if authService.userProfile?.userType == .pilot {
+                    Section {
                         NavigationLink(destination: BalanceView()) {
                             HStack {
                                 Image(systemName: "dollarsign.circle.fill")
@@ -363,20 +365,6 @@ struct ProfileView: View {
                                 Text("Balance")
                                     .foregroundColor(.primary)
                                 Spacer()
-                            }
-                        }
-                    }
-                    
-                    // View All Ratings Link
-                    if let summary = ratingSummary, summary.totalRatings > 0, let currentUser = authService.currentUser {
-                        NavigationLink(destination: RatingsListView(userId: currentUser.id)) {
-                            HStack {
-                                Image(systemName: "star")
-                                    .foregroundColor(.secondary)
-                                    .font(.body)
-                                    .frame(width: 24)
-                                Text("View All Reviews")
-                                    .foregroundColor(.primary)
                             }
                         }
                     }
@@ -419,37 +407,6 @@ struct ProfileView: View {
                         }
                     } header: {
                         Text("License")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                    }
-                }
-                
-                // Flight Packages (Customer only)
-                if authService.userProfile?.userType == .customer {
-                    Section {
-                        NavigationLink(destination: FlightPackageView()) {
-                            HStack {
-                                Image(systemName: "car.circle.fill")
-                                    .foregroundColor(.secondary)
-                                    .font(.body)
-                                    .frame(width: 24)
-                                Text("Buzz Auto")
-                                    .foregroundColor(.primary)
-                            }
-                        }
-                        
-                        NavigationLink(destination: RealEstatePackageView()) {
-                            HStack {
-                                Image(systemName: "house.circle.fill")
-                                    .foregroundColor(.secondary)
-                                    .font(.body)
-                                    .frame(width: 24)
-                                Text("Buzz Real Estate")
-                                    .foregroundColor(.primary)
-                            }
-                        }
-                    } header: {
-                        Text("Flight Packages")
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                     }
@@ -534,6 +491,7 @@ struct ProfileView: View {
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                 }
+            }
             }
             .navigationTitle("Profile")
             .alert("Sign Out", isPresented: $showSignOutAlert) {
@@ -656,6 +614,43 @@ struct ProfileView: View {
                 print("Error removing profile picture: \(error)")
             }
         }
+    }
+}
+
+// MARK: - Profile Card Component
+
+struct ProfileCard: View {
+    let icon: String
+    let iconColor: Color
+    let title: String
+    
+    var body: some View {
+        VStack(spacing: 12) {
+            // Icon
+            Image(systemName: icon)
+                .font(.system(size: 36))
+                .foregroundColor(iconColor)
+                .frame(width: 60, height: 60)
+                .background(iconColor.opacity(0.1))
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+            
+            // Title
+            Text(title)
+                .font(.subheadline)
+                .fontWeight(.medium)
+                .foregroundColor(.primary)
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: 140)
+        .padding(.vertical, 16)
+        .background(Color(.systemBackground))
+        .cornerRadius(12)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color(.separator).opacity(0.2), lineWidth: 0.5)
+        )
     }
 }
 
