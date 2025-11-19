@@ -36,6 +36,8 @@ struct Badge: Identifiable, Codable {
     
     enum CourseProvider: String, Codable {
         case buzz = "Buzz"
+        case redCross = "Red Cross"
+        case usfa = "USFA"
         case amazon = "Amazon"
         case tmobile = "T-Mobile"
         case other = "Other"
@@ -44,6 +46,10 @@ struct Badge: Identifiable, Codable {
             switch self {
             case .buzz:
                 return .blue
+            case .redCross:
+                return .red
+            case .usfa:
+                return .yellow
             case .amazon:
                 return .orange
             case .tmobile:
@@ -57,6 +63,10 @@ struct Badge: Identifiable, Codable {
             switch self {
             case .buzz:
                 return "airplane.circle.fill"
+            case .redCross:
+                return "cross.circle.fill"
+            case .usfa:
+                return "flame.circle.fill"
             case .amazon:
                 return "a.circle.fill"
             case .tmobile:

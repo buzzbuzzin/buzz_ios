@@ -75,6 +75,16 @@ struct CockpitView: View {
                                     )
                                 }
                                 .buttonStyle(PlainButtonStyle())
+                                
+                                // SOP Card
+                                NavigationLink(destination: SOPView()) {
+                                    CockpitGridCard(
+                                        title: "SOP",
+                                        icon: "book.fill",
+                                        color: .blue
+                                    )
+                                }
+                                .buttonStyle(PlainButtonStyle())
                             }
                             .padding(.horizontal, 16)
                         }
@@ -133,6 +143,16 @@ struct CockpitView: View {
                                         title: "Progress",
                                         icon: "chart.line.uptrend.xyaxis",
                                         color: .indigo
+                                    )
+                                }
+                                .buttonStyle(PlainButtonStyle())
+                                
+                                // Shop Card
+                                NavigationLink(destination: ShopView()) {
+                                    CockpitGridCard(
+                                        title: "Shop",
+                                        icon: "bag.fill",
+                                        color: .pink
                                     )
                                 }
                                 .buttonStyle(PlainButtonStyle())

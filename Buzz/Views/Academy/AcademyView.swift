@@ -30,11 +30,11 @@ struct AcademyView: View {
     }
     
     private let allCategories: [TrainingCourse.CourseCategory] = [
-        .safety, .operations, .photography, .cinematography, .inspection, .mapping
+        .safety, .operations, .photography, .cinematography, .inspection, .mapping, .cprFirstAid, .basicFirefighter
     ]
     
     private let allProviders: [TrainingCourse.CourseProvider] = [
-        .buzz, .amazon, .tmobile, .other
+        .buzz, .redCross, .usfa, .amazon, .tmobile, .other
     ]
     
     var filteredCourses: [TrainingCourse] {
@@ -1007,6 +1007,10 @@ struct CourseDetailView: View {
             return "https://images.unsplash.com/photo-1581094794329-c8112a89af12?w=800&h=400&fit=crop"
         case .mapping:
             return "https://images.unsplash.com/photo-1559827260-dc66d52bef19?w=800&h=400&fit=crop"
+        case .cprFirstAid:
+            return "https://images.unsplash.com/photo-1559757148-5c350d0d3c56?w=800&h=400&fit=crop"
+        case .basicFirefighter:
+            return "https://images.unsplash.com/photo-1540979388789-6cee28a1cdc9?w=800&h=400&fit=crop"
         }
     }
 }
@@ -1049,7 +1053,7 @@ struct UASPilotCoursePromotionCard: View {
                     .foregroundColor(.yellow)
                     .font(.title2)
                 
-                Text("New Pilot Specials")
+                Text("New Pilot Offer")
                     .font(.headline)
                     .fontWeight(.bold)
                     .foregroundColor(.primary)
@@ -1069,10 +1073,6 @@ struct UASPilotCoursePromotionCard: View {
                     .foregroundColor(.green)
                     .fontWeight(.semibold)
             } else {
-                Text("🎓 Get full access to the UAS Pilot Course")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                
                 HStack {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Special Price")
@@ -1104,10 +1104,10 @@ struct UASPilotCoursePromotionCard: View {
             Text("✓ More perks and benefits for future courses")
                 .font(.caption)
                 .foregroundColor(.secondary)
-            
-            Text("✓ Full course access with subscription")
+            Text("✓ Get full access to the Pilot Academy")
                 .font(.caption)
                 .foregroundColor(.secondary)
+            
         }
         .padding()
         .background(
