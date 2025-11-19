@@ -10,7 +10,6 @@ import SwiftUI
 struct ShopView: View {
     @StateObject private var shopifyService = ShopifyService()
     @State private var selectedProduct: ShopifyProduct? = nil
-    @State private var showProductDetail = false
     
     var body: some View {
         ScrollView {
@@ -77,20 +76,20 @@ struct ShopView: View {
                 } else if shopifyService.products.isEmpty {
                     // Empty state
                     VStack(spacing: 16) {
-                        Image(systemName: "bag.fill")
-                            .font(.system(size: 80))
-                            .foregroundColor(.pink.opacity(0.6))
-                        
+            Image(systemName: "bag.fill")
+                .font(.system(size: 80))
+                .foregroundColor(.pink.opacity(0.6))
+            
                         Text("No Products Available")
                             .font(.title2)
-                            .fontWeight(.bold)
-                            .foregroundColor(.primary)
-                        
+                .fontWeight(.bold)
+                .foregroundColor(.primary)
+            
                         Text("Check back soon for new products!")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal, 40)
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 40)
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.top, 100)
@@ -105,8 +104,12 @@ struct ShopView: View {
                     ) {
                         ForEach(shopifyService.products) { product in
                             ProductCard(product: product) {
+                                print("🛍️ Product tapped: \(product.title)")
+                                print("🛍️ Product has \(product.images.count) images")
+                                print("🛍️ Product description: \(product.description.prefix(100))")
+                                print("🛍️ Setting selectedProduct...")
                                 selectedProduct = product
-                                showProductDetail = true
+                                print("🛍️ selectedProduct is now: \(selectedProduct?.title ?? "nil")")
                             }
                         }
                     }
@@ -126,10 +129,8 @@ struct ShopView: View {
         .refreshable {
             try? await shopifyService.fetchProducts()
         }
-        .sheet(isPresented: $showProductDetail) {
-            if let product = selectedProduct {
-                ProductDetailView(product: product)
-            }
+        .sheet(item: $selectedProduct) { product in
+            ProductDetailView(product: product)
         }
     }
 }
@@ -235,6 +236,14 @@ struct ProductDetailView: View {
     @State private var selectedImageIndex = 0
     @State private var selectedVariant: ShopifyProductVariant?
     
+    init(product: ShopifyProduct) {
+        self.product = product
+        print("📱 ProductDetailView initialized for: \(product.title)")
+        print("📱 Product ID: \(product.id)")
+        print("📱 Images count: \(product.images.count)")
+        print("📱 Description length: \(product.description.count) chars")
+    }
+    
     var body: some View {
         NavigationView {
             ScrollView {
@@ -249,22 +258,27 @@ struct ProductDetailView: View {
                                         case .empty:
                                             Rectangle()
                                                 .fill(Color.gray.opacity(0.2))
-                                                .aspectRatio(1, contentMode: .fit)
+                                                .frame(height: 400)
                                                 .overlay(ProgressView())
                                         case .success(let image):
                                             image
                                                 .resizable()
                                                 .scaledToFit()
+                                                .frame(maxWidth: .infinity)
+                                                .frame(height: 400)
                                         case .failure:
                                             Rectangle()
                                                 .fill(Color.gray.opacity(0.2))
-                                                .aspectRatio(1, contentMode: .fit)
+                                                .frame(height: 400)
                                                 .overlay(
                                                     Image(systemName: "photo")
+                                                        .font(.system(size: 50))
                                                         .foregroundColor(.gray)
                                                 )
                                         @unknown default:
-                                            EmptyView()
+                                            Rectangle()
+                                                .fill(Color.gray.opacity(0.2))
+                                                .frame(height: 400)
                                         }
                                     }
                                     .tag(index)
@@ -273,6 +287,23 @@ struct ProductDetailView: View {
                         }
                         .tabViewStyle(.page)
                         .frame(height: 400)
+                        .background(Color(.systemGray6))
+                    } else {
+                        // Placeholder if no images
+                        Rectangle()
+                            .fill(Color.gray.opacity(0.2))
+                            .frame(height: 400)
+                            .overlay(
+                                VStack(spacing: 12) {
+                                    Image(systemName: "photo")
+                                        .font(.system(size: 50))
+                                        .foregroundColor(.gray)
+                                    Text("No Image Available")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                            )
+                            .background(Color(.systemGray6))
                     }
                     
                     VStack(alignment: .leading, spacing: 16) {
@@ -290,9 +321,23 @@ struct ProductDetailView: View {
                         }
                         
                         // Price
-                        Text(product.formattedPrice)
-                            .font(.system(size: 24, weight: .bold))
-                            .foregroundColor(.primary)
+                        HStack(alignment: .firstTextBaseline, spacing: 8) {
+                            Text(product.formattedPrice)
+                                .font(.system(size: 24, weight: .bold))
+                                .foregroundColor(.primary)
+                            
+                            // Show availability badge
+                            if product.availableForSale {
+                                Text("In Stock")
+                                    .font(.caption)
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(.green)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
+                                    .background(Color.green.opacity(0.1))
+                                    .cornerRadius(4)
+                            }
+                        }
                         
                         Divider()
                         
@@ -303,16 +348,28 @@ struct ProductDetailView: View {
                                     .font(.headline)
                                     .foregroundColor(.primary)
                                 
-                                Text(product.description)
+                                Text(stripHTML(from: product.description))
                                     .font(.body)
                                     .foregroundColor(.secondary)
+                                    .lineSpacing(4)
                                     .fixedSize(horizontal: false, vertical: true)
+                            }
+                        } else {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Description")
+                                    .font(.headline)
+                                    .foregroundColor(.primary)
+                                
+                                Text("No description available for this product.")
+                                    .font(.body)
+                                    .foregroundColor(.secondary)
+                                    .italic()
                             }
                         }
                         
                         // Variants
                         if product.variants.count > 1 {
-                            VStack(alignment: .leading, spacing: 8) {
+                            VStack(alignment: .leading, spacing: 12) {
                                 Text("Options")
                                     .font(.headline)
                                     .foregroundColor(.primary)
@@ -325,11 +382,20 @@ struct ProductDetailView: View {
                                             VStack(alignment: .leading, spacing: 4) {
                                                 Text(variant.title)
                                                     .font(.subheadline)
+                                                    .fontWeight(.medium)
                                                     .foregroundColor(.primary)
                                                 
-                                                Text(variant.formattedPrice)
-                                                    .font(.caption)
-                                                    .foregroundColor(.secondary)
+                                                HStack(spacing: 8) {
+                                                    Text(variant.formattedPrice)
+                                                        .font(.caption)
+                                                        .foregroundColor(.secondary)
+                                                    
+                                                    if !variant.availableForSale {
+                                                        Text("Out of Stock")
+                                                            .font(.caption2)
+                                                            .foregroundColor(.red)
+                                                    }
+                                                }
                                             }
                                             
                                             Spacer()
@@ -337,6 +403,11 @@ struct ProductDetailView: View {
                                             if selectedVariant?.id == variant.id {
                                                 Image(systemName: "checkmark.circle.fill")
                                                     .foregroundColor(.blue)
+                                                    .font(.system(size: 20))
+                                            } else {
+                                                Image(systemName: "circle")
+                                                    .foregroundColor(.gray.opacity(0.3))
+                                                    .font(.system(size: 20))
                                             }
                                         }
                                         .padding()
@@ -348,6 +419,22 @@ struct ProductDetailView: View {
                                         .cornerRadius(8)
                                     }
                                     .buttonStyle(PlainButtonStyle())
+                                }
+                            }
+                        } else if !product.variants.isEmpty {
+                            // Show single variant info
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Product Details")
+                                    .font(.headline)
+                                    .foregroundColor(.primary)
+                                
+                                HStack {
+                                    Text("SKU:")
+                                        .font(.subheadline)
+                                        .foregroundColor(.secondary)
+                                    Text(product.variants.first?.title ?? "Default")
+                                        .font(.subheadline)
+                                        .foregroundColor(.primary)
                                 }
                             }
                         }
@@ -407,6 +494,33 @@ struct ProductDetailView: View {
         if let url = URL(string: shopifyURL) {
             UIApplication.shared.open(url)
         }
+    }
+    
+    // Helper function to strip HTML tags from description
+    private func stripHTML(from string: String) -> String {
+        let pattern = "<[^>]+>"
+        let plainText = string.replacingOccurrences(of: pattern, with: "", options: .regularExpression)
+        
+        // Decode HTML entities
+        var decodedText = plainText
+            .replacingOccurrences(of: "&nbsp;", with: " ")
+            .replacingOccurrences(of: "&amp;", with: "&")
+            .replacingOccurrences(of: "&lt;", with: "<")
+            .replacingOccurrences(of: "&gt;", with: ">")
+            .replacingOccurrences(of: "&quot;", with: "\"")
+            .replacingOccurrences(of: "&#39;", with: "'")
+            .replacingOccurrences(of: "&rsquo;", with: "'")
+            .replacingOccurrences(of: "&lsquo;", with: "'")
+            .replacingOccurrences(of: "&rdquo;", with: "\"")
+            .replacingOccurrences(of: "&ldquo;", with: "\"")
+        
+        // Remove excessive whitespace and newlines
+        decodedText = decodedText
+            .components(separatedBy: .whitespacesAndNewlines)
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+        
+        return decodedText.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
 
