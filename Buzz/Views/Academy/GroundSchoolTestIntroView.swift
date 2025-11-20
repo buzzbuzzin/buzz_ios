@@ -37,8 +37,8 @@ struct GroundSchoolTestIntroView: View {
                             .fontWeight(.bold)
                         
                         TestInfoRow(icon: "list.number", label: "Total Questions", value: "70 Questions")
-                        TestInfoRow(icon: "clock", label: "Estimated Time", value: "60-90 Minutes")
-                        TestInfoRow(icon: "target", label: "Passing Score", value: "70% (49/70 correct)")
+                        TestInfoRow(icon: "clock", label: "Estimated Time", value: "60 Minutes")
+                        TestInfoRow(icon: "target", label: "Passing Score", value: "80% (56/70 correct)")
                         
                         VStack(alignment: .leading, spacing: 12) {
                             HStack {
@@ -50,11 +50,11 @@ struct GroundSchoolTestIntroView: View {
                             }
                             
                             VStack(alignment: .leading, spacing: 8) {
-                                BulletPoint(text: "Regulations (21 questions)")
-                                BulletPoint(text: "Airspace (11 questions)")
-                                BulletPoint(text: "Weather (6 questions)")
-                                BulletPoint(text: "Loading & Performance (4 questions)")
-                                BulletPoint(text: "Operations (28 questions)")
+                                BulletPoint(text: "Regulations (30%)")
+                                BulletPoint(text: "Airspace (15%)")
+                                BulletPoint(text: "Weather (10%)")
+                                BulletPoint(text: "Loading & Performance (5%)")
+                                BulletPoint(text: "Operations (40%)")
                             }
                             .padding(.leading, 30)
                         }
