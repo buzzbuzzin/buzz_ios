@@ -242,17 +242,12 @@ struct PilotProfileView: View {
                     if let stats = rankingService.pilotStats {
                         HStack {
                             VStack(alignment: .leading) {
-                                Text("Tier")
+                                Text("Rank")
                                     .font(.caption)
                                     .foregroundColor(.secondary)
-                                HStack {
-                                    Text("\(stats.tier)")
-                                        .font(.title2)
-                                        .fontWeight(.bold)
-                                    Text(stats.tierName)
-                                        .font(.subheadline)
-                                        .foregroundColor(.secondary)
-                                }
+                                Text(stats.tierName)
+                                    .font(.title2)
+                                    .fontWeight(.bold)
                             }
                             Spacer()
                         }

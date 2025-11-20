@@ -69,6 +69,18 @@ struct SettingsView: View {
                 }
             }
             
+            // Express Promotion (Pilot only)
+            if authService.userProfile?.userType == .pilot {
+                NavigationLink(destination: ExpressPromotionView()) {
+                    HStack {
+                        Image(systemName: "star.circle.fill")
+                            .foregroundColor(.secondary)
+                            .frame(width: 24)
+                        Text("Express Promotion")
+                    }
+                }
+            }
+            
             // Communication Preferences
             Picker("Communication Preference", selection: $communicationPreference) {
                 ForEach([CommunicationPreference.email, .text, .both], id: \.self) { preference in
