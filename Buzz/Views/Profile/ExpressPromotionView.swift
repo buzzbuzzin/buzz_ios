@@ -142,7 +142,6 @@ struct ExpressPromotionView: View {
     @State private var hasLieutenantPromotion = false
     @State private var hasPassedGroundSchoolTest = false
     @State private var isLoadingTestStatus = false
-    @State private var checkTimer: Timer?
     
     var body: some View {
         ScrollView {
@@ -190,12 +189,12 @@ struct ExpressPromotionView: View {
                         )
                     }
                     
-                    Text("Step 1: Upload Aviation Degree or PPL documents (PDF or photos)")
+                    Text("Step 1: Upload your diploma with Aviation degree or PPL documents (PDF or photos) and we will manually verify it for you.")
                         .font(.caption)
                         .foregroundColor(.secondary)
                         .padding(.top, 4)
                     
-                    Text("Step 2: Pass the Ground School Test (checked automatically)")
+                    Text("Step 2: Pass the Ground School Test after verifying your diploma or PPL.")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -374,26 +373,10 @@ struct ExpressPromotionView: View {
             await checkStatus()
         }
         .onAppear {
-            // Refresh status when view appears
+            // Refresh status when view appears (one-time check)
             Task {
                 await checkStatus()
             }
-            
-            // Set up periodic check for test status (every 5 seconds) if Lieutenant is verified
-            Task {
-                let lieutenantPromoted = await expressPromotionService.hasLieutenantPromotion(pilotId: authService.currentUser?.id ?? UUID())
-                if lieutenantPromoted {
-                    checkTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { _ in
-                        Task {
-                            await checkStatus()
-                        }
-                    }
-                }
-            }
-        }
-        .onDisappear {
-            checkTimer?.invalidate()
-            checkTimer = nil
         }
     }
     

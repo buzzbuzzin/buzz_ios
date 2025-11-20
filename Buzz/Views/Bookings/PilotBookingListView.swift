@@ -19,6 +19,7 @@ struct PilotBookingListView: View {
     @State private var selectedCategory: BookingSpecialization? = nil
     @State private var radiusMiles: Double = 25.0 // Default 25 miles
     @State private var isRadiusExpanded = false // Collapse/expand radius filter
+    @State private var showExpressPromotionCard = true // Show promotion card
     
     // Radius options: 5, 25, 50, 100, 200 miles
     private let radiusOptions: [Double] = [5, 25, 50, 100, 200]
@@ -163,17 +164,40 @@ struct PilotBookingListView: View {
                 // Bookings List
                 if bookingService.isLoading {
                     LoadingView(message: "Loading bookings...")
-                } else if filteredBookings.isEmpty {
-                    EmptyStateView(
-                        icon: "airplane.departure",
-                        title: selectedCategory == nil ? "No Available Bookings" : "No \(selectedCategory?.displayName ?? "") Jobs",
-                        message: selectedCategory == nil ? "Check back later for new drone pilot opportunities" : "Try selecting a different category"
-                    )
                 } else {
-                    List {
-                        ForEach(filteredBookings) { booking in
-                            NavigationLink(destination: BookingDetailView(booking: booking)) {
-                                BookingCard(booking: booking)
+                    ScrollView {
+                        VStack(spacing: 16) {
+                            // Express Promotion Card (always show at top)
+                            if showExpressPromotionCard {
+                                ExpressPromotionCard(
+                                    onDismiss: {
+                                        withAnimation {
+                                            showExpressPromotionCard = false
+                                        }
+                                    },
+                                    onLearnMore: {
+                                        // Navigate to Express Promotion view
+                                        // This will be handled via NavigationLink in the card
+                                    }
+                                )
+                                .padding(.horizontal)
+                                .padding(.top, 8)
+                            }
+                            
+                            if filteredBookings.isEmpty {
+                                EmptyStateView(
+                                    icon: "airplane.departure",
+                                    title: selectedCategory == nil ? "No Available Bookings" : "No \(selectedCategory?.displayName ?? "") Jobs",
+                                    message: selectedCategory == nil ? "Check back later for new drone pilot opportunities" : "Try selecting a different category"
+                                )
+                                .padding(.top, 40)
+                            } else {
+                                ForEach(filteredBookings) { booking in
+                                    NavigationLink(destination: BookingDetailView(booking: booking)) {
+                                        BookingCard(booking: booking)
+                                    }
+                                    .padding(.horizontal)
+                                }
                             }
                         }
                     }
@@ -407,6 +431,68 @@ struct BookingMapCard: View {
         .background(.ultraThinMaterial)
         .cornerRadius(16)
         .shadow(radius: 10)
+    }
+}
+
+// MARK: - Express Promotion Card
+
+struct ExpressPromotionCard: View {
+    let onDismiss: () -> Void
+    let onLearnMore: () -> Void
+    
+    var body: some View {
+        HStack(spacing: 16) {
+            // Icon
+            ZStack {
+                Circle()
+                    .fill(Color.yellow.opacity(0.2))
+                    .frame(width: 50, height: 50)
+                
+                Image(systemName: "star.fill")
+                    .foregroundColor(.yellow)
+                    .font(.title3)
+            }
+            
+            // Content with NavigationLink
+            NavigationLink(destination: ExpressPromotionView()) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Express Promotion")
+                        .font(.headline)
+                        .foregroundColor(.primary)
+                    
+                    Text("Fast-track your rank advancement with verified credentials")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .lineLimit(2)
+                }
+            }
+            .buttonStyle(PlainButtonStyle())
+            
+            Spacer()
+            
+            // Dismiss button
+            Button(action: {
+                onDismiss()
+            }) {
+                Image(systemName: "xmark.circle.fill")
+                    .foregroundColor(.secondary)
+                    .font(.title3)
+            }
+            .buttonStyle(PlainButtonStyle())
+        }
+        .padding()
+        .background(
+            LinearGradient(
+                gradient: Gradient(colors: [Color.yellow.opacity(0.1), Color.orange.opacity(0.05)]),
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        )
+        .cornerRadius(12)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color.yellow.opacity(0.3), lineWidth: 1)
+        )
     }
 }
 

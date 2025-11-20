@@ -644,6 +644,31 @@ struct GroundSchoolTestView: View {
                     courseCategory: course.category.rawValue,
                     provider: Badge.CourseProvider(rawValue: course.provider.rawValue) ?? .buzz
                 )
+                
+                // Express Promotion: Auto-promote to Commander
+                // Requires BOTH conditions:
+                // 1. Test passed (already satisfied - we're inside the `if passed` block)
+                // 2. Step 1 completed (Lieutenant promotion verified)
+                // Only check for UAS Ground School Test (course ID: a1b2c3d4-e5f6-7890-abcd-ef1234567890)
+                let uasCourseId = UUID(uuidString: "a1b2c3d4-e5f6-7890-abcd-ef1234567890")
+                if course.id == uasCourseId {
+                    let expressPromotionService = ExpressPromotionService()
+                    let hasLieutenantPromotion = await expressPromotionService.hasLieutenantPromotion(pilotId: pilotId)
+                    
+                    // Check both conditions: test passed AND Step 1 completed
+                    if passed && hasLieutenantPromotion {
+                        print("🚀 [GroundSchoolTestView] Both conditions met - Test passed AND Lieutenant verified. Auto-promoting to Commander...")
+                        do {
+                            try await expressPromotionService.autoPromoteToCommander(pilotId: pilotId)
+                            print("✅ [GroundSchoolTestView] Successfully auto-promoted to Commander")
+                        } catch {
+                            print("⚠️ [GroundSchoolTestView] Error auto-promoting to Commander: \(error.localizedDescription)")
+                            // Don't fail the test submission if promotion fails
+                        }
+                    } else if passed && !hasLieutenantPromotion {
+                        print("ℹ️ [GroundSchoolTestView] Test passed but Step 1 (Lieutenant promotion) not completed. Commander promotion skipped.")
+                    }
+                }
             }
             
             isLoading = false
