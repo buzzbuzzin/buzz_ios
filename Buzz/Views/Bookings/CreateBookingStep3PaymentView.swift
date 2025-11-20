@@ -25,8 +25,13 @@ struct CreateBookingStep3PaymentView: View {
     @State private var totalPaymentInput = ""
     @State private var showMinRateWarning = false
     @State private var paymentInputType: PaymentInputType = .totalPayment
+    @State private var showSubscription = false
+    @StateObject private var subscriptionService = SubscriptionService()
     
     private let minimumHourlyRate: Double = 25.0
+    
+    // Automotive product ID from Stripe
+    private let automotiveProductId = "prod_TOW3rxsrI5xCs3"
     
     // Automotive pricing
     private var automotivePrice: Decimal {
@@ -53,6 +58,17 @@ struct CreateBookingStep3PaymentView: View {
     
     private var rankName: String {
         PilotStats(pilotId: UUID(), totalFlightHours: 0, completedBookings: 0, tier: requiredMinimumRank).tierName
+    }
+    
+    // Convert rank tier to lookup_key for subscription
+    private var rankLookupKey: String? {
+        switch requiredMinimumRank {
+        case 4: return "captain"
+        case 3: return "commander"
+        case 2: return "lieutenant"
+        case 1: return "sub-lieutenant"
+        default: return nil
+        }
     }
     
     var body: some View {
@@ -121,6 +137,21 @@ struct CreateBookingStep3PaymentView: View {
                                         .font(.caption)
                                         .foregroundColor(.secondary)
                                         .padding(.leading, 8)
+                                        
+                                        // Subscribe Now button
+                                        Button(action: {
+                                            showSubscription = true
+                                        }) {
+                                            Text("Subscribe Now!")
+                                                .font(.subheadline)
+                                                .fontWeight(.semibold)
+                                                .foregroundColor(.white)
+                                                .frame(maxWidth: .infinity)
+                                                .padding(.vertical, 10)
+                                                .background(Color.blue)
+                                                .cornerRadius(8)
+                                        }
+                                        .padding(.top, 8)
                                     }
                                     .padding()
                                     .background(Color.orange.opacity(0.1))
@@ -143,6 +174,21 @@ struct CreateBookingStep3PaymentView: View {
                                 Text("Subscribe the Buzz Automotive Package to get lower prices on future bookings!")
                                     .font(.caption)
                                     .foregroundColor(.secondary)
+                                
+                                // Subscribe Now button
+                                Button(action: {
+                                    showSubscription = true
+                                }) {
+                                    Text("Subscribe Now!")
+                                        .font(.subheadline)
+                                        .fontWeight(.semibold)
+                                        .foregroundColor(.white)
+                                        .frame(maxWidth: .infinity)
+                                        .padding(.vertical, 10)
+                                        .background(Color.blue)
+                                        .cornerRadius(8)
+                                }
+                                .padding(.top, 8)
                             }
                             .padding(.top, 8)
                         } else {
@@ -337,6 +383,25 @@ struct CreateBookingStep3PaymentView: View {
             // Update payment amount when rank changes for Automotive
             if selectedSpecialization == .automotive {
                 paymentAmount = String(format: "%.2f", NSDecimalNumber(decimal: automotivePrice).doubleValue)
+            }
+        }
+        .sheet(isPresented: $showSubscription) {
+            PlanSelectionView(
+                subscriptionService: subscriptionService,
+                onSubscriptionCreated: {
+                    showSubscription = false
+                    // Refresh subscription status if needed
+                },
+                productId: automotiveProductId,
+                rankLookupKey: rankLookupKey
+            )
+        }
+        .onAppear {
+            // Load plans when subscription sheet might be shown
+            if selectedSpecialization == .automotive {
+                Task {
+                    await subscriptionService.fetchAvailablePlans(productId: automotiveProductId)
+                }
             }
         }
     }
