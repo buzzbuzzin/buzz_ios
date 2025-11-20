@@ -129,7 +129,11 @@ struct BadgesView: View {
                         .font(.subheadline)
                 } else {
                     ForEach(filteredAvailableBadges) { availableBadge in
-                        AvailableBadgeRow(availableBadge: availableBadge)
+                        AvailableBadgeRow(
+                            availableBadge: availableBadge,
+                            authService: authService,
+                            badgeService: badgeService
+                        )
                     }
                 }
             } header: {
@@ -315,6 +319,15 @@ struct BadgeRow: View {
 
 struct AvailableBadgeRow: View {
     let availableBadge: AvailableBadge
+    let authService: AuthService
+    let badgeService: BadgeService
+    
+    @StateObject private var profileService = ProfileService()
+    @State private var showVeteranVerificationSheet = false
+    
+    var isExMilitaryBadge: Bool {
+        availableBadge.badgeType == .exMilitary
+    }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -371,6 +384,21 @@ struct AvailableBadgeRow: View {
         }
         .padding(.vertical, 4)
         .opacity(0.7) // Slightly faded to indicate not earned
+        .contentShape(Rectangle()) // Make entire area tappable
+        .onTapGesture {
+            if isExMilitaryBadge {
+                showVeteranVerificationSheet = true
+            }
+        }
+        .sheet(isPresented: $showVeteranVerificationSheet) {
+            if let currentUser = authService.currentUser {
+                VeteranVerificationView(
+                    profileService: profileService,
+                    badgeService: badgeService,
+                    userId: currentUser.id
+                )
+            }
+        }
     }
 }
 

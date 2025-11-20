@@ -68,6 +68,34 @@ class ProfileService: ObservableObject {
             .execute()
     }
     
+    func updateExMilitaryStatus(userId: UUID, isExMilitary: Bool) async throws {
+        let updates: [String: AnyJSON] = [
+            "is_ex_military": .bool(isExMilitary)
+        ]
+        
+        try await supabase
+            .from("profiles")
+            .update(updates)
+            .eq("id", value: userId.uuidString)
+            .execute()
+    }
+    
+    func updateVeteranVerification(userId: UUID, serviceName: String, serviceCountry: String, militaryBranch: String, serviceNumber: String) async throws {
+        var updates: [String: AnyJSON] = [
+            "is_ex_military": .bool(true),
+            "veteran_service_name": .string(serviceName),
+            "veteran_service_country": .string(serviceCountry),
+            "veteran_military_branch": .string(militaryBranch),
+            "veteran_service_number": .string(serviceNumber)
+        ]
+        
+        try await supabase
+            .from("profiles")
+            .update(updates)
+            .eq("id", value: userId.uuidString)
+            .execute()
+    }
+    
     func checkCallSignAvailability(callSign: String) async throws -> Bool {
         do {
             // Normalize callsign to uppercase for case-insensitive comparison
@@ -135,7 +163,11 @@ class ProfileService: ObservableObject {
                 isExMilitary: nil,
                 isGovernmentEmployee: nil,
                 hasFaaCertification: nil,
-                isBuzzAffiliate: nil
+                isBuzzAffiliate: nil,
+                veteranServiceName: nil,
+                veteranServiceCountry: nil,
+                veteranMilitaryBranch: nil,
+                veteranServiceNumber: nil
             )
         }
         
@@ -190,7 +222,11 @@ class ProfileService: ObservableObject {
                 isExMilitary: nil,
                 isGovernmentEmployee: nil,
                 hasFaaCertification: nil,
-                isBuzzAffiliate: nil
+                isBuzzAffiliate: nil,
+                veteranServiceName: nil,
+                veteranServiceCountry: nil,
+                veteranMilitaryBranch: nil,
+                veteranServiceNumber: nil
             )
         }
         

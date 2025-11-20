@@ -87,6 +87,10 @@ struct UserProfile: Codable, Identifiable {
     let isGovernmentEmployee: Bool? // Government employee status (awards Government Employee badge)
     let hasFaaCertification: Bool? // FAA certification status (awards FAA badge)
     let isBuzzAffiliate: Bool? // Buzz affiliate status (awards Buzz badge)
+    let veteranServiceName: String? // Full name on service/veteran card
+    let veteranServiceCountry: String? // Service country
+    let veteranMilitaryBranch: String? // Military branch (Army, Navy, Air Force, etc.)
+    let veteranServiceNumber: String? // Service number
     
     enum CodingKeys: String, CodingKey {
         case id
@@ -108,6 +112,10 @@ struct UserProfile: Codable, Identifiable {
         case isGovernmentEmployee = "is_government_employee"
         case hasFaaCertification = "has_faa_certification"
         case isBuzzAffiliate = "is_buzz_affiliate"
+        case veteranServiceName = "veteran_service_name"
+        case veteranServiceCountry = "veteran_service_country"
+        case veteranMilitaryBranch = "veteran_military_branch"
+        case veteranServiceNumber = "veteran_service_number"
     }
     
     var fullName: String {

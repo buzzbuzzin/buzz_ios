@@ -185,7 +185,11 @@ class RatingService: ObservableObject {
                 isExMilitary: nil,
                 isGovernmentEmployee: nil,
                 hasFaaCertification: nil,
-                isBuzzAffiliate: nil
+                isBuzzAffiliate: nil,
+                veteranServiceName: nil,
+                veteranServiceCountry: nil,
+                veteranMilitaryBranch: nil,
+                veteranServiceNumber: nil
             ),
             UserProfile(
                 id: UUID(),
@@ -206,7 +210,11 @@ class RatingService: ObservableObject {
                 isExMilitary: nil,
                 isGovernmentEmployee: nil,
                 hasFaaCertification: nil,
-                isBuzzAffiliate: nil
+                isBuzzAffiliate: nil,
+                veteranServiceName: nil,
+                veteranServiceCountry: nil,
+                veteranMilitaryBranch: nil,
+                veteranServiceNumber: nil
             ),
             UserProfile(
                 id: UUID(),
@@ -227,7 +235,11 @@ class RatingService: ObservableObject {
                 isExMilitary: nil,
                 isGovernmentEmployee: nil,
                 hasFaaCertification: nil,
-                isBuzzAffiliate: nil
+                isBuzzAffiliate: nil,
+                veteranServiceName: nil,
+                veteranServiceCountry: nil,
+                veteranMilitaryBranch: nil,
+                veteranServiceNumber: nil
             ),
             UserProfile(
                 id: UUID(),
@@ -248,7 +260,11 @@ class RatingService: ObservableObject {
                 isExMilitary: nil,
                 isGovernmentEmployee: nil,
                 hasFaaCertification: nil,
-                isBuzzAffiliate: nil
+                isBuzzAffiliate: nil,
+                veteranServiceName: nil,
+                veteranServiceCountry: nil,
+                veteranMilitaryBranch: nil,
+                veteranServiceNumber: nil
             ),
             UserProfile(
                 id: UUID(),
@@ -269,7 +285,11 @@ class RatingService: ObservableObject {
                 isExMilitary: nil,
                 isGovernmentEmployee: nil,
                 hasFaaCertification: nil,
-                isBuzzAffiliate: nil
+                isBuzzAffiliate: nil,
+                veteranServiceName: nil,
+                veteranServiceCountry: nil,
+                veteranMilitaryBranch: nil,
+                veteranServiceNumber: nil
             ),
             UserProfile(
                 id: UUID(),
@@ -290,7 +310,11 @@ class RatingService: ObservableObject {
                 isExMilitary: nil,
                 isGovernmentEmployee: nil,
                 hasFaaCertification: nil,
-                isBuzzAffiliate: nil
+                isBuzzAffiliate: nil,
+                veteranServiceName: nil,
+                veteranServiceCountry: nil,
+                veteranMilitaryBranch: nil,
+                veteranServiceNumber: nil
             )
         ]
         
@@ -385,7 +409,11 @@ class RatingService: ObservableObject {
                 isExMilitary: nil,
                 isGovernmentEmployee: nil,
                 hasFaaCertification: nil,
-                isBuzzAffiliate: nil
+                isBuzzAffiliate: nil,
+                veteranServiceName: nil,
+                veteranServiceCountry: nil,
+                veteranMilitaryBranch: nil,
+                veteranServiceNumber: nil
             ),
             UserProfile(
                 id: UUID(),
@@ -406,7 +434,11 @@ class RatingService: ObservableObject {
                 isExMilitary: nil,
                 isGovernmentEmployee: nil,
                 hasFaaCertification: nil,
-                isBuzzAffiliate: nil
+                isBuzzAffiliate: nil,
+                veteranServiceName: nil,
+                veteranServiceCountry: nil,
+                veteranMilitaryBranch: nil,
+                veteranServiceNumber: nil
             ),
             UserProfile(
                 id: UUID(),
@@ -427,7 +459,11 @@ class RatingService: ObservableObject {
                 isExMilitary: nil,
                 isGovernmentEmployee: nil,
                 hasFaaCertification: nil,
-                isBuzzAffiliate: nil
+                isBuzzAffiliate: nil,
+                veteranServiceName: nil,
+                veteranServiceCountry: nil,
+                veteranMilitaryBranch: nil,
+                veteranServiceNumber: nil
             ),
             UserProfile(
                 id: UUID(),
@@ -448,7 +484,11 @@ class RatingService: ObservableObject {
                 isExMilitary: nil,
                 isGovernmentEmployee: nil,
                 hasFaaCertification: nil,
-                isBuzzAffiliate: nil
+                isBuzzAffiliate: nil,
+                veteranServiceName: nil,
+                veteranServiceCountry: nil,
+                veteranMilitaryBranch: nil,
+                veteranServiceNumber: nil
             ),
             UserProfile(
                 id: UUID(),
@@ -469,7 +509,11 @@ class RatingService: ObservableObject {
                 isExMilitary: nil,
                 isGovernmentEmployee: nil,
                 hasFaaCertification: nil,
-                isBuzzAffiliate: nil
+                isBuzzAffiliate: nil,
+                veteranServiceName: nil,
+                veteranServiceCountry: nil,
+                veteranMilitaryBranch: nil,
+                veteranServiceNumber: nil
             ),
             UserProfile(
                 id: UUID(),
@@ -490,7 +534,11 @@ class RatingService: ObservableObject {
                 isExMilitary: nil,
                 isGovernmentEmployee: nil,
                 hasFaaCertification: nil,
-                isBuzzAffiliate: nil
+                isBuzzAffiliate: nil,
+                veteranServiceName: nil,
+                veteranServiceCountry: nil,
+                veteranMilitaryBranch: nil,
+                veteranServiceNumber: nil
             )
         ]
         
