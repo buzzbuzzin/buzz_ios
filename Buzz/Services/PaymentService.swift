@@ -10,6 +10,7 @@ import StripePaymentSheet
 import Supabase
 import UIKit
 import Combine
+import PassKit
 
 @MainActor
 class PaymentService: ObservableObject {
@@ -75,6 +76,14 @@ class PaymentService: ObservableObject {
             configuration.customer = .init(id: customerId, ephemeralKeySecret: ephemeralKey)
         }
         
+        // Enable Apple Pay if supported
+        if isApplePaySupported() {
+            configuration.applePay = .init(
+                merchantId: Config.appleMerchantID,
+                merchantCountryCode: "US"
+            )
+        }
+        
         let paymentSheet = PaymentSheet(
             paymentIntentClientSecret: paymentIntentClientSecret,
             configuration: configuration
@@ -82,6 +91,24 @@ class PaymentService: ObservableObject {
         
         // Present payment sheet
         return try await paymentSheet.present()
+    }
+    
+    // MARK: - Apple Pay Support Check
+    
+    /// Checks if Apple Pay is supported on the current device
+    /// Returns true if the device supports Apple Pay and the user has at least one card in their wallet
+    private func isApplePaySupported() -> Bool {
+        // Check if Apple Pay is available on this device
+        guard PKPaymentAuthorizationController.canMakePayments() else {
+            return false
+        }
+        
+        // Check if the user has at least one payment card configured
+        guard PKPaymentAuthorizationController.canMakePayments(usingNetworks: [.visa, .masterCard, .amex, .discover]) else {
+            return false
+        }
+        
+        return true
     }
     
     // MARK: - Create Transfer
@@ -123,6 +150,70 @@ class PaymentService: ObservableObject {
             errorMessage = error.localizedDescription
             throw error
         }
+    }
+    
+    // MARK: - Create Setup Intent
+    
+    /// Creates a SetupIntent to save payment method without charging
+    func createSetupIntent(customerId: UUID) async throws -> SetupIntentResponse {
+        isLoading = true
+        errorMessage = nil
+        
+        do {
+            struct SetupIntentRequest: Codable {
+                let customer_id: String
+            }
+            
+            let request = SetupIntentRequest(
+                customer_id: customerId.uuidString
+            )
+            
+            let response: SetupIntentResponse = try await supabase.functions
+                .invoke("create-setup-intent", options: FunctionInvokeOptions(
+                    body: request
+                ))
+            
+            isLoading = false
+            return response
+        } catch {
+            isLoading = false
+            errorMessage = error.localizedDescription
+            throw error
+        }
+    }
+    
+    // MARK: - Present Setup Intent Payment Sheet
+    
+    /// Presents the Stripe PaymentSheet for saving a payment method (SetupIntent)
+    func presentSetupIntentPaymentSheet(
+        setupIntentClientSecret: String,
+        customerId: String,
+        customerEphemeralKeySecret: String
+    ) async throws -> PaymentSheetResult {
+        var configuration = PaymentSheet.Configuration()
+        configuration.merchantDisplayName = "Buzz"
+        
+        // Configure customer (required for SetupIntent)
+        configuration.customer = .init(id: customerId, ephemeralKeySecret: customerEphemeralKeySecret)
+        
+        // Set allowsDelayedPaymentMethods to true if supporting US bank accounts
+        configuration.allowsDelayedPaymentMethods = true
+        
+        // Enable Apple Pay if supported
+        if isApplePaySupported() {
+            configuration.applePay = .init(
+                merchantId: Config.appleMerchantID,
+                merchantCountryCode: "US"
+            )
+        }
+        
+        let paymentSheet = PaymentSheet(
+            setupIntentClientSecret: setupIntentClientSecret,
+            configuration: configuration
+        )
+        
+        // Present payment sheet
+        return try await paymentSheet.present()
     }
     
     // MARK: - Fetch Saved Payment Methods
@@ -186,6 +277,20 @@ struct TransferResponse: Codable {
         case transferId = "transfer_id"
         case amount
         case currency
+    }
+}
+
+struct SetupIntentResponse: Codable {
+    let clientSecret: String
+    let setupIntentId: String
+    let customerId: String
+    let ephemeralKeySecret: String
+    
+    enum CodingKeys: String, CodingKey {
+        case clientSecret = "client_secret"
+        case setupIntentId = "setup_intent_id"
+        case customerId = "customer_id"
+        case ephemeralKeySecret = "ephemeral_key_secret"
     }
 }
 

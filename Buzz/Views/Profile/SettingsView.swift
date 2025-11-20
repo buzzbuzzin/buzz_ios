@@ -62,6 +62,13 @@ struct SettingsView: View {
                 }
             }
             
+            // Saved Payments
+            NavigationLink(destination: SavedPaymentsView()) {
+                HStack {
+                    Text("Saved Payments")
+                }
+            }
+            
             // Communication Preferences
             Picker("Communication Preference", selection: $communicationPreference) {
                 ForEach([CommunicationPreference.email, .text, .both], id: \.self) { preference in

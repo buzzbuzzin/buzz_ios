@@ -13,12 +13,13 @@ struct SavedPaymentsView: View {
     @StateObject private var paymentService = PaymentService()
     @State private var paymentMethods: [SavedPaymentMethod] = []
     @State private var isLoading = false
+    @State private var isAddingPaymentMethod = false
     @State private var errorMessage: String?
     @State private var showError = false
     
     var body: some View {
         List {
-            if isLoading {
+            if isLoading && !isAddingPaymentMethod {
                 HStack {
                     Spacer()
                     ProgressView()
@@ -26,7 +27,7 @@ struct SavedPaymentsView: View {
                 }
                 .padding()
             } else if paymentMethods.isEmpty {
-                VStack(spacing: 16) {
+                VStack(spacing: 24) {
                     Image(systemName: "creditcard")
                         .font(.system(size: 50))
                         .foregroundColor(.secondary)
@@ -35,11 +36,36 @@ struct SavedPaymentsView: View {
                         .font(.headline)
                         .foregroundColor(.primary)
                     
-                    Text("When you save a payment method during checkout, it will appear here for future use.")
+                    Text("Add a payment method to use for future purchases. Your payment information is securely stored and encrypted.")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal)
+                    
+                    Button(action: {
+                        Task {
+                            await addPaymentMethod()
+                        }
+                    }) {
+                        HStack {
+                            if isAddingPaymentMethod {
+                                ProgressView()
+                                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                            } else {
+                                Image(systemName: "plus.circle.fill")
+                            }
+                            Text(isAddingPaymentMethod ? "Adding..." : "Add Payment Method")
+                        }
+                        .font(.headline)
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color.blue)
+                        .cornerRadius(12)
+                    }
+                    .disabled(isAddingPaymentMethod)
+                    .padding(.horizontal)
+                    .padding(.top, 8)
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 40)
@@ -47,6 +73,23 @@ struct SavedPaymentsView: View {
                 ForEach(paymentMethods) { method in
                     PaymentMethodRow(paymentMethod: method)
                 }
+                
+                // Add Payment Method button when there are existing methods
+                Button(action: {
+                    Task {
+                        await addPaymentMethod()
+                    }
+                }) {
+                    HStack {
+                        Image(systemName: "plus.circle.fill")
+                        Text("Add Payment Method")
+                        Spacer()
+                    }
+                    .font(.headline)
+                    .foregroundColor(.blue)
+                    .padding(.vertical, 8)
+                }
+                .disabled(isAddingPaymentMethod)
             }
         }
         .navigationTitle("Saved Payments")
@@ -84,6 +127,50 @@ struct SavedPaymentsView: View {
             }
         }
     }
+    
+    private func addPaymentMethod() async {
+        guard let currentUser = authService.currentUser else { return }
+        
+        isAddingPaymentMethod = true
+        errorMessage = nil
+        
+        do {
+            // Create SetupIntent
+            let setupIntentResponse = try await paymentService.createSetupIntent(customerId: currentUser.id)
+            
+            // Present PaymentSheet with SetupIntent
+            let result = try await paymentService.presentSetupIntentPaymentSheet(
+                setupIntentClientSecret: setupIntentResponse.clientSecret,
+                customerId: setupIntentResponse.customerId,
+                customerEphemeralKeySecret: setupIntentResponse.ephemeralKeySecret
+            )
+            
+            await MainActor.run {
+                self.isAddingPaymentMethod = false
+            }
+            
+            // Handle result
+            switch result {
+            case .completed:
+                // Payment method saved successfully, refresh the list
+                await loadPaymentMethods()
+            case .cancelled:
+                // User cancelled, no action needed
+                break
+            case .failed(let error):
+                await MainActor.run {
+                    self.errorMessage = error.localizedDescription
+                    self.showError = true
+                }
+            }
+        } catch {
+            await MainActor.run {
+                self.isAddingPaymentMethod = false
+                self.errorMessage = error.localizedDescription
+                self.showError = true
+            }
+        }
+    }
 }
 
 struct PaymentMethodRow: View {
@@ -91,10 +178,10 @@ struct PaymentMethodRow: View {
     
     var body: some View {
         HStack(spacing: 16) {
-            // Card icon
-            Image(systemName: "creditcard.fill")
+            // Card brand icon
+            Image(systemName: cardBrandIcon)
                 .font(.title2)
-                .foregroundColor(.blue)
+                .foregroundColor(cardBrandColor)
                 .frame(width: 40)
             
             // Card details
@@ -113,6 +200,44 @@ struct PaymentMethodRow: View {
             Spacer()
         }
         .padding(.vertical, 8)
+    }
+    
+    private var cardBrandIcon: String {
+        guard let brand = paymentMethod.card?.brand.lowercased() else {
+            return "creditcard.fill"
+        }
+        
+        switch brand {
+        case "visa":
+            return "creditcard.fill"
+        case "mastercard":
+            return "creditcard.fill"
+        case "amex", "american_express":
+            return "creditcard.fill"
+        case "discover":
+            return "creditcard.fill"
+        default:
+            return "creditcard.fill"
+        }
+    }
+    
+    private var cardBrandColor: Color {
+        guard let brand = paymentMethod.card?.brand.lowercased() else {
+            return .blue
+        }
+        
+        switch brand {
+        case "visa":
+            return .blue
+        case "mastercard":
+            return .orange
+        case "amex", "american_express":
+            return .green
+        case "discover":
+            return .orange
+        default:
+            return .blue
+        }
     }
 }
 

@@ -55,7 +55,7 @@ serve(async (req) => {
       stripeCustomerId = newCustomer.id
     }
 
-    // Create ephemeral key for customer
+    // Create ephemeral key for customer (required for PaymentSheet to show "Save payment details" checkbox)
     let ephemeralKeySecret: string | undefined
     try {
       const ephemeralKey = await stripe.ephemeralKeys.create(
@@ -64,11 +64,33 @@ serve(async (req) => {
       )
       ephemeralKeySecret = ephemeralKey.secret
     } catch (error) {
-      console.log("Could not create ephemeral key:", error)
+      console.error("Could not create ephemeral key:", error)
+      // Return error instead of continuing silently
+      // Ephemeral key is required for PaymentSheet to show "Save payment details" checkbox
+      return new Response(
+        JSON.stringify({ error: "Failed to create ephemeral key for customer" }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      )
+    }
+    
+    if (!ephemeralKeySecret) {
+      return new Response(
+        JSON.stringify({ error: "Ephemeral key secret is missing" }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      )
     }
 
     // Create subscription with default_incomplete payment behavior
     // This creates a subscription with status 'incomplete' and a PaymentIntent for the first invoice
+    // Note: save_default_payment_method is set to "on_subscription" to ensure payment method is saved
+    // for recurring charges. The PaymentSheet will still show "Save payment details" checkbox
+    // when customer + ephemeral key are provided (which we ensure above).
     const subscription = await stripe.subscriptions.create({
       customer: stripeCustomerId,
       items: [{ price: price_id }],
