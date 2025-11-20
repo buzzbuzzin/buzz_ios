@@ -26,6 +26,10 @@ struct GroundSchoolTestView: View {
     @State private var showExitAlert = false
     @State private var selectedChartURL: URL? = nil
     @State private var showChartViewer = false
+    @State private var timeRemaining: TimeInterval = 3600 // 60 minutes in seconds
+    @State private var timer: Timer? = nil
+    @State private var testStartTime: Date? = nil
+    @State private var wasAutoSubmitted = false
     
     // Ground School Test ID (fixed UUID)
     private let groundSchoolTestId = UUID(uuidString: "a1b2c3d4-e5f6-7890-abcd-000000000001")!
@@ -73,6 +77,12 @@ struct GroundSchoolTestView: View {
         selectedAnswers.count
     }
     
+    var timeRemainingFormatted: String {
+        let minutes = Int(timeRemaining) / 60
+        let seconds = Int(timeRemaining) % 60
+        return String(format: "%d:%02d", minutes, seconds)
+    }
+    
     var body: some View {
         testContentView
             .navigationTitle("Ground School Test")
@@ -93,6 +103,9 @@ struct GroundSchoolTestView: View {
             }
             .task {
                 await loadTestQuestions()
+            }
+            .onDisappear {
+                stopTimer()
             }
     }
     
@@ -152,6 +165,7 @@ struct GroundSchoolTestView: View {
                             score: testScore,
                             passed: passed,
                             totalQuestions: questions.count,
+                            wasAutoSubmitted: wasAutoSubmitted,
                             onDismiss: {
                                 dismiss()
                             }
@@ -159,7 +173,32 @@ struct GroundSchoolTestView: View {
                     } else {
                         // Test View
                         VStack(alignment: .leading, spacing: 20) {
-                            // Progress Bar
+                            // Timer Display (above progress bar)
+                            HStack {
+                                Spacer()
+                                HStack(spacing: 6) {
+                                    Image(systemName: "clock.fill")
+                                        .foregroundColor(timeRemaining < 300 ? .red : .blue)
+                                        .font(.title3)
+                                    Text(timeRemainingFormatted)
+                                        .font(.title3)
+                                        .fontWeight(.bold)
+                                        .foregroundColor(timeRemaining < 300 ? .red : .blue)
+                                }
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 10)
+                                .background(
+                                    timeRemaining < 300
+                                        ? Color.red.opacity(0.15)
+                                        : Color.blue.opacity(0.15)
+                                )
+                                .cornerRadius(10)
+                                Spacer()
+                            }
+                            .padding(.horizontal)
+                            .padding(.top)
+                            
+                            // Progress Bar Section
                             VStack(alignment: .leading, spacing: 8) {
                                 HStack {
                                     Text("Question \(currentQuestionIndex + 1) of \(questions.count)")
@@ -176,7 +215,6 @@ struct GroundSchoolTestView: View {
                                     .progressViewStyle(LinearProgressViewStyle(tint: answeredQuestionsCount == questions.count ? .green : .blue))
                             }
                             .padding(.horizontal)
-                            .padding(.top)
                             
                             // Question
                             VStack(alignment: .leading, spacing: 16) {
@@ -349,6 +387,7 @@ struct GroundSchoolTestView: View {
         if !showResults && !isLoading {
             ToolbarItem(placement: .navigationBarLeading) {
                 Button("Exit") {
+                    stopTimer()
                     showExitAlert = true
                 }
                 .foregroundColor(.red)
@@ -369,8 +408,11 @@ struct GroundSchoolTestView: View {
     
     @ViewBuilder
     private var exitAlert: some View {
-        Button("Cancel", role: .cancel) { }
+        Button("Cancel", role: .cancel) {
+            startTimer() // Resume timer if canceling exit
+        }
         Button("Exit", role: .destructive) {
+            stopTimer()
             dismiss()
         }
     }
@@ -474,6 +516,8 @@ struct GroundSchoolTestView: View {
             } else {
                 questions = loadedQuestions
                 print("🎉 [GroundSchoolTestView] Test ready with \(questions.count) questions!")
+                // Start the timer when questions are loaded
+                startTimer()
             }
             
             isLoading = false
@@ -507,9 +551,43 @@ struct GroundSchoolTestView: View {
         return fields
     }
     
+    private func startTimer() {
+        stopTimer() // Stop any existing timer
+        testStartTime = Date()
+        timeRemaining = 3600 // Reset to 60 minutes
+        wasAutoSubmitted = false
+        
+        timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
+            if self.timeRemaining > 0 {
+                self.timeRemaining -= 1
+            } else {
+                // Time's up - auto submit
+                self.stopTimer()
+                self.wasAutoSubmitted = true
+                self.submitTest()
+            }
+        }
+        
+        // Add timer to common run loop modes so it continues during scrolling
+        if let timer = timer {
+            RunLoop.main.add(timer, forMode: .common)
+        }
+    }
+    
+    private func stopTimer() {
+        timer?.invalidate()
+        timer = nil
+    }
+    
     private func submitTest() {
+        stopTimer() // Stop timer when submitting
         isLoading = true
         errorMessage = nil
+        
+        // If manually submitted, clear auto-submit flag
+        if !wasAutoSubmitted {
+            wasAutoSubmitted = false
+        }
         
         // Calculate score
         var correctAnswers = 0
@@ -594,6 +672,7 @@ struct TestResultsView: View {
     let score: Int
     let passed: Bool
     let totalQuestions: Int
+    let wasAutoSubmitted: Bool
     let onDismiss: () -> Void
     
     var body: some View {
@@ -613,6 +692,14 @@ struct TestResultsView: View {
                 Text(passed ? "Congratulations! You passed!" : "You did not pass")
                     .font(.title2)
                     .fontWeight(.semibold)
+                
+                if wasAutoSubmitted {
+                    Text("Time's up! Your test was automatically submitted.")
+                        .font(.subheadline)
+                        .foregroundColor(.orange)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal)
+                }
                 
                 Text(passed ? "You've earned the Ground School badge!" : "You need 70% to pass. Try again!")
                     .font(.subheadline)
