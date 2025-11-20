@@ -156,6 +156,16 @@ struct CockpitView: View {
                                     )
                                 }
                                 .buttonStyle(PlainButtonStyle())
+                                
+                                // Insurance Card
+                                NavigationLink(destination: InsuranceView()) {
+                                    CockpitGridCard(
+                                        title: "Insurance",
+                                        icon: "shield.fill",
+                                        color: .blue
+                                    )
+                                }
+                                .buttonStyle(PlainButtonStyle())
                             }
                             .padding(.horizontal, 16)
                         }
@@ -2029,5 +2039,138 @@ struct BlockoutCard: View {
             }
             Button("Cancel", role: .cancel) { }
         }
+    }
+}
+
+// MARK: - Insurance View
+
+struct InsuranceView: View {
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 24) {
+                // Header Section
+                VStack(spacing: 12) {
+                    // Insurance Badge/Icon
+                    ZStack {
+                        Circle()
+                            .fill(
+                                LinearGradient(
+                                    colors: [.blue.opacity(0.8), .cyan.opacity(0.6)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .frame(width: 100, height: 100)
+                            .shadow(color: .blue.opacity(0.5), radius: 20)
+                        
+                        Image(systemName: "shield.fill")
+                            .font(.system(size: 50))
+                            .foregroundColor(.white)
+                    }
+                    .padding(.top)
+                    
+                    Text("Insurance")
+                        .font(.system(size: 36, weight: .bold))
+                        .foregroundColor(.primary)
+                    
+                    Text("Manage Your Insurance Policies")
+                        .font(.headline)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+                .padding(.horizontal)
+                
+                // Coming Soon Notice
+                VStack(spacing: 12) {
+                    Image(systemName: "clock.fill")
+                        .font(.system(size: 40))
+                        .foregroundColor(.blue)
+                    
+                    Text("Coming Soon!")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                    
+                    Text("We're working on insurance policy management. Soon you'll be able to view your insurance policy files, insurance card, and manage all your insurance documents in one place.")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal)
+                }
+                .padding()
+                .background(Color.blue.opacity(0.1))
+                .cornerRadius(16)
+                .padding(.horizontal)
+                
+                // Feature Preview Section
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("What's Coming")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                        .padding(.horizontal)
+                    
+                    VStack(spacing: 12) {
+                        FeaturePreviewRow(
+                            icon: "doc.fill",
+                            title: "Policy Documents",
+                            description: "View and download your insurance policy files"
+                        )
+                        
+                        FeaturePreviewRow(
+                            icon: "creditcard.fill",
+                            title: "Insurance Card",
+                            description: "Access your digital insurance card anytime"
+                        )
+                        
+                        FeaturePreviewRow(
+                            icon: "calendar.badge.clock",
+                            title: "Renewal Reminders",
+                            description: "Get notified when your policy is up for renewal"
+                        )
+                        
+                        FeaturePreviewRow(
+                            icon: "checkmark.shield.fill",
+                            title: "Coverage Details",
+                            description: "View your coverage limits and policy details"
+                        )
+                    }
+                    .padding(.horizontal)
+                }
+                .padding(.top)
+            }
+            .padding(.vertical)
+        }
+        .navigationTitle("Insurance")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+// MARK: - Feature Preview Row
+
+struct FeaturePreviewRow: View {
+    let icon: String
+    let title: String
+    let description: String
+    
+    var body: some View {
+        HStack(spacing: 16) {
+            Image(systemName: icon)
+                .font(.system(size: 32))
+                .foregroundColor(.blue)
+                .frame(width: 50)
+            
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.headline)
+                
+                Text(description)
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+            }
+            
+            Spacer()
+        }
+        .padding()
+        .background(Color(.secondarySystemBackground))
+        .cornerRadius(12)
     }
 }
