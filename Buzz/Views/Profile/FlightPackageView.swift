@@ -29,19 +29,18 @@ struct FlightPackageView: View {
     }
     
     var body: some View {
-        NavigationView {
-            Group {
-                if isLoadingSubscription {
-                    VStack {
-                        Spacer()
-                        ProgressView()
-                        Text("Loading subscription...")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                            .padding(.top)
-                        Spacer()
-                    }
-                } else if hasActiveSubscription {
+        Group {
+            if isLoadingSubscription {
+                VStack {
+                    Spacer()
+                    ProgressView()
+                    Text("Loading subscription...")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .padding(.top)
+                    Spacer()
+                }
+            } else if hasActiveSubscription {
                     // Show management view if subscription exists
                     VStack(spacing: 0) {
                         // Tab selector (currently only one tab, but structure allows for expansion)
@@ -98,7 +97,7 @@ struct FlightPackageView: View {
                     )
                 }
             }
-//            .navigationTitle("Buzz Auto")
+            .navigationTitle("Buzz Auto")
             .navigationBarTitleDisplayMode(.large)
             .alert("Pause Membership", isPresented: $showPauseAlert) {
                 Button("Cancel", role: .cancel) {}
@@ -123,7 +122,6 @@ struct FlightPackageView: View {
                 MembershipDetailsView()
                     .interactiveDismissDisabled()
             }
-        }
         .onAppear {
             // Use onAppear instead of .task to prevent retriggering on state changes
             print("📱 View appeared, hasLoadedOnce=\(hasLoadedOnce)")

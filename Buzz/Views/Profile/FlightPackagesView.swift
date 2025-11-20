@@ -9,59 +9,57 @@ import SwiftUI
 
 struct FlightPackagesView: View {
     var body: some View {
-        NavigationView {
-            ScrollView {
-                VStack(spacing: 24) {
-                    // Header
-                    VStack(spacing: 12) {
-                        Image("Logo")
-                            .resizable()
-                            .scaledToFit()
-                            .frame(width: 80, height: 80)
-                        
-                        Text("Buzz Subscription")
-                            .font(.title2)
-                            .fontWeight(.bold)
-                        
-                        Text("Choose from our premium packages designed to make your booking experience easier and more affordable.")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal)
-                    }
-                    .padding(.top, 20)
+        ScrollView {
+            VStack(spacing: 24) {
+                // Header
+                VStack(spacing: 12) {
+                    Image("Logo")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 80, height: 80)
                     
-                    // Package Cards
-                    VStack(spacing: 16) {
-                        // Buzz Auto Card
-                        NavigationLink(destination: FlightPackageView()) {
-                            PackageCard(
-                                icon: "car.circle.fill",
-                                title: "Buzz Auto",
-                                description: "Perfect for car dealerships. Get up to 50 cinematic videos per month with dedicated drone & pilot access.",
-                                color: .blue
-                            )
-                        }
-                        .buttonStyle(PlainButtonStyle())
-                        
-                        // Buzz Real Estate Card - Hidden for now
-                        // NavigationLink(destination: RealEstatePackageView()) {
-                        //     PackageCard(
-                        //         icon: "house.circle.fill",
-                        //         title: "Buzz Real Estate",
-                        //         description: "At Buzz, our pilots have a passion for creating inspiring content. Our advanced licensed drone pilots and camera operators are dedicated to capturing quality content for your real estate business.",
-                        //         color: .purple
-                        //     )
-                        // }
-                        // .buttonStyle(PlainButtonStyle())
-                    }
-                    .padding(.horizontal)
+                    Text("Buzz Subscription")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                    
+                    Text("Choose from our premium packages designed to make your booking experience easier and more affordable.")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal)
                 }
-                .padding(.vertical)
+                .padding(.top, 20)
+                
+                // Package Cards
+                VStack(spacing: 16) {
+                    // Buzz Auto Card
+                    NavigationLink(destination: FlightPackageView()) {
+                        PackageCard(
+                            icon: "car.circle.fill",
+                            title: "Buzz Auto",
+                            description: "Perfect for car dealerships. Get up to 50 cinematic videos per month with dedicated drone & pilot access.",
+                            color: .blue
+                        )
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                    
+                    // Buzz Real Estate Card - Hidden for now
+                    // NavigationLink(destination: RealEstatePackageView()) {
+                    //     PackageCard(
+                    //         icon: "house.circle.fill",
+                    //         title: "Buzz Real Estate",
+                    //         description: "At Buzz, our pilots have a passion for creating inspiring content. Our advanced licensed drone pilots and camera operators are dedicated to capturing quality content for your real estate business.",
+                    //         color: .purple
+                    //     )
+                    // }
+                    // .buttonStyle(PlainButtonStyle())
+                }
+                .padding(.horizontal)
             }
-            .navigationTitle("Flight Packages")
-            .navigationBarTitleDisplayMode(.large)
+            .padding(.vertical)
         }
+        .navigationTitle("Flight Packages")
+        .navigationBarTitleDisplayMode(.large)
     }
 }
 
