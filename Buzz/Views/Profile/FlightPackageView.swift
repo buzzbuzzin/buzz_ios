@@ -746,6 +746,8 @@ struct SubscriptionSelectionView: View {
     let onShowMembershipDetails: () -> Void
     
     @State private var showPlanSelection = false
+    @State private var showRankPricingInfo = false
+    @State private var selectedRankLookupKey: String? = nil
     @State private var hasLoadedPlans = false // Prevent multiple loads
     
     // Automotive product ID from Stripe
@@ -778,7 +780,7 @@ struct SubscriptionSelectionView: View {
                 
                 // Join now button
                 Button(action: {
-                    showPlanSelection = true
+                    showRankPricingInfo = true
                 }) {
                     Text("Join now")
                         .fontWeight(.semibold)
@@ -926,11 +928,23 @@ struct SubscriptionSelectionView: View {
                 await loadPlans()
             }
         }
+        .sheet(isPresented: $showRankPricingInfo) {
+            RankPricingInfoView(
+                onContinue: { lookupKey in
+                    selectedRankLookupKey = lookupKey
+                    showRankPricingInfo = false
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        showPlanSelection = true
+                    }
+                }
+            )
+        }
         .sheet(isPresented: $showPlanSelection) {
             PlanSelectionView(
                 subscriptionService: subscriptionService,
                 onSubscriptionCreated: onSubscriptionCreated,
-                productId: automotiveProductId
+                productId: automotiveProductId,
+                rankLookupKey: selectedRankLookupKey
             )
         }
     }
@@ -967,6 +981,164 @@ struct SubscriptionSelectionView: View {
     }
 }
 
+// MARK: - Pilot Rank for Subscription
+
+enum PilotRankForSubscription: String, CaseIterable {
+    case captain = "captain"
+    case commander = "commander"
+    case lieutenant = "lieutenant"
+    case subLieutenant = "sub-lieutenant"
+    
+    var displayName: String {
+        switch self {
+        case .captain: return "Captain"
+        case .commander: return "Commander"
+        case .lieutenant: return "Lieutenant"
+        case .subLieutenant: return "Sub-Lieutenant"
+        }
+    }
+    
+    var price: String {
+        switch self {
+        case .captain: return "$4,000"
+        case .commander: return "$3,800"
+        case .lieutenant: return "$3,600"
+        case .subLieutenant: return "$3,400"
+        }
+    }
+}
+
+// MARK: - Rank Pricing Info View
+
+struct RankPricingInfoView: View {
+    @Environment(\.dismiss) var dismiss
+    @State private var showRankInfo = false
+    @State private var selectedRank: PilotRankForSubscription? = nil
+    let onContinue: (String?) -> Void
+    
+    var body: some View {
+        NavigationView {
+            ScrollView {
+                VStack(spacing: 24) {
+                    // Header
+                    VStack(spacing: 12) {
+                        Image(systemName: "info.circle.fill")
+                            .font(.system(size: 60))
+                            .foregroundColor(.blue)
+                        
+                        Text("Pricing Information")
+                            .font(.title2)
+                            .fontWeight(.bold)
+                    }
+                    .padding(.top, 20)
+                    
+                    // Pricing explanation
+                    VStack(alignment: .leading, spacing: 16) {
+                        HStack {
+                            Text("Pricing Based on Pilot Rank")
+                                .font(.headline)
+                            Spacer()
+                            Button(action: {
+                                showRankInfo = true
+                            }) {
+                                Image(systemName: "info.circle")
+                                    .foregroundColor(.blue)
+                                    .font(.subheadline)
+                            }
+                        }
+                        
+                        Text("The price is based on pilot rank that you would like to choose.")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                        
+                        // Rank selection picker
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Select Pilot Rank")
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+                                .foregroundColor(.primary)
+                            
+                            Picker("Pilot Rank", selection: $selectedRank) {
+                                Text("Select a rank").tag(nil as PilotRankForSubscription?)
+                                ForEach(PilotRankForSubscription.allCases, id: \.self) { rank in
+                                    Text(rank.displayName).tag(rank as PilotRankForSubscription?)
+                                }
+                            }
+                            .pickerStyle(.menu)
+                        }
+                        .padding(.top, 8)
+                        
+                        // Rank pricing list
+                        VStack(spacing: 12) {
+                            RankPricingRow(rankName: "Captain", price: "$4,000")
+                            RankPricingRow(rankName: "Commander", price: "$3,800")
+                            RankPricingRow(rankName: "Lieutenant", price: "$3,600")
+                            RankPricingRow(rankName: "Sub-Lieutenant", price: "$3,400")
+                        }
+                        .padding(.top, 8)
+                    }
+                    .padding()
+                    .background(Color(.systemGray6))
+                    .cornerRadius(12)
+                    .padding(.horizontal)
+                    
+                    // Continue button
+                    Button(action: {
+                        onContinue(selectedRank?.rawValue)
+                    }) {
+                        Text("Continue")
+                            .fontWeight(.semibold)
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(selectedRank != nil ? Color.blue : Color.gray)
+                            .foregroundColor(.white)
+                            .cornerRadius(12)
+                    }
+                    .disabled(selectedRank == nil)
+                    .padding(.horizontal)
+                    .padding(.bottom, 20)
+                }
+            }
+            .navigationTitle("Choose Plan")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+            }
+            .sheet(isPresented: $showRankInfo) {
+                RankInfoView()
+            }
+        }
+    }
+}
+
+// MARK: - Rank Pricing Row
+
+struct RankPricingRow: View {
+    let rankName: String
+    let price: String
+    
+    var body: some View {
+        HStack {
+            Text(rankName)
+                .font(.subheadline)
+                .foregroundColor(.primary)
+            Spacer()
+            Text(price)
+                .font(.subheadline)
+                .fontWeight(.semibold)
+                .foregroundColor(.blue)
+            Text("/month")
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+        .padding(.vertical, 4)
+    }
+}
+
 // MARK: - Plan Selection View
 
 struct PlanSelectionView: View {
@@ -974,6 +1146,7 @@ struct PlanSelectionView: View {
     @EnvironmentObject var authService: AuthService
     let onSubscriptionCreated: () -> Void
     let productId: String? // Optional product ID to filter plans
+    let rankLookupKey: String? // Optional lookup key to filter plans by rank
     @Environment(\.dismiss) var dismiss
     
     @State private var selectedPlan: SubscriptionPlan?
@@ -982,67 +1155,107 @@ struct PlanSelectionView: View {
     @State private var errorMessage = ""
     @State private var hasLoadedPlans = false
     
+    // Computed property to filter plans by lookup key
+    private var filteredPlans: [SubscriptionPlan] {
+        let allPlans = subscriptionService.availablePlans
+        guard let lookupKey = rankLookupKey else {
+            print("🔍 No rankLookupKey provided, returning all \(allPlans.count) plans")
+            return allPlans
+        }
+        let lowercasedLookupKey = lookupKey.lowercased()
+        print("🔍 Filtering plans for lookup_key: '\(lowercasedLookupKey)'")
+        print("🔍 Available plans:")
+        for plan in allPlans {
+            print("   - \(plan.name), lookup_key: '\(plan.lookupKey ?? "nil")', amount: \(plan.amount)")
+        }
+        let filtered = allPlans.filter { plan in
+            guard let planLookupKey = plan.lookupKey else {
+                print("   ❌ Plan '\(plan.name)' has nil lookup_key, excluding")
+                return false
+            }
+            let matches = planLookupKey.lowercased() == lowercasedLookupKey
+            if matches {
+                print("   ✅ Plan '\(plan.name)' matches (lookup_key: '\(planLookupKey)')")
+            }
+            return matches
+        }
+        print("🔍 Filtered to \(filtered.count) plan(s)")
+        return filtered
+    }
+    
+    // Computed property for plans content to help compiler type-checking
+    @ViewBuilder
+    private var plansContent: some View {
+        if subscriptionService.isLoading && subscriptionService.availablePlans.isEmpty {
+            ProgressView()
+                .padding()
+        } else if filteredPlans.isEmpty {
+            VStack(spacing: 12) {
+                Text("No plans available")
+                    .foregroundColor(.secondary)
+                if let error = subscriptionService.errorMessage {
+                    Text(error)
+                        .font(.caption)
+                        .foregroundColor(.red)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal)
+                }
+            }
+            .padding()
+        } else {
+            VStack(spacing: 16) {
+                ForEach(filteredPlans) { plan in
+                    PlanSelectionCard(
+                        plan: plan,
+                        isSelected: selectedPlan?.id == plan.id,
+                        onSelect: {
+                            selectedPlan = plan
+                        }
+                    )
+                }
+            }
+            .padding(.horizontal)
+        }
+    }
+    
+    // Computed property for subscribe button to help compiler type-checking
+    @ViewBuilder
+    private var subscribeButton: some View {
+        if let plan = selectedPlan {
+            Button(action: {
+                Task {
+                    await subscribeToPlan(plan)
+                }
+            }) {
+                HStack {
+                    if isProcessingPayment {
+                        ProgressView()
+                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                    }
+                    Text(isProcessingPayment ? "Processing..." : "Subscribe to \(plan.name)")
+                        .fontWeight(.semibold)
+                }
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(Color.blue)
+                .foregroundColor(.white)
+                .cornerRadius(12)
+            }
+            .disabled(isProcessingPayment)
+            .padding(.horizontal)
+            .padding(.bottom, 20)
+        }
+    }
+    
     var body: some View {
         NavigationView {
             ScrollView {
                 VStack(spacing: 24) {
                     // Plans
-                    if subscriptionService.isLoading && subscriptionService.availablePlans.isEmpty {
-                        ProgressView()
-                            .padding()
-                    } else if subscriptionService.availablePlans.isEmpty {
-                        VStack(spacing: 12) {
-                            Text("No plans available")
-                                .foregroundColor(.secondary)
-                            if let error = subscriptionService.errorMessage {
-                                Text(error)
-                                    .font(.caption)
-                                    .foregroundColor(.red)
-                                    .multilineTextAlignment(.center)
-                                    .padding(.horizontal)
-                            }
-                        }
-                        .padding()
-                    } else {
-                        VStack(spacing: 16) {
-                            ForEach(subscriptionService.availablePlans) { plan in
-                                PlanSelectionCard(
-                                    plan: plan,
-                                    isSelected: selectedPlan?.id == plan.id,
-                                    onSelect: {
-                                        selectedPlan = plan
-                                    }
-                                )
-                            }
-                        }
-                        .padding(.horizontal)
-                    }
+                    plansContent
                     
                     // Subscribe button
-                    if let plan = selectedPlan {
-                        Button(action: {
-                            Task {
-                                await subscribeToPlan(plan)
-                            }
-                        }) {
-                            HStack {
-                                if isProcessingPayment {
-                                    ProgressView()
-                                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                                }
-                                Text(isProcessingPayment ? "Processing..." : "Subscribe to \(plan.name)")
-                                    .fontWeight(.semibold)
-                            }
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color.blue)
-                            .foregroundColor(.white)
-                            .cornerRadius(12)
-                        }
-                        .disabled(isProcessingPayment)
-                        .padding(.horizontal)
-                        .padding(.bottom, 20)
-                    }
+                    subscribeButton
                 }
                 .padding(.top)
             }
@@ -1074,11 +1287,26 @@ struct PlanSelectionView: View {
                         let plans = await subscriptionService.fetchAvailablePlans(productId: productId)
                         print("🔄 PlanSelectionView: Loaded \(plans.count) plans")
                         for plan in plans {
-                            print("   - \(plan.name)")
+                            print("   - \(plan.name), lookup_key: \(plan.lookupKey ?? "nil")")
+                        }
+                        // Auto-select plan if only one matches the rank lookup key
+                        await MainActor.run {
+                            if let lookupKey = rankLookupKey {
+                                let matchingPlans = plans.filter { plan in
+                                    plan.lookupKey?.lowercased() == lookupKey.lowercased()
+                                }
+                                if matchingPlans.count == 1 {
+                                    selectedPlan = matchingPlans.first
+                                }
+                            }
                         }
                     }
                 } else if productId == nil {
                     print("🔄 PlanSelectionView: No product ID provided, using existing plans")
+                    // Auto-select plan if only one matches the rank lookup key
+                    if let lookupKey = rankLookupKey, filteredPlans.count == 1 {
+                        selectedPlan = filteredPlans.first
+                    }
                 }
             }
         }

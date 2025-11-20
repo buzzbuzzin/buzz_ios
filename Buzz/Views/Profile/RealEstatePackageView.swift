@@ -696,7 +696,8 @@ struct RealEstateSubscriptionSelectionView: View {
             PlanSelectionView(
                 subscriptionService: subscriptionService,
                 onSubscriptionCreated: onSubscriptionCreated,
-                productId: realEstateProductId
+                productId: realEstateProductId,
+                rankLookupKey: nil
             )
         }
     }

@@ -12,7 +12,7 @@ if (!stripeSecretKey) {
 
 const stripe = new Stripe(stripeSecretKey, {
   httpClient: Stripe.createFetchHttpClient(),
-  apiVersion: "2023-10-16", // Pin API version for consistency
+  apiVersion: "2024-11-20.acacia", // Use latest API version to ensure lookup_key support
 })
 
 // IMPORTANT: Use the TEST MODE product ID if using test keys, or LIVE MODE product ID if using live keys
@@ -114,8 +114,18 @@ serve(async (req) => {
     // Map Stripe prices to plan format
     const plans = prices.data.map((price) => {
       console.log(`💰 Processing price ${price.id}:`)
+      console.log(`   - Full price object keys: ${Object.keys(price).join(", ")}`)
       console.log(`   - Nickname: ${price.nickname || "(empty)"}`)
+      console.log(`   - Lookup Key (direct): ${price.lookup_key || "(empty)"}`)
+      console.log(`   - Lookup Key (type): ${typeof price.lookup_key}`)
+      console.log(`   - Amount: ${price.unit_amount}`)
       console.log(`   - Metadata: ${JSON.stringify(price.metadata || {})}`)
+      
+      // Try to access lookup_key in different ways
+      const lookupKeyDirect = (price as any).lookup_key
+      const lookupKeyFromMetadata = price.metadata?.lookup_key
+      console.log(`   - Lookup Key (as any): ${lookupKeyDirect || "(empty)"}`)
+      console.log(`   - Lookup Key (from metadata): ${lookupKeyFromMetadata || "(empty)"}`)
       
       // Extract features from metadata if available, or use defaults
       let features: string[] = []
@@ -177,6 +187,17 @@ serve(async (req) => {
       // If no interval is found (one-time price with no metadata), leave it empty
       // The UI should handle empty intervals appropriately
 
+      // Get lookup_key: try multiple ways to access it
+      // Sometimes TypeScript types don't include lookup_key, so we access it via (price as any)
+      let lookupKey = (price as any).lookup_key || price.metadata?.lookup_key || null
+      
+      // Log what we found
+      if (lookupKey) {
+        console.log(`   ✅ Found lookup_key: ${lookupKey}`)
+      } else {
+        console.log(`   ⚠️ No lookup_key found`)
+      }
+
       const plan = {
         id: price.id,
         name: planName,
@@ -186,9 +207,10 @@ serve(async (req) => {
         currency: price.currency,
         interval: interval,
         features: features,
+        lookup_key: lookupKey,
       }
       
-      console.log(`   ✅ Final plan: name="${plan.name}", description="${plan.description}", interval="${plan.interval}"`)
+      console.log(`   ✅ Final plan: name="${plan.name}", description="${plan.description}", interval="${plan.interval}", lookup_key="${plan.lookup_key || 'null'}"`)
       
       return plan
     })

@@ -340,6 +340,7 @@ struct SubscriptionPlan: Codable, Identifiable {
     let currency: String
     let interval: String // "month" or "year"
     let features: [String]?
+    let lookupKey: String?
     
     enum CodingKeys: String, CodingKey {
         case id
@@ -350,6 +351,7 @@ struct SubscriptionPlan: Codable, Identifiable {
         case currency
         case interval
         case features
+        case lookupKey = "lookup_key"
     }
     
     var displayPrice: String {
