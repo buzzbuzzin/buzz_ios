@@ -193,10 +193,12 @@ struct MyFlightsBookingCard: View {
                         .cornerRadius(8)
                 }
                 
-                Text(booking.description)
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                    .lineLimit(2)
+                if let description = booking.description, !description.isEmpty {
+                    Text(description)
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .lineLimit(2)
+                }
                 
                 HStack {
                     Label(

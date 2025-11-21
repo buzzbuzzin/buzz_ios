@@ -13,6 +13,7 @@ struct LocationSearchView: View {
     @Binding var selectedLocation: CLLocationCoordinate2D?
     @Binding var locationName: String
     @Binding var isPresented: Bool
+    var onLocationSelected: ((CLLocationCoordinate2D) -> Void)?
     
     @State private var searchText = ""
     @State private var searchResults: [MKMapItem] = []
@@ -22,8 +23,12 @@ struct LocationSearchView: View {
     )
     @State private var mapCenterCoordinate: CLLocationCoordinate2D?
     @State private var isSearching = false
-    @State private var showLocationNotSupportedAlert = false
+    @State private var showLocationWarning = false
     @FocusState private var isSearchFocused: Bool
+    
+    // Ithaca NY coordinates (center of service area)
+    private let ithacaNY = CLLocationCoordinate2D(latitude: 42.4434, longitude: -76.5017)
+    private let serviceRadiusMiles: Double = 100.0
     
     private let searchCompleter = MKLocalSearchCompleter()
     
@@ -164,8 +169,14 @@ struct LocationSearchView: View {
             .onChange(of: region.center.longitude) { _, _ in
                 updateMapCenter()
             }
-            .alert("Your area is not currently supported. Currently we only support Ithaca region (100 mi)", isPresented: $showLocationNotSupportedAlert) {
-                Button("OK", role: .cancel) { }
+            .alert("Location Out of Range", isPresented: $showLocationWarning) {
+                Button("OK", role: .cancel) {
+                    // Don't set the location if it's out of range
+                    selectedLocation = nil
+                    locationName = ""
+                }
+            } message: {
+                Text("Your address is outside of our covered area. We are currently only supporting the Ithaca region (100 miles).")
             }
         }
     }
@@ -207,9 +218,10 @@ struct LocationSearchView: View {
     private func selectLocation(item: MKMapItem) {
         guard let coordinate = item.placemark.location?.coordinate else { return }
         
-        // Validate location is within supported radius
-        if !isLocationWithinRadius(coordinate) {
-            showLocationNotSupportedAlert = true
+        // Check distance from Ithaca NY
+        let distance = coordinate.distance(to: ithacaNY)
+        if distance > serviceRadiusMiles {
+            showLocationWarning = true
             return
         }
         
@@ -224,6 +236,8 @@ struct LocationSearchView: View {
                     locationName = formatAddress(from: placemark)
                     searchText = locationName
                     isSearchFocused = false
+                    // Notify parent about location selection
+                    onLocationSelected?(coordinate)
                 }
             }
         }
@@ -232,9 +246,10 @@ struct LocationSearchView: View {
     private func selectCurrentLocation() {
         guard let coordinate = mapCenterCoordinate else { return }
         
-        // Validate location is within supported radius
-        if !isLocationWithinRadius(coordinate) {
-            showLocationNotSupportedAlert = true
+        // Check distance from Ithaca NY
+        let distance = coordinate.distance(to: ithacaNY)
+        if distance > serviceRadiusMiles {
+            showLocationWarning = true
             return
         }
         
@@ -246,12 +261,14 @@ struct LocationSearchView: View {
             if let placemark = placemarks?.first {
                 DispatchQueue.main.async {
                     locationName = formatAddress(from: placemark)
+                    onLocationSelected?(coordinate)
                     isPresented = false
                 }
             } else {
                 // If geocoding fails, just use coordinate
                 DispatchQueue.main.async {
                     locationName = String(format: "%.6f, %.6f", coordinate.latitude, coordinate.longitude)
+                    onLocationSelected?(coordinate)
                     isPresented = false
                 }
             }

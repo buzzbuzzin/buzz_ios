@@ -9,9 +9,13 @@ import SwiftUI
 
 struct CreateBookingStep1IndustryView: View {
     @Binding var selectedSpecialization: BookingSpecialization?
-    @State private var showComingSoonAlert = false
+    
+    @State private var showIndustryWarning = false
     
     let onNext: () -> Void
+    
+    // Supported industries
+    private let supportedIndustries: [BookingSpecialization] = [.automotive, .realEstate]
     
     var body: some View {
         ScrollView {
@@ -36,18 +40,7 @@ struct CreateBookingStep1IndustryView: View {
                                 specialization: specialization,
                                 isSelected: selectedSpecialization == specialization
                             ) {
-                                // Check if this specialization is available (Automotive or Real Estate)
-                                if specialization == .automotive || specialization == .realEstate {
-                                    // Toggle selection: if already selected, deselect it
-                                    if selectedSpecialization == specialization {
-                                        selectedSpecialization = nil
-                                    } else {
-                                        selectedSpecialization = specialization
-                                    }
-                                } else {
-                                    // Show "Launching in 2026!" alert for unavailable specializations
-                                    showComingSoonAlert = true
-                                }
+                                handleSpecializationSelection(specialization)
                             }
                         }
                     }
@@ -65,8 +58,26 @@ struct CreateBookingStep1IndustryView: View {
             }
             .padding(.vertical)
         }
-        .alert("Launching in 2026! Currently we only support Automotive and Real Estate.", isPresented: $showComingSoonAlert) {
+        .alert("Coming Soon", isPresented: $showIndustryWarning) {
             Button("OK", role: .cancel) { }
+        } message: {
+            Text("Launching in 2026! We are currently only supporting Automotive and Real Estate.")
+        }
+    }
+    
+    private func handleSpecializationSelection(_ specialization: BookingSpecialization) {
+        // Check if this is a supported industry
+        if supportedIndustries.contains(specialization) {
+            // Toggle selection: if already selected, deselect it
+            if selectedSpecialization == specialization {
+                selectedSpecialization = nil
+            } else {
+                selectedSpecialization = specialization
+            }
+        } else {
+            // Show warning for unsupported industries
+            showIndustryWarning = true
+            // Don't select unsupported industries
         }
     }
 }

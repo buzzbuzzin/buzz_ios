@@ -19,6 +19,15 @@ struct CreateBookingStep1View: View {
     
     @State private var showLocationSearch = false
     @State private var showRankInfo = false
+    @State private var showIndustryWarning = false
+    @State private var showLocationWarning = false
+    
+    // Supported industries
+    private let supportedIndustries: [BookingSpecialization] = [.automotive, .realEstate]
+    
+    // Ithaca NY coordinates (center of service area)
+    private let ithacaNY = CLLocationCoordinate2D(latitude: 42.4434, longitude: -76.5017)
+    private let serviceRadiusMiles: Double = 100.0
     
     let onNext: () -> Void
     
@@ -171,12 +180,7 @@ struct CreateBookingStep1View: View {
                                 specialization: specialization,
                                 isSelected: selectedSpecialization == specialization
                             ) {
-                                // Toggle selection: if already selected, deselect it
-                                if selectedSpecialization == specialization {
-                                    selectedSpecialization = nil
-                                } else {
-                                    selectedSpecialization = specialization
-                                }
+                                handleSpecializationSelection(specialization)
                             }
                         }
                     }
@@ -198,12 +202,65 @@ struct CreateBookingStep1View: View {
             LocationSearchView(
                 selectedLocation: $selectedLocation,
                 locationName: $locationName,
-                isPresented: $showLocationSearch
+                isPresented: $showLocationSearch,
+                onLocationSelected: { coordinate in
+                    checkLocationDistance(coordinate: coordinate)
+                }
             )
         }
         .sheet(isPresented: $showRankInfo) {
             RankInfoView()
         }
+        .alert("Coming Soon", isPresented: $showIndustryWarning) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("Launching in 2026! We are currently only supporting Automotive and Real Estate.")
+        }
+        .alert("Location Out of Range", isPresented: $showLocationWarning) {
+            Button("OK", role: .cancel) {
+                // Clear the location selection
+                selectedLocation = nil
+                locationName = ""
+            }
+        } message: {
+            Text("Your address is outside of our covered area. We are currently only supporting the Ithaca region (100 miles).")
+        }
+    }
+    
+    private func handleSpecializationSelection(_ specialization: BookingSpecialization) {
+        // Check if this is a supported industry
+        if supportedIndustries.contains(specialization) {
+            // Toggle selection: if already selected, deselect it
+            if selectedSpecialization == specialization {
+                selectedSpecialization = nil
+            } else {
+                selectedSpecialization = specialization
+            }
+        } else {
+            // Show warning for unsupported industries
+            showIndustryWarning = true
+            // Don't select unsupported industries
+        }
+    }
+    
+    private func checkLocationDistance(coordinate: CLLocationCoordinate2D) {
+        let distance = coordinate.distance(to: ithacaNY)
+        if distance > serviceRadiusMiles {
+            showLocationWarning = true
+        }
+    }
+}
+
+// MARK: - CLLocationCoordinate2D Extension for Distance Calculation
+
+extension CLLocationCoordinate2D {
+    /// Calculate distance in miles between two coordinates using Haversine formula
+    func distance(to coordinate: CLLocationCoordinate2D) -> Double {
+        let location1 = CLLocation(latitude: self.latitude, longitude: self.longitude)
+        let location2 = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
+        let distanceInMeters = location1.distance(from: location2)
+        let distanceInMiles = distanceInMeters / 1609.34 // Convert meters to miles
+        return distanceInMiles
     }
 }
 
