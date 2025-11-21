@@ -98,9 +98,16 @@ struct Badge: Identifiable, Codable {
             switch self {
             case .course: return "book.fill"
             case .exMilitary: return "shield.fill"
-            case .buzz: return "airplane.circle.fill"
+            case .buzz: return "airplane.circle.fill" // Not used - we use image asset instead
             case .governmentEmployee: return "building.columns.fill"
             case .faa: return "checkmark.seal.fill"
+            }
+        }
+        
+        var imageAssetName: String? {
+            switch self {
+            case .buzz: return "Logo"
+            default: return nil
             }
         }
         
@@ -108,7 +115,7 @@ struct Badge: Identifiable, Codable {
             switch self {
             case .course: return .blue
             case .exMilitary: return .purple
-            case .buzz: return .blue
+            case .buzz: return Color(red: 0x28 / 255.0, green: 0x2C / 255.0, blue: 0x35 / 255.0) // Navy blue #282C35
             case .governmentEmployee: return .green
             case .faa: return .red
             }
@@ -199,6 +206,13 @@ struct BadgeCatalog: Identifiable, Codable {
         }
         return Badge.CourseProvider(rawValue: provider)?.icon ?? "airplane.circle.fill"
     }
+    
+    var imageAssetName: String? {
+        if let badgeTypeEnum = badgeTypeEnum, badgeTypeEnum != .course {
+            return badgeTypeEnum.imageAssetName
+        }
+        return nil
+    }
 }
 
 // MARK: - Available Badge (Badge that can be earned)
@@ -224,6 +238,13 @@ struct AvailableBadge: Identifiable {
             return badgeType.icon
         }
         return provider.icon
+    }
+    
+    var imageAssetName: String? {
+        if let badgeType = badgeType, badgeType != .course {
+            return badgeType.imageAssetName
+        }
+        return nil
     }
 }
 

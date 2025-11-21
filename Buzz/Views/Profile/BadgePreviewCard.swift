@@ -13,13 +13,24 @@ struct BadgePreviewCard: View {
     var body: some View {
         VStack(spacing: 6) {
             ZStack {
+                let badgeColor = badge.badgeType?.color ?? badge.provider.color
+                let badgeIcon = badge.badgeType?.icon ?? badge.provider.icon
+                let imageAssetName = badge.badgeType?.imageAssetName
+                
                 Circle()
-                    .fill(badge.provider.color.opacity(0.2))
+                    .fill(badgeColor.opacity(0.2))
                     .frame(width: 50, height: 50)
                 
-                Image(systemName: badge.provider.icon)
-                    .font(.system(size: 24))
-                    .foregroundColor(badge.provider.color)
+                if let imageAssetName = imageAssetName {
+                    Image(imageAssetName)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 30, height: 30)
+                } else {
+                    Image(systemName: badgeIcon)
+                        .font(.system(size: 24))
+                        .foregroundColor(badgeColor)
+                }
                 
                 // Expiration indicator overlay
                 if badge.isExpiringSoon {

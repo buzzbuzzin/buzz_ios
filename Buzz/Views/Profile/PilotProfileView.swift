@@ -26,6 +26,8 @@ struct PilotProfileView: View {
     @State private var isLoadingRatings = false
     @State private var errorMessage = ""
     @State private var showError = false
+    @State private var navigateToReviews = false
+    @State private var navigateToBalance = false
     
     var yearsOnBuzz: Int {
         guard let createdAt = authService.userProfile?.createdAt else { return 0 }
@@ -177,20 +179,73 @@ struct PilotProfileView: View {
     
     var body: some View {
         NavigationView {
-            List {
-                // Profile Header
-                Section {
-                    if let currentUser = authService.currentUser {
-                        NavigationLink(destination: PublicProfileView(pilotId: currentUser.id)) {
-                            profileHeaderContent
-                        }
-                        .buttonStyle(PlainButtonStyle())
-                    } else {
-                        profileHeaderContent
+            ZStack {
+                // Hidden navigation links (outside List to avoid creating rows)
+                if let currentUser = authService.currentUser {
+                    NavigationLink(
+                        destination: RatingsListView(userId: currentUser.id),
+                        isActive: $navigateToReviews
+                    ) {
+                        EmptyView()
                     }
+                    .hidden()
+                    
+                    NavigationLink(
+                        destination: BalanceView(),
+                        isActive: $navigateToBalance
+                    ) {
+                        EmptyView()
+                    }
+                    .hidden()
                 }
                 
-                // Badges Section
+                List {
+                    // Profile Header
+                    Section {
+                        if let currentUser = authService.currentUser {
+                            NavigationLink(destination: PublicProfileView(pilotId: currentUser.id)) {
+                                profileHeaderContent
+                            }
+                            .buttonStyle(PlainButtonStyle())
+                        } else {
+                            profileHeaderContent
+                        }
+                    }
+                    
+                    // Reviews and Balance Cards
+                    if let currentUser = authService.currentUser {
+                        Section {
+                            HStack(spacing: 8) {
+                                Button(action: {
+                                    navigateToReviews = true
+                                }) {
+                                    ProfileCard(
+                                        icon: "star.fill",
+                                        iconColor: .yellow,
+                                        title: "Reviews"
+                                    )
+                                }
+                                .buttonStyle(PlainButtonStyle())
+                                .frame(maxWidth: .infinity)
+                                
+                                Button(action: {
+                                    navigateToBalance = true
+                                }) {
+                                    ProfileCard(
+                                        icon: "dollarsign.circle.fill",
+                                        iconColor: .green,
+                                        title: "Balance"
+                                    )
+                                }
+                                .buttonStyle(PlainButtonStyle())
+                                .frame(maxWidth: .infinity)
+                            }
+                            .listRowInsets(EdgeInsets())
+                            .listRowBackground(Color.clear)
+                        }
+                    }
+                    
+                    // Badges Section
                 Section {
                     NavigationLink(destination: BadgesView()) {
                         VStack(alignment: .leading, spacing: 12) {
@@ -238,7 +293,7 @@ struct PilotProfileView: View {
                 }
                 
                 // Statistics Section
-                Section("Statistics") {
+                Section {
                     if let stats = rankingService.pilotStats {
                         HStack {
                             VStack(alignment: .leading) {
@@ -277,33 +332,6 @@ struct PilotProfileView: View {
                                 .fontWeight(.medium)
                                 .foregroundColor(.primary)
                         }
-                        
-                        // Balance
-                        NavigationLink(destination: BalanceView()) {
-                            HStack {
-                                Image(systemName: "dollarsign.circle.fill")
-                                    .foregroundColor(.green)
-                                    .font(.body)
-                                    .frame(width: 24)
-                                Text("Balance")
-                                    .foregroundColor(.primary)
-                                Spacer()
-                            }
-                        }
-                        
-                        // View All Reviews
-                        if let currentUser = authService.currentUser {
-                            NavigationLink(destination: RatingsListView(userId: currentUser.id)) {
-                                HStack {
-                                    Image(systemName: "star")
-                                        .foregroundColor(.secondary)
-                                        .font(.body)
-                                        .frame(width: 24)
-                                    Text("View All Reviews")
-                                        .foregroundColor(.primary)
-                                }
-                            }
-                        }
                     } else if rankingService.isLoading {
                         HStack {
                             Spacer()
@@ -311,6 +339,10 @@ struct PilotProfileView: View {
                             Spacer()
                         }
                     }
+                } header: {
+                    Text("Statistics")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
                 }
                 
                 // License Management
@@ -344,6 +376,17 @@ struct PilotProfileView: View {
                                 .font(.body)
                                 .frame(width: 24)
                             Text("Drone Registration")
+                                .foregroundColor(.primary)
+                        }
+                    }
+                    
+                    NavigationLink(destination: InsuranceView()) {
+                        HStack {
+                            Image(systemName: "shield.fill")
+                                .foregroundColor(.secondary)
+                                .font(.body)
+                                .frame(width: 24)
+                            Text("Insurance")
                                 .foregroundColor(.primary)
                         }
                     }
@@ -416,6 +459,7 @@ struct PilotProfileView: View {
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                 }
+            }
             }
             .navigationTitle("Profile")
             .alert("Sign Out", isPresented: $showSignOutAlert) {

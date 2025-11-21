@@ -207,14 +207,22 @@ struct BadgeRow: View {
                 ZStack {
                     let badgeColor = badge.badgeType?.color ?? badge.provider.color
                     let badgeIcon = badge.badgeType?.icon ?? badge.provider.icon
+                    let imageAssetName = badge.badgeType?.imageAssetName
                     
                     Circle()
                         .fill(badgeColor.opacity(0.2))
                         .frame(width: 60, height: 60)
                     
-                    Image(systemName: badgeIcon)
-                        .font(.system(size: 30))
-                        .foregroundColor(badgeColor)
+                    if let imageAssetName = imageAssetName {
+                        Image(imageAssetName)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 36, height: 36)
+                    } else {
+                        Image(systemName: badgeIcon)
+                            .font(.system(size: 30))
+                            .foregroundColor(badgeColor)
+                    }
                     
                     // Expiration indicator overlay
                     if badge.isExpired {
@@ -248,11 +256,19 @@ struct BadgeRow: View {
                     HStack(spacing: 4) {
                         let badgeColor = badge.badgeType?.color ?? badge.provider.color
                         let badgeIcon = badge.badgeType?.icon ?? badge.provider.icon
+                        let imageAssetName = badge.badgeType?.imageAssetName
                         let providerText = (badge.badgeType == .course || badge.badgeType == nil) ? "Academy" : "Affiliations"
                         
-                        Image(systemName: badgeIcon)
-                            .font(.caption)
-                            .foregroundColor(badgeColor)
+                        if let imageAssetName = imageAssetName {
+                            Image(imageAssetName)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 12, height: 12)
+                        } else {
+                            Image(systemName: badgeIcon)
+                                .font(.caption)
+                                .foregroundColor(badgeColor)
+                        }
                         Text(providerText)
                             .font(.caption)
                             .foregroundColor(badgeColor)
@@ -338,9 +354,17 @@ struct AvailableBadgeRow: View {
                         .fill(availableBadge.providerColor.opacity(0.1))
                         .frame(width: 60, height: 60)
                     
-                    Image(systemName: availableBadge.providerIcon)
-                        .font(.system(size: 30))
-                        .foregroundColor(availableBadge.providerColor.opacity(0.5))
+                    if let imageAssetName = availableBadge.imageAssetName {
+                        Image(imageAssetName)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 36, height: 36)
+                            .opacity(0.5)
+                    } else {
+                        Image(systemName: availableBadge.providerIcon)
+                            .font(.system(size: 30))
+                            .foregroundColor(availableBadge.providerColor.opacity(0.5))
+                    }
                 }
                 
                 VStack(alignment: .leading, spacing: 6) {
@@ -351,9 +375,17 @@ struct AvailableBadgeRow: View {
                     HStack(spacing: 4) {
                         let providerText = (availableBadge.badgeType == .course || availableBadge.badgeType == nil) ? "Academy" : "Affiliations"
                         
-                        Image(systemName: availableBadge.providerIcon)
-                            .font(.caption)
-                            .foregroundColor(availableBadge.providerColor.opacity(0.7))
+                        if let imageAssetName = availableBadge.imageAssetName {
+                            Image(imageAssetName)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 12, height: 12)
+                                .opacity(0.7)
+                        } else {
+                            Image(systemName: availableBadge.providerIcon)
+                                .font(.caption)
+                                .foregroundColor(availableBadge.providerColor.opacity(0.7))
+                        }
                         Text(providerText)
                             .font(.caption)
                             .foregroundColor(availableBadge.providerColor.opacity(0.7))

@@ -156,16 +156,6 @@ struct CockpitView: View {
                                     )
                                 }
                                 .buttonStyle(PlainButtonStyle())
-                                
-                                // Insurance Card
-                                NavigationLink(destination: InsuranceView()) {
-                                    CockpitGridCard(
-                                        title: "Insurance",
-                                        icon: "shield.fill",
-                                        color: .blue
-                                    )
-                                }
-                                .buttonStyle(PlainButtonStyle())
                             }
                             .padding(.horizontal, 16)
                         }
