@@ -437,5 +437,56 @@ class StripeConnectService: ObservableObject {
             throw error
         }
     }
+    
+    // MARK: - Delete Connected Account
+    
+    /// Deletes a Stripe connected account and removes it from the user's profile
+    func deleteConnectedAccount(userId: UUID, accountId: String) async throws {
+        isLoading = true
+        errorMessage = nil
+        
+        do {
+            struct DeleteAccountRequest: Codable {
+                let account_id: String
+                let user_id: String
+            }
+            
+            struct DeleteAccountResponse: Codable {
+                let success: Bool
+                let deleted: Bool
+                let id: String
+                let message: String?
+            }
+            
+            print("🗑️ StripeConnectService: Deleting account \(accountId) for user \(userId)")
+            
+            let request = DeleteAccountRequest(
+                account_id: accountId,
+                user_id: userId.uuidString
+            )
+            
+            let response: DeleteAccountResponse = try await supabase.functions
+                .invoke("delete-connected-account", options: FunctionInvokeOptions(
+                    body: request
+                ))
+            
+            if !response.success {
+                throw NSError(
+                    domain: "StripeConnectError",
+                    code: -1,
+                    userInfo: [NSLocalizedDescriptionKey: response.message ?? "Failed to delete account"]
+                )
+            }
+            
+            print("✅ StripeConnectService: Account deleted successfully")
+            
+            isLoading = false
+        } catch {
+            isLoading = false
+            errorMessage = error.localizedDescription
+            print("❌ StripeConnectService: Error deleting account: \(error)")
+            throw error
+        }
+    }
 }
 

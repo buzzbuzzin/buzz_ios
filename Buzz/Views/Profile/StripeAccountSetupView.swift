@@ -20,6 +20,7 @@ struct StripeAccountSetupView: View {
     @State private var accountId: String?
     @State private var accountStatus: StripeConnectService.StripeAccountStatus?
     @State private var isLoadingAccount = false
+    @State private var showDeleteConfirmation = false
     
     var body: some View {
         ScrollView {
@@ -161,6 +162,25 @@ struct StripeAccountSetupView: View {
                 .padding()
                 .background(Color(.systemGray6))
                 .cornerRadius(10)
+                
+                // Remove Account Button (only show when account is active)
+                if accountStatus?.canReceivePayments == true {
+                    Button(action: {
+                        showDeleteConfirmation = true
+                    }) {
+                        HStack {
+                            Image(systemName: "trash.fill")
+                            Text("Remove Payout Account")
+                                .fontWeight(.semibold)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .foregroundColor(.white)
+                        .background(Color.red)
+                        .cornerRadius(10)
+                    }
+                    .padding(.top, 8)
+                }
             }
             .padding()
         }
@@ -170,6 +190,14 @@ struct StripeAccountSetupView: View {
             Button("OK", role: .cancel) {}
         } message: {
             Text(errorMessage)
+        }
+        .alert("Remove Payout Account?", isPresented: $showDeleteConfirmation) {
+            Button("Cancel", role: .cancel) {}
+            Button("Remove", role: .destructive) {
+                removeAccount()
+            }
+        } message: {
+            Text("Are you sure you want to remove your payout account? This will permanently delete your Stripe account and you won't be able to receive payments until you set up a new account.")
         }
         .onAppear {
             print("👀 StripeAccountSetupView: View appeared, loading account status")
@@ -319,6 +347,49 @@ struct StripeAccountSetupView: View {
                     loadAccountStatus()
                 }
             } catch {
+                await MainActor.run {
+                    errorMessage = error.localizedDescription
+                    showError = true
+                }
+            }
+        }
+    }
+    
+    private func removeAccount() {
+        guard let userId = authService.currentUser?.id else {
+            errorMessage = "User not authenticated"
+            showError = true
+            return
+        }
+        
+        guard let accountId = accountId else {
+            errorMessage = "No account found to remove"
+            showError = true
+            return
+        }
+        
+        Task {
+            do {
+                print("🗑️ StripeAccountSetupView: Removing account \(accountId)")
+                
+                // Delete the account via the service
+                try await stripeConnectService.deleteConnectedAccount(
+                    userId: userId,
+                    accountId: accountId
+                )
+                
+                print("✅ StripeAccountSetupView: Account removed successfully")
+                
+                // Clear local state
+                await MainActor.run {
+                    self.accountId = nil
+                    self.accountStatus = .notCreated
+                }
+                
+                // Reload account status to confirm
+                await loadAccountStatusAsync()
+            } catch {
+                print("❌ StripeAccountSetupView: Error removing account: \(error)")
                 await MainActor.run {
                     errorMessage = error.localizedDescription
                     showError = true
