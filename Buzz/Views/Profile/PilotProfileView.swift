@@ -212,6 +212,53 @@ struct PilotProfileView: View {
                         }
                     }
                     
+                    // Badges Section
+                    Section {
+                        NavigationLink(destination: BadgesView()) {
+                            VStack(alignment: .leading, spacing: 12) {
+                                HStack {
+                                    Text("Badges")
+                                        .font(.headline)
+                                    Spacer()
+                                    if !badgeService.badges.isEmpty {
+                                        Text("\(badgeService.badges.count)")
+                                            .font(.subheadline)
+                                            .foregroundColor(.secondary)
+                                    }
+                                }
+                                
+                                if badgeService.badges.isEmpty {
+                                    Text("Complete courses to earn badges")
+                                        .font(.subheadline)
+                                        .foregroundColor(.secondary)
+                                        .padding(.vertical, 4)
+                                } else {
+                                    ScrollView(.horizontal, showsIndicators: false) {
+                                        HStack(spacing: 12) {
+                                            ForEach(badgeService.badges.prefix(5)) { badge in
+                                                BadgePreviewCard(badge: badge)
+                                            }
+                                            
+                                            if badgeService.badges.count > 5 {
+                                                VStack {
+                                                    Image(systemName: "ellipsis")
+                                                        .font(.title2)
+                                                        .foregroundColor(.secondary)
+                                                    Text("+\(badgeService.badges.count - 5)")
+                                                        .font(.caption)
+                                                        .foregroundColor(.secondary)
+                                                }
+                                                .frame(width: 50, height: 50)
+                                            }
+                                        }
+                                        .padding(.vertical, 4)
+                                    }
+                                }
+                            }
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                    }
+                    
                     // Reviews and Balance Cards
                     if let currentUser = authService.currentUser {
                         Section {
@@ -244,53 +291,6 @@ struct PilotProfileView: View {
                             .listRowBackground(Color.clear)
                         }
                     }
-                    
-                    // Badges Section
-                Section {
-                    NavigationLink(destination: BadgesView()) {
-                        VStack(alignment: .leading, spacing: 12) {
-                            HStack {
-                                Text("Badges")
-                                    .font(.headline)
-                                Spacer()
-                                if !badgeService.badges.isEmpty {
-                                    Text("\(badgeService.badges.count)")
-                                        .font(.subheadline)
-                                        .foregroundColor(.secondary)
-                                }
-                            }
-                            
-                            if badgeService.badges.isEmpty {
-                                Text("Complete courses to earn badges")
-                                    .font(.subheadline)
-                                    .foregroundColor(.secondary)
-                                    .padding(.vertical, 4)
-                            } else {
-                                ScrollView(.horizontal, showsIndicators: false) {
-                                    HStack(spacing: 12) {
-                                        ForEach(badgeService.badges.prefix(5)) { badge in
-                                            BadgePreviewCard(badge: badge)
-                                        }
-                                        
-                                        if badgeService.badges.count > 5 {
-                                            VStack {
-                                                Image(systemName: "ellipsis")
-                                                    .font(.title2)
-                                                    .foregroundColor(.secondary)
-                                                Text("+\(badgeService.badges.count - 5)")
-                                                    .font(.caption)
-                                                    .foregroundColor(.secondary)
-                                            }
-                                            .frame(width: 50, height: 50)
-                                        }
-                                    }
-                                    .padding(.vertical, 4)
-                                }
-                            }
-                        }
-                    }
-                    .buttonStyle(PlainButtonStyle())
-                }
                 
                 // Statistics Section
                 Section {
