@@ -7,6 +7,7 @@
 
 import SwiftUI
 import MapKit
+import CoreLocation
 
 struct LocationSearchView: View {
     @Binding var selectedLocation: CLLocationCoordinate2D?
@@ -30,6 +31,10 @@ struct LocationSearchView: View {
     private let serviceRadiusMiles: Double = 100.0
     
     private let searchCompleter = MKLocalSearchCompleter()
+    
+    // Ithaca, NY coordinates (center point)
+    private let ithacaCenter = CLLocationCoordinate2D(latitude: 42.4430, longitude: -76.5019)
+    private let supportedRadiusMiles: Double = 100.0
     
     var body: some View {
         NavigationView {
@@ -268,6 +273,20 @@ struct LocationSearchView: View {
                 }
             }
         }
+    }
+    
+    /// Checks if a location is within the supported radius (100 miles) of Ithaca, NY
+    private func isLocationWithinRadius(_ coordinate: CLLocationCoordinate2D) -> Bool {
+        let ithacaLocation = CLLocation(latitude: ithacaCenter.latitude, longitude: ithacaCenter.longitude)
+        let selectedLocation = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
+        
+        // Calculate distance in meters
+        let distanceInMeters = ithacaLocation.distance(from: selectedLocation)
+        
+        // Convert to miles (1 mile = 1609.34 meters)
+        let distanceInMiles = distanceInMeters / 1609.34
+        
+        return distanceInMiles <= supportedRadiusMiles
     }
     
     private func formatAddress(from placemark: CLPlacemark) -> String {
