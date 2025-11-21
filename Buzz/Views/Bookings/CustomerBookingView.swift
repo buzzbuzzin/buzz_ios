@@ -517,9 +517,7 @@ struct CreateBookingView: View {
     }
     
     private var isStep3Valid: Bool {
-        guard !description.isEmpty else {
-            return false
-        }
+        // Description is optional, so we don't validate it
         
         // For Automotive industry, payment is fixed based on rank
         if selectedSpecialization == .automotive {

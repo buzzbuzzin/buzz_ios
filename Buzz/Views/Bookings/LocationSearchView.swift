@@ -7,6 +7,7 @@
 
 import SwiftUI
 import MapKit
+import CoreLocation
 
 struct LocationSearchView: View {
     @Binding var selectedLocation: CLLocationCoordinate2D?
@@ -21,9 +22,14 @@ struct LocationSearchView: View {
     )
     @State private var mapCenterCoordinate: CLLocationCoordinate2D?
     @State private var isSearching = false
+    @State private var showLocationNotSupportedAlert = false
     @FocusState private var isSearchFocused: Bool
     
     private let searchCompleter = MKLocalSearchCompleter()
+    
+    // Ithaca, NY coordinates (center point)
+    private let ithacaCenter = CLLocationCoordinate2D(latitude: 42.4430, longitude: -76.5019)
+    private let supportedRadiusMiles: Double = 100.0
     
     var body: some View {
         NavigationView {
@@ -158,6 +164,9 @@ struct LocationSearchView: View {
             .onChange(of: region.center.longitude) { _, _ in
                 updateMapCenter()
             }
+            .alert("Your area is not currently supported. Currently we only support Ithaca region (100 mi)", isPresented: $showLocationNotSupportedAlert) {
+                Button("OK", role: .cancel) { }
+            }
         }
     }
     
@@ -198,6 +207,12 @@ struct LocationSearchView: View {
     private func selectLocation(item: MKMapItem) {
         guard let coordinate = item.placemark.location?.coordinate else { return }
         
+        // Validate location is within supported radius
+        if !isLocationWithinRadius(coordinate) {
+            showLocationNotSupportedAlert = true
+            return
+        }
+        
         region.center = coordinate
         selectedLocation = coordinate
         
@@ -217,6 +232,12 @@ struct LocationSearchView: View {
     private func selectCurrentLocation() {
         guard let coordinate = mapCenterCoordinate else { return }
         
+        // Validate location is within supported radius
+        if !isLocationWithinRadius(coordinate) {
+            showLocationNotSupportedAlert = true
+            return
+        }
+        
         selectedLocation = coordinate
         let location = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
         
@@ -235,6 +256,20 @@ struct LocationSearchView: View {
                 }
             }
         }
+    }
+    
+    /// Checks if a location is within the supported radius (100 miles) of Ithaca, NY
+    private func isLocationWithinRadius(_ coordinate: CLLocationCoordinate2D) -> Bool {
+        let ithacaLocation = CLLocation(latitude: ithacaCenter.latitude, longitude: ithacaCenter.longitude)
+        let selectedLocation = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
+        
+        // Calculate distance in meters
+        let distanceInMeters = ithacaLocation.distance(from: selectedLocation)
+        
+        // Convert to miles (1 mile = 1609.34 meters)
+        let distanceInMiles = distanceInMeters / 1609.34
+        
+        return distanceInMiles <= supportedRadiusMiles
     }
     
     private func formatAddress(from placemark: CLPlacemark) -> String {

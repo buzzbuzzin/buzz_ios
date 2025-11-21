@@ -9,6 +9,7 @@ import SwiftUI
 
 struct CreateBookingStep1IndustryView: View {
     @Binding var selectedSpecialization: BookingSpecialization?
+    @State private var showComingSoonAlert = false
     
     let onNext: () -> Void
     
@@ -35,11 +36,17 @@ struct CreateBookingStep1IndustryView: View {
                                 specialization: specialization,
                                 isSelected: selectedSpecialization == specialization
                             ) {
-                                // Toggle selection: if already selected, deselect it
-                                if selectedSpecialization == specialization {
-                                    selectedSpecialization = nil
+                                // Check if this specialization is available (Automotive or Real Estate)
+                                if specialization == .automotive || specialization == .realEstate {
+                                    // Toggle selection: if already selected, deselect it
+                                    if selectedSpecialization == specialization {
+                                        selectedSpecialization = nil
+                                    } else {
+                                        selectedSpecialization = specialization
+                                    }
                                 } else {
-                                    selectedSpecialization = specialization
+                                    // Show "Launching in 2026!" alert for unavailable specializations
+                                    showComingSoonAlert = true
                                 }
                             }
                         }
@@ -57,6 +64,9 @@ struct CreateBookingStep1IndustryView: View {
                 .padding(.bottom, 20)
             }
             .padding(.vertical)
+        }
+        .alert("Launching in 2026! Currently we only support Automotive and Real Estate.", isPresented: $showComingSoonAlert) {
+            Button("OK", role: .cancel) { }
         }
     }
 }
