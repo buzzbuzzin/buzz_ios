@@ -140,14 +140,14 @@ class CourseSubscriptionService: ObservableObject {
     // MARK: - Check Unit Access
     
     /// Checks if a pilot has access to a specific unit
-    /// Units 1-3 are free, units 4+ require subscription
+    /// Units 1-4 are free, units 5+ require subscription
     func hasAccessToUnit(pilotId: UUID, unitNumber: Int) async throws -> Bool {
-        // Units 1-3 are always free
-        if unitNumber <= 3 {
+        // Units 1-4 are always free
+        if unitNumber <= 4 {
             return true
         }
         
-        // Units 4+ require active subscription
+        // Units 5+ require active subscription
         return try await checkSubscriptionStatus(pilotId: pilotId)
     }
 }

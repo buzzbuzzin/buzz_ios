@@ -73,7 +73,7 @@ struct CreateBookingStep3PaymentView: View {
     
     var body: some View {
         Form {
-            Section("Booking Details") {
+            Section("Booking Details (Optional)") {
                 TextField("Enter details about this booking. This could be something that you want pilots to be aware of before or during the flight. ", text: $description, axis: .vertical)
                     .lineLimit(3...6)
             }

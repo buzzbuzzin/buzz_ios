@@ -205,9 +205,16 @@ struct BookingDetailView: View {
                     Label("Description", systemImage: "text.alignleft")
                         .font(.headline)
                     
-                    Text(booking.description)
-                        .font(.body)
-                        .foregroundColor(.secondary)
+                    if let description = booking.description, !description.isEmpty {
+                        Text(description)
+                            .font(.body)
+                            .foregroundColor(.secondary)
+                    } else {
+                        Text("No description provided")
+                            .font(.body)
+                            .foregroundColor(.secondary)
+                            .italic()
+                    }
                 }
                 .padding(.horizontal)
                 

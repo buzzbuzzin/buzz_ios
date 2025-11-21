@@ -239,7 +239,8 @@ struct CreateBookingStep2DetailsView: View {
             LocationSearchView(
                 selectedLocation: $selectedLocation,
                 locationName: $locationName,
-                isPresented: $showLocationSearch
+                isPresented: $showLocationSearch,
+                onLocationSelected: nil // Optional callback, not needed here
             )
         }
         .sheet(isPresented: $showRankInfo) {

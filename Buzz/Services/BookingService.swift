@@ -28,7 +28,7 @@ class BookingService: ObservableObject {
         scheduledDate: Date?,
         endDate: Date? = nil,
         specialization: BookingSpecialization?,
-        description: String,
+        description: String?,
         paymentAmount: Decimal,
         estimatedFlightHours: Double,
         requiredMinimumRank: Int = 0,
@@ -46,13 +46,16 @@ class BookingService: ObservableObject {
                 "location_lat": .double(location.latitude),
                 "location_lng": .double(location.longitude),
                 "location_name": .string(locationName),
-                "description": .string(description),
                 "payment_amount": .double(NSDecimalNumber(decimal: paymentAmount).doubleValue),
                 "status": .string(BookingStatus.available.rawValue),
                 "created_at": .string(ISO8601DateFormatter().string(from: Date())),
                 "estimated_flight_hours": .double(estimatedFlightHours),
                 "required_minimum_rank": .integer(requiredMinimumRank)
             ]
+            
+            if let description = description, !description.isEmpty {
+                booking["description"] = .string(description)
+            }
             
             if let scheduledDate = scheduledDate {
                 booking["scheduled_date"] = .string(ISO8601DateFormatter().string(from: scheduledDate))
@@ -106,7 +109,7 @@ class BookingService: ObservableObject {
         scheduledDate: Date?,
         endDate: Date? = nil,
         specialization: BookingSpecialization?,
-        description: String,
+        description: String?,
         paymentAmount: Decimal,
         estimatedFlightHours: Double,
         requiredMinimumRank: Int = 0
@@ -119,11 +122,17 @@ class BookingService: ObservableObject {
                 "location_lat": .double(location.latitude),
                 "location_lng": .double(location.longitude),
                 "location_name": .string(locationName),
-                "description": .string(description),
                 "payment_amount": .double(NSDecimalNumber(decimal: paymentAmount).doubleValue),
                 "estimated_flight_hours": .double(estimatedFlightHours),
                 "required_minimum_rank": .integer(requiredMinimumRank)
             ]
+            
+            if let description = description, !description.isEmpty {
+                updates["description"] = .string(description)
+            } else {
+                // Allow clearing description by setting to null
+                updates["description"] = .null
+            }
             
             if let scheduledDate = scheduledDate {
                 updates["scheduled_date"] = .string(ISO8601DateFormatter().string(from: scheduledDate))

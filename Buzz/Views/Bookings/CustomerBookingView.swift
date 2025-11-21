@@ -226,10 +226,12 @@ struct CustomerBookingCard: View {
                         .foregroundColor(.secondary)
                 }
             
-            Text(booking.description)
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-                .lineLimit(2)
+            if let description = booking.description, !description.isEmpty {
+                Text(description)
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .lineLimit(2)
+            }
             
             HStack {
                 Label(
@@ -517,9 +519,7 @@ struct CreateBookingView: View {
     }
     
     private var isStep3Valid: Bool {
-        guard !description.isEmpty else {
-            return false
-        }
+        // Description is now optional, so we don't check it here
         
         // For Automotive industry, payment is fixed based on rank
         if selectedSpecialization == .automotive {
@@ -745,7 +745,7 @@ struct CreateBookingView: View {
                     scheduledDate: startDateTime,
                     endDate: endDateTime,
                     specialization: specialization,
-                    description: description,
+                    description: description.isEmpty ? nil : description,
                     paymentAmount: paymentAmount,
                     estimatedFlightHours: hours,
                     requiredMinimumRank: requiredMinimumRank,
@@ -864,15 +864,17 @@ struct CustomerBookingDetailView: View {
                     .padding(.horizontal)
                 
                 // Description
-                VStack(alignment: .leading, spacing: 8) {
-                    Label("Description", systemImage: "text.alignleft")
-                        .font(.headline)
-                    
-                    Text(booking.description)
-                        .font(.body)
-                        .foregroundColor(.secondary)
+                if let description = booking.description, !description.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Label("Description", systemImage: "text.alignleft")
+                            .font(.headline)
+                        
+                        Text(description)
+                            .font(.body)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(.horizontal)
                 }
-                .padding(.horizontal)
                 
                 Divider()
                     .padding(.horizontal)
@@ -1410,6 +1412,10 @@ struct EditBookingView: View {
     @State private var errorMessage = ""
     @State private var showSuccess = false
     @State private var showRankInfo = false
+    @State private var showIndustryWarning = false
+    
+    // Supported industries
+    private let supportedIndustries: [BookingSpecialization] = [.automotive, .realEstate]
     
     init(booking: Booking) {
         self.booking = booking
@@ -1420,7 +1426,7 @@ struct EditBookingView: View {
         _endTime = State(initialValue: booking.endDate ?? Date())
         _selectedSpecialization = State(initialValue: booking.specialization)
         _requiredMinimumRank = State(initialValue: booking.requiredMinimumRank ?? 0)
-        _description = State(initialValue: booking.description)
+        _description = State(initialValue: booking.description ?? "")
         _paymentAmount = State(initialValue: String(format: "%.2f", NSDecimalNumber(decimal: booking.paymentAmount).doubleValue))
         _estimatedHours = State(initialValue: booking.estimatedFlightHours.map { String(format: "%.1f", $0) } ?? "")
     }
@@ -1542,12 +1548,7 @@ struct EditBookingView: View {
                                     specialization: specialization,
                                     isSelected: selectedSpecialization == specialization
                                 ) {
-                                    // Toggle selection: if already selected, deselect it
-                                    if selectedSpecialization == specialization {
-                                        selectedSpecialization = nil
-                                    } else {
-                                        selectedSpecialization = specialization
-                                    }
+                                    handleSpecializationSelection(specialization)
                                 }
                             }
                         }
@@ -1634,11 +1635,31 @@ struct EditBookingView: View {
             .sheet(isPresented: $showRankInfo) {
                 RankInfoView()
             }
+            .alert("Coming Soon", isPresented: $showIndustryWarning) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text("Launching in 2026! We are currently only supporting Automotive and Real Estate.")
+            }
+        }
+    }
+    
+    private func handleSpecializationSelection(_ specialization: BookingSpecialization) {
+        // Check if this is a supported industry
+        if supportedIndustries.contains(specialization) {
+            // Toggle selection: if already selected, deselect it
+            if selectedSpecialization == specialization {
+                selectedSpecialization = nil
+            } else {
+                selectedSpecialization = specialization
+            }
+        } else {
+            // Show warning for unsupported industries
+            showIndustryWarning = true
+            // Don't select unsupported industries
         }
     }
     
     private var isFormValid: Bool {
-        !description.isEmpty &&
         !paymentAmount.isEmpty &&
         !estimatedHours.isEmpty &&
         Double(paymentAmount) != nil &&
@@ -1688,7 +1709,7 @@ struct EditBookingView: View {
                     scheduledDate: startDateTime,
                     endDate: endDateTime,
                     specialization: specialization,
-                    description: description,
+                    description: description.isEmpty ? nil : description,
                     paymentAmount: Decimal(payment),
                     estimatedFlightHours: hours,
                     requiredMinimumRank: requiredMinimumRank

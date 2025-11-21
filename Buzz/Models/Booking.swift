@@ -96,7 +96,7 @@ struct Booking: Codable, Identifiable {
     let scheduledDate: Date?
     let endDate: Date?
     let specialization: BookingSpecialization?
-    let description: String
+    let description: String?
     let paymentAmount: Decimal
     var tipAmount: Decimal?
     var status: BookingStatus

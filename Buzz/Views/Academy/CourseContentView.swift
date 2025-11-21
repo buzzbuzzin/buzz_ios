@@ -121,7 +121,11 @@ struct CourseContentView: View {
                     // Recurrent Training Section (for UAS Pilot Course only)
                     if isUASPilotCourse {
                         RecurrentTrainingSectionContent(
-                            isLocked: !hasPassedGroundSchoolTest
+                            hasPassedTest: hasPassedGroundSchoolTest,
+                            hasSubscription: hasSubscription,
+                            onSubscribe: {
+                                showSubscriptionSheet = true
+                            }
                         )
                     }
                     
@@ -134,6 +138,7 @@ struct CourseContentView: View {
                             course: course,
                             hasSubscription: hasSubscription,
                             isUASPilotCourse: isUASPilotCourse,
+                            isLockedByTest: isUASPilotCourse && !hasPassedGroundSchoolTest,
                             onSubscribe: {
                                 showSubscriptionSheet = true
                             }
@@ -149,6 +154,7 @@ struct CourseContentView: View {
                             course: course,
                             hasSubscription: hasSubscription,
                             isUASPilotCourse: isUASPilotCourse,
+                            isLockedByTest: isUASPilotCourse && !hasPassedGroundSchoolTest,
                             onSubscribe: {
                                 showSubscriptionSheet = true
                             }
@@ -294,15 +300,20 @@ struct StepSectionView: View {
             
             VStack(spacing: 12) {
                 ForEach(units) { unit in
-                    if isLockedByTest {
-                        // Locked by ground school test - NOT TAPPABLE
-                        UnitRow(unit: unit, isLocked: true, lockReason: "Complete Ground School Test to unlock")
-                    } else if isUASPilotCourse && unit.unitNumber >= 4 && !hasSubscription {
-                        // Show locked unit with paywall
-                        Button(action: onSubscribe) {
-                            UnitRow(unit: unit, isLocked: true, lockReason: "Subscribe to unlock")
+                    // Determine lock status and reason for each unit
+                    let (isLocked, lockReason, requiresAction) = getLockStatus(for: unit)
+                    
+                    if isLocked {
+                        if requiresAction == .subscribe {
+                            // Tappable - can subscribe
+                            Button(action: onSubscribe) {
+                                UnitRow(unit: unit, isLocked: true, lockReason: lockReason)
+                            }
+                            .buttonStyle(PlainButtonStyle())
+                        } else {
+                            // Not tappable - test required
+                            UnitRow(unit: unit, isLocked: true, lockReason: lockReason)
                         }
-                        .buttonStyle(PlainButtonStyle())
                     } else {
                         NavigationLink(destination: UnitDetailView(unit: unit, course: course)) {
                             UnitRow(unit: unit, isLocked: false)
@@ -313,6 +324,41 @@ struct StepSectionView: View {
             }
             .padding(.horizontal)
         }
+    }
+    
+    // Determine lock status, reason, and required action for a unit
+    private func getLockStatus(for unit: CourseUnit) -> (isLocked: Bool, lockReason: String, requiresAction: LockAction) {
+        // Units 1-4: Only locked by test
+        if unit.unitNumber <= 4 {
+            if isLockedByTest {
+                return (true, "Complete Ground School Test to unlock", .test)
+            }
+            return (false, "", .none)
+        }
+        
+        // Units 5+: Require BOTH test passed AND subscription
+        let needsTest = isLockedByTest
+        let needsSubscription = isUASPilotCourse && !hasSubscription
+        
+        if needsTest && needsSubscription {
+            // Both conditions missing
+            return (true, "Pass Ground School Test & Subscribe to unlock", .subscribe)
+        } else if needsTest {
+            // Only test missing
+            return (true, "Complete Ground School Test to unlock", .test)
+        } else if needsSubscription {
+            // Only subscription missing
+            return (true, "Subscribe to unlock", .subscribe)
+        }
+        
+        // Both conditions met
+        return (false, "", .none)
+    }
+    
+    private enum LockAction {
+        case none
+        case test
+        case subscribe
     }
 }
 
@@ -470,7 +516,31 @@ struct GroundSchoolTestSectionContent: View {
 // MARK: - Recurrent Training Section Content
 
 struct RecurrentTrainingSectionContent: View {
-    let isLocked: Bool
+    let hasPassedTest: Bool
+    let hasSubscription: Bool
+    let onSubscribe: () -> Void
+    
+    // Recurrent Training requires BOTH test passed AND subscription
+    private var isLocked: Bool {
+        !hasPassedTest || !hasSubscription
+    }
+    
+    private var lockReason: String {
+        if !hasPassedTest && !hasSubscription {
+            return "Pass Ground School Test & Subscribe to unlock"
+        } else if !hasPassedTest {
+            return "Complete Ground School Test to unlock"
+        } else if !hasSubscription {
+            return "Subscribe to unlock"
+        }
+        return ""
+    }
+    
+    private var isTappable: Bool {
+        // Tappable if only subscription is missing (can subscribe)
+        // Not tappable if test is missing (must take test first)
+        !hasPassedTest ? false : !hasSubscription
+    }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -481,65 +551,91 @@ struct RecurrentTrainingSectionContent: View {
                 .padding(.horizontal)
             
             VStack(spacing: 12) {
-                HStack(spacing: 16) {
-                    // Recurrent Training Icon
-                    ZStack {
-                        Circle()
-                            .fill(isLocked ? Color.gray.opacity(0.2) : Color.purple.opacity(0.2))
-                            .frame(width: 50, height: 50)
-                        
-                        Image(systemName: isLocked ? "lock.fill" : "arrow.clockwise.circle.fill")
-                            .foregroundColor(isLocked ? .gray : .purple)
-                            .font(.headline)
+                if isTappable {
+                    // Tappable - can subscribe
+                    Button(action: onSubscribe) {
+                        RecurrentTrainingCardContent(
+                            isLocked: isLocked,
+                            lockReason: lockReason
+                        )
                     }
-                    
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("FAA 107 Recurrent Training")
-                            .font(.headline)
-                            .foregroundColor(isLocked ? .secondary : .primary)
-                        
-                        Text("Comprehensive course material to help you pass the 2-year recurrent training requirement. Stay current with FAA Part 107 regulations and maintain your remote pilot certificate.")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                            .lineLimit(3)
-                        
-                        if isLocked {
-                            Text("Complete Ground School Test to unlock")
-                                .font(.caption)
-                                .foregroundColor(.blue)
-                                .fontWeight(.semibold)
-                        } else {
-                            HStack(spacing: 4) {
-                                Image(systemName: "checkmark.circle.fill")
-                                    .foregroundColor(.green)
-                                    .font(.caption)
-                                Text("Free")
-                                    .font(.caption)
-                                    .foregroundColor(.green)
-                                    .fontWeight(.semibold)
-                            }
-                        }
-                    }
-                    
-                    Spacer()
-                    
-                    if isLocked {
-                        Image(systemName: "lock.circle.fill")
-                            .foregroundColor(.gray)
-                            .font(.title3)
-                    } else {
-                        Image(systemName: "chevron.right")
-                            .foregroundColor(.secondary)
-                            .font(.caption)
-                    }
+                    .buttonStyle(PlainButtonStyle())
+                } else {
+                    // Not tappable - test required or already unlocked
+                    RecurrentTrainingCardContent(
+                        isLocked: isLocked,
+                        lockReason: lockReason
+                    )
                 }
-                .padding()
-                .background(isLocked ? Color(.systemGray5) : Color(.systemGray6))
-                .cornerRadius(12)
-                .opacity(isLocked ? 0.7 : 1.0)
             }
             .padding(.horizontal)
         }
+    }
+}
+
+// MARK: - Recurrent Training Card Content
+
+struct RecurrentTrainingCardContent: View {
+    let isLocked: Bool
+    let lockReason: String
+    
+    var body: some View {
+        HStack(spacing: 16) {
+            // Recurrent Training Icon
+            ZStack {
+                Circle()
+                    .fill(isLocked ? Color.gray.opacity(0.2) : Color.purple.opacity(0.2))
+                    .frame(width: 50, height: 50)
+                
+                Image(systemName: isLocked ? "lock.fill" : "arrow.clockwise.circle.fill")
+                    .foregroundColor(isLocked ? .gray : .purple)
+                    .font(.headline)
+            }
+            
+            VStack(alignment: .leading, spacing: 4) {
+                Text("FAA 107 Recurrent Training")
+                    .font(.headline)
+                    .foregroundColor(isLocked ? .secondary : .primary)
+                
+                Text("Comprehensive course material to help you pass the 2-year recurrent training requirement. Stay current with FAA Part 107 regulations and maintain your remote pilot certificate.")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .lineLimit(3)
+                
+                if isLocked {
+                    Text(lockReason)
+                        .font(.caption)
+                        .foregroundColor(.blue)
+                        .fontWeight(.semibold)
+                } else {
+                    HStack(spacing: 4) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundColor(.green)
+                            .font(.caption)
+                        Text("Available")
+                            .font(.caption)
+                            .foregroundColor(.green)
+                            .fontWeight(.semibold)
+                    }
+                }
+            }
+            
+            Spacer()
+            
+            if isLocked {
+                Image(systemName: "lock.circle.fill")
+                    .foregroundColor(.gray)
+                    .font(.title3)
+            } else {
+                Image(systemName: "chevron.right")
+                    .foregroundColor(.secondary)
+                    .font(.caption)
+            }
+        }
+        .padding()
+        .background(isLocked ? Color(.systemGray5) : Color(.systemGray6))
+        .cornerRadius(12)
+        .opacity(isLocked ? 0.7 : 1.0)
     }
 }
 
