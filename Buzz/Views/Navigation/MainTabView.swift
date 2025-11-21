@@ -180,6 +180,7 @@ struct MyFlightsBookingCard: View {
                 // Title
                 Text(booking.locationName)
                     .font(.headline)
+                    .foregroundColor(.primary)
                 
                 // Category badge below title
                 if let specialization = booking.specialization {

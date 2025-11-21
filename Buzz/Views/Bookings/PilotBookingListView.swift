@@ -310,6 +310,7 @@ struct BookingCard: View {
                 // Title
                 Text(booking.locationName)
                     .font(.headline)
+                    .foregroundColor(.primary)
                 
                 // Category badge below title
                 if let specialization = booking.specialization {
@@ -347,9 +348,11 @@ struct BookingCard: View {
                     }
                 }
                 
-                Text("Posted \(booking.createdAt.formatted(date: .abbreviated, time: .shortened))")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                if let scheduledDate = booking.scheduledDate {
+                    Text("Start at \(formatStartTime(scheduledDate)) (\(formatZuluTime(scheduledDate)))")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
             }
         }
         .padding(.vertical, 8)
@@ -370,6 +373,32 @@ struct BookingCard: View {
                 print("Error loading customer profile: \(error)")
             }
         }
+    }
+    
+    private func formatStartTime(_ date: Date) -> String {
+        let timeFormatter = DateFormatter()
+        timeFormatter.dateFormat = "h:mm a"
+        let timeString = timeFormatter.string(from: date)
+        
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "MMM d, yyyy"
+        let dateString = dateFormatter.string(from: date)
+        
+        return "\(timeString), \(dateString)"
+    }
+    
+    private func formatZuluTime(_ date: Date) -> String {
+        let utcTimeZone = TimeZone(secondsFromGMT: 0)!
+        let calendar = Calendar(identifier: .gregorian)
+        let utcComponents = calendar.dateComponents(in: utcTimeZone, from: date)
+        
+        // Get UTC components
+        let day = utcComponents.day ?? 0
+        let hour = utcComponents.hour ?? 0
+        let minute = utcComponents.minute ?? 0
+        
+        // Format as DDHHmmZ (e.g., 241231Z = 24th day, 12:31 UTC)
+        return String(format: "%02d%02d%02dZ", day, hour, minute)
     }
 }
 
