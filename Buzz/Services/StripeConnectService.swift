@@ -198,24 +198,44 @@ class StripeConnectService: ObservableObject {
     // MARK: - Present Onboarding Flow
     
     /// Presents the Stripe onboarding flow in a Safari View Controller
-    func presentOnboardingFlow(accountLinkUrl: URL, from viewController: UIViewController) async throws {
+    func presentOnboardingFlow(accountLinkUrl: URL, from viewController: UIViewController, onComplete: @escaping () -> Void) async throws {
         return try await withCheckedThrowingContinuation { continuation in
             DispatchQueue.main.async {
                 let safariVC = SFSafariViewController(url: accountLinkUrl)
                 safariVC.modalPresentationStyle = .pageSheet
                 
-                // Store continuation for later use
-                var observation: NSKeyValueObservation?
-                observation = safariVC.observe(\.isBeingDismissed) { _, _ in
-                    observation?.invalidate()
-                    // Add a small delay to ensure Stripe has processed the onboarding
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                        continuation.resume()
-                    }
-                }
+                // Create a coordinator to handle the delegate
+                let coordinator = SafariCoordinator(onComplete: {
+                    onComplete()
+                    continuation.resume()
+                })
+                safariVC.delegate = coordinator
+                
+                // Store the coordinator to keep it alive
+                objc_setAssociatedObject(
+                    safariVC,
+                    &SafariCoordinatorKey,
+                    coordinator,
+                    .OBJC_ASSOCIATION_RETAIN
+                )
                 
                 viewController.present(safariVC, animated: true)
             }
+        }
+    }
+    
+    // MARK: - Safari Coordinator
+    
+    private class SafariCoordinator: NSObject, SFSafariViewControllerDelegate {
+        let onComplete: () -> Void
+        
+        init(onComplete: @escaping () -> Void) {
+            self.onComplete = onComplete
+        }
+        
+        func safariViewControllerDidFinish(_ controller: SFSafariViewController) {
+            // Called when user taps Done or when we dismiss programmatically
+            onComplete()
         }
     }
     
@@ -394,7 +414,7 @@ class StripeConnectService: ObservableObject {
     // MARK: - Complete Onboarding Flow
     
     /// Complete onboarding flow: create account if needed, then present onboarding
-    func startOnboardingFlow(userId: UUID, email: String?, from viewController: UIViewController) async throws {
+    func startOnboardingFlow(userId: UUID, email: String?, from viewController: UIViewController, onComplete: @escaping () -> Void) async throws {
         isLoading = true
         errorMessage = nil
         
@@ -415,11 +435,10 @@ class StripeConnectService: ObservableObject {
                 )
             }
             
-            // Create account link
-            // Use simple URLs - Safari View Controller will handle the redirect
-            // When user completes onboarding, Stripe redirects to return_url and Safari closes
-            let refreshUrl = "https://stripe.com/connect/onboarding/refresh"
-            let returnUrl = "https://stripe.com/connect/onboarding/return"
+            // Create account link with Stripe-acceptable HTTPS URLs
+            // We'll detect completion via Safari delegate instead of URL schemes
+            let refreshUrl = "https://connect.stripe.com/express/oauth/refresh"
+            let returnUrl = "https://connect.stripe.com/express/oauth/return"
             
             let accountLinkUrl = try await createAccountLink(
                 accountId: accountId,
@@ -428,7 +447,11 @@ class StripeConnectService: ObservableObject {
             )
             
             // Present onboarding flow
-            try await presentOnboardingFlow(accountLinkUrl: accountLinkUrl, from: viewController)
+            try await presentOnboardingFlow(
+                accountLinkUrl: accountLinkUrl,
+                from: viewController,
+                onComplete: onComplete
+            )
             
             isLoading = false
         } catch {
@@ -490,3 +513,5 @@ class StripeConnectService: ObservableObject {
     }
 }
 
+// MARK: - Safari Coordinator Associated Object Key
+private var SafariCoordinatorKey: UInt8 = 0

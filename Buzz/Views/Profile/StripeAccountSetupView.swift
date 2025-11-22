@@ -21,6 +21,7 @@ struct StripeAccountSetupView: View {
     @State private var accountStatus: StripeConnectService.StripeAccountStatus?
     @State private var isLoadingAccount = false
     @State private var showDeleteConfirmation = false
+    @State private var showOnboardingCompleteAlert = false
     
     var body: some View {
         ScrollView {
@@ -199,6 +200,16 @@ struct StripeAccountSetupView: View {
         } message: {
             Text("Are you sure you want to remove your payout account? This will permanently delete your Stripe account and you won't be able to receive payments until you set up a new account.")
         }
+        .alert("Application Submitted!", isPresented: $showOnboardingCompleteAlert) {
+            Button("OK", role: .cancel) {
+                // Reload account status after dismissing alert
+                Task {
+                    await loadAccountStatusAsync()
+                }
+            }
+        } message: {
+            Text("Your payment account information has been received and is currently under review. This process typically takes up to 1 hour. Once approved, your account status will change to Active and you'll be able to receive payments.")
+        }
         .onAppear {
             print("👀 StripeAccountSetupView: View appeared, loading account status")
             loadAccountStatus()
@@ -333,19 +344,18 @@ struct StripeAccountSetupView: View {
                     topController = presented
                 }
                 
-                // Start onboarding flow
+                // Start onboarding flow with completion handler
                 try await stripeConnectService.startOnboardingFlow(
                     userId: userId,
                     email: email,
-                    from: topController
+                    from: topController,
+                    onComplete: {
+                        // Show completion alert when Safari is dismissed
+                        Task { @MainActor in
+                            self.showOnboardingCompleteAlert = true
+                        }
+                    }
                 )
-                
-                // Reload account status after onboarding with a delay
-                // Give Stripe time to process the onboarding completion
-                try await Task.sleep(nanoseconds: 2_000_000_000) // 2 seconds
-                await MainActor.run {
-                    loadAccountStatus()
-                }
             } catch {
                 await MainActor.run {
                     errorMessage = error.localizedDescription
