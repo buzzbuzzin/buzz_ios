@@ -182,4 +182,3 @@ struct ChangePasswordView: View {
         }
     }
 }
-

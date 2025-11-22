@@ -78,7 +78,8 @@ class AuthService: ObservableObject {
             // Sign up with email (Supabase will send verification email if enabled in dashboard)
             let response = try await supabase.auth.signUp(
                 email: email,
-                password: password
+                password: password,
+                redirectTo: URL(string: "https://buzzbuzzin.com/elementor-1147/")
             )
             
             let userId = response.user.id
@@ -332,6 +333,28 @@ class AuthService: ObservableObject {
         }
     }
     
+    func sendPasswordResetEmail() async throws {
+        guard let email = currentUser?.email else {
+            throw NSError(domain: "AuthError", code: -1, userInfo: [NSLocalizedDescriptionKey: "No email found for current user"])
+        }
+        
+        isLoading = true
+        errorMessage = nil
+        
+        do {
+            // Send password reset email via Supabase
+            try await supabase.auth.resetPasswordForEmail(
+                email,
+                redirectTo: URL(string: "https://buzzbuzzin.com/elementor-1147/")
+            )
+            isLoading = false
+        } catch {
+            isLoading = false
+            errorMessage = error.localizedDescription
+            throw error
+        }
+    }
+    
     // MARK: - Change Email
     
     func changeEmail(newEmail: String) async throws {
@@ -345,7 +368,11 @@ class AuthService: ObservableObject {
         do {
             // Update auth email - Supabase will send a confirmation email to the new address
             // The email won't change until the user confirms via the link in the email
-            try await supabase.auth.update(user: UserAttributes(email: newEmail))
+            var attributes = UserAttributes(email: newEmail)
+            try await supabase.auth.update(
+                user: attributes,
+                redirectTo: URL(string: "https://buzzbuzzin.com/elementor-1147/")
+            )
             
             // Update the email in the profile table as well
             // Note: You might want to keep the old email until confirmation, or handle this via a database trigger
