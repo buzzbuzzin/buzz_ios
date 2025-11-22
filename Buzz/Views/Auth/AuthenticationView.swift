@@ -100,6 +100,7 @@ struct EmailSignInView: View {
     @State private var errorMessage = ""
     @State private var isSigningIn = false
     @State private var showUserTypeSelection = false
+    @State private var showPasswordReset = false
     @State private var selectedAuthMethod: SocialAuthMethod?
     @State private var selectedUserType: UserType = .pilot
     @State private var callSign = ""
@@ -135,6 +136,14 @@ struct EmailSignInView: View {
                 isDisabled: !isFormValid
             )
             .padding(.horizontal)
+            
+            // Forgot Password Link
+            Button("Forgot my password") {
+                showPasswordReset = true
+            }
+            .font(.subheadline)
+            .foregroundColor(.blue)
+            .padding(.top, 4)
             
             if isSigningIn {
                 Text("Signing in...")
@@ -188,6 +197,9 @@ struct EmailSignInView: View {
                 callSign: $callSign,
                 onComplete: handleSocialSignIn
             )
+        }
+        .sheet(isPresented: $showPasswordReset) {
+            PasswordResetFlowView()
         }
     }
     

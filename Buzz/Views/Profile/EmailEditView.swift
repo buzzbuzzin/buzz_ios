@@ -35,10 +35,14 @@ struct EmailEditView: View {
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                     
-                    Text("Important: After confirming your new email, you must log out and log back in with your new email address.")
+                    Text("⚠️ Important: You will be automatically logged out after requesting the email change. After confirming via the email link, log back in with your new email address.")
                         .font(.subheadline)
                         .foregroundColor(.orange)
                         .fontWeight(.medium)
+                        .padding(.vertical, 8)
+                        .padding(.horizontal, 12)
+                        .background(Color.orange.opacity(0.1))
+                        .cornerRadius(8)
                 }
                 
                 // Email Field
@@ -100,11 +104,13 @@ struct EmailEditView: View {
             Text(errorMessage)
         }
         .alert("Confirmation Email Sent", isPresented: $showSuccessAlert) {
-            Button("OK", role: .cancel) {
-                dismiss()
+            Button("Log Out") {
+                Task {
+                    try? await authService.signOut()
+                }
             }
         } message: {
-            Text("A confirmation email has been sent to \(email). Please check your inbox and click the confirmation link.\n\nAfter confirming, you must log out and log back in with your new email address for the change to take full effect.")
+            Text("A confirmation email has been sent to \(email).\n\nPlease check your inbox and click the confirmation link to verify your new email.\n\nYou will now be logged out to clear all cached data. After confirming your email, log back in with your new email address.")
         }
     }
     

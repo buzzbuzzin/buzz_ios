@@ -355,6 +355,80 @@ class AuthService: ObservableObject {
         }
     }
     
+    // MARK: - Password Reset with OTP
+    
+    func sendPasswordResetOTP(email: String) async throws {
+        isLoading = true
+        errorMessage = nil
+        
+        do {
+            // Send password reset email with OTP using resetPasswordForEmail
+            try await supabase.auth.resetPasswordForEmail(
+                email,
+                redirectTo: URL(string: "https://buzzbuzzin.com/elementor-1147/")
+            )
+            isLoading = false
+        } catch {
+            isLoading = false
+            errorMessage = error.localizedDescription
+            throw error
+        }
+    }
+    
+    func verifyPasswordResetOTP(email: String, token: String) async throws {
+        isLoading = true
+        errorMessage = nil
+        
+        do {
+            // Verify OTP - this will temporarily sign in the user
+            let response = try await supabase.auth.verifyOTP(
+                email: email,
+                token: token,
+                type: .email
+            )
+            
+            // User is now signed in temporarily
+            currentUser = response.user
+            
+            // Load profile if it exists
+            await loadUserProfile()
+            
+            isLoading = false
+        } catch {
+            isLoading = false
+            errorMessage = error.localizedDescription
+            throw error
+        }
+    }
+    
+    func resetPasswordWithOTP(newPassword: String) async throws {
+        guard currentUser != nil else {
+            throw NSError(domain: "AuthError", code: -1, userInfo: [NSLocalizedDescriptionKey: "No user session found. Please verify OTP first."])
+        }
+        
+        isLoading = true
+        errorMessage = nil
+        
+        do {
+            // Update password
+            try await supabase.auth.update(user: UserAttributes(password: newPassword))
+            
+            // Ensure user remains authenticated and profile is loaded
+            await checkAuthStatus()
+            
+            // Mark as authenticated
+            if userProfile != nil {
+                isAuthenticated = true
+            }
+            
+            isLoading = false
+        } catch {
+            isLoading = false
+            errorMessage = error.localizedDescription
+            throw error
+        }
+    }
+    
     // MARK: - Change Email
     
     func changeEmail(newEmail: String) async throws {
