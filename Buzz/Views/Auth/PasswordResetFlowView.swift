@@ -118,24 +118,10 @@ struct PasswordResetFlowView: View {
                     .padding(.horizontal)
             }
             
-            VStack(spacing: 16) {
-                TextField("Enter 6-digit code", text: $otpCode)
-                    .textContentType(.oneTimeCode)
-                    .keyboardType(.numberPad)
-                    .padding()
-                    .background(Color(.systemGray6))
-                    .cornerRadius(10)
-                    .onChange(of: otpCode) { _, newValue in
-                        // Limit to 6 digits
-                        let filtered = newValue.filter { $0.isNumber }
-                        if filtered.count <= 6 {
-                            otpCode = filtered
-                        } else {
-                            otpCode = String(filtered.prefix(6))
-                        }
-                    }
-            }
-            .padding(.horizontal)
+            // 6-Box OTP Input
+            OTPInputView(otpCode: $otpCode)
+                .padding(.horizontal)
+                .padding(.vertical, 8)
             
             CustomButton(
                 title: "Verify",
@@ -316,6 +302,85 @@ struct PasswordResetFlowView: View {
                 errorMessage = error.localizedDescription
                 showError = true
             }
+        }
+    }
+}
+
+// MARK: - OTP Input View
+
+struct OTPInputView: View {
+    @Binding var otpCode: String
+    @FocusState private var focusedField: Int?
+    
+    private let boxCount = 6
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            ForEach(0..<boxCount, id: \.self) { index in
+                OTPBox(
+                    digit: digitAt(index: index),
+                    isFocused: focusedField == index
+                )
+                .onTapGesture {
+                    focusedField = index
+                }
+            }
+        }
+        .background(
+            // Hidden TextField to handle input
+            TextField("", text: $otpCode)
+                .keyboardType(.numberPad)
+                .textContentType(.oneTimeCode)
+                .focused($focusedField, equals: 0)
+                .opacity(0)
+                .frame(width: 1, height: 1)
+        )
+        .onChange(of: otpCode) { _, newValue in
+            // Limit to 6 digits
+            let filtered = newValue.filter { $0.isNumber }
+            if filtered.count <= boxCount {
+                otpCode = filtered
+            } else {
+                otpCode = String(filtered.prefix(boxCount))
+            }
+            
+            // Auto-focus management
+            if otpCode.isEmpty {
+                focusedField = 0
+            }
+        }
+        .onAppear {
+            // Auto-focus first box
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                focusedField = 0
+            }
+        }
+    }
+    
+    private func digitAt(index: Int) -> String {
+        guard index < otpCode.count else { return "" }
+        let digitIndex = otpCode.index(otpCode.startIndex, offsetBy: index)
+        return String(otpCode[digitIndex])
+    }
+}
+
+struct OTPBox: View {
+    let digit: String
+    let isFocused: Bool
+    
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(isFocused ? Color.blue : Color(.systemGray4), lineWidth: 2)
+                .frame(width: 50, height: 60)
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color(.systemGray6))
+                )
+            
+            Text(digit)
+                .font(.system(size: 24, weight: .semibold))
+                .foregroundColor(.primary)
         }
     }
 }

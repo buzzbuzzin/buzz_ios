@@ -12,6 +12,7 @@ import GoogleSignInSwift
 struct AuthenticationView: View {
     @EnvironmentObject var authService: AuthService
     @State private var showSignUp = false
+    @State private var showPasswordReset = false
     @State private var selectedTab = 0
     @State private var showPremiumIntro = false
     
@@ -61,6 +62,14 @@ struct AuthenticationView: View {
                 .font(.subheadline)
                 .padding(.top, 30)
                 
+                // Forgot Password Link
+                Button("Forgot my password") {
+                    showPasswordReset = true
+                }
+                .font(.subheadline)
+                .foregroundColor(.blue)
+                .padding(.top, 12)
+                
                 Spacer(minLength: 0)
                     .frame(maxHeight: 20)
             }
@@ -68,6 +77,9 @@ struct AuthenticationView: View {
             .navigationBarTitleDisplayMode(.inline)
             .sheet(isPresented: $showSignUp) {
                 SignUpView()
+            }
+            .sheet(isPresented: $showPasswordReset) {
+                PasswordResetFlowView()
             }
             .onChange(of: authService.isAuthenticated) { _, isAuth in
                 // Don't dismiss signup sheet immediately - let SignUpView handle promotion flow
@@ -137,14 +149,6 @@ struct EmailSignInView: View {
             )
             .padding(.horizontal)
             
-            // Forgot Password Link
-            Button("Forgot my password") {
-                showPasswordReset = true
-            }
-            .font(.subheadline)
-            .foregroundColor(.blue)
-            .padding(.top, 4)
-            
             if isSigningIn {
                 Text("Signing in...")
                     .font(.caption)
@@ -197,9 +201,6 @@ struct EmailSignInView: View {
                 callSign: $callSign,
                 onComplete: handleSocialSignIn
             )
-        }
-        .sheet(isPresented: $showPasswordReset) {
-            PasswordResetFlowView()
         }
     }
     
