@@ -332,6 +332,44 @@ class AuthService: ObservableObject {
         }
     }
     
+    // MARK: - Change Email
+    
+    func changeEmail(newEmail: String) async throws {
+        guard let userId = currentUser?.id else {
+            throw NSError(domain: "AuthError", code: -1, userInfo: [NSLocalizedDescriptionKey: "No user logged in"])
+        }
+        
+        isLoading = true
+        errorMessage = nil
+        
+        do {
+            // Update auth email - Supabase will send a confirmation email to the new address
+            // The email won't change until the user confirms via the link in the email
+            try await supabase.auth.update(user: UserAttributes(email: newEmail))
+            
+            // Update the email in the profile table as well
+            // Note: You might want to keep the old email until confirmation, or handle this via a database trigger
+            let updates: [String: AnyJSON] = [
+                "email": .string(newEmail)
+            ]
+            
+            try await supabase
+                .from("profiles")
+                .update(updates)
+                .eq("id", value: userId.uuidString)
+                .execute()
+            
+            // Reload user profile to reflect changes
+            await checkAuthStatus()
+            
+            isLoading = false
+        } catch {
+            isLoading = false
+            errorMessage = error.localizedDescription
+            throw error
+        }
+    }
+    
     // MARK: - Delete Account
     
     func deleteAccount() async throws {
