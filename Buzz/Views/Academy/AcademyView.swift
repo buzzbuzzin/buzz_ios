@@ -11,6 +11,8 @@ import Auth
 
 struct AcademyView: View {
     @EnvironmentObject var authService: AuthService
+    @StateObject private var storeKitManager = StoreKitManager()
+    @StateObject private var entitlementManager = EntitlementManager.shared
     @State private var selectedCategory: TrainingCourse.CourseCategory? = nil
     @State private var selectedProvider: TrainingCourse.CourseProvider? = nil
     @State private var courses: [TrainingCourse] = []
@@ -19,9 +21,11 @@ struct AcademyView: View {
     @State private var isFetching = false // Track if fetch is in progress
     @State private var fetchTask: Task<Void, Never>? = nil // Store the current fetch task
     @State private var showRecurrentNotices = true
-    @StateObject private var courseSubscriptionService = CourseSubscriptionService()
-    @State private var hasSubscription = false
     @State private var isPromotionCardDismissed = false
+    
+    var hasSubscription: Bool {
+        storeKitManager.hasAcademyPassSubscription()
+    }
     
     func toggleEnrollment(for courseId: UUID) {
         if let index = courses.firstIndex(where: { $0.id == courseId }) {
@@ -196,14 +200,8 @@ struct AcademyView: View {
             .task {
                 await loadCourses()
                 await loadRecurrentNotices()
-                // Check subscription status for promotion card
-                if let currentUser = authService.currentUser {
-                    do {
-                        hasSubscription = try await courseSubscriptionService.checkSubscriptionStatus(pilotId: currentUser.id)
-                    } catch {
-                        print("Error checking subscription: \(error)")
-                    }
-                }
+                // Update StoreKit subscriptions
+                await storeKitManager.updatePurchasedProducts()
             }
             .onAppear {
                 // Reset promotion card dismissal when view appears (so it shows again)
@@ -212,14 +210,8 @@ struct AcademyView: View {
                 // Refresh courses when view appears (e.g., after returning from course detail)
                 Task {
                     await loadCourses()
-                    // Refresh subscription status
-                    if let currentUser = authService.currentUser {
-                        do {
-                            hasSubscription = try await courseSubscriptionService.checkSubscriptionStatus(pilotId: currentUser.id)
-                        } catch {
-                            print("Error checking subscription: \(error)")
-                        }
-                    }
+                    // Update StoreKit subscriptions
+                    await storeKitManager.updatePurchasedProducts()
                 }
             }
         }

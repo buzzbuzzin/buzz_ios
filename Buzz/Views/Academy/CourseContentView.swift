@@ -11,15 +11,18 @@ import Auth
 struct CourseContentView: View {
     let course: TrainingCourse
     @StateObject private var academyService = AcademyService()
-    @StateObject private var courseSubscriptionService = CourseSubscriptionService()
+    @StateObject private var storeKitManager = StoreKitManager()
     @EnvironmentObject var authService: AuthService
     @State private var units: [CourseUnit] = []
     @State private var isLoading = false
     @State private var errorMessage: String?
-    @State private var hasSubscription = false
     @State private var showSubscriptionSheet = false
     @State private var hasPassedGroundSchoolTest = false
     @State private var navigateToTest = false
+    
+    var hasSubscription: Bool {
+        storeKitManager.hasAcademyPassSubscription()
+    }
     
     // Check if this is the UAS Pilot Course
     var isUASPilotCourse: Bool {
@@ -170,16 +173,17 @@ struct CourseContentView: View {
             await loadUnits()
             if isUASPilotCourse, let currentUser = authService.currentUser {
                 print("👤 [CourseContentView] Current user ID: \(currentUser.id)")
+                
+                // Update StoreKit subscriptions
+                await storeKitManager.updatePurchasedProducts()
+                print("📋 [CourseContentView] Subscription status: \(hasSubscription)")
+                
                 do {
-                    print("🔄 [CourseContentView] Checking subscription status...")
-                    hasSubscription = try await courseSubscriptionService.checkSubscriptionStatus(pilotId: currentUser.id)
-                    print("📋 [CourseContentView] Subscription status: \(hasSubscription)")
-                    
                     print("🔄 [CourseContentView] Checking Ground School Test status...")
                     hasPassedGroundSchoolTest = try await academyService.checkGroundSchoolTestStatus(pilotId: currentUser.id, courseId: course.id)
                     print("📋 [CourseContentView] Ground School Test passed: \(hasPassedGroundSchoolTest)")
                 } catch {
-                    print("❌ [CourseContentView] Error checking subscription or test status: \(error)")
+                    print("❌ [CourseContentView] Error checking test status: \(error)")
                 }
             } else {
                 if !isUASPilotCourse {

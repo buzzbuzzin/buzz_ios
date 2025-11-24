@@ -1,0 +1,89 @@
+{
+  "appPolicies" : {
+    "eula" : "",
+    "policies" : [
+      {
+        "locale" : "en_US",
+        "policyText" : "",
+        "policyURL" : ""
+      }
+    ]
+  },
+  "identifier" : "59938648",
+  "nonRenewingSubscriptions" : [
+
+  ],
+  "products" : [
+    {
+      "displayPrice" : "9.99",
+      "familyShareable" : false,
+      "internalID" : "6755633766",
+      "localizations" : [
+        {
+          "description" : "Full access to Buzz Academy",
+          "displayName" : "Buzz Academy Pass",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "prod_TQeKNRSes494yB",
+      "referenceName" : "Buzz Academy Pass",
+      "type" : "NonConsumable"
+    }
+  ],
+  "settings" : {
+    "_applicationInternalID" : "6755077577",
+    "_askToBuyEnabled" : false,
+    "_billingGracePeriodEnabled" : false,
+    "_billingIssuesEnabled" : false,
+    "_developerTeamID" : "8Z3F4XB85L",
+    "_disableDialogs" : false,
+    "_failTransactionsEnabled" : false,
+    "_lastSynchronizedDate" : 785702744.78980196,
+    "_locale" : "en_US",
+    "_renewalBillingIssuesEnabled" : false,
+    "_storefront" : "USA",
+    "_storeKitErrors" : [
+
+    ],
+    "_timeRate" : 0
+  },
+  "subscriptionGroups" : [
+    {
+      "id" : "21839430",
+      "localizations" : [
+
+      ],
+      "name" : "Buzz Auto",
+      "subscriptions" : [
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "1000.0",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "6755633743",
+          "introductoryOffer" : null,
+          "localizations" : [
+
+          ],
+          "productID" : "prod_TOW3rxsrI5xCs3",
+          "recurringSubscriptionPeriod" : "P1M",
+          "referenceName" : "Buzz Auto Package",
+          "subscriptionGroupID" : "21839430",
+          "type" : "RecurringSubscription",
+          "winbackOffers" : [
+
+          ]
+        }
+      ]
+    }
+  ],
+  "version" : {
+    "major" : 4,
+    "minor" : 0
+  }
+}
