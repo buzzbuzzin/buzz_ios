@@ -14,21 +14,7 @@
 
   ],
   "products" : [
-    {
-      "displayPrice" : "9.99",
-      "familyShareable" : false,
-      "internalID" : "6755633766",
-      "localizations" : [
-        {
-          "description" : "Full access to Buzz Academy",
-          "displayName" : "Buzz Academy Pass",
-          "locale" : "en_US"
-        }
-      ],
-      "productID" : "prod_TQeKNRSes494yB",
-      "referenceName" : "Buzz Academy Pass",
-      "type" : "NonConsumable"
-    }
+
   ],
   "settings" : {
     "_applicationInternalID" : "6755077577",
@@ -53,8 +39,36 @@
       "localizations" : [
 
       ],
-      "name" : "Buzz Auto",
+      "name" : "Academy Pass",
       "subscriptions" : [
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "9.99",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "6755633766",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "Full access to all UAS Pilot Course units and advanced training",
+              "displayName" : "Academy Pass",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "com.buzz.academy.pass.monthly",
+          "recurringSubscriptionPeriod" : "P1M",
+          "referenceName" : "Academy Pass Monthly",
+          "subscriptionGroupID" : "21839430",
+          "type" : "RecurringSubscription",
+          "winbackOffers" : [
+
+          ]
+        },
         {
           "adHocOffers" : [
 
@@ -64,7 +78,7 @@
           ],
           "displayPrice" : "1000.0",
           "familyShareable" : false,
-          "groupNumber" : 1,
+          "groupNumber" : 2,
           "internalID" : "6755633743",
           "introductoryOffer" : null,
           "localizations" : [

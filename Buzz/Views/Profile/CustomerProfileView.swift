@@ -243,6 +243,20 @@ struct CustomerProfileView: View {
                             }
                         }
                         
+                        // Buzz Academy Pass
+                        if let userId = authService.currentUser?.id {
+                            NavigationLink(destination: AcademyPassManagementView(pilotId: userId)) {
+                                HStack {
+                                    Image(systemName: "graduationcap.fill")
+                                        .foregroundColor(.secondary)
+                                        .font(.body)
+                                        .frame(width: 24)
+                                    Text("Buzz Academy Pass")
+                                        .foregroundColor(.primary)
+                                }
+                            }
+                        }
+                        
                         NavigationLink(destination: HelpView()) {
                             HStack {
                                 Image(systemName: "questionmark.circle")

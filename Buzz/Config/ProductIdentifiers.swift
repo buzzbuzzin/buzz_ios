@@ -15,16 +15,16 @@ struct ProductIdentifiers {
     
     // IMPORTANT CONFIGURATION NOTES:
     // ===============================
-    // Apple Internal ID (from App Store Connect): 6755633766
-    // Product ID in App Store Connect: prod_TQeKNRSes494yB
+    // Product ID in App Store Connect: com.buzz.academy.pass.monthly
+    // Type: Auto-Renewable Subscription (monthly recurring)
     //
-    // This Product ID matches what's configured in App Store Connect.
-    // It's the same as the Stripe product ID for consistency.
+    // This is a NEW product created in App Store Connect as a subscription
+    // (the old prod_TQeKNRSes494yB was a non-consumable, so we recreated it)
     
     /// Monthly subscription for Academy Pass (UAS Pilot Course)
     /// Price: $9.99/month
-    /// Product ID: prod_TQeKNRSes494yB (from App Store Connect)
-    static let academyPassMonthly = "prod_TQeKNRSes494yB"
+    /// Product ID: com.buzz.academy.pass.monthly (from App Store Connect)
+    static let academyPassMonthly = "com.buzz.academy.pass.monthly"
     
     /// Annual subscription for Academy Pass (optional - can add later)
     /// Price: $99.99/year (saves 17%)
@@ -60,7 +60,7 @@ extension ProductIdentifiers {
         name: "Academy Pass",
         description: "Get full access to all course units in the UAS Pilot Course",
         features: [
-            "Access to Units 4-20",
+            "Access to Units 5-20",
             "All extension courses",
             "Advanced training modules",
             "Monthly updates and new content",
