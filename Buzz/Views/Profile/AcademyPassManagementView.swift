@@ -191,7 +191,7 @@ struct AcademyPassManagementView: View {
                         Text("• Unit 3 - Operations")
                             .font(.subheadline)
                             .foregroundColor(.secondary)
-                        Text("• Unit 4 - Drone Pilots (unlocking requires passing ground school test)")
+                        Text("• Unit 4 - Drone Pilot (unlocking requires passing ground school test)")
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                     }
