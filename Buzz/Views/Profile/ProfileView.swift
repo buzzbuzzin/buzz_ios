@@ -50,7 +50,7 @@ struct ProfileCard: View {
         .frame(maxWidth: .infinity)
         .frame(height: 140)
         .padding(.vertical, 16)
-        .background(Color(.systemBackground))
+        .background(Color(.secondarySystemGroupedBackground))
         .cornerRadius(12)
         .overlay(
             RoundedRectangle(cornerRadius: 12)
@@ -162,4 +162,3 @@ struct EditProfileView: View {
         }
     }
 }
-
