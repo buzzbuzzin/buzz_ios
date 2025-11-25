@@ -18,6 +18,8 @@ class BookingService: ObservableObject {
     @Published var errorMessage: String?
     
     private let supabase = SupabaseClient.shared.client
+    private let notificationManager = NotificationManager.shared
+    private let notificationPreferencesService = NotificationPreferencesService()
     
     // MARK: - Create Booking (Customer)
     
@@ -90,6 +92,11 @@ class BookingService: ObservableObject {
                 .single()
                 .execute()
                 .value
+            
+            // Notify nearby pilots about the new booking
+            Task {
+                await notifyNearbyPilotsAboutNewBooking(booking: createdBooking)
+            }
             
             isLoading = false
             return createdBooking
@@ -788,6 +795,16 @@ class BookingService: ObservableObject {
         errorMessage = nil
         
         do {
+            // Get booking details first
+            let booking: Booking = try await supabase
+                .from("bookings")
+                .select()
+                .eq("id", value: bookingId.uuidString)
+                .single()
+                .execute()
+                .value
+            
+            // Update booking status
             let updateData: [String: AnyJSON] = [
                 "pilot_id": .string(pilotId.uuidString),
                 "status": .string(BookingStatus.accepted.rawValue)
@@ -797,6 +814,47 @@ class BookingService: ObservableObject {
                 .update(updateData)
                 .eq("id", value: bookingId.uuidString)
                 .execute()
+            
+            // Get pilot info for notification
+            let pilotProfile: UserProfile = try await supabase
+                .from("user_profiles")
+                .select()
+                .eq("user_id", value: pilotId.uuidString)
+                .single()
+                .execute()
+                .value
+            
+            // Check customer's notification preferences
+            do {
+                try await notificationPreferencesService.loadPreferences(userId: booking.customerId)
+                
+                // Send notification to customer if they have booking reminders enabled
+                if notificationPreferencesService.preferences.bookingReminders.system {
+                    let aircraftType = booking.specialization?.displayName ?? "drone flight"
+                    let pilotName = pilotProfile.fullName
+                    await notificationManager.notifyBookingAccepted(
+                        bookingId: bookingId,
+                        pilotName: pilotName,
+                        aircraftType: aircraftType,
+                        departureTime: booking.scheduledDate ?? Date()
+                    )
+                }
+                
+                // Schedule 24-hour reminder if there's a scheduled date
+                if let scheduledDate = booking.scheduledDate,
+                   notificationPreferencesService.preferences.bookingReminders.system {
+                    let aircraftType = booking.specialization?.displayName ?? "drone flight"
+                    await notificationManager.scheduleBookingReminder(
+                        bookingId: bookingId,
+                        aircraftType: aircraftType,
+                        departureTime: scheduledDate,
+                        pilotName: pilotProfile.fullName
+                    )
+                }
+            } catch {
+                print("Could not load notification preferences: \(error)")
+                // Continue anyway - notification is not critical
+            }
             
             isLoading = false
         } catch {
@@ -1324,5 +1382,56 @@ class BookingService: ObservableObject {
         
         return booking
     }
+    
+    // MARK: - Notification Helpers
+    
+    /// Notify pilots about a new available booking
+    /// Note: Currently notifies all pilots who have booking notifications enabled.
+    /// In the future, this could be enhanced to use saved search preferences or geofencing.
+    private func notifyNearbyPilotsAboutNewBooking(booking: Booking) async {
+        do {
+            // Fetch all pilots
+            let profiles: [UserProfile] = try await supabase
+                .from("user_profiles")
+                .select()
+                .eq("user_type", value: "pilot")
+                .execute()
+                .value
+            
+            // Notify each pilot who has booking update notifications enabled
+            for profile in profiles {
+                // Skip if this is the customer who created the booking
+                if profile.id == booking.customerId {
+                    continue
+                }
+                
+                // Load pilot's notification preferences
+                do {
+                    try await notificationPreferencesService.loadPreferences(userId: profile.id)
+                    
+                    // Check if pilot has booking update notifications enabled
+                    if notificationPreferencesService.preferences.bookingUpdates.system {
+                        let aircraftType = booking.specialization?.displayName ?? "Drone flight"
+                        
+                        // For now, use a placeholder distance since we don't have saved search locations
+                        // Pilots can filter by opening the app and checking the Jobs tab with their radius filter
+                        let distance = 0.0 // Will show as "0.0 miles away" - indicates notification sent to all
+                        
+                        await notificationManager.notifyNearbyBooking(
+                            bookingId: booking.id,
+                            aircraftType: aircraftType,
+                            distance: distance,
+                            departureTime: booking.scheduledDate ?? Date()
+                        )
+                    }
+                } catch {
+                    print("Could not load notification preferences for pilot \(profile.id): \(error)")
+                    // Continue to next pilot
+                }
+            }
+        } catch {
+            print("Error notifying pilots about new booking: \(error)")
+            // Non-critical error, don't throw
+        }
+    }
 }
-

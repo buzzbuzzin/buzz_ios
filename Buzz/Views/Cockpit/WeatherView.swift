@@ -188,6 +188,15 @@ struct WeatherView: View {
             )
             weatherService.currentLocationWeather = weather
             currentLocationName = locationName
+            
+            // Check for weather changes and notify pilot if needed
+            if let pilotId = authService.currentUser?.id {
+                await weatherService.checkForWeatherChanges(
+                    pilotId: pilotId,
+                    weather: weather,
+                    locationName: locationName
+                )
+            }
         } catch {
             print("Error fetching current location weather: \(error.localizedDescription)")
         }

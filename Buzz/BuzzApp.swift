@@ -8,10 +8,12 @@
 import SwiftUI
 import GoogleSignIn
 import StripePaymentSheet
+import UserNotifications
 
 @main
 struct BuzzApp: App {
     @StateObject private var authService = AuthService()
+    @StateObject private var notificationManager = NotificationManager.shared
     @AppStorage("appearanceMode") private var appearanceModeString: String = "system"
 
     init() {
@@ -49,6 +51,16 @@ struct BuzzApp: App {
                     // Note: We handle authentication through AuthService,
                     // so we don't need to update UI here directly
                     // The AuthService will check authentication status separately
+                }
+                
+                // Request notification permissions
+                Task {
+                    await notificationManager.updateAuthorizationStatus()
+                    
+                    // Request permission if not yet determined
+                    if notificationManager.authorizationStatus == .notDetermined {
+                        _ = await notificationManager.requestAuthorization()
+                    }
                 }
             }
             .onOpenURL { url in

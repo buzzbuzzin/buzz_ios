@@ -10,12 +10,61 @@ import Auth
 
 struct MainTabView: View {
     @EnvironmentObject var authService: AuthService
+    @State private var selectedTab = 0
+    @State private var navigationPath = NavigationPath()
+    @State private var notificationToHandle: [AnyHashable: Any]?
     
     var body: some View {
         if authService.userProfile?.userType == .pilot {
             PilotTabView()
+                .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("HandleNotificationTap"))) { notification in
+                    if let userInfo = notification.userInfo {
+                        handleNotificationTap(userInfo: userInfo)
+                    }
+                }
         } else {
             CustomerTabView()
+                .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("HandleNotificationTap"))) { notification in
+                    if let userInfo = notification.userInfo {
+                        handleNotificationTap(userInfo: userInfo)
+                    }
+                }
+        }
+    }
+    
+    private func handleNotificationTap(userInfo: [AnyHashable: Any]) {
+        guard let type = userInfo["type"] as? String else { return }
+        
+        // Handle different notification types
+        switch type {
+        case "booking_accepted", "booking_reminder":
+            // Navigate to bookings tab
+            // For customer: go to Home tab
+            // For pilot: go to My Flights tab
+            print("Navigating to booking: \(userInfo)")
+            
+        case "new_message":
+            // Navigate to messages (booking detail)
+            print("Navigating to message: \(userInfo)")
+            
+        case "nearby_booking":
+            // Navigate to Jobs tab for pilot
+            print("Navigating to nearby booking: \(userInfo)")
+            
+        case "drone_activity":
+            // Navigate to Flight Radar
+            print("Navigating to Flight Radar for drone activity")
+            
+        case "weather_change":
+            // Navigate to Weather view
+            print("Navigating to Weather view")
+            
+        case "received_review":
+            // Navigate to ratings/profile
+            print("Navigating to ratings")
+            
+        default:
+            print("Unknown notification type: \(type)")
         }
     }
 }

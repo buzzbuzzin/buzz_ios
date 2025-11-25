@@ -67,7 +67,7 @@ struct CockpitView: View {
                                 .buttonStyle(PlainButtonStyle())
                                 
                                 // Flight Radar Card
-                                NavigationLink(destination: FlightRadarView()) {
+                                NavigationLink(destination: FlightRadarView().environmentObject(authService)) {
                                     CockpitGridCard(
                                         title: "Flight Radar",
                                         icon: "airplane.departure",

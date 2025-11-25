@@ -17,6 +17,11 @@ class TransponderService: ObservableObject {
     @Published var errorMessage: String?
     
     private let supabase = SupabaseClient.shared.client
+    private let notificationManager = NotificationManager.shared
+    private let notificationPreferencesService = NotificationPreferencesService()
+    
+    // Track last notified transponders to avoid duplicate notifications
+    private var lastNotifiedTransponders: Set<UUID> = []
     
     // MARK: - Fetch Transponders
     
@@ -511,6 +516,63 @@ class TransponderService: ObservableObject {
             isLoading = false
             errorMessage = error.localizedDescription
             throw error
+        }
+    }
+    
+    // MARK: - Drone Activity Monitoring
+    
+    /// Check for nearby drone activity and notify pilot if needed
+    /// Call this periodically when a pilot has the Flight Radar open
+    func checkForNearbyDroneActivity(pilotId: UUID, pilotLocation: CLLocationCoordinate2D, alertRadius: Double = 5.0) async {
+        do {
+            // Get all active transponders
+            let activeTransponders = try await fetchAllActiveTransponders()
+            
+            // Filter out pilot's own transponders
+            let otherDrones = activeTransponders.filter { $0.pilotId != pilotId }
+            
+            let pilotCLLocation = CLLocation(latitude: pilotLocation.latitude, longitude: pilotLocation.longitude)
+            
+            // Check each transponder for proximity
+            for transponder in otherDrones {
+                guard let droneLocation = transponder.lastLocation else { continue }
+                
+                let droneCLLocation = CLLocation(latitude: droneLocation.latitude, longitude: droneLocation.longitude)
+                let distance = pilotCLLocation.distance(from: droneCLLocation) / 1609.34 // Convert to miles
+                
+                // If drone is within alert radius and we haven't notified about it recently
+                if distance <= alertRadius && !lastNotifiedTransponders.contains(transponder.id) {
+                    // Load pilot's notification preferences
+                    do {
+                        try await notificationPreferencesService.loadPreferences(userId: pilotId)
+                        
+                        // Check if pilot has weather/drone notifications enabled
+                        if notificationPreferencesService.preferences.weatherUpdates.system {
+                            // Get altitude in feet
+                            let altitudeFeet = Int((transponder.altitude ?? 0) * 3.28084)
+                            
+                            await notificationManager.notifyDroneActivity(
+                                location: "Near your location",
+                                altitude: altitudeFeet,
+                                distance: distance
+                            )
+                            
+                            // Mark as notified to avoid duplicate notifications
+                            lastNotifiedTransponders.insert(transponder.id)
+                            
+                            // Clean up old notifications after 15 minutes
+                            Task {
+                                try? await Task.sleep(nanoseconds: 15 * 60 * 1_000_000_000)
+                                lastNotifiedTransponders.remove(transponder.id)
+                            }
+                        }
+                    } catch {
+                        print("Could not check notification preferences: \(error)")
+                    }
+                }
+            }
+        } catch {
+            print("Error checking for nearby drone activity: \(error)")
         }
     }
 }

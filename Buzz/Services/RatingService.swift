@@ -15,6 +15,8 @@ class RatingService: ObservableObject {
     @Published var errorMessage: String?
     
     private let supabase = SupabaseClient.shared.client
+    private let notificationManager = NotificationManager.shared
+    private let notificationPreferencesService = NotificationPreferencesService()
     
     // MARK: - Submit Rating
     
@@ -47,6 +49,16 @@ class RatingService: ObservableObject {
                 .from("ratings")
                 .insert(ratingData)
                 .execute()
+            
+            // Send notification to the person being rated (usually the pilot)
+            Task {
+                await sendReviewNotification(
+                    toUserId: toUserId,
+                    fromUserId: fromUserId,
+                    rating: rating,
+                    bookingId: bookingId
+                )
+            }
             
             isLoading = false
         } catch {
@@ -678,5 +690,37 @@ class RatingService: ObservableObject {
             throw error
         }
     }
+    
+    // MARK: - Notification Helper
+    
+    /// Send notification when a user receives a review
+    private func sendReviewNotification(toUserId: UUID, fromUserId: UUID, rating: Int, bookingId: UUID) async {
+        do {
+            // Load recipient's notification preferences
+            try await notificationPreferencesService.loadPreferences(userId: toUserId)
+            
+            // Check if recipient has review notifications enabled
+            guard notificationPreferencesService.preferences.receivedReviews.system else {
+                return
+            }
+            
+            // Get reviewer's profile for notification
+            let reviewerProfile: UserProfile = try await supabase
+                .from("user_profiles")
+                .select()
+                .eq("user_id", value: fromUserId.uuidString)
+                .single()
+                .execute()
+                .value
+            
+            await notificationManager.notifyReceivedReview(
+                rating: rating,
+                reviewerName: reviewerProfile.fullName,
+                bookingId: bookingId
+            )
+        } catch {
+            print("Could not send review notification: \(error)")
+            // Non-critical error, don't throw
+        }
+    }
 }
-

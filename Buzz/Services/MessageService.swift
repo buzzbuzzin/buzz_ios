@@ -17,6 +17,8 @@ class MessageService: ObservableObject {
     @Published var errorMessage: String?
     
     private let supabase = SupabaseClient.shared.client
+    private let notificationManager = NotificationManager.shared
+    private let notificationPreferencesService = NotificationPreferencesService()
     
     // MARK: - Fetch Messages for Booking
     
@@ -103,6 +105,16 @@ class MessageService: ObservableObject {
                 .from("messages")
                 .insert(messageData)
                 .execute()
+            
+            // Send notification to recipient
+            Task {
+                await sendMessageNotification(
+                    toUserId: toUserId,
+                    fromUserId: fromUserId,
+                    messageText: text,
+                    bookingId: bookingId
+                )
+            }
             
             await MainActor.run {
                 self.isLoading = false
@@ -246,6 +258,16 @@ class MessageService: ObservableObject {
                 .single()
                 .execute()
                 .value
+            
+            // Send notification to recipient
+            Task {
+                await sendMessageNotification(
+                    toUserId: toUserId,
+                    fromUserId: fromUserId,
+                    messageText: text,
+                    bookingId: nil
+                )
+            }
             
             // Replace optimistic message with real message from backend
             await MainActor.run {
@@ -533,6 +555,45 @@ class MessageService: ObservableObject {
             .eq("booking_id", value: bookingId.uuidString)
             .eq("to_user_id", value: userId.uuidString)
             .execute()
+    }
+    
+    // MARK: - Notification Helper
+    
+    /// Send notification to message recipient
+    private func sendMessageNotification(toUserId: UUID, fromUserId: UUID, messageText: String, bookingId: UUID?) async {
+        do {
+            // Load recipient's notification preferences
+            try await notificationPreferencesService.loadPreferences(userId: toUserId)
+            
+            // Check if recipient has message notifications enabled
+            guard notificationPreferencesService.preferences.messages.system else {
+                return
+            }
+            
+            // Get sender's profile for notification
+            let senderProfile: UserProfile = try await supabase
+                .from("user_profiles")
+                .select()
+                .eq("user_id", value: fromUserId.uuidString)
+                .single()
+                .execute()
+                .value
+            
+            // Create message preview (limit to 100 characters)
+            let preview = messageText.count > 100 ? String(messageText.prefix(97)) + "..." : messageText
+            
+            // Use booking ID as conversation ID if available, otherwise generate one
+            let conversationId = bookingId ?? Self.conversationId(fromUserId: fromUserId, toUserId: toUserId)
+            
+            await notificationManager.notifyNewMessage(
+                senderName: senderProfile.fullName,
+                messagePreview: preview,
+                conversationId: conversationId
+            )
+        } catch {
+            print("Could not send message notification: \(error)")
+            // Non-critical error, don't throw
+        }
     }
 }
 

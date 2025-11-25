@@ -17,6 +17,12 @@ class WeatherService: ObservableObject {
     @Published var errorMessage: String?
     
     private let baseURL = "https://api.weather.gov"
+    private let notificationManager = NotificationManager.shared
+    private let notificationPreferencesService = NotificationPreferencesService()
+    
+    // Track last weather condition to detect changes
+    private var lastWeatherCondition: String?
+    private var lastNotificationTime: Date?
     
     // MARK: - Fetch Weather for Current Location
     
@@ -307,6 +313,66 @@ class WeatherService: ObservableObject {
         let sunset = calendar.date(bySettingHour: sunsetHour, minute: 30, second: 0, of: today)
         
         return (sunrise, sunset)
+    }
+    
+    // MARK: - Weather Change Monitoring
+    
+    /// Check for significant weather changes and notify pilot if needed
+    /// Call this when weather is updated to detect changes
+    func checkForWeatherChanges(pilotId: UUID, weather: Weather, locationName: String) async {
+        let condition = weather.condition.lowercased()
+        
+        // Check if this is a significant weather event
+        let isSevereWeather = condition.contains("thunder") ||
+                              condition.contains("storm") ||
+                              condition.contains("severe") ||
+                              condition.contains("tornado") ||
+                              condition.contains("hurricane")
+        
+        let isRain = condition.contains("rain") ||
+                     condition.contains("shower") ||
+                     condition.contains("drizzle")
+        
+        let isSnow = condition.contains("snow") ||
+                     condition.contains("blizzard")
+        
+        let isFog = condition.contains("fog") ||
+                    condition.contains("mist")
+        
+        // Check if weather has changed significantly
+        let hasChanged = lastWeatherCondition != nil && lastWeatherCondition != weather.condition
+        
+        // Determine if we should notify (significant change and not recently notified)
+        let shouldNotify = hasChanged && (isSevereWeather || isRain || isSnow || isFog)
+        
+        // Rate limit notifications (max once per hour for the same location)
+        let hoursSinceLastNotification = lastNotificationTime.map { Date().timeIntervalSince($0) / 3600 } ?? 100
+        
+        if shouldNotify && hoursSinceLastNotification >= 1.0 {
+            do {
+                // Load pilot's notification preferences
+                try await notificationPreferencesService.loadPreferences(userId: pilotId)
+                
+                // Check if pilot has weather notifications enabled
+                if notificationPreferencesService.preferences.weatherUpdates.system {
+                    let severity = isSevereWeather ? "severe" : "moderate"
+                    
+                    await notificationManager.notifyWeatherChange(
+                        condition: weather.condition,
+                        location: locationName,
+                        severity: severity
+                    )
+                    
+                    // Update last notification time
+                    lastNotificationTime = Date()
+                }
+            } catch {
+                print("Could not check notification preferences: \(error)")
+            }
+        }
+        
+        // Update last weather condition
+        lastWeatherCondition = weather.condition
     }
 }
 

@@ -9,8 +9,10 @@ import SwiftUI
 import MapKit
 import CoreLocation
 import Combine
+import Auth
 
 struct FlightRadarView: View {
+    @EnvironmentObject var authService: AuthService
     @StateObject private var transponderService = TransponderService()
     @StateObject private var locationManager = FlightRadarLocationManager()
     @State private var activeTransponders: [Transponder] = []
@@ -175,6 +177,16 @@ struct FlightRadarView: View {
                 self.activeTransponders = transponders
                 self.isLoading = false
                 adjustMapRegion()
+            }
+            
+            // Check for nearby drone activity and notify if needed
+            if let pilotId = authService.currentUser?.id,
+               let pilotLocation = locationManager.currentLocation {
+                await transponderService.checkForNearbyDroneActivity(
+                    pilotId: pilotId,
+                    pilotLocation: pilotLocation,
+                    alertRadius: 5.0 // 5 miles
+                )
             }
         } catch {
             await MainActor.run {
