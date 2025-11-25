@@ -110,6 +110,9 @@ struct CourseSubscriptionView: View {
                         Text("• Unit 3 - Operations")
                             .font(.subheadline)
                             .foregroundColor(.secondary)
+                        Text("• Unit 4 - Drone Pilot (unlocking requires passing ground school test)")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
                     }
                     .padding()
                     .background(Color.green.opacity(0.1))

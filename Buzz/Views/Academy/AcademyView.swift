@@ -1041,11 +1041,11 @@ struct UASPilotCoursePromotionCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Image(systemName: "sparkles")
+                Image(systemName: "graduationcap.fill")
                     .foregroundColor(.yellow)
                     .font(.title2)
                 
-                Text("New Pilot Offer")
+                Text("Academy Pass")
                     .font(.headline)
                     .fontWeight(.bold)
                     .foregroundColor(.primary)
