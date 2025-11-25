@@ -38,7 +38,9 @@ struct PersonalInfoView: View {
                 PersonalInfoCard(
                     title: "Phone",
                     value: authService.userProfile?.phone ?? "Not set",
-                    icon: "phone.fill"
+                    icon: "phone.fill",
+                    showWarning: authService.userProfile?.phone == nil || authService.userProfile?.phone?.isEmpty == true,
+                    warningMessage: "Please provide and verify your phone number here."
                 )
             }
             .buttonStyle(PlainButtonStyle())
@@ -75,7 +77,7 @@ struct PersonalInfoView: View {
             }
             .buttonStyle(PlainButtonStyle())
         }
-        .navigationTitle("Personal info")
+        .navigationTitle("Personal Info")
         .navigationBarTitleDisplayMode(.inline)
     }
 }
@@ -84,6 +86,8 @@ struct PersonalInfoCard: View {
     let title: String
     let value: String
     let icon: String
+    var showWarning: Bool = false
+    var warningMessage: String = ""
     
     var body: some View {
         HStack(spacing: 12) {
@@ -97,9 +101,15 @@ struct PersonalInfoCard: View {
                     .font(.headline)
                     .foregroundColor(.primary)
                 
-                Text(value)
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
+                if showWarning {
+                    Text(warningMessage)
+                        .font(.subheadline)
+                        .foregroundColor(.red)
+                } else {
+                    Text(value)
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
             }
             
             Spacer()

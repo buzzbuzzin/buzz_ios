@@ -429,6 +429,62 @@ class AuthService: ObservableObject {
         }
     }
     
+    // MARK: - Update Phone with OTP
+    
+    func sendPhoneUpdateOTP(phone: String) async throws {
+        isLoading = true
+        errorMessage = nil
+        
+        do {
+            // Update user's phone number - Supabase will send an OTP via SMS
+            try await supabase.auth.update(user: UserAttributes(phone: phone))
+            isLoading = false
+        } catch {
+            isLoading = false
+            errorMessage = error.localizedDescription
+            throw error
+        }
+    }
+    
+    func verifyPhoneUpdateOTP(phone: String, token: String) async throws {
+        isLoading = true
+        errorMessage = nil
+        
+        do {
+            // Verify OTP for phone change
+            let response = try await supabase.auth.verifyOTP(
+                phone: phone,
+                token: token,
+                type: .phoneChange
+            )
+            
+            // Update current user
+            currentUser = response.user
+            
+            // Update the phone in the profile table
+            if let userId = currentUser?.id {
+                let updates: [String: AnyJSON] = [
+                    "phone": .string(phone)
+                ]
+                
+                try await supabase
+                    .from("profiles")
+                    .update(updates)
+                    .eq("id", value: userId.uuidString)
+                    .execute()
+                
+                // Reload user profile to reflect changes
+                await loadUserProfile()
+            }
+            
+            isLoading = false
+        } catch {
+            isLoading = false
+            errorMessage = error.localizedDescription
+            throw error
+        }
+    }
+    
     // MARK: - Change Email
     
     func changeEmail(newEmail: String) async throws {
