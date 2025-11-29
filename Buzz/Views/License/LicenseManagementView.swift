@@ -74,37 +74,101 @@ struct LicenseManagementView: View {
                     )
                 } else {
                     VStack(spacing: 0) {
-                        List {
-                            ForEach(licenseService.licenses) { license in
-                                LicenseRow(
-                                    license: license,
-                                    onTap: {
-                                        print("DEBUG LicenseView: Eye icon tapped")
-                                        print("DEBUG LicenseView: License ID: \(license.id)")
-                                        print("DEBUG LicenseView: License URL: \(license.fileUrl)")
-                                        print("DEBUG LicenseView: License type: \(license.fileType)")
-                                        // Use Task to ensure state update happens on main thread
-                                        Task { @MainActor in
-                                            self.selectedLicense = license
-                                            print("DEBUG LicenseView: selectedLicense set to: \(self.selectedLicense?.id.uuidString ?? "nil")")
+                        ScrollView {
+                            VStack(spacing: 0) {
+                                // Group licenses by category
+                                let groupedLicenses = groupLicensesByCategory()
+                                
+                                // Drone Pilot License Section
+                                if !groupedLicenses[.dronePilot]!.isEmpty {
+                                    LicenseCategorySection(
+                                        category: .dronePilot,
+                                        licenses: groupedLicenses[.dronePilot]!,
+                                        onView: { license in
+                                            print("DEBUG LicenseView: Eye icon tapped")
+                                            print("DEBUG LicenseView: License ID: \(license.id)")
+                                            print("DEBUG LicenseView: License URL: \(license.fileUrl)")
+                                            print("DEBUG LicenseView: License type: \(license.fileType)")
+                                            Task { @MainActor in
+                                                self.selectedLicense = license
+                                                print("DEBUG LicenseView: selectedLicense set to: \(self.selectedLicense?.id.uuidString ?? "nil")")
+                                            }
+                                        },
+                                        onDelete: { license in
+                                            licenseToDelete = license
+                                            showDeleteConfirmation = true
+                                        },
+                                        onEdit: { license in
+                                            licenseToEdit = license
+                                            showEditSheet = true
                                         }
-                                    },
-                                    onDelete: {
-                                        licenseToDelete = license
-                                        showDeleteConfirmation = true
-                                    },
-                                    onEdit: {
-                                        licenseToEdit = license
-                                        showEditSheet = true
-                                    }
-                                )
-                            }
-                            .onDelete { indexSet in
-                                for index in indexSet {
-                                    licenseToDelete = licenseService.licenses[index]
-                                    showDeleteConfirmation = true
+                                    )
+                                }
+                                
+                                // Radio Operator Permit Section
+                                if !groupedLicenses[.radioOperator]!.isEmpty {
+                                    LicenseCategorySection(
+                                        category: .radioOperator,
+                                        licenses: groupedLicenses[.radioOperator]!,
+                                        onView: { license in
+                                            Task { @MainActor in
+                                                self.selectedLicense = license
+                                            }
+                                        },
+                                        onDelete: { license in
+                                            licenseToDelete = license
+                                            showDeleteConfirmation = true
+                                        },
+                                        onEdit: { license in
+                                            licenseToEdit = license
+                                            showEditSheet = true
+                                        }
+                                    )
+                                }
+                                
+                                // Flight Reviewer Section
+                                if !groupedLicenses[.flightReviewer]!.isEmpty {
+                                    LicenseCategorySection(
+                                        category: .flightReviewer,
+                                        licenses: groupedLicenses[.flightReviewer]!,
+                                        onView: { license in
+                                            Task { @MainActor in
+                                                self.selectedLicense = license
+                                            }
+                                        },
+                                        onDelete: { license in
+                                            licenseToDelete = license
+                                            showDeleteConfirmation = true
+                                        },
+                                        onEdit: { license in
+                                            licenseToEdit = license
+                                            showEditSheet = true
+                                        }
+                                    )
+                                }
+                                
+                                // Other Section
+                                if !groupedLicenses[.other]!.isEmpty {
+                                    LicenseCategorySection(
+                                        category: .other,
+                                        licenses: groupedLicenses[.other]!,
+                                        onView: { license in
+                                            Task { @MainActor in
+                                                self.selectedLicense = license
+                                            }
+                                        },
+                                        onDelete: { license in
+                                            licenseToDelete = license
+                                            showDeleteConfirmation = true
+                                        },
+                                        onEdit: { license in
+                                            licenseToEdit = license
+                                            showEditSheet = true
+                                        }
+                                    )
                                 }
                             }
+                            .padding(.bottom, 16)
                         }
                         .refreshable {
                             await loadLicenses()
@@ -446,29 +510,95 @@ struct LicenseManagementView: View {
             }
         }
     }
+    
+    private func groupLicensesByCategory() -> [LicenseCategory: [PilotLicense]] {
+        var grouped: [LicenseCategory: [PilotLicense]] = [
+            .dronePilot: [],
+            .radioOperator: [],
+            .flightReviewer: [],
+            .other: []
+        ]
+        
+        for license in licenseService.licenses {
+            // Determine category based on license type
+            let category: LicenseCategory
+            if let licenseTypeString = license.licenseType,
+               let licenseType = LicenseType(rawValue: licenseTypeString) {
+                category = licenseType.category
+            } else {
+                // Default to other if we can't determine the category
+                category = .other
+            }
+            grouped[category]?.append(license)
+        }
+        
+        return grouped
+    }
 }
 
-// MARK: - License Row
+// MARK: - License Category Section
 
-struct LicenseRow: View {
+struct LicenseCategorySection: View {
+    let category: LicenseCategory
+    let licenses: [PilotLicense]
+    let onView: (PilotLicense) -> Void
+    let onDelete: (PilotLicense) -> Void
+    let onEdit: (PilotLicense) -> Void
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            // Section Header
+            Text(category.title)
+                .font(.title3)
+                .fontWeight(.bold)
+                .foregroundColor(.primary)
+                .padding(.horizontal, 20)
+                .padding(.top, 20)
+            
+            // License Cards
+            VStack(spacing: 12) {
+                ForEach(licenses) { license in
+                    LicenseCard(
+                        license: license,
+                        onView: { onView(license) },
+                        onDelete: { onDelete(license) },
+                        onEdit: { onEdit(license) }
+                    )
+                }
+            }
+            .padding(.horizontal, 16)
+        }
+    }
+}
+
+// MARK: - License Card
+
+struct LicenseCard: View {
     let license: PilotLicense
-    let onTap: () -> Void
+    let onView: () -> Void
     let onDelete: () -> Void
     let onEdit: () -> Void
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 0) {
+            // Header Section
             HStack(spacing: 12) {
                 // File icon
-                Image(systemName: license.fileType == .pdf ? "doc.fill" : "photo.fill")
-                    .font(.title2)
-                    .foregroundColor(.blue)
-                    .frame(width: 50)
+                ZStack {
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(Color.blue.opacity(0.1))
+                        .frame(width: 50, height: 50)
+                    
+                    Image(systemName: license.fileType == .pdf ? "doc.fill" : "photo.fill")
+                        .font(.title2)
+                        .foregroundColor(.blue)
+                }
                 
                 // File info
                 VStack(alignment: .leading, spacing: 4) {
                     Text(license.licenseType ?? (license.fileType == .pdf ? "PDF Document" : "Image"))
                         .font(.headline)
+                        .foregroundColor(.primary)
                     
                     Text("Uploaded \(license.uploadedAt.formatted(date: .abbreviated, time: .shortened))")
                         .font(.caption)
@@ -478,37 +608,44 @@ struct LicenseRow: View {
                 Spacer()
                 
                 // Action buttons
-                HStack(spacing: 8) {
+                HStack(spacing: 12) {
                     // View button
                     Button(action: {
-                        print("DEBUG LicenseRow: View button tapped")
-                        onTap()
+                        print("DEBUG LicenseCard: View button tapped")
+                        onView()
                     }) {
                         Image(systemName: "eye.fill")
                             .font(.body)
                             .foregroundColor(.blue)
-                            .frame(width: 44, height: 44)
+                            .frame(width: 36, height: 36)
+                            .background(Color.blue.opacity(0.1))
+                            .clipShape(Circle())
                     }
                     .buttonStyle(PlainButtonStyle())
                     
                     // Delete button
                     Button(action: {
-                        print("DEBUG LicenseRow: Delete button tapped")
+                        print("DEBUG LicenseCard: Delete button tapped")
                         onDelete()
                     }) {
                         Image(systemName: "trash.fill")
                             .font(.body)
                             .foregroundColor(.red)
-                            .frame(width: 44, height: 44)
+                            .frame(width: 36, height: 36)
+                            .background(Color.red.opacity(0.1))
+                            .clipShape(Circle())
                     }
                     .buttonStyle(PlainButtonStyle())
                 }
             }
+            .padding(16)
             
-            // Always display extracted OCR information section
-            VStack(alignment: .leading, spacing: 6) {
-                Divider()
-                
+            // Divider
+            Divider()
+                .padding(.horizontal, 16)
+            
+            // OCR Information Section
+            VStack(alignment: .leading, spacing: 12) {
                 HStack {
                     Text("Extracted Information")
                         .font(.caption)
@@ -520,52 +657,69 @@ struct LicenseRow: View {
                     
                     // Edit button
                     Button(action: {
-                        print("DEBUG LicenseRow: Edit button tapped")
+                        print("DEBUG LicenseCard: Edit button tapped")
                         onEdit()
                     }) {
-                        Image(systemName: "pencil")
-                            .font(.system(size: 16, weight: .medium))
-                            .foregroundColor(.blue)
+                        HStack(spacing: 4) {
+                            Image(systemName: "pencil")
+                                .font(.system(size: 12, weight: .medium))
+                            Text("Edit")
+                                .font(.caption)
+                                .fontWeight(.medium)
+                        }
+                        .foregroundColor(.blue)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(Color.blue.opacity(0.1))
+                        .clipShape(Capsule())
                     }
                     .buttonStyle(PlainButtonStyle())
                 }
                 
-                VStack(alignment: .leading, spacing: 8) {
+                // OCR Fields Grid
+                VStack(spacing: 12) {
                     HStack(alignment: .top, spacing: 16) {
-                        VStack(alignment: .leading, spacing: 8) {
-                            LicenseInfoRow(
-                                label: "Name",
-                                value: license.name ?? "",
-                                isEmpty: license.name == nil
-                            )
-                            LicenseInfoRow(
-                                label: "Course",
-                                value: license.courseCompleted ?? "",
-                                isEmpty: license.courseCompleted == nil
-                            )
-                        }
+                        LicenseInfoRow(
+                            label: "Name",
+                            value: license.name ?? "",
+                            isEmpty: license.name == nil
+                        )
                         .frame(maxWidth: .infinity, alignment: .leading)
                         
-                        VStack(alignment: .leading, spacing: 8) {
-                            LicenseInfoRow(
-                                label: "Date",
-                                value: license.completionDate ?? "",
-                                isEmpty: license.completionDate == nil
-                            )
-                            LicenseInfoRow(
-                                label: "Certificate",
-                                value: license.certificateNumber ?? "",
-                                isEmpty: license.certificateNumber == nil
-                            )
-                        }
+                        LicenseInfoRow(
+                            label: "Date",
+                            value: license.completionDate ?? "",
+                            isEmpty: license.completionDate == nil
+                        )
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    
+                    HStack(alignment: .top, spacing: 16) {
+                        LicenseInfoRow(
+                            label: "Course",
+                            value: license.courseCompleted ?? "",
+                            isEmpty: license.courseCompleted == nil
+                        )
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        
+                        LicenseInfoRow(
+                            label: "Certificate",
+                            value: license.certificateNumber ?? "",
+                            isEmpty: license.certificateNumber == nil
+                        )
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
             }
-            .padding(.leading, 62) // Align with content above
+            .padding(16)
         }
-        .padding(.vertical, 8)
-        .contentShape(Rectangle())
+        .background(Color(.systemBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .shadow(color: Color.black.opacity(0.08), radius: 8, x: 0, y: 2)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color(.systemGray5), lineWidth: 1)
+        )
     }
 }
 
@@ -909,6 +1063,10 @@ struct LicenseTypeSelectionView: View {
         LicenseType.allCases.filter { $0.category == .radioOperator }
     }
     
+    private var flightReviewerLicenses: [LicenseType] {
+        LicenseType.allCases.filter { $0.category == .flightReviewer }
+    }
+    
     private var otherLicenses: [LicenseType] {
         LicenseType.allCases.filter { $0.category == .other }
     }
@@ -939,6 +1097,26 @@ struct LicenseTypeSelectionView: View {
                 // Radio Operator Permit Type Section
                 Section(header: Text("Radio Operator Permit Type")) {
                     ForEach(radioOperatorLicenses, id: \.self) { type in
+                        Button(action: {
+                            selectedType = type
+                            showCustomTextField = false
+                        }) {
+                            HStack {
+                                Text(type.displayName)
+                                    .foregroundColor(.primary)
+                                Spacer()
+                                if selectedType == type {
+                                    Image(systemName: "checkmark")
+                                        .foregroundColor(.blue)
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                // Flight Reviewer Section
+                Section(header: Text("Flight Reviewer")) {
+                    ForEach(flightReviewerLicenses, id: \.self) { type in
                         Button(action: {
                             selectedType = type
                             showCustomTextField = false
