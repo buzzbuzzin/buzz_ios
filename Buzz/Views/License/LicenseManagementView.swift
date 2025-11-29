@@ -579,6 +579,10 @@ struct LicenseCard: View {
     let onDelete: () -> Void
     let onEdit: () -> Void
     
+    private func isRPACertificate(_ license: PilotLicense) -> Bool {
+        return license.licenseType?.contains("RPA Pilot Certificate") ?? false
+    }
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Header Section
@@ -687,7 +691,7 @@ struct LicenseCard: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         
                         LicenseInfoRow(
-                            label: "Date",
+                            label: isRPACertificate(license) ? "Date" : "Completion Date",
                             value: license.completionDate ?? "",
                             isEmpty: license.completionDate == nil
                         )
@@ -696,7 +700,7 @@ struct LicenseCard: View {
                     
                     HStack(alignment: .top, spacing: 16) {
                         LicenseInfoRow(
-                            label: "Course",
+                            label: isRPACertificate(license) ? "TC Account" : "Course",
                             value: license.courseCompleted ?? "",
                             isEmpty: license.courseCompleted == nil
                         )
@@ -789,6 +793,10 @@ struct EditPilotLicenseView: View {
         return formatter
     }()
     
+    private var isRPACertificate: Bool {
+        license.licenseType?.contains("RPA Pilot Certificate") ?? false
+    }
+    
     init(license: PilotLicense, licenseService: LicenseUploadService, onSave: @escaping () -> Void, onCancel: @escaping () -> Void) {
         self.license = license
         self.licenseService = licenseService
@@ -853,14 +861,14 @@ struct EditPilotLicenseView: View {
                 }
                 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Course Completed")
+                    Text(isRPACertificate ? "TC Account" : "Course Completed")
                         .font(.caption)
                         .foregroundColor(.secondary)
-                    TextField("Enter course name", text: $courseCompleted)
+                    TextField(isRPACertificate ? "Enter TC Account" : "Enter course name", text: $courseCompleted)
                 }
                 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Completion Date")
+                    Text(isRPACertificate ? "Date" : "Completion Date")
                         .font(.caption)
                         .foregroundColor(.secondary)
                     
@@ -909,7 +917,7 @@ struct EditPilotLicenseView: View {
                         .foregroundColor(.secondary)
                     TextField("Enter certificate number", text: $certificateNumber)
                         .placeholder(when: certificateNumber.isEmpty) {
-                            Text("e.g., 1595266-20241102-00677")
+                            Text(isRPACertificate ? "e.g., PC2020952034" : "e.g., 1595266-20241102-00677")
                                 .foregroundColor(.secondary)
                         }
                 }

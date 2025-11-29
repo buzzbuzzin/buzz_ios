@@ -108,7 +108,7 @@ class LicenseUploadService: ObservableObject {
                 print(extractedText)
                 print("----------------------------------------")
                 
-                ocrInfo = ocrService.parsePilotLicenseInfo(from: extractedText)
+                ocrInfo = ocrService.parsePilotLicenseInfo(from: extractedText, licenseType: licenseType)
                 print("DEBUG LicenseUpload: OCR parsing completed")
                 
                 if let info = ocrInfo {

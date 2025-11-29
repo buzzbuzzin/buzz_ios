@@ -690,14 +690,23 @@ class OCRService {
     
     // MARK: - Parse Pilot License Information
     
-    func parsePilotLicenseInfo(from text: String) -> PilotLicenseInfo {
+    func parsePilotLicenseInfo(from text: String, licenseType: String?) -> PilotLicenseInfo {
         var info = PilotLicenseInfo()
         
         print("🔍 OCR DEBUG: Starting to parse pilot license info")
+        print("🔍 OCR DEBUG: License Type: \(licenseType ?? "Unknown")")
         print("🔍 OCR DEBUG: Extracted text length: \(text.count) characters")
         print("🔍 OCR DEBUG: First 500 characters of extracted text:")
         print(String(text.prefix(500)))
         print("🔍 OCR DEBUG: ========================================")
+        
+        // Check if this is an RPA Pilot Certificate (CAN)
+        let isRPACertificate = licenseType?.contains("RPA Pilot Certificate") ?? false || text.uppercased().contains("REMOTELY PILOTED AIRCRAFT")
+        
+        if isRPACertificate {
+            print("🔍 OCR DEBUG: Detected RPA Pilot Certificate (CAN)")
+            return parseRPAPilotCertificate(from: text)
+        }
         
         // Name - Look for "Your Name:" or "Name:"
         if let name = extractField(from: text, patterns: [
@@ -747,6 +756,198 @@ class OCRService {
         print("   - Course Completed: \(info.courseCompleted ?? "nil")")
         print("   - Completion Date: \(info.completionDate ?? "nil")")
         print("   - Certificate Number: \(info.certificateNumber ?? "nil")")
+        print("🔍 OCR DEBUG: ========================================")
+        
+        return info
+    }
+    
+    // MARK: - Parse RPA Pilot Certificate (CAN)
+    
+    private func parseRPAPilotCertificate(from text: String) -> PilotLicenseInfo {
+        var info = PilotLicenseInfo()
+        
+        print("🔍 OCR DEBUG: ========================================")
+        print("🔍 OCR DEBUG: Parsing RPA Pilot Certificate (CAN)")
+        print("🔍 OCR DEBUG: ========================================")
+        print("🔍 OCR DEBUG: Full extracted text (\(text.count) characters):")
+        print("----------------------------------------")
+        print(text)
+        print("----------------------------------------")
+        print("🔍 OCR DEBUG: Uppercased text for pattern matching:")
+        print("----------------------------------------")
+        print(text.uppercased())
+        print("----------------------------------------")
+        
+        // Extract Name - Look for text after "Issued on ... to:"
+        print("🔍 OCR DEBUG: Attempting to extract NAME...")
+        print("🔍 OCR DEBUG: Looking for pattern: 'Issued on ... to: [Name]'")
+        
+        // Try multiple name patterns
+        let namePatterns = [
+            "(?:Issued on|ISSUED ON).*?(?:to:|TO:)\\s*([A-Za-z\\s]+?)(?:\\n|\\r|$|[A-Z]{2}[0-9])",
+            "(?:to:|TO:)\\s*([A-Za-z\\s]+?)(?:\\n|\\r|PC|TC)",
+            "(?:to:|TO:)\\s*([A-Za-z\\s\\.]+?)(?:[A-Z]{2}[0-9]|\\n|\\r|$)"
+        ]
+        
+        for (index, pattern) in namePatterns.enumerated() {
+            print("🔍 OCR DEBUG: Trying name pattern \(index + 1): \(pattern)")
+            if let namePattern = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive, .dotMatchesLineSeparators]) {
+                let nsString = text as NSString
+                let results = namePattern.matches(in: text, options: [], range: NSRange(location: 0, length: nsString.length))
+                
+                print("🔍 OCR DEBUG: Found \(results.count) match(es) for pattern \(index + 1)")
+                
+                if let match = results.first, match.numberOfRanges > 1 {
+                    let nameRange = match.range(at: 1)
+                    if nameRange.location != NSNotFound {
+                        var name = nsString.substring(with: nameRange)
+                        print("🔍 OCR DEBUG: Raw name extracted: '\(name)'")
+                        name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+                        // Clean up any extra characters
+                        name = name.components(separatedBy: .newlines).first ?? name
+                        info.name = name
+                        print("✅ OCR DEBUG: RPA Name found: '\(name)'")
+                        break
+                    }
+                }
+            } else {
+                print("❌ OCR DEBUG: Failed to create regex for pattern \(index + 1)")
+            }
+        }
+        
+        if info.name == nil {
+            print("❌ OCR DEBUG: Name NOT found with any pattern")
+        }
+        
+        // Extract Date - Look for "Issued on [date]"
+        print("🔍 OCR DEBUG: Attempting to extract DATE...")
+        print("🔍 OCR DEBUG: Looking for pattern: 'Issued on [Month Day, Year]'")
+        
+        let datePatterns = [
+            "(?:Issued on|ISSUED ON)\\s+([A-Za-z]+\\s+[0-9]{1,2},?\\s+[0-9]{4})",
+            "([A-Za-z]+\\s+[0-9]{1,2},?\\s+[0-9]{4})\\s+to:",
+            "(?:on|ON)\\s+([A-Za-z]+\\s+[0-9]{1,2},?\\s+[0-9]{4})"
+        ]
+        
+        for (index, pattern) in datePatterns.enumerated() {
+            print("🔍 OCR DEBUG: Trying date pattern \(index + 1): \(pattern)")
+            if let datePattern = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) {
+                let nsString = text as NSString
+                let results = datePattern.matches(in: text, options: [], range: NSRange(location: 0, length: nsString.length))
+                
+                print("🔍 OCR DEBUG: Found \(results.count) match(es) for date pattern \(index + 1)")
+                
+                if let match = results.first, match.numberOfRanges > 1 {
+                    let dateRange = match.range(at: 1)
+                    if dateRange.location != NSNotFound {
+                        let date = nsString.substring(with: dateRange).trimmingCharacters(in: .whitespacesAndNewlines)
+                        info.completionDate = date
+                        print("✅ OCR DEBUG: RPA Date found: '\(date)'")
+                        break
+                    }
+                }
+            } else {
+                print("❌ OCR DEBUG: Failed to create regex for date pattern \(index + 1)")
+            }
+        }
+        
+        if info.completionDate == nil {
+            print("❌ OCR DEBUG: Date NOT found with any pattern")
+        }
+        
+        // Extract Certificate Number (PC number) - starts with "PC"
+        print("🔍 OCR DEBUG: Attempting to extract CERTIFICATE (PC number)...")
+        print("🔍 OCR DEBUG: Looking for pattern: PC followed by 10-12 digits")
+        
+        let pcPatterns = [
+            "(PC[0-9]{10,12})",
+            "(?:PC|pc)\\s*([0-9]{10,12})",
+            "([Pp][Cc][0-9]{10,12})"
+        ]
+        
+        for (index, pattern) in pcPatterns.enumerated() {
+            print("🔍 OCR DEBUG: Trying PC pattern \(index + 1): \(pattern)")
+            if let pcPattern = try? NSRegularExpression(pattern: pattern, options: []) {
+                let nsString = text as NSString
+                let results = pcPattern.matches(in: text, options: [], range: NSRange(location: 0, length: nsString.length))
+                
+                print("🔍 OCR DEBUG: Found \(results.count) match(es) for PC pattern \(index + 1)")
+                
+                for (matchIndex, match) in results.enumerated() {
+                    print("🔍 OCR DEBUG: PC Match \(matchIndex + 1) has \(match.numberOfRanges) ranges")
+                    let pcRange = match.range(at: match.numberOfRanges > 1 ? 1 : 0)
+                    if pcRange.location != NSNotFound {
+                        var pcNumber = nsString.substring(with: pcRange).uppercased()
+                        print("🔍 OCR DEBUG: Raw PC extracted: '\(pcNumber)'")
+                        // If it doesn't start with PC, add it
+                        if !pcNumber.hasPrefix("PC") {
+                            pcNumber = "PC" + pcNumber
+                        }
+                        info.certificateNumber = pcNumber
+                        print("✅ OCR DEBUG: RPA Certificate (PC) found: '\(pcNumber)'")
+                        break
+                    }
+                }
+                if info.certificateNumber != nil { break }
+            } else {
+                print("❌ OCR DEBUG: Failed to create regex for PC pattern \(index + 1)")
+            }
+        }
+        
+        if info.certificateNumber == nil {
+            print("❌ OCR DEBUG: Certificate (PC) NOT found with any pattern")
+        }
+        
+        // Extract TC Account Number - starts with "TC"
+        print("🔍 OCR DEBUG: Attempting to extract TC ACCOUNT...")
+        print("🔍 OCR DEBUG: Looking for pattern: TC followed by 10-12 digits")
+        
+        let tcPatterns = [
+            "(TC[0-9]{10,12})",
+            "(?:TC|tc)\\s*([0-9]{10,12})",
+            "([Tt][Cc][0-9]{10,12})"
+        ]
+        
+        for (index, pattern) in tcPatterns.enumerated() {
+            print("🔍 OCR DEBUG: Trying TC pattern \(index + 1): \(pattern)")
+            if let tcPattern = try? NSRegularExpression(pattern: pattern, options: []) {
+                let nsString = text as NSString
+                let results = tcPattern.matches(in: text, options: [], range: NSRange(location: 0, length: nsString.length))
+                
+                print("🔍 OCR DEBUG: Found \(results.count) match(es) for TC pattern \(index + 1)")
+                
+                for (matchIndex, match) in results.enumerated() {
+                    print("🔍 OCR DEBUG: TC Match \(matchIndex + 1) has \(match.numberOfRanges) ranges")
+                    let tcRange = match.range(at: match.numberOfRanges > 1 ? 1 : 0)
+                    if tcRange.location != NSNotFound {
+                        var tcNumber = nsString.substring(with: tcRange).uppercased()
+                        print("🔍 OCR DEBUG: Raw TC extracted: '\(tcNumber)'")
+                        // If it doesn't start with TC, add it
+                        if !tcNumber.hasPrefix("TC") {
+                            tcNumber = "TC" + tcNumber
+                        }
+                        // Store TC Account in courseCompleted field
+                        info.courseCompleted = tcNumber
+                        print("✅ OCR DEBUG: RPA TC Account found: '\(tcNumber)'")
+                        break
+                    }
+                }
+                if info.courseCompleted != nil { break }
+            } else {
+                print("❌ OCR DEBUG: Failed to create regex for TC pattern \(index + 1)")
+            }
+        }
+        
+        if info.courseCompleted == nil {
+            print("❌ OCR DEBUG: TC Account NOT found with any pattern")
+        }
+        
+        print("🔍 OCR DEBUG: ========================================")
+        print("🔍 OCR DEBUG: Final parsed RPA certificate info:")
+        print("   - Name: \(info.name ?? "nil")")
+        print("   - Date: \(info.completionDate ?? "nil")")
+        print("   - Certificate (PC): \(info.certificateNumber ?? "nil")")
+        print("   - TC Account: \(info.courseCompleted ?? "nil")")
         print("🔍 OCR DEBUG: ========================================")
         
         return info
