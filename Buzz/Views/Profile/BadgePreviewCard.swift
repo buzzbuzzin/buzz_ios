@@ -11,7 +11,7 @@ struct BadgePreviewCard: View {
     let badge: Badge
     
     var body: some View {
-        VStack(spacing: 6) {
+        VStack(alignment: .center, spacing: 6) {
             ZStack {
                 let badgeColor = badge.badgeType?.color ?? badge.provider.color
                 let badgeIcon = badge.badgeType?.icon ?? badge.provider.icon
@@ -50,7 +50,7 @@ struct BadgePreviewCard: View {
                 .font(.caption2)
                 .lineLimit(2)
                 .multilineTextAlignment(.center)
-                .frame(width: 80)
+                .frame(width: 80, height: 32, alignment: .top)
             
             // Always reserve space for expiration text to keep badges aligned
             if badge.isExpiringSoon, let daysLeft = badge.daysUntilExpiration {

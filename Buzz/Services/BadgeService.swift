@@ -346,6 +346,67 @@ class BadgeService: ObservableObject {
             ]
     }
     
+    // MARK: - Award Permit Badge
+    
+    func awardPermitBadge(pilotId: UUID, badgeType: Badge.BadgeType) async throws {
+        // In demo mode, just show a success message without actually inserting into database
+        if DemoModeManager.shared.isDemoModeEnabled {
+            print("Demo Mode: Skipping permit badge award")
+            return
+        }
+        
+        // Only allow permit badge types
+        guard badgeType == .flightReviewer || badgeType == .rocaExaminer else {
+            print("Error: Invalid permit badge type")
+            return
+        }
+        
+        do {
+            // Check if pilot already has this badge
+            let existingBadges: [Badge] = try await supabase
+                .from("badges")
+                .select()
+                .eq("pilot_id", value: pilotId.uuidString)
+                .eq("badge_type", value: badgeType.rawValue)
+                .execute()
+                .value
+            
+            if !existingBadges.isEmpty {
+                print("Pilot already has \(badgeType.displayName) badge")
+                return
+            }
+            
+            // Award the badge
+            let badge: [String: AnyJSON] = [
+                "id": .string(UUID().uuidString),
+                "pilot_id": .string(pilotId.uuidString),
+                "course_id": .null,
+                "course_title": .null,
+                "course_category": .null,
+                "provider": .string("Buzz"),
+                "badge_type": .string(badgeType.rawValue),
+                "earned_at": .string(ISO8601DateFormatter().string(from: Date())),
+                "expires_at": .null,
+                "is_recurrent": .bool(false)
+            ]
+            
+            try await supabase
+                .from("badges")
+                .insert(badge)
+                .execute()
+            
+            print("Successfully awarded \(badgeType.displayName) badge to pilot \(pilotId)")
+            
+            // Refresh badges and available badges
+            try await fetchPilotBadges(pilotId: pilotId)
+            try await fetchAvailableBadges(pilotId: pilotId)
+        } catch {
+            print("Error awarding permit badge: \(error)")
+            errorMessage = error.localizedDescription
+            throw error
+        }
+    }
+    
     // MARK: - Award Badge
     
     func awardBadge(pilotId: UUID, courseId: UUID, courseTitle: String, courseCategory: String, provider: Badge.CourseProvider) async throws {

@@ -11,6 +11,7 @@ import Auth
 enum BadgeCategory: String, Hashable {
     case academy = "Academy"
     case affiliations = "Affiliations"
+    case permits = "Permits"
 }
 
 struct BadgesView: View {
@@ -29,12 +30,17 @@ struct BadgesView: View {
             // Academy badges are course-based badges
             return badgeService.badges.filter { $0.badgeType == .course || $0.badgeType == nil }
         case .affiliations:
-            // Affiliations badges are criteria-based badges
+            // Affiliations badges are criteria-based badges (excluding permits)
             return badgeService.badges.filter { 
                 if let badgeType = $0.badgeType {
-                    return badgeType != .course
+                    return badgeType != .course && badgeType != .flightReviewer && badgeType != .rocaExaminer
                 }
                 return false
+            }
+        case .permits:
+            // Permits badges
+            return badgeService.badges.filter {
+                $0.badgeType == .flightReviewer || $0.badgeType == .rocaExaminer
             }
         }
     }
@@ -49,12 +55,17 @@ struct BadgesView: View {
             // Academy badges are course-based badges
             return badgeService.availableBadges.filter { $0.badgeType == .course || $0.badgeType == nil }
         case .affiliations:
-            // Affiliations badges are criteria-based badges
+            // Affiliations badges are criteria-based badges (excluding permits)
             return badgeService.availableBadges.filter { 
                 if let badgeType = $0.badgeType {
-                    return badgeType != .course
+                    return badgeType != .course && badgeType != .flightReviewer && badgeType != .rocaExaminer
                 }
                 return false
+            }
+        case .permits:
+            // Permits badges
+            return badgeService.availableBadges.filter {
+                $0.badgeType == .flightReviewer || $0.badgeType == .rocaExaminer
             }
         }
     }
@@ -100,6 +111,14 @@ struct BadgesView: View {
                             color: .purple
                         ) {
                             selectedCategory = .affiliations
+                        }
+                        
+                        CategoryFilterChip(
+                            title: BadgeCategory.permits.rawValue,
+                            isSelected: selectedCategory == .permits,
+                            color: .teal
+                        ) {
+                            selectedCategory = .permits
                         }
                     }
                     .padding(.horizontal)
@@ -254,27 +273,22 @@ struct BadgeRow: View {
                         .lineLimit(2)
                     
                     HStack(spacing: 4) {
-                        let badgeColor = badge.badgeType?.color ?? badge.provider.color
-                        let badgeIcon = badge.badgeType?.icon ?? badge.provider.icon
-                        let imageAssetName = badge.badgeType?.imageAssetName
-                        let providerText = (badge.badgeType == .course || badge.badgeType == nil) ? "Academy" : "Affiliations"
+                        let providerText: String = {
+                            if badge.badgeType == .course || badge.badgeType == nil {
+                                return "Academy"
+                            } else if badge.badgeType == .flightReviewer || badge.badgeType == .rocaExaminer {
+                                return "Permits"
+                            } else {
+                                return "Affiliations"
+                            }
+                        }()
                         
-                        if let imageAssetName = imageAssetName {
-                            Image(imageAssetName)
-                                .resizable()
-                                .scaledToFit()
-                                .frame(width: 12, height: 12)
-                        } else {
-                            Image(systemName: badgeIcon)
-                                .font(.caption)
-                                .foregroundColor(badgeColor)
-                        }
                         Text(providerText)
                             .font(.caption)
-                            .foregroundColor(badgeColor)
+                            .foregroundColor(.black)
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
-                            .background(badgeColor.opacity(0.1))
+                            .background(Color.blue.opacity(0.15))
                             .cornerRadius(4)
                         
                         if badge.isRecurrent {
@@ -373,25 +387,22 @@ struct AvailableBadgeRow: View {
                         .lineLimit(2)
                     
                     HStack(spacing: 4) {
-                        let providerText = (availableBadge.badgeType == .course || availableBadge.badgeType == nil) ? "Academy" : "Affiliations"
+                        let providerText: String = {
+                            if availableBadge.badgeType == .course || availableBadge.badgeType == nil {
+                                return "Academy"
+                            } else if availableBadge.badgeType == .flightReviewer || availableBadge.badgeType == .rocaExaminer {
+                                return "Permits"
+                            } else {
+                                return "Affiliations"
+                            }
+                        }()
                         
-                        if let imageAssetName = availableBadge.imageAssetName {
-                            Image(imageAssetName)
-                                .resizable()
-                                .scaledToFit()
-                                .frame(width: 12, height: 12)
-                                .opacity(0.7)
-                        } else {
-                            Image(systemName: availableBadge.providerIcon)
-                                .font(.caption)
-                                .foregroundColor(availableBadge.providerColor.opacity(0.7))
-                        }
                         Text(providerText)
                             .font(.caption)
-                            .foregroundColor(availableBadge.providerColor.opacity(0.7))
+                            .foregroundColor(.black.opacity(0.5))
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
-                            .background(availableBadge.providerColor.opacity(0.1))
+                            .background(Color.blue.opacity(0.15))
                             .cornerRadius(4)
                         
                         if availableBadge.isRecurrent {

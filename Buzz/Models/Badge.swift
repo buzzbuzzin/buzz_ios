@@ -83,6 +83,8 @@ struct Badge: Identifiable, Codable {
         case buzz = "buzz"
         case governmentEmployee = "government_employee"
         case faa = "faa"
+        case flightReviewer = "flight_reviewer"
+        case rocaExaminer = "roc_a_examiner"
         
         var displayName: String {
             switch self {
@@ -91,6 +93,8 @@ struct Badge: Identifiable, Codable {
             case .buzz: return "Buzz"
             case .governmentEmployee: return "Government"
             case .faa: return "FAA"
+            case .flightReviewer: return "Flight Reviewer"
+            case .rocaExaminer: return "ROC-A Examiner"
             }
         }
         
@@ -101,6 +105,8 @@ struct Badge: Identifiable, Codable {
             case .buzz: return "airplane.circle.fill" // Not used - we use image asset instead
             case .governmentEmployee: return "building.columns.fill"
             case .faa: return "checkmark.seal.fill"
+            case .flightReviewer: return "person.text.rectangle.fill"
+            case .rocaExaminer: return "antenna.radiowaves.left.and.right"
             }
         }
         
@@ -118,6 +124,8 @@ struct Badge: Identifiable, Codable {
             case .buzz: return Color(red: 0x28 / 255.0, green: 0x2C / 255.0, blue: 0x35 / 255.0) // Navy blue #282C35
             case .governmentEmployee: return .green
             case .faa: return .red
+            case .flightReviewer: return .teal
+            case .rocaExaminer: return .indigo
             }
         }
     }
@@ -140,6 +148,8 @@ struct Badge: Identifiable, Codable {
                 return "Partnership"
             case .faa:
                 return "Certification"
+            case .flightReviewer, .rocaExaminer:
+                return "Permits"
             default:
                 return "Badge"
             }

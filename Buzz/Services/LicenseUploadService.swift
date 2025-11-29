@@ -175,6 +175,7 @@ class LicenseUploadService: ObservableObject {
                     .insert(license)
                     .execute()
                 print("DEBUG LicenseUpload: Database insert successful")
+                // Note: Permit badges are automatically awarded by database trigger
             } catch {
                 print("DEBUG LicenseUpload: Database insert failed: \(error.localizedDescription)")
                 print("DEBUG LicenseUpload: Error details: \(error)")
