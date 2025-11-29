@@ -708,6 +708,22 @@ class OCRService {
             return parseRPAPilotCertificate(from: text)
         }
         
+        // Check if this is a ROC-A Certificate (CAN)
+        let isROCACertificate = licenseType?.contains("ROC-A Certificate") ?? false || text.uppercased().contains("RESTRICTED OPERATOR CERTIFICATE")
+        
+        if isROCACertificate {
+            print("🔍 OCR DEBUG: Detected ROC-A Certificate (CAN)")
+            return parseROCACertificate(from: text)
+        }
+        
+        // Check if this is a Restricted Radiotelephone Operator Permit (US)
+        let isRestrictedRadioPermit = licenseType?.contains("Restricted Radiotelephone Operator Permit") ?? false || text.uppercased().contains("RESTRICTED RADIOTELEPHONE OPERATOR PERMIT")
+        
+        if isRestrictedRadioPermit {
+            print("🔍 OCR DEBUG: Detected Restricted Radiotelephone Operator Permit (US)")
+            return parseRestrictedRadioPermit(from: text)
+        }
+        
         // Name - Look for "Your Name:" or "Name:"
         if let name = extractField(from: text, patterns: [
             "YOUR NAME[\\s:]+([A-Za-z0-9\\s,.-]+)",
@@ -948,6 +964,316 @@ class OCRService {
         print("   - Date: \(info.completionDate ?? "nil")")
         print("   - Certificate (PC): \(info.certificateNumber ?? "nil")")
         print("   - TC Account: \(info.courseCompleted ?? "nil")")
+        print("🔍 OCR DEBUG: ========================================")
+        
+        return info
+    }
+    
+    // MARK: - Parse ROC-A Certificate (CAN)
+    
+    private func parseROCACertificate(from text: String) -> PilotLicenseInfo {
+        var info = PilotLicenseInfo()
+        
+        print("🔍 OCR DEBUG: ========================================")
+        print("🔍 OCR DEBUG: Parsing ROC-A Certificate (CAN)")
+        print("🔍 OCR DEBUG: ========================================")
+        print("🔍 OCR DEBUG: Full extracted text (\(text.count) characters):")
+        print("----------------------------------------")
+        print(text)
+        print("----------------------------------------")
+        
+        // Extract Name - Look for "Dear [Name]:"
+        print("🔍 OCR DEBUG: Attempting to extract NAME...")
+        print("🔍 OCR DEBUG: Looking for pattern: 'Dear [Name]:'")
+        
+        let namePatterns = [
+            "(?:Dear|DEAR)\\s+([A-Za-z\\s\\.]+?):",
+            "(?:Dear|DEAR)\\s+([A-Za-z\\s\\.]+?)\\s*:",
+            "This letter certifies that you\\s+([A-Za-z\\s\\.]+?)\\s+are authorized"
+        ]
+        
+        for (index, pattern) in namePatterns.enumerated() {
+            print("🔍 OCR DEBUG: Trying name pattern \(index + 1): \(pattern)")
+            if let namePattern = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive, .dotMatchesLineSeparators]) {
+                let nsString = text as NSString
+                let results = namePattern.matches(in: text, options: [], range: NSRange(location: 0, length: nsString.length))
+                
+                print("🔍 OCR DEBUG: Found \(results.count) match(es) for name pattern \(index + 1)")
+                
+                if let match = results.first, match.numberOfRanges > 1 {
+                    let nameRange = match.range(at: 1)
+                    if nameRange.location != NSNotFound {
+                        var name = nsString.substring(with: nameRange)
+                        print("🔍 OCR DEBUG: Raw name extracted: '\(name)'")
+                        name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+                        // Remove any trailing colons or other punctuation
+                        name = name.trimmingCharacters(in: CharacterSet(charactersIn: ":"))
+                        name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+                        info.name = name
+                        print("✅ OCR DEBUG: ROC-A Name found: '\(name)'")
+                        break
+                    }
+                }
+            }
+        }
+        
+        if info.name == nil {
+            print("❌ OCR DEBUG: Name NOT found with any pattern")
+        }
+        
+        // Extract Examiner Number - Look for "Your examiner number is: [number]"
+        print("🔍 OCR DEBUG: Attempting to extract EXAMINER NUMBER...")
+        print("🔍 OCR DEBUG: Looking for pattern: 'Your examiner number is: [number]'")
+        
+        let examinerPatterns = [
+            "(?:Your examiner number is|examiner number is)[:\\s]+([0-9]{4,6})",
+            "(?:examiner number)[:\\s,]+([0-9]{4,6})",
+            "number is[:\\s]+([0-9]{4,6})"
+        ]
+        
+        for (index, pattern) in examinerPatterns.enumerated() {
+            print("🔍 OCR DEBUG: Trying examiner number pattern \(index + 1): \(pattern)")
+            if let examinerPattern = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) {
+                let nsString = text as NSString
+                let results = examinerPattern.matches(in: text, options: [], range: NSRange(location: 0, length: nsString.length))
+                
+                print("🔍 OCR DEBUG: Found \(results.count) match(es) for examiner pattern \(index + 1)")
+                
+                if let match = results.first, match.numberOfRanges > 1 {
+                    let numberRange = match.range(at: 1)
+                    if numberRange.location != NSNotFound {
+                        let examinerNumber = nsString.substring(with: numberRange).trimmingCharacters(in: .whitespacesAndNewlines)
+                        print("🔍 OCR DEBUG: Raw examiner number extracted: '\(examinerNumber)'")
+                        // Store examiner number in certificateNumber field
+                        info.certificateNumber = examinerNumber
+                        print("✅ OCR DEBUG: ROC-A Examiner Number found: '\(examinerNumber)'")
+                        break
+                    }
+                }
+            }
+        }
+        
+        if info.certificateNumber == nil {
+            print("❌ OCR DEBUG: Examiner Number NOT found with any pattern")
+        }
+        
+        // Extract Expiration Date - Look for "expires on [date]"
+        print("🔍 OCR DEBUG: Attempting to extract EXPIRATION DATE...")
+        print("🔍 OCR DEBUG: Looking for pattern: 'expires on [Month Day, Year]'")
+        
+        let expiryPatterns = [
+            "(?:expires on|expiry date)[:\\s]+([A-Za-z]+\\s+[0-9]{1,2}(?:st|nd|rd|th)?,?\\s+[0-9]{4})",
+            "(?:expires)[:\\s]+([A-Za-z]+\\s+[0-9]{1,2}(?:st|nd|rd|th)?,?\\s+[0-9]{4})",
+            "(?:valid until|expires on)[:\\s]+([A-Za-z]+\\s+[0-9]{1,2}(?:st|nd|rd|th)?,?\\s+[0-9]{4})"
+        ]
+        
+        for (index, pattern) in expiryPatterns.enumerated() {
+            print("🔍 OCR DEBUG: Trying expiration date pattern \(index + 1): \(pattern)")
+            if let expiryPattern = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) {
+                let nsString = text as NSString
+                let results = expiryPattern.matches(in: text, options: [], range: NSRange(location: 0, length: nsString.length))
+                
+                print("🔍 OCR DEBUG: Found \(results.count) match(es) for expiry pattern \(index + 1)")
+                
+                if let match = results.first, match.numberOfRanges > 1 {
+                    let dateRange = match.range(at: 1)
+                    if dateRange.location != NSNotFound {
+                        var expiryDate = nsString.substring(with: dateRange).trimmingCharacters(in: .whitespacesAndNewlines)
+                        print("🔍 OCR DEBUG: Raw expiry date extracted: '\(expiryDate)'")
+                        // Remove ordinal suffixes (st, nd, rd, th)
+                        expiryDate = expiryDate.replacingOccurrences(of: "st,", with: ",")
+                        expiryDate = expiryDate.replacingOccurrences(of: "nd,", with: ",")
+                        expiryDate = expiryDate.replacingOccurrences(of: "rd,", with: ",")
+                        expiryDate = expiryDate.replacingOccurrences(of: "th,", with: ",")
+                        expiryDate = expiryDate.replacingOccurrences(of: "st ", with: " ")
+                        expiryDate = expiryDate.replacingOccurrences(of: "nd ", with: " ")
+                        expiryDate = expiryDate.replacingOccurrences(of: "rd ", with: " ")
+                        expiryDate = expiryDate.replacingOccurrences(of: "th ", with: " ")
+                        info.completionDate = expiryDate
+                        print("✅ OCR DEBUG: ROC-A Expiration Date found: '\(expiryDate)'")
+                        break
+                    }
+                }
+            }
+        }
+        
+        if info.completionDate == nil {
+            print("❌ OCR DEBUG: Expiration Date NOT found with any pattern")
+        }
+        
+        print("🔍 OCR DEBUG: ========================================")
+        print("🔍 OCR DEBUG: Final parsed ROC-A certificate info:")
+        print("   - Name: \(info.name ?? "nil")")
+        print("   - Examiner Number: \(info.certificateNumber ?? "nil")")
+        print("   - Expiration Date: \(info.completionDate ?? "nil")")
+        print("🔍 OCR DEBUG: ========================================")
+        
+        return info
+    }
+    
+    // MARK: - Parse Restricted Radiotelephone Operator Permit (US)
+    
+    private func parseRestrictedRadioPermit(from text: String) -> PilotLicenseInfo {
+        var info = PilotLicenseInfo()
+        
+        print("🔍 OCR DEBUG: ========================================")
+        print("🔍 OCR DEBUG: Parsing Restricted Radiotelephone Operator Permit (US)")
+        print("🔍 OCR DEBUG: ========================================")
+        print("🔍 OCR DEBUG: Full extracted text (\(text.count) characters):")
+        print("----------------------------------------")
+        print(text)
+        print("----------------------------------------")
+        
+        // Extract Name - Look for name after permit title, usually in format "LAST, FIRST MIDDLE"
+        print("🔍 OCR DEBUG: Attempting to extract NAME...")
+        
+        let namePatterns = [
+            // Pattern 1: Name followed by city/state (e.g., "NAME\nITHACA, NY")
+            "([A-Z][A-Z\\s]+,\\s*[A-Z][A-Z\\s]+)\\s*\\n\\s*[A-Z][A-Z\\s]+,\\s*[A-Z]{2}\\s+[0-9]{5}",
+            // Pattern 2: After "Permit" and before address line
+            "(?:Permit|PERMIT).*?\\n[^\\n]*?\\n\\s*([A-Z][A-Z\\s]+,\\s*[A-Z][A-Z\\s\\.]+)\\s*\\n\\s*[A-Z]",
+            // Pattern 3: Name line that comes before address (contains comma, not "NY" or state abbreviation at end)
+            "\\n\\s*([A-Z][A-Z\\s]+,\\s*[A-Z][A-Z\\s]+)\\s*\\n\\s*[A-Z][A-Za-z\\s]+,\\s*[A-Z]{2}",
+            // Pattern 4: Name before FRN line
+            "([A-Z][A-Z\\s]+,\\s*[A-Z][A-Z\\s]+)\\s*\\n[^\\n]*\\n[^\\n]*FCC"
+        ]
+        
+        for (index, pattern) in namePatterns.enumerated() {
+            print("🔍 OCR DEBUG: Trying name pattern \(index + 1): \(pattern)")
+            if let namePattern = try? NSRegularExpression(pattern: pattern, options: [.dotMatchesLineSeparators]) {
+                let nsString = text as NSString
+                let results = namePattern.matches(in: text, options: [], range: NSRange(location: 0, length: nsString.length))
+                
+                print("🔍 OCR DEBUG: Found \(results.count) match(es) for name pattern \(index + 1)")
+                
+                for match in results {
+                    if match.numberOfRanges > 1 {
+                        let nameRange = match.range(at: 1)
+                        if nameRange.location != NSNotFound {
+                            var name = nsString.substring(with: nameRange)
+                            print("🔍 OCR DEBUG: Raw name extracted: '\(name)'")
+                            name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+                            // Clean up multiple spaces
+                            name = name.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+                            
+                            // Filter out invalid names
+                            let upperName = name.uppercased()
+                            
+                            // Must contain a comma
+                            guard name.contains(",") else {
+                                print("🔍 OCR DEBUG: Rejected name (no comma): '\(name)'")
+                                continue
+                            }
+                            
+                            // Must not be header text
+                            if upperName.contains("UNITED STATES") || 
+                               upperName.contains("FEDERAL") || 
+                               upperName.contains("COMMISSION") ||
+                               upperName.contains("OPERATOR PERMIT") ||
+                               upperName.contains("RADIOTELEPHONE") {
+                                print("🔍 OCR DEBUG: Rejected name (header text): '\(name)'")
+                                continue
+                            }
+                            
+                            // Should have reasonable length (names are typically 10-60 chars)
+                            if name.count < 5 || name.count > 80 {
+                                print("🔍 OCR DEBUG: Rejected name (invalid length): '\(name)'")
+                                continue
+                            }
+                            
+                            info.name = name
+                            print("✅ OCR DEBUG: Restricted Radio Permit Name found: '\(name)'")
+                            break
+                        }
+                    }
+                }
+                if info.name != nil {
+                    break
+                }
+            }
+        }
+        
+        if info.name == nil {
+            print("❌ OCR DEBUG: Name NOT found with any pattern")
+        }
+        
+        // Extract FRN - Look for "FCC Registration Number (FRN): [number]" or similar
+        print("🔍 OCR DEBUG: Attempting to extract FRN...")
+        print("🔍 OCR DEBUG: Looking for pattern: 'FRN: [number]' or 'FCC Registration Number'")
+        
+        let frnPatterns = [
+            "(?:FCC Registration Number|FRN)[:\\s\\(]*([0-9]{10})",
+            "FRN[:\\s]+([0-9]{10})",
+            "(?:Registration Number)[:\\s\\(FRN\\):\\s]*([0-9]{10})"
+        ]
+        
+        for (index, pattern) in frnPatterns.enumerated() {
+            print("🔍 OCR DEBUG: Trying FRN pattern \(index + 1): \(pattern)")
+            if let frnPattern = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) {
+                let nsString = text as NSString
+                let results = frnPattern.matches(in: text, options: [], range: NSRange(location: 0, length: nsString.length))
+                
+                print("🔍 OCR DEBUG: Found \(results.count) match(es) for FRN pattern \(index + 1)")
+                
+                if let match = results.first, match.numberOfRanges > 1 {
+                    let frnRange = match.range(at: 1)
+                    if frnRange.location != NSNotFound {
+                        let frn = nsString.substring(with: frnRange).trimmingCharacters(in: .whitespacesAndNewlines)
+                        print("🔍 OCR DEBUG: Raw FRN extracted: '\(frn)'")
+                        // Store FRN in courseCompleted field
+                        info.courseCompleted = frn
+                        print("✅ OCR DEBUG: Restricted Radio Permit FRN found: '\(frn)'")
+                        break
+                    }
+                }
+            }
+        }
+        
+        if info.courseCompleted == nil {
+            print("❌ OCR DEBUG: FRN NOT found with any pattern")
+        }
+        
+        // Extract Serial Number - Look for "Serial Number: [alphanumeric]"
+        print("🔍 OCR DEBUG: Attempting to extract SERIAL NUMBER...")
+        print("🔍 OCR DEBUG: Looking for pattern: 'Serial Number: [alphanumeric]'")
+        
+        let serialPatterns = [
+            "(?:Serial Number)[:\\s]+([A-Z]{2}[0-9]{8})",
+            "Serial Number[:\\s]+([A-Z0-9]{10})",
+            "(?:Serial)[:\\s]+([A-Z]{2}[0-9]{8})"
+        ]
+        
+        for (index, pattern) in serialPatterns.enumerated() {
+            print("🔍 OCR DEBUG: Trying serial number pattern \(index + 1): \(pattern)")
+            if let serialPattern = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) {
+                let nsString = text as NSString
+                let results = serialPattern.matches(in: text, options: [], range: NSRange(location: 0, length: nsString.length))
+                
+                print("🔍 OCR DEBUG: Found \(results.count) match(es) for serial pattern \(index + 1)")
+                
+                if let match = results.first, match.numberOfRanges > 1 {
+                    let serialRange = match.range(at: 1)
+                    if serialRange.location != NSNotFound {
+                        let serialNumber = nsString.substring(with: serialRange).trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+                        print("🔍 OCR DEBUG: Raw serial number extracted: '\(serialNumber)'")
+                        // Store serial number in certificateNumber field
+                        info.certificateNumber = serialNumber
+                        print("✅ OCR DEBUG: Restricted Radio Permit Serial Number found: '\(serialNumber)'")
+                        break
+                    }
+                }
+            }
+        }
+        
+        if info.certificateNumber == nil {
+            print("❌ OCR DEBUG: Serial Number NOT found with any pattern")
+        }
+        
+        print("🔍 OCR DEBUG: ========================================")
+        print("🔍 OCR DEBUG: Final parsed Restricted Radio Permit info:")
+        print("   - Name: \(info.name ?? "nil")")
+        print("   - FRN: \(info.courseCompleted ?? "nil")")
+        print("   - Serial Number: \(info.certificateNumber ?? "nil")")
         print("🔍 OCR DEBUG: ========================================")
         
         return info

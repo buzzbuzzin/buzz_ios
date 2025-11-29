@@ -583,6 +583,14 @@ struct LicenseCard: View {
         return license.licenseType?.contains("RPA Pilot Certificate") ?? false
     }
     
+    private func isROCACertificate(_ license: PilotLicense) -> Bool {
+        return license.licenseType?.contains("ROC-A Certificate") ?? false
+    }
+    
+    private func isRestrictedRadioPermit(_ license: PilotLicense) -> Bool {
+        return license.licenseType?.contains("Restricted Radiotelephone Operator Permit") ?? false
+    }
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Header Section
@@ -691,23 +699,49 @@ struct LicenseCard: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         
                         LicenseInfoRow(
-                            label: isRPACertificate(license) ? "Date" : "Completion Date",
+                            label: {
+                                if isRPACertificate(license) {
+                                    return "Date"
+                                } else if isROCACertificate(license) {
+                                    return "Expiration Date"
+                                } else {
+                                    return "Completion Date"
+                                }
+                            }(),
                             value: license.completionDate ?? "",
                             isEmpty: license.completionDate == nil
                         )
                         .frame(maxWidth: .infinity, alignment: .leading)
+                        .opacity(isRestrictedRadioPermit(license) ? 0 : 1)
                     }
                     
                     HStack(alignment: .top, spacing: 16) {
                         LicenseInfoRow(
-                            label: isRPACertificate(license) ? "TC Account" : "Course",
+                            label: {
+                                if isRPACertificate(license) {
+                                    return "TC Account"
+                                } else if isRestrictedRadioPermit(license) {
+                                    return "FRN"
+                                } else {
+                                    return "Course"
+                                }
+                            }(),
                             value: license.courseCompleted ?? "",
                             isEmpty: license.courseCompleted == nil
                         )
                         .frame(maxWidth: .infinity, alignment: .leading)
+                        .opacity(isROCACertificate(license) ? 0 : 1)
                         
                         LicenseInfoRow(
-                            label: "Certificate",
+                            label: {
+                                if isROCACertificate(license) {
+                                    return "Examiner Number"
+                                } else if isRestrictedRadioPermit(license) {
+                                    return "Serial Number"
+                                } else {
+                                    return "Certificate"
+                                }
+                            }(),
                             value: license.certificateNumber ?? "",
                             isEmpty: license.certificateNumber == nil
                         )
@@ -797,6 +831,14 @@ struct EditPilotLicenseView: View {
         license.licenseType?.contains("RPA Pilot Certificate") ?? false
     }
     
+    private var isROCACertificate: Bool {
+        license.licenseType?.contains("ROC-A Certificate") ?? false
+    }
+    
+    private var isRestrictedRadioPermit: Bool {
+        license.licenseType?.contains("Restricted Radiotelephone Operator Permit") ?? false
+    }
+    
     init(license: PilotLicense, licenseService: LicenseUploadService, onSave: @escaping () -> Void, onCancel: @escaping () -> Void) {
         self.license = license
         self.licenseService = licenseService
@@ -861,18 +903,52 @@ struct EditPilotLicenseView: View {
                 }
                 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(isRPACertificate ? "TC Account" : "Course Completed")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    TextField(isRPACertificate ? "Enter TC Account" : "Enter course name", text: $courseCompleted)
+                    Text({
+                        if isRPACertificate {
+                            return "TC Account"
+                        } else if isROCACertificate {
+                            return "Not Applicable"
+                        } else if isRestrictedRadioPermit {
+                            return "FRN"
+                        } else {
+                            return "Course Completed"
+                        }
+                    }())
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    TextField({
+                        if isRPACertificate {
+                            return "Enter TC Account"
+                        } else if isROCACertificate {
+                            return "N/A"
+                        } else if isRestrictedRadioPermit {
+                            return "Enter FRN"
+                        } else {
+                            return "Enter course name"
+                        }
+                    }(), text: $courseCompleted)
+                    .disabled(isROCACertificate)
                 }
                 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(isRPACertificate ? "Date" : "Completion Date")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                    Text({
+                        if isRPACertificate {
+                            return "Date"
+                        } else if isROCACertificate {
+                            return "Expiration Date"
+                        } else if isRestrictedRadioPermit {
+                            return "Not Applicable"
+                        } else {
+                            return "Completion Date"
+                        }
+                    }())
+                    .font(.caption)
+                    .foregroundColor(.secondary)
                     
-                    if showCompletionDatePicker {
+                    if isRestrictedRadioPermit {
+                        Text("N/A")
+                            .foregroundColor(.secondary)
+                    } else if showCompletionDatePicker {
                         VStack(alignment: .leading, spacing: 8) {
                             DatePicker(
                                 "",
@@ -912,13 +988,39 @@ struct EditPilotLicenseView: View {
                 }
                 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Certificate Number")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    TextField("Enter certificate number", text: $certificateNumber)
+                    Text({
+                        if isROCACertificate {
+                            return "Examiner Number"
+                        } else if isRestrictedRadioPermit {
+                            return "Serial Number"
+                        } else {
+                            return "Certificate Number"
+                        }
+                    }())
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    TextField({
+                        if isROCACertificate {
+                            return "Enter examiner number"
+                        } else if isRestrictedRadioPermit {
+                            return "Enter serial number"
+                        } else {
+                            return "Enter certificate number"
+                        }
+                    }(), text: $certificateNumber)
                         .placeholder(when: certificateNumber.isEmpty) {
-                            Text(isRPACertificate ? "e.g., PC2020952034" : "e.g., 1595266-20241102-00677")
-                                .foregroundColor(.secondary)
+                            Text({
+                                if isRPACertificate {
+                                    return "e.g., PC2020952034"
+                                } else if isROCACertificate {
+                                    return "e.g., 17950"
+                                } else if isRestrictedRadioPermit {
+                                    return "e.g., RR00207601"
+                                } else {
+                                    return "e.g., 1595266-20241102-00677"
+                                }
+                            }())
+                            .foregroundColor(.secondary)
                         }
                 }
             }
