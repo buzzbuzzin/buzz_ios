@@ -85,25 +85,25 @@ struct LicenseManagementView: View {
                                         category: .dronePilot,
                                         licenses: groupedLicenses[.dronePilot]!,
                                         onView: { license in
-                                            print("DEBUG LicenseView: Eye icon tapped")
-                                            print("DEBUG LicenseView: License ID: \(license.id)")
-                                            print("DEBUG LicenseView: License URL: \(license.fileUrl)")
-                                            print("DEBUG LicenseView: License type: \(license.fileType)")
-                                            Task { @MainActor in
-                                                self.selectedLicense = license
-                                                print("DEBUG LicenseView: selectedLicense set to: \(self.selectedLicense?.id.uuidString ?? "nil")")
-                                            }
-                                        },
-                                        onDelete: { license in
-                                            licenseToDelete = license
-                                            showDeleteConfirmation = true
-                                        },
-                                        onEdit: { license in
-                                            licenseToEdit = license
-                                            showEditSheet = true
+                                        print("DEBUG LicenseView: Eye icon tapped")
+                                        print("DEBUG LicenseView: License ID: \(license.id)")
+                                        print("DEBUG LicenseView: License URL: \(license.fileUrl)")
+                                        print("DEBUG LicenseView: License type: \(license.fileType)")
+                                        Task { @MainActor in
+                                            self.selectedLicense = license
+                                            print("DEBUG LicenseView: selectedLicense set to: \(self.selectedLicense?.id.uuidString ?? "nil")")
                                         }
-                                    )
-                                }
+                                    },
+                                        onDelete: { license in
+                                        licenseToDelete = license
+                                        showDeleteConfirmation = true
+                                    },
+                                        onEdit: { license in
+                                        licenseToEdit = license
+                                        showEditSheet = true
+                                    }
+                                )
+                            }
                                 
                                 // Radio Operator Permit Section
                                 if !groupedLicenses[.radioOperator]!.isEmpty {
@@ -117,7 +117,7 @@ struct LicenseManagementView: View {
                                         },
                                         onDelete: { license in
                                             licenseToDelete = license
-                                            showDeleteConfirmation = true
+                                    showDeleteConfirmation = true
                                         },
                                         onEdit: { license in
                                             licenseToEdit = license
@@ -167,14 +167,8 @@ struct LicenseManagementView: View {
                                         }
                                     )
                                 }
-                            }
-                            .padding(.bottom, 16)
-                        }
-                        .refreshable {
-                            await loadLicenses()
-                        }
-                        
-                        // Notes section in gray background
+                                
+                                // Notes section at the bottom - moved inside ScrollView
                         VStack(alignment: .leading, spacing: 12) {
                             Text("Notes")
                                 .font(.caption)
@@ -201,8 +195,14 @@ struct LicenseManagementView: View {
                             }
                         }
                         .padding()
+                                .padding(.top, 20)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .background(Color(.systemGray6))
+                            }
+                        }
+                        .refreshable {
+                            await loadLicenses()
+                        }
                     }
                 }
             }
@@ -545,29 +545,61 @@ struct LicenseCategorySection: View {
     let onDelete: (PilotLicense) -> Void
     let onEdit: (PilotLicense) -> Void
     
+    @State private var isExpanded: Bool = true
+    
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // Section Header
-            Text(category.title)
-                .font(.title3)
-                .fontWeight(.bold)
-                .foregroundColor(.primary)
-                .padding(.horizontal, 20)
-                .padding(.top, 20)
-            
-            // License Cards
-            VStack(spacing: 12) {
-                ForEach(licenses) { license in
-                    LicenseCard(
-                        license: license,
-                        onView: { onView(license) },
-                        onDelete: { onDelete(license) },
-                        onEdit: { onEdit(license) }
-                    )
+        VStack(alignment: .leading, spacing: 0) {
+            // Section Header - Tappable to expand/collapse
+            HStack {
+                Text(category.title)
+                    .font(.title3)
+                    .fontWeight(.bold)
+                    .foregroundColor(.primary)
+                
+                Spacer()
+                
+                Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.secondary)
+                    .animation(.easeInOut(duration: 0.2), value: isExpanded)
+            }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 16)
+            .background(Color(.systemGray6).opacity(0.5))
+            .cornerRadius(8)
+            .padding(.horizontal, 16)
+            .padding(.top, 20)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                    isExpanded.toggle()
                 }
             }
-            .padding(.horizontal, 16)
+            
+            // License Cards - Show/Hide based on isExpanded
+            if isExpanded {
+                VStack(spacing: 12) {
+                    ForEach(licenses) { license in
+                        LicenseCard(
+                            license: license,
+                            onView: { onView(license) },
+                            onDelete: { onDelete(license) },
+                            onEdit: { onEdit(license) }
+                        )
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 16)
+                .padding(.bottom, 8)
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+            
+            // Separator line between sections
+            Divider()
+                .padding(.top, 20)
+                .padding(.horizontal, 16)
         }
+        .padding(.bottom, 8)
     }
 }
 
@@ -601,9 +633,9 @@ struct LicenseCard: View {
                         .fill(Color.blue.opacity(0.1))
                         .frame(width: 50, height: 50)
                     
-                    Image(systemName: license.fileType == .pdf ? "doc.fill" : "photo.fill")
-                        .font(.title2)
-                        .foregroundColor(.blue)
+                Image(systemName: license.fileType == .pdf ? "doc.fill" : "photo.fill")
+                    .font(.title2)
+                    .foregroundColor(.blue)
                 }
                 
                 // File info
@@ -653,9 +685,9 @@ struct LicenseCard: View {
             .padding(16)
             
             // Divider
-            Divider()
+                Divider()
                 .padding(.horizontal, 16)
-            
+                
             // OCR Information Section
             VStack(alignment: .leading, spacing: 12) {
                 HStack {
@@ -673,13 +705,13 @@ struct LicenseCard: View {
                         onEdit()
                     }) {
                         HStack(spacing: 4) {
-                            Image(systemName: "pencil")
+                        Image(systemName: "pencil")
                                 .font(.system(size: 12, weight: .medium))
                             Text("Edit")
                                 .font(.caption)
                                 .fontWeight(.medium)
                         }
-                        .foregroundColor(.blue)
+                            .foregroundColor(.blue)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 6)
                         .background(Color.blue.opacity(0.1))
@@ -691,14 +723,14 @@ struct LicenseCard: View {
                 // OCR Fields Grid
                 VStack(spacing: 12) {
                     HStack(alignment: .top, spacing: 16) {
-                        LicenseInfoRow(
-                            label: "Name",
-                            value: license.name ?? "",
-                            isEmpty: license.name == nil
-                        )
+                            LicenseInfoRow(
+                                label: "Name",
+                                value: license.name ?? "",
+                                isEmpty: license.name == nil
+                            )
                         .frame(maxWidth: .infinity, alignment: .leading)
                         
-                        LicenseInfoRow(
+                            LicenseInfoRow(
                             label: {
                                 if isRPACertificate(license) {
                                     return "Date"
@@ -708,15 +740,15 @@ struct LicenseCard: View {
                                     return "Completion Date"
                                 }
                             }(),
-                            value: license.completionDate ?? "",
-                            isEmpty: license.completionDate == nil
-                        )
+                                value: license.completionDate ?? "",
+                                isEmpty: license.completionDate == nil
+                            )
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .opacity(isRestrictedRadioPermit(license) ? 0 : 1)
                     }
                     
                     HStack(alignment: .top, spacing: 16) {
-                        LicenseInfoRow(
+                            LicenseInfoRow(
                             label: {
                                 if isRPACertificate(license) {
                                     return "TC Account"
@@ -742,9 +774,9 @@ struct LicenseCard: View {
                                     return "Certificate"
                                 }
                             }(),
-                            value: license.certificateNumber ?? "",
-                            isEmpty: license.certificateNumber == nil
-                        )
+                                value: license.certificateNumber ?? "",
+                                isEmpty: license.certificateNumber == nil
+                            )
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
@@ -914,8 +946,8 @@ struct EditPilotLicenseView: View {
                             return "Course Completed"
                         }
                     }())
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
                     TextField({
                         if isRPACertificate {
                             return "Enter TC Account"
@@ -942,8 +974,8 @@ struct EditPilotLicenseView: View {
                             return "Completion Date"
                         }
                     }())
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
                     
                     if isRestrictedRadioPermit {
                         Text("N/A")
@@ -997,8 +1029,8 @@ struct EditPilotLicenseView: View {
                             return "Certificate Number"
                         }
                     }())
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
                     TextField({
                         if isROCACertificate {
                             return "Enter examiner number"
@@ -1020,7 +1052,7 @@ struct EditPilotLicenseView: View {
                                     return "e.g., 1595266-20241102-00677"
                                 }
                             }())
-                            .foregroundColor(.secondary)
+                                .foregroundColor(.secondary)
                         }
                 }
             }
