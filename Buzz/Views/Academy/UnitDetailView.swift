@@ -18,6 +18,7 @@ struct UnitDetailView: View {
     @State private var showTestView = false
     @State private var canTakeTest = false
     @State private var isLoading = false
+    @State private var showCompletionSuccess = false
     
     // Check if this is the UAS Pilot Course
     var isUASPilotCourse: Bool {
@@ -185,27 +186,53 @@ struct UnitDetailView: View {
                     .background(Color.green.opacity(0.1))
                     .cornerRadius(12)
                     .padding(.horizontal)
+                    .transition(.opacity)
                 }
                 
-                // Mark as Complete Button (for units 1-3)
-                if isUASPilotCourse && unit.unitNumber <= 3 && !isCompleted {
+                // Success Message (temporary)
+                if showCompletionSuccess {
+                    HStack {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundColor(.green)
+                        Text("Unit marked as completed!")
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                            .foregroundColor(.green)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color.green.opacity(0.1))
+                    .cornerRadius(12)
+                    .padding(.horizontal)
+                    .transition(.opacity)
+                }
+                
+                // Mark as Complete Button (for all units)
+                if !isCompleted {
                     Button(action: {
                         Task {
                             await markUnitComplete()
                         }
                     }) {
                         HStack {
-                            Image(systemName: "checkmark.circle")
-                            Text("Mark as Complete")
+                            if isLoading {
+                                ProgressView()
+                                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                            } else {
+                                Image(systemName: "checkmark.circle")
+                            }
+                            Text(isLoading ? "Marking as Complete..." : "Mark as Completed")
                                 .fontWeight(.semibold)
                         }
                         .frame(maxWidth: .infinity)
                         .frame(height: 50)
-                        .background(Color.green)
+                        .background(isLoading ? Color.gray : Color.green)
                         .foregroundColor(.white)
                         .cornerRadius(12)
                     }
+                    .disabled(isLoading)
                     .padding(.horizontal)
+                    .padding(.bottom, 8)
                 }
                 
                 // Take Test Button (after completing units 1-3)
@@ -307,7 +334,12 @@ struct UnitDetailView: View {
                 .execute()
             
             isCompleted = true
+            showCompletionSuccess = true
             
+            // Hide success message after 2 seconds
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            showCompletionSuccess = false
+
             // If this is unit 3, check if can take test
             if isLastMandatoryUnit {
                 await checkIfCanTakeTest()

@@ -197,6 +197,18 @@ struct AcademyView: View {
             }
             .navigationTitle("Academy")
             .navigationBarTitleDisplayMode(.large)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    NavigationLink(destination: TestCenterView()) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "checkmark.seal")
+                            Text("Test Center")
+                                .font(.subheadline)
+                        }
+                        .foregroundColor(.blue)
+                    }
+                }
+            }
             .task {
                 await loadCourses()
                 await loadRecurrentNotices()

@@ -23,14 +23,14 @@ CREATE TABLE public.badges (
   earned_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
   expires_at timestamp with time zone,
   is_recurrent boolean NOT NULL DEFAULT false,
-  badge_type text DEFAULT 'course'::text CHECK (badge_type = ANY (ARRAY['course'::text, 'ex_military'::text, 'buzz'::text, 'government_employee'::text, 'faa'::text])),
+  badge_type text DEFAULT 'course'::text CHECK (badge_type = ANY (ARRAY['course'::text, 'ex_military'::text, 'buzz'::text, 'government_employee'::text, 'faa'::text, 'flight_reviewer'::text, 'roc_a_examiner'::text])),
   CONSTRAINT badges_pkey PRIMARY KEY (id),
   CONSTRAINT badges_pilot_id_fkey FOREIGN KEY (pilot_id) REFERENCES public.profiles(id),
   CONSTRAINT badges_course_id_fkey FOREIGN KEY (course_id) REFERENCES public.training_courses(id)
 );
 CREATE TABLE public.badges_catalog (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
-  badge_type text NOT NULL CHECK (badge_type = ANY (ARRAY['course'::text, 'ex_military'::text, 'buzz'::text, 'government_employee'::text, 'faa'::text])),
+  badge_type text NOT NULL CHECK (badge_type = ANY (ARRAY['course'::text, 'ex_military'::text, 'buzz'::text, 'government_employee'::text, 'faa'::text, 'flight_reviewer'::text, 'roc_a_examiner'::text])),
   title text NOT NULL,
   category text,
   course_id uuid,
@@ -345,4 +345,25 @@ CREATE TABLE public.unit_completions (
   CONSTRAINT unit_completions_pilot_id_fkey FOREIGN KEY (pilot_id) REFERENCES public.profiles(id),
   CONSTRAINT unit_completions_unit_id_fkey FOREIGN KEY (unit_id) REFERENCES public.course_units(id),
   CONSTRAINT unit_completions_course_id_fkey FOREIGN KEY (course_id) REFERENCES public.training_courses(id)
+);
+CREATE TABLE public.exam_appointments (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  pilot_id uuid NOT NULL,
+  exam_type text NOT NULL CHECK (exam_type IN ('flight_review', 'roc_a')),
+  scheduled_date timestamp with time zone NOT NULL,
+  duration_minutes integer NOT NULL DEFAULT 15,
+  location_type text NOT NULL CHECK (location_type IN ('in_person', 'online')),
+  location_address text,
+  meeting_link text,
+  status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'confirmed', 'completed', 'cancelled')),
+  stripe_payment_intent_id text,
+  stripe_charge_id text,
+  payment_amount numeric NOT NULL,
+  notes text,
+  examiner_id uuid,
+  created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  updated_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  CONSTRAINT exam_appointments_pkey PRIMARY KEY (id),
+  CONSTRAINT exam_appointments_pilot_id_fkey FOREIGN KEY (pilot_id) REFERENCES public.profiles(id),
+  CONSTRAINT exam_appointments_examiner_id_fkey FOREIGN KEY (examiner_id) REFERENCES public.profiles(id)
 );
