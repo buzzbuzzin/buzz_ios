@@ -27,7 +27,7 @@ func uploadLicense(pilotId: UUID, data: Data, fileName: String, fileType: Licens
 ```
 
 **What happens:**
-1. Pilot selects "RPA Flight Reviewer (CAN)" or "ROC-A Certificate (CAN)" from license type dropdown
+1. Pilot selects "Flight Reviewer (CAN)" or "ROC-A (CAN)" from license type dropdown
 2. App uploads file to Supabase Storage (`pilot-licenses` bucket)
 3. App inserts record into `pilot_licenses` table with `license_type` field
 
@@ -54,7 +54,7 @@ CREATE OR REPLACE FUNCTION public.award_permit_badge_for_license()
 **What the function does:**
 1. Checks `license_type` field of newly inserted license
 2. Maps license type to badge type:
-   - `"RPA Flight Reviewer (CAN)"` → `flight_reviewer` badge
+   - `"Flight Reviewer (CAN)"` → `flight_reviewer` badge
    - `"ROC-A Certificate (CAN)"` → `roc_a_examiner` badge
 3. Checks if pilot already has this badge type
 4. If not, inserts new badge record into `badges` table
@@ -124,7 +124,7 @@ The system requires **exact string matches** for automatic badge awarding:
 
 | License Type (must match exactly)  | Badge Type        | Badge Display Name |
 |------------------------------------|-------------------|--------------------|
-| `RPA Flight Reviewer (CAN)`        | `flight_reviewer` | Flight Reviewer    |
+| `Flight Reviewer (CAN)`        | `flight_reviewer` | Flight Reviewer    |
 | `ROC-A Certificate (CAN)`          | `roc_a_examiner`  | ROC-A Examiner     |
 
 These strings are defined in the iOS app:
@@ -132,7 +132,7 @@ These strings are defined in the iOS app:
 **PilotLicense.swift:**
 ```swift
 enum LicenseType: String, CaseIterable {
-    case rpaFlightReviewer = "RPA Flight Reviewer (CAN)"
+    case rpaFlightReviewer = "Flight Reviewer (CAN)"
     case rocaCertificate = "ROC-A Certificate (CAN)"
     // ... other license types
 }
@@ -151,7 +151,7 @@ SELECT * FROM public.award_permit_badges_for_existing_licenses();
 ```
 pilot_id                              | badge_type        | license_type                  | status
 --------------------------------------|-------------------|-------------------------------|---------------
-550e8400-e29b-41d4-a716-446655440000 | flight_reviewer   | RPA Flight Reviewer (CAN)    | awarded
+550e8400-e29b-41d4-a716-446655440000 | flight_reviewer   | Flight Reviewer (CAN)    | awarded
 660e8400-e29b-41d4-a716-446655440001 | roc_a_examiner    | ROC-A Certificate (CAN)      | already_exists
 ```
 
@@ -206,7 +206,7 @@ enum BadgeCategory: String, Hashable {
 
 ### Test New License Upload
 
-1. Upload a license with type "RPA Flight Reviewer (CAN)"
+1. Upload a license with type "Flight Reviewer (CAN)"
 2. Check `pilot_licenses` table - should have new record
 3. Check `badges` table - should automatically have new badge with `badge_type = 'flight_reviewer'`
 4. Open Badges view in app - should show Flight Reviewer badge under "Permits" category
@@ -225,7 +225,7 @@ SELECT pl.pilot_id, pl.license_type, pl.uploaded_at,
          ELSE 'Missing Badge'
        END as badge_status
 FROM pilot_licenses pl
-WHERE pl.license_type IN ('RPA Flight Reviewer (CAN)', 'ROC-A Certificate (CAN)');
+WHERE pl.license_type IN ('Flight Reviewer (CAN)', 'ROC-A (CAN)');
 
 -- Award badges for existing licenses
 SELECT * FROM award_permit_badges_for_existing_licenses();
@@ -252,7 +252,7 @@ WHERE tgname = 'trigger_award_permit_badge';
 **Check 1: License type string**
 ```sql
 SELECT license_type FROM pilot_licenses WHERE id = '<license-id>';
--- Must be EXACTLY: "RPA Flight Reviewer (CAN)" or "ROC-A Certificate (CAN)"
+-- Must be EXACTLY: "Flight Reviewer (CAN)" or "ROC-A (CAN)"
 ```
 
 **Check 2: Trigger enabled**

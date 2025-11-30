@@ -612,11 +612,11 @@ struct LicenseCard: View {
     let onEdit: () -> Void
     
     private func isRPACertificate(_ license: PilotLicense) -> Bool {
-        return license.licenseType?.contains("RPA Pilot Certificate") ?? false
+        return license.licenseType?.contains("RPA Pilot") ?? false
     }
     
     private func isROCACertificate(_ license: PilotLicense) -> Bool {
-        return license.licenseType?.contains("ROC-A Certificate") ?? false
+        return license.licenseType?.contains("ROC-A") ?? false
     }
     
     private func isRestrictedRadioPermit(_ license: PilotLicense) -> Bool {
@@ -860,11 +860,11 @@ struct EditPilotLicenseView: View {
     }()
     
     private var isRPACertificate: Bool {
-        license.licenseType?.contains("RPA Pilot Certificate") ?? false
+        license.licenseType?.contains("RPA Pilot") ?? false
     }
     
     private var isROCACertificate: Bool {
-        license.licenseType?.contains("ROC-A Certificate") ?? false
+        license.licenseType?.contains("ROC-A") ?? false
     }
     
     private var isRestrictedRadioPermit: Bool {

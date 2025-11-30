@@ -69,7 +69,7 @@ psql <your-database-connection-string> -f supabase/migrations/20251129_add_permi
 
 The migration includes a database function and trigger that automatically awards permit badges when licenses are uploaded. 
 
-**Current Setup:** Badge awarding is handled by the database trigger. When a pilot uploads a license with type "RPA Flight Reviewer (CAN)" or "ROC-A Certificate (CAN)", the database automatically creates the corresponding badge entry.
+**Current Setup:** Badge awarding is handled by the database trigger. When a pilot uploads a license with type "Flight Reviewer (CAN)" or "ROC-A (CAN)", the database automatically creates the corresponding badge entry.
 
 **How It Works:**
 1. Pilot uploads a license via the iOS app (`LicenseUploadService`)
@@ -100,7 +100,7 @@ The migration automatically populates the `badges_catalog` table with:
 
 The system maps the following license types to permit badges:
 
-- `"RPA Flight Reviewer (CAN)"` → Flight Reviewer badge
+- `"Flight Reviewer (CAN)"` → Flight Reviewer badge
 - `"ROC-A Certificate (CAN)"` → ROC-A Examiner badge
 
 This mapping is defined in the database function `award_permit_badge_for_license()`.
@@ -117,7 +117,7 @@ SELECT * FROM public.award_permit_badges_for_existing_licenses();
 ```
 
 This function will:
-- Find all licenses with type "RPA Flight Reviewer (CAN)" or "ROC-A Certificate (CAN)"
+- Find all licenses with type "Flight Reviewer (CAN)" or "ROC-A (CAN)"
 - Check if the pilot already has the corresponding badge
 - Award the badge if they don't have it yet
 - Return a table showing results for each license
@@ -126,7 +126,7 @@ Example output:
 ```
 pilot_id                              | badge_type        | license_type                  | status
 --------------------------------------|-------------------|-------------------------------|---------------
-550e8400-e29b-41d4-a716-446655440000 | flight_reviewer   | RPA Flight Reviewer (CAN)    | awarded
+550e8400-e29b-41d4-a716-446655440000 | flight_reviewer   | Flight Reviewer (CAN)    | awarded
 660e8400-e29b-41d4-a716-446655440001 | roc_a_examiner    | ROC-A Certificate (CAN)      | already_exists
 ```
 

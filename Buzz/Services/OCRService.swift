@@ -700,19 +700,19 @@ class OCRService {
         print(String(text.prefix(500)))
         print("🔍 OCR DEBUG: ========================================")
         
-        // Check if this is an RPA Pilot Certificate (CAN)
-        let isRPACertificate = licenseType?.contains("RPA Pilot Certificate") ?? false || text.uppercased().contains("REMOTELY PILOTED AIRCRAFT")
+        // Check if this is an RPA Pilot (CAN)
+        let isRPACertificate = licenseType?.contains("RPA Pilot") ?? false || text.uppercased().contains("REMOTELY PILOTED AIRCRAFT")
         
         if isRPACertificate {
-            print("🔍 OCR DEBUG: Detected RPA Pilot Certificate (CAN)")
+            print("🔍 OCR DEBUG: Detected RPA Pilot (CAN)")
             return parseRPAPilotCertificate(from: text)
         }
         
-        // Check if this is a ROC-A Certificate (CAN)
-        let isROCACertificate = licenseType?.contains("ROC-A Certificate") ?? false || text.uppercased().contains("RESTRICTED OPERATOR CERTIFICATE")
+        // Check if this is a ROC-A (CAN)
+        let isROCACertificate = licenseType?.contains("ROC-A") ?? false || text.uppercased().contains("RESTRICTED OPERATOR CERTIFICATE")
         
         if isROCACertificate {
-            print("🔍 OCR DEBUG: Detected ROC-A Certificate (CAN)")
+            print("🔍 OCR DEBUG: Detected ROC-A (CAN)")
             return parseROCACertificate(from: text)
         }
         
@@ -777,13 +777,13 @@ class OCRService {
         return info
     }
     
-    // MARK: - Parse RPA Pilot Certificate (CAN)
+    // MARK: - Parse RPA Pilot (CAN)
     
     private func parseRPAPilotCertificate(from text: String) -> PilotLicenseInfo {
         var info = PilotLicenseInfo()
         
         print("🔍 OCR DEBUG: ========================================")
-        print("🔍 OCR DEBUG: Parsing RPA Pilot Certificate (CAN)")
+        print("🔍 OCR DEBUG: Parsing RPA Pilot (CAN)")
         print("🔍 OCR DEBUG: ========================================")
         print("🔍 OCR DEBUG: Full extracted text (\(text.count) characters):")
         print("----------------------------------------")

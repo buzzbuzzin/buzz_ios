@@ -68,9 +68,9 @@ DECLARE
   target_badge_type TEXT;
 BEGIN
   -- Determine which badge to award based on license type
-  IF NEW.license_type = 'RPA Flight Reviewer (CAN)' THEN
+  IF NEW.license_type = 'Flight Reviewer (CAN)' THEN
     target_badge_type := 'flight_reviewer';
-  ELSIF NEW.license_type = 'ROC-A Certificate (CAN)' THEN
+  ELSIF NEW.license_type = 'ROC-A (CAN)' THEN
     target_badge_type := 'roc_a_examiner';
   ELSE
     -- No permit badge for this license type
@@ -149,10 +149,10 @@ BEGIN
   FOR license_record IN 
     SELECT pl.pilot_id, pl.license_type, pl.id as license_id
     FROM public.pilot_licenses pl
-    WHERE pl.license_type IN ('RPA Flight Reviewer (CAN)', 'ROC-A Certificate (CAN)')
+    WHERE pl.license_type IN ('Flight Reviewer (CAN)', 'ROC-A (CAN)')
   LOOP
     -- Determine badge type
-    IF license_record.license_type = 'RPA Flight Reviewer (CAN)' THEN
+    IF license_record.license_type = 'Flight Reviewer (CAN)' THEN
       target_badge_type := 'flight_reviewer';
     ELSIF license_record.license_type = 'ROC-A Certificate (CAN)' THEN
       target_badge_type := 'roc_a_examiner';
