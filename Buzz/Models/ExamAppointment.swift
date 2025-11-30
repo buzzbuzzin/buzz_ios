@@ -46,7 +46,7 @@ enum ExamType: String, Codable, CaseIterable, Identifiable {
     var icon: String {
         switch self {
         case .flightReview:
-            return "airplane"
+            return "person.text.rectangle.fill"
         case .rocA:
             return "antenna.radiowaves.left.and.right"
         }
@@ -57,7 +57,7 @@ enum ExamType: String, Codable, CaseIterable, Identifiable {
         case .flightReview:
             return .blue
         case .rocA:
-            return .purple
+            return .blue  // Same blue color as Flight Review for consistency
         }
     }
     
