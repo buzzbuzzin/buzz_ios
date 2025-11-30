@@ -18,6 +18,7 @@ struct ExamPaymentView: View {
     
     @EnvironmentObject var authService: AuthService
     @StateObject private var examService = ExamService()
+    @StateObject private var paymentService = PaymentService()
     @Environment(\.dismiss) private var dismiss
     
     @State private var isProcessingPayment = false
@@ -199,22 +200,12 @@ struct ExamPaymentView: View {
             
             paymentIntentResponse = paymentIntent
             
-            // Present Stripe PaymentSheet
-            var configuration = PaymentSheet.Configuration()
-            configuration.merchantDisplayName = "Buzz Academy"
-            
-            if let customerId = paymentIntent.customerId,
-               let ephemeralKey = paymentIntent.ephemeralKeySecret {
-                configuration.customer = .init(id: customerId, ephemeralKeySecret: ephemeralKey)
-            }
-            
-            let paymentSheet = PaymentSheet(
+            // Present PaymentSheet using PaymentService (same as booking flow - includes Apple Pay)
+            let result = try await paymentService.presentPaymentSheet(
                 paymentIntentClientSecret: paymentIntent.clientSecret,
-                configuration: configuration
+                customerId: paymentIntent.customerId,
+                customerEphemeralKeySecret: paymentIntent.ephemeralKeySecret
             )
-            
-            // Present payment sheet
-            let result = try await paymentSheet.present()
             
             switch result {
             case .completed:
