@@ -15,7 +15,7 @@ struct ProductIdentifiers {
     
     // IMPORTANT CONFIGURATION NOTES:
     // ===============================
-    // Product ID in App Store Connect: com.buzz.academy.pass.monthly
+    // Product ID in App Store Connect: com.buzz.academy.pass.monthly.subscription
     // Type: Auto-Renewable Subscription (monthly recurring)
     //
     // This is a NEW product created in App Store Connect as a subscription
@@ -23,8 +23,8 @@ struct ProductIdentifiers {
     
     /// Monthly subscription for Academy Pass (UAS Pilot Course)
     /// Price: $9.99/month
-    /// Product ID: com.buzz.academy.pass.monthly (from App Store Connect)
-    static let academyPassMonthly = "com.buzz.academy.pass.monthly"
+    /// Product ID: com.buzz.academy.pass.monthly.subscription (from App Store Connect)
+    static let academyPassMonthly = "com.buzz.academy.pass.monthly.subscription"
     
     /// Annual subscription for Academy Pass (optional - can add later)
     /// Price: $99.99/year (saves 17%)
