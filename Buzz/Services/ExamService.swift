@@ -182,6 +182,39 @@ class ExamService: ObservableObject {
         }
     }
     
+    // MARK: - Create Zoom Meeting
+    
+    /// Creates a Zoom meeting for online exams
+    private func createZoomMeeting(
+        examType: ExamType,
+        scheduledDate: Date,
+        pilotEmail: String?
+    ) async throws -> ZoomMeetingResponse {
+        let dateFormatter = ISO8601DateFormatter()
+        dateFormatter.formatOptions = [.withInternetDateTime]
+        
+        struct ZoomRequest: Codable {
+            let topic: String
+            let scheduled_date: String
+            let duration_minutes: Int
+            let pilot_email: String?
+        }
+        
+        let request = ZoomRequest(
+            topic: "\(examType.displayName) Exam",
+            scheduled_date: dateFormatter.string(from: scheduledDate),
+            duration_minutes: examType.durationMinutes,
+            pilot_email: pilotEmail
+        )
+        
+        let response: ZoomMeetingResponse = try await supabase.functions
+            .invoke("create-zoom-meeting", options: FunctionInvokeOptions(
+                body: request
+            ))
+        
+        return response
+    }
+    
     // MARK: - Create Exam Appointment
     
     /// Creates an exam appointment record in the database after successful payment
@@ -193,7 +226,8 @@ class ExamService: ObservableObject {
         locationAddress: String?,
         paymentIntentId: String,
         chargeId: String?,
-        paymentAmount: Decimal
+        paymentAmount: Decimal,
+        pilotEmail: String? = nil
     ) async throws -> ExamAppointment {
         isLoading = true
         errorMessage = nil
@@ -202,10 +236,30 @@ class ExamService: ObservableObject {
             let dateFormatter = ISO8601DateFormatter()
             dateFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
             
-            // Generate meeting link placeholder for online exams
-            let meetingLink: String? = locationType == .online ? "https://zoom.us/j/placeholder" : nil
+            // Create Zoom meeting for online exams
+            var meetingLink: String? = nil
+            var zoomMeetingId: String? = nil
+            var zoomMeetingPassword: String? = nil
             
-            let appointmentData: [String: AnyJSON] = [
+            if locationType == .online {
+                do {
+                    let zoomMeeting = try await createZoomMeeting(
+                        examType: examType,
+                        scheduledDate: scheduledDate,
+                        pilotEmail: pilotEmail
+                    )
+                    meetingLink = zoomMeeting.joinUrl
+                    zoomMeetingId = zoomMeeting.meetingId
+                    zoomMeetingPassword = zoomMeeting.password
+                    print("✅ [ExamService] Created Zoom meeting: \(zoomMeeting.meetingId)")
+                } catch {
+                    // Log error but continue with placeholder - meeting can be created manually if needed
+                    print("⚠️ [ExamService] Failed to create Zoom meeting: \(error.localizedDescription)")
+                    meetingLink = "https://zoom.us/j/pending"
+                }
+            }
+            
+            var appointmentData: [String: AnyJSON] = [
                 "pilot_id": .string(pilotId.uuidString),
                 "exam_type": .string(examType.rawValue),
                 "scheduled_date": .string(dateFormatter.string(from: scheduledDate)),
@@ -219,6 +273,14 @@ class ExamService: ObservableObject {
                 "payment_amount": .double(NSDecimalNumber(decimal: paymentAmount).doubleValue)
             ]
             
+            // Add Zoom-specific fields if available
+            if let zoomId = zoomMeetingId {
+                appointmentData["zoom_meeting_id"] = .string(zoomId)
+            }
+            if let zoomPassword = zoomMeetingPassword {
+                appointmentData["zoom_meeting_password"] = .string(zoomPassword)
+            }
+            
             let response: [ExamAppointment] = try await supabase
                 .from("exam_appointments")
                 .insert(appointmentData)
@@ -230,6 +292,16 @@ class ExamService: ObservableObject {
                 throw ExamServiceError.failedToCreateAppointment
             }
             
+            // Send confirmation email (don't block on this)
+            if let email = pilotEmail {
+                Task {
+                    await sendConfirmationEmail(
+                        appointment: appointment,
+                        pilotEmail: email
+                    )
+                }
+            }
+            
             // Refresh appointments list
             await fetchAppointments(pilotId: pilotId)
             
@@ -239,6 +311,56 @@ class ExamService: ObservableObject {
             isLoading = false
             errorMessage = error.localizedDescription
             throw error
+        }
+    }
+    
+    // MARK: - Send Confirmation Email
+    
+    /// Sends a confirmation email for the exam appointment
+    private func sendConfirmationEmail(
+        appointment: ExamAppointment,
+        pilotEmail: String
+    ) async {
+        let dateFormatter = ISO8601DateFormatter()
+        dateFormatter.formatOptions = [.withInternetDateTime]
+        
+        struct EmailRequest: Codable {
+            let pilot_id: String
+            let pilot_email: String
+            let exam_type: String
+            let exam_type_display: String
+            let scheduled_date: String
+            let duration_minutes: Int
+            let location_type: String
+            let location_address: String?
+            let meeting_link: String?
+            let zoom_meeting_password: String?
+            let appointment_id: String
+        }
+        
+        let request = EmailRequest(
+            pilot_id: appointment.pilotId.uuidString,
+            pilot_email: pilotEmail,
+            exam_type: appointment.examType.rawValue,
+            exam_type_display: appointment.examType.displayName,
+            scheduled_date: dateFormatter.string(from: appointment.scheduledDate),
+            duration_minutes: appointment.durationMinutes,
+            location_type: appointment.locationType.rawValue,
+            location_address: appointment.locationAddress,
+            meeting_link: appointment.meetingLink,
+            zoom_meeting_password: appointment.zoomMeetingPassword,
+            appointment_id: appointment.id.uuidString
+        )
+        
+        do {
+            let _: EmptyResponse = try await supabase.functions
+                .invoke("send-exam-confirmation", options: FunctionInvokeOptions(
+                    body: request
+                ))
+            print("✅ [ExamService] Confirmation email sent to \(pilotEmail)")
+        } catch {
+            // Don't throw - email is not critical
+            print("⚠️ [ExamService] Failed to send confirmation email: \(error.localizedDescription)")
         }
     }
     
@@ -275,18 +397,106 @@ class ExamService: ObservableObject {
         errorMessage = nil
         
         do {
+            // Cancel the appointment - allow cancelling both pending and confirmed appointments
             try await supabase
                 .from("exam_appointments")
                 .update(["status": ExamAppointmentStatus.cancelled.rawValue])
                 .eq("id", value: appointmentId.uuidString)
                 .eq("pilot_id", value: pilotId.uuidString)
-                .eq("status", value: ExamAppointmentStatus.pending.rawValue)
+                .in("status", values: [ExamAppointmentStatus.pending.rawValue, ExamAppointmentStatus.confirmed.rawValue])
                 .execute()
             
             // Refresh appointments list
             await fetchAppointments(pilotId: pilotId)
             
             isLoading = false
+        } catch {
+            isLoading = false
+            errorMessage = error.localizedDescription
+            throw error
+        }
+    }
+    
+    // MARK: - Reschedule Appointment
+    
+    /// Reschedules an exam appointment to a new date/time
+    /// Note: Rescheduling is only allowed more than 24 hours before the scheduled time
+    func rescheduleAppointment(
+        appointmentId: UUID,
+        pilotId: UUID,
+        newScheduledDate: Date,
+        locationType: ExamLocationType,
+        locationAddress: String?,
+        examType: ExamType,
+        pilotEmail: String? = nil
+    ) async throws -> ExamAppointment {
+        isLoading = true
+        errorMessage = nil
+        
+        do {
+            let dateFormatter = ISO8601DateFormatter()
+            dateFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            
+            // Create new Zoom meeting for online exams
+            var meetingLink: String? = nil
+            var zoomMeetingId: String? = nil
+            var zoomMeetingPassword: String? = nil
+            
+            if locationType == .online {
+                do {
+                    let zoomMeeting = try await createZoomMeeting(
+                        examType: examType,
+                        scheduledDate: newScheduledDate,
+                        pilotEmail: pilotEmail
+                    )
+                    meetingLink = zoomMeeting.joinUrl
+                    zoomMeetingId = zoomMeeting.meetingId
+                    zoomMeetingPassword = zoomMeeting.password
+                    print("✅ [ExamService] Created new Zoom meeting for reschedule: \(zoomMeeting.meetingId)")
+                } catch {
+                    print("⚠️ [ExamService] Failed to create Zoom meeting for reschedule: \(error.localizedDescription)")
+                    meetingLink = "https://zoom.us/j/pending"
+                }
+            }
+            
+            var updateData: [String: AnyJSON] = [
+                "scheduled_date": .string(dateFormatter.string(from: newScheduledDate)),
+                "location_type": .string(locationType.rawValue),
+                "location_address": locationAddress.map { .string($0) } ?? .null,
+                "meeting_link": meetingLink.map { .string($0) } ?? .null,
+                "zoom_meeting_id": zoomMeetingId.map { .string($0) } ?? .null,
+                "zoom_meeting_password": zoomMeetingPassword.map { .string($0) } ?? .null
+            ]
+            
+            let response: [ExamAppointment] = try await supabase
+                .from("exam_appointments")
+                .update(updateData)
+                .eq("id", value: appointmentId.uuidString)
+                .eq("pilot_id", value: pilotId.uuidString)
+                .in("status", values: [ExamAppointmentStatus.pending.rawValue, ExamAppointmentStatus.confirmed.rawValue])
+                .select()
+                .execute()
+                .value
+            
+            guard let appointment = response.first else {
+                throw ExamServiceError.failedToRescheduleAppointment
+            }
+            
+            // Send confirmation email for rescheduled appointment
+            if let email = pilotEmail {
+                Task {
+                    await sendConfirmationEmail(
+                        appointment: appointment,
+                        pilotEmail: email
+                    )
+                }
+            }
+            
+            // Refresh appointments list
+            await fetchAppointments(pilotId: pilotId)
+            
+            isLoading = false
+            return appointment
         } catch {
             isLoading = false
             errorMessage = error.localizedDescription
@@ -342,6 +552,22 @@ class ExamService: ObservableObject {
 
 // MARK: - Response Models
 
+struct EmptyResponse: Codable {}
+
+struct ZoomMeetingResponse: Codable {
+    let joinUrl: String
+    let meetingId: String
+    let password: String
+    let startUrl: String?
+    
+    enum CodingKeys: String, CodingKey {
+        case joinUrl = "join_url"
+        case meetingId = "meeting_id"
+        case password
+        case startUrl = "start_url"
+    }
+}
+
 struct ExamPaymentIntentResponse: Codable {
     let clientSecret: String
     let paymentIntentId: String
@@ -378,20 +604,26 @@ struct ExamPaymentIntentResponse: Codable {
 
 enum ExamServiceError: LocalizedError {
     case failedToCreateAppointment
+    case failedToRescheduleAppointment
     case prerequisitesNotMet
     case examAlreadyScheduled
     case invalidExamType
+    case cannotRescheduleWithin24Hours
     
     var errorDescription: String? {
         switch self {
         case .failedToCreateAppointment:
             return "Failed to create exam appointment. Please try again."
+        case .failedToRescheduleAppointment:
+            return "Failed to reschedule exam appointment. Please try again."
         case .prerequisitesNotMet:
             return "You must pass the Ground School Test and complete Unit 4 before scheduling this exam."
         case .examAlreadyScheduled:
             return "You already have a pending or confirmed appointment for this exam."
         case .invalidExamType:
             return "Invalid exam type selected."
+        case .cannotRescheduleWithin24Hours:
+            return "Rescheduling is not available within 24 hours of your scheduled exam."
         }
     }
 }

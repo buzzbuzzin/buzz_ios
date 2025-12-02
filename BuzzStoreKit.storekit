@@ -60,7 +60,7 @@
               "locale" : "en_US"
             }
           ],
-          "productID" : "com.buzz.academy.pass.monthly",
+          "productID" : "com.buzz.academy.pass.monthly.subscription",
           "recurringSubscriptionPeriod" : "P1M",
           "referenceName" : "Academy Pass Monthly",
           "subscriptionGroupID" : "21839430",

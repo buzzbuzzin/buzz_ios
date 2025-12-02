@@ -11,6 +11,7 @@ import Auth
 struct ExamSchedulingView: View {
     let examType: ExamType
     let priceInfo: ExamPriceResponse
+    var onBookingComplete: (() -> Void)?
     
     @EnvironmentObject var authService: AuthService
     @StateObject private var examService = ExamService()
@@ -269,7 +270,13 @@ struct ExamSchedulingView: View {
                     priceInfo: priceInfo,
                     scheduledDate: dateTime,
                     locationType: locationType,
-                    locationAddress: locationType == .inPerson ? locationAddress : nil
+                    locationAddress: locationType == .inPerson ? locationAddress : nil,
+                    onBookingComplete: {
+                        showPaymentView = false
+                        if let onComplete = onBookingComplete {
+                            onComplete()
+                        }
+                    }
                 )
             }
         }

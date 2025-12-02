@@ -8,6 +8,8 @@
 import SwiftUI
 import Auth
 import StripePaymentSheet
+import EventKit
+import EventKitUI
 
 struct ExamPaymentView: View {
     let examType: ExamType
@@ -15,6 +17,7 @@ struct ExamPaymentView: View {
     let scheduledDate: Date
     let locationType: ExamLocationType
     let locationAddress: String?
+    var onBookingComplete: (() -> Void)?
     
     @EnvironmentObject var authService: AuthService
     @StateObject private var examService = ExamService()
@@ -42,7 +45,11 @@ struct ExamPaymentView: View {
                 if showSuccess, let appointment = createdAppointment {
                     SuccessView(appointment: appointment) {
                         // Dismiss back to Test Center
-                        dismiss()
+                        if let onComplete = onBookingComplete {
+                            onComplete()
+                        } else {
+                            dismiss()
+                        }
                     }
                 } else {
                     // Header
@@ -150,13 +157,13 @@ struct ExamPaymentView: View {
                     .disabled(isProcessingPayment)
                     .padding(.horizontal)
                     
-                    // Cancellation Policy
+                    // Reschedule Policy
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("Cancellation Policy")
+                        Text("Reschedule Policy")
                             .font(.caption)
                             .fontWeight(.semibold)
                         
-                        Text("You may cancel or reschedule your exam up to 24 hours before the scheduled time for a full refund. Cancellations made less than 24 hours before the exam are non-refundable.")
+                        Text("Exam fees are non-refundable. You may reschedule your exam up to 24 hours before the scheduled time at no additional cost. Rescheduling is not available within 24 hours of your exam.")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
@@ -179,6 +186,10 @@ struct ExamPaymentView: View {
         }
     }
     
+    // MARK: - Test Mode Flag
+    // TODO: Remove this before production release!
+    private let testModeBypassPayment = false
+    
     private func processPayment() async {
         guard let currentUser = authService.currentUser else {
             errorMessage = "You must be logged in to make a payment."
@@ -189,6 +200,27 @@ struct ExamPaymentView: View {
         isProcessingPayment = true
         
         do {
+            // TEST MODE: Bypass payment for testing Zoom integration
+            if testModeBypassPayment {
+                print("⚠️ TEST MODE: Bypassing payment flow")
+                let appointment = try await examService.createExamAppointment(
+                    pilotId: currentUser.id,
+                    examType: examType,
+                    scheduledDate: scheduledDate,
+                    locationType: locationType,
+                    locationAddress: locationAddress,
+                    paymentIntentId: "test_pi_\(UUID().uuidString)",
+                    chargeId: nil,
+                    paymentAmount: priceInfo.decimalAmount,
+                    pilotEmail: currentUser.email
+                )
+                
+                createdAppointment = appointment
+                isProcessingPayment = false
+                showSuccess = true
+                return
+            }
+            
             // Create PaymentIntent
             let paymentIntent = try await examService.createExamPaymentIntent(
                 examType: examType,
@@ -218,7 +250,8 @@ struct ExamPaymentView: View {
                     locationAddress: locationAddress,
                     paymentIntentId: paymentIntent.paymentIntentId,
                     chargeId: nil,
-                    paymentAmount: paymentIntent.decimalAmount
+                    paymentAmount: paymentIntent.decimalAmount,
+                    pilotEmail: currentUser.email
                 )
                 
                 createdAppointment = appointment
@@ -271,6 +304,12 @@ struct BookingDetailRow: View {
 struct SuccessView: View {
     let appointment: ExamAppointment
     let onDone: () -> Void
+    
+    @State private var showCalendarAlert = false
+    @State private var calendarAlertMessage = ""
+    @State private var calendarAdded = false
+    
+    private let eventStore = EKEventStore()
     
     var body: some View {
         VStack(spacing: 24) {
@@ -330,18 +369,88 @@ struct SuccessView: View {
                 }
                 
                 if appointment.locationType == .online {
-                    HStack {
-                        Image(systemName: "info.circle")
-                            .foregroundColor(.orange)
-                        Text("Zoom link will be sent via email")
-                            .font(.caption)
-                            .foregroundColor(.orange)
+                    if appointment.hasValidZoomLink, let meetingLink = appointment.meetingLink {
+                        // Show actual Zoom link with copy button
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Image(systemName: "video.fill")
+                                    .foregroundColor(.blue)
+                                Text("Zoom Meeting Link")
+                                    .font(.caption)
+                                    .fontWeight(.semibold)
+                            }
+                            
+                            HStack {
+                                Text(meetingLink)
+                                    .font(.caption)
+                                    .foregroundColor(.blue)
+                                    .lineLimit(1)
+                                    .truncationMode(.middle)
+                                
+                                Spacer()
+                                
+                                Button(action: {
+                                    UIPasteboard.general.string = meetingLink
+                                }) {
+                                    Image(systemName: "doc.on.doc")
+                                        .font(.caption)
+                                        .foregroundColor(.blue)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                            
+                            if let password = appointment.zoomMeetingPassword, !password.isEmpty {
+                                HStack {
+                                    Text("Password: \(password)")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                    
+                                    Button(action: {
+                                        UIPasteboard.general.string = password
+                                    }) {
+                                        Image(systemName: "doc.on.doc")
+                                            .font(.caption2)
+                                            .foregroundColor(.secondary)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                        }
+                        .padding(10)
+                        .background(Color.blue.opacity(0.1))
+                        .cornerRadius(8)
+                    } else {
+                        HStack {
+                            Image(systemName: "info.circle")
+                                .foregroundColor(.orange)
+                            Text("Zoom link will be sent via email")
+                                .font(.caption)
+                                .foregroundColor(.orange)
+                        }
                     }
                 }
             }
             .padding()
             .background(Color(.systemGray6))
             .cornerRadius(12)
+            .padding(.horizontal)
+            
+            // Add to Calendar Button
+            Button(action: {
+                addToCalendar()
+            }) {
+                HStack {
+                    Image(systemName: calendarAdded ? "checkmark.circle.fill" : "calendar.badge.plus")
+                    Text(calendarAdded ? "Added to Calendar" : "Add to Calendar")
+                }
+                .fontWeight(.medium)
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(calendarAdded ? Color.green.opacity(0.2) : Color(.systemGray5))
+                .foregroundColor(calendarAdded ? .green : .primary)
+                .cornerRadius(12)
+            }
+            .disabled(calendarAdded)
             .padding(.horizontal)
             
             // Confirmation Message
@@ -368,6 +477,79 @@ struct SuccessView: View {
             }
             .padding(.horizontal)
             .padding(.bottom, 20)
+        }
+        .alert("Calendar", isPresented: $showCalendarAlert) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(calendarAlertMessage)
+        }
+    }
+    
+    private func addToCalendar() {
+        eventStore.requestFullAccessToEvents { granted, error in
+            DispatchQueue.main.async {
+                if granted {
+                    createCalendarEvent()
+                } else {
+                    calendarAlertMessage = "Calendar access denied. Please enable calendar access in Settings to add this event."
+                    showCalendarAlert = true
+                }
+            }
+        }
+    }
+    
+    private func createCalendarEvent() {
+        let event = EKEvent(eventStore: eventStore)
+        
+        // Set event title
+        event.title = "\(appointment.examType.displayName) - Buzz"
+        
+        // Set start and end times
+        event.startDate = appointment.scheduledDate
+        event.endDate = appointment.endDate
+        
+        // Set location
+        if appointment.locationType == .online {
+            if let meetingLink = appointment.meetingLink {
+                event.location = meetingLink
+            } else {
+                event.location = "Online via Zoom"
+            }
+        } else if let address = appointment.locationAddress {
+            event.location = address
+        }
+        
+        // Set notes with details
+        var notes = "Exam Type: \(appointment.examType.displayName)\n"
+        notes += "Duration: \(appointment.durationMinutes) minutes\n"
+        notes += "Format: \(appointment.locationType.displayName)\n"
+        
+        if appointment.locationType == .online {
+            if let meetingLink = appointment.meetingLink {
+                notes += "\nZoom Link: \(meetingLink)\n"
+            }
+            if let password = appointment.zoomMeetingPassword, !password.isEmpty {
+                notes += "Password: \(password)\n"
+            }
+        }
+        
+        notes += "\nBooked via Buzz App"
+        event.notes = notes
+        
+        // Add 30-minute reminder
+        event.addAlarm(EKAlarm(relativeOffset: -1800)) // 30 minutes before
+        
+        // Add to default calendar
+        event.calendar = eventStore.defaultCalendarForNewEvents
+        
+        do {
+            try eventStore.save(event, span: .thisEvent)
+            calendarAdded = true
+            calendarAlertMessage = "Event added to your calendar!"
+            showCalendarAlert = true
+        } catch {
+            calendarAlertMessage = "Failed to add event: \(error.localizedDescription)"
+            showCalendarAlert = true
         }
     }
 }

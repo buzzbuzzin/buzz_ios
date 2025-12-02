@@ -888,6 +888,7 @@ struct AvailabilityView: View {
     @EnvironmentObject var authService: AuthService
     @StateObject private var bookingService = BookingService()
     @StateObject private var blockoutService = AvailabilityBlockoutService()
+    @StateObject private var examService = ExamService()
     @State private var selectedDate = Date()
     @State private var currentMonth = Date()
     @State private var showBlockoutSheet = false
@@ -999,6 +1000,7 @@ struct AvailabilityView: View {
                                     date: date,
                                     isSelected: calendar.isDate(date, inSameDayAs: selectedDate),
                                     hasBooking: hasBookingOnDate(date),
+                                    hasExam: hasExamOnDate(date),
                                     isBlocked: hasBlockoutOnDate(date),
                                     isCurrentMonth: calendar.isDate(date, equalTo: currentMonth, toGranularity: .month),
                                     isToday: calendar.isDateInToday(date),
@@ -1018,6 +1020,20 @@ struct AvailabilityView: View {
                 
                 // Selected Date Details
                 VStack(alignment: .leading, spacing: 16) {
+                    // Show exams for selected date
+                    if hasExamOnDate(selectedDate) {
+                        VStack(alignment: .leading, spacing: 16) {
+                            Text("Exams on \(formatDate(selectedDate))")
+                                .font(.headline)
+                                .padding(.horizontal)
+                            
+                            ForEach(examsForDate(selectedDate)) { exam in
+                                ExamAppointmentCard(appointment: exam)
+                            }
+                        }
+                        .padding(.top)
+                    }
+                    
                     // Show bookings for selected date
                     if hasBookingOnDate(selectedDate) {
                         VStack(alignment: .leading, spacing: 16) {
@@ -1033,17 +1049,34 @@ struct AvailabilityView: View {
                             }
                         }
                         .padding(.top)
-                    } else {
+                    }
+                    
+                    // Show empty state if no bookings or exams
+                    if !hasBookingOnDate(selectedDate) && !hasExamOnDate(selectedDate) {
                         VStack(spacing: 8) {
                             Image(systemName: "calendar.badge.plus")
                                 .font(.system(size: 40))
                                 .foregroundColor(.secondary)
-                            Text("No bookings on \(formatDate(selectedDate))")
+                            Text("No bookings or exams on \(formatDate(selectedDate))")
                                 .font(.subheadline)
                                 .foregroundColor(.secondary)
                         }
                         .padding(.vertical, 40)
                     }
+                }
+                
+                // Upcoming Scheduled Exams Section
+                if !upcomingExams.isEmpty {
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text("Upcoming Exams")
+                            .font(.headline)
+                            .padding(.horizontal)
+                        
+                        ForEach(upcomingExams) { exam in
+                            ExamAppointmentCard(appointment: exam)
+                        }
+                    }
+                    .padding(.top, 24)
                 }
                 
                 // Active Blockouts Section
@@ -1106,6 +1139,31 @@ struct AvailabilityView: View {
         
         _ = try? await bookingsTask
         _ = try? await blockoutsTask
+        
+        // Fetch exam appointments
+        await examService.fetchAppointments(pilotId: currentUser.id)
+    }
+    
+    private var upcomingExams: [ExamAppointment] {
+        let now = Date()
+        return examService.appointments.filter { exam in
+            exam.scheduledDate >= now && 
+            (exam.status == .pending || exam.status == .confirmed)
+        }.sorted { $0.scheduledDate < $1.scheduledDate }
+    }
+    
+    private func hasExamOnDate(_ date: Date) -> Bool {
+        return examService.appointments.contains { exam in
+            calendar.isDate(exam.scheduledDate, inSameDayAs: date) &&
+            (exam.status == .pending || exam.status == .confirmed)
+        }
+    }
+    
+    private func examsForDate(_ date: Date) -> [ExamAppointment] {
+        return examService.appointments.filter { exam in
+            calendar.isDate(exam.scheduledDate, inSameDayAs: date) &&
+            (exam.status == .pending || exam.status == .confirmed)
+        }
     }
     
     private func isDateBlocked(_ date: Date) -> Bool {
@@ -1226,6 +1284,7 @@ struct CalendarDayView: View {
     let date: Date
     let isSelected: Bool
     let hasBooking: Bool
+    var hasExam: Bool = false
     let isBlocked: Bool
     let isCurrentMonth: Bool
     let isToday: Bool
@@ -1244,17 +1303,27 @@ struct CalendarDayView: View {
                 Circle()
                     .fill(Color.gray)
                     .frame(width: 6, height: 6)
-            } else if hasBooking {
-                HStack(spacing: 2) {
-                    ForEach(0..<min(bookingCount, 3), id: \.self) { _ in
-                        Circle()
-                            .fill(bookingDotColor)
-                            .frame(width: 4, height: 4)
+            } else {
+                HStack(spacing: 3) {
+                    // Exam indicator (blue square)
+                    if hasExam {
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(Color.blue)
+                            .frame(width: 6, height: 6)
                     }
-                    if bookingCount > 3 {
-                        Text("+")
-                            .font(.system(size: 8, weight: .bold))
-                            .foregroundColor(bookingDotColor)
+                    
+                    // Booking indicators (green dots)
+                    if hasBooking {
+                        ForEach(0..<min(bookingCount, hasExam ? 2 : 3), id: \.self) { _ in
+                            Circle()
+                                .fill(bookingDotColor)
+                                .frame(width: 4, height: 4)
+                        }
+                        if bookingCount > (hasExam ? 2 : 3) {
+                            Text("+")
+                                .font(.system(size: 8, weight: .bold))
+                                .foregroundColor(bookingDotColor)
+                        }
                     }
                 }
             }
@@ -1366,6 +1435,146 @@ struct BookingCalendarCard: View {
     
     private func formatTime(_ date: Date) -> String {
         let formatter = DateFormatter()
+        formatter.timeStyle = .short
+        return formatter.string(from: date)
+    }
+}
+
+// MARK: - Exam Appointment Card
+
+struct ExamAppointmentCard: View {
+    let appointment: ExamAppointment
+    @State private var showCopiedAlert = false
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 12) {
+                // Exam Type Icon
+                ZStack {
+                    Circle()
+                        .fill(appointment.examType.color.opacity(0.15))
+                        .frame(width: 44, height: 44)
+                    
+                    Image(systemName: appointment.examType.icon)
+                        .font(.system(size: 18))
+                        .foregroundColor(appointment.examType.color)
+                }
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(appointment.examType.displayName)
+                        .font(.headline)
+                        .foregroundColor(.primary)
+                    
+                    HStack(spacing: 8) {
+                        Label(formatDateTime(appointment.scheduledDate), systemImage: "calendar")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    HStack(spacing: 8) {
+                        Label(appointment.locationType.displayName, systemImage: appointment.locationType.icon)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        
+                        // Status badge
+                        Text(appointment.status.displayName)
+                            .font(.caption2)
+                            .fontWeight(.medium)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 2)
+                            .background(appointment.status.color.opacity(0.15))
+                            .foregroundColor(appointment.status.color)
+                            .cornerRadius(4)
+                    }
+                }
+                
+                Spacer()
+            }
+            
+            // Zoom Link Section for Online Exams
+            if appointment.locationType == .online, appointment.hasValidZoomLink, let meetingLink = appointment.meetingLink {
+                Divider()
+                
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Image(systemName: "video.fill")
+                            .foregroundColor(.blue)
+                            .font(.caption)
+                        Text("Zoom Meeting")
+                            .font(.caption)
+                            .fontWeight(.semibold)
+                    }
+                    
+                    HStack {
+                        Text(meetingLink)
+                            .font(.caption)
+                            .foregroundColor(.blue)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                        
+                        Spacer()
+                        
+                        Button(action: {
+                            UIPasteboard.general.string = meetingLink
+                            showCopiedAlert = true
+                        }) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "doc.on.doc")
+                                Text("Copy")
+                            }
+                            .font(.caption)
+                            .foregroundColor(.blue)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    
+                    if let password = appointment.zoomMeetingPassword, !password.isEmpty {
+                        HStack {
+                            Text("Password: \(password)")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            
+                            Button(action: {
+                                UIPasteboard.general.string = password
+                                showCopiedAlert = true
+                            }) {
+                                Image(systemName: "doc.on.doc")
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+                .padding(10)
+                .background(Color.blue.opacity(0.05))
+                .cornerRadius(8)
+            } else if appointment.locationType == .inPerson, let address = appointment.locationAddress {
+                Divider()
+                
+                HStack {
+                    Image(systemName: "mappin.and.ellipse")
+                        .foregroundColor(.blue)
+                        .font(.caption)
+                    Text(address)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+        }
+        .padding()
+        .background(Color(.systemBackground))
+        .cornerRadius(12)
+        .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 2)
+        .padding(.horizontal)
+        .alert("Copied!", isPresented: $showCopiedAlert) {
+            Button("OK", role: .cancel) {}
+        }
+    }
+    
+    private func formatDateTime(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
         formatter.timeStyle = .short
         return formatter.string(from: date)
     }

@@ -14,6 +14,7 @@ struct TestCenterView: View {
     @State private var prerequisitesStatus: ExamPrerequisitesStatus?
     @State private var isCheckingPrerequisites = true
     @State private var existingAppointments: [ExamType: Bool] = [:]
+    @State private var selectedAppointment: ExamAppointment?
     
     var body: some View {
         ScrollView {
@@ -67,9 +68,13 @@ struct TestCenterView: View {
                             .font(.headline)
                             .padding(.horizontal)
                         
-                        ForEach(examService.appointments) { appointment in
+                        ForEach(examService.appointments.filter { $0.status != .cancelled }) { appointment in
                             AppointmentCard(appointment: appointment)
                                 .padding(.horizontal)
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    selectedAppointment = appointment
+                                }
                         }
                     }
                     .padding(.top, 8)
@@ -85,6 +90,19 @@ struct TestCenterView: View {
         }
         .refreshable {
             await loadData()
+        }
+        .sheet(item: $selectedAppointment) { appointment in
+            AppointmentDetailSheet(
+                appointment: appointment,
+                examService: examService,
+                onCancelled: {
+                    selectedAppointment = nil
+                    Task {
+                        await loadData()
+                    }
+                }
+            )
+            .environmentObject(authService)
         }
     }
     
@@ -349,6 +367,661 @@ struct ExamStatusBadge: View {
         .padding(.vertical, 4)
         .background(status.color.opacity(0.1))
         .cornerRadius(6)
+    }
+}
+
+// MARK: - Appointment Detail Sheet
+
+struct AppointmentDetailSheet: View {
+    let appointment: ExamAppointment
+    let examService: ExamService
+    let onCancelled: () -> Void
+    
+    @EnvironmentObject var authService: AuthService
+    @Environment(\.dismiss) private var dismiss
+    
+    @State private var showCancelConfirmation = false
+    @State private var isCancelling = false
+    @State private var showError = false
+    @State private var errorMessage = ""
+    @State private var showCopiedAlert = false
+    @State private var showRescheduleView = false
+    
+    private var canReschedule: Bool {
+        // Can only reschedule pending or confirmed appointments that are more than 24 hours away
+        (appointment.status == .pending || appointment.status == .confirmed) && !isWithin24Hours
+    }
+    
+    private var canCancel: Bool {
+        // Can only cancel pending or confirmed appointments
+        appointment.status == .pending || appointment.status == .confirmed
+    }
+    
+    private var isWithin24Hours: Bool {
+        let hoursUntilExam = Calendar.current.dateComponents([.hour], from: Date(), to: appointment.scheduledDate).hour ?? 0
+        return hoursUntilExam < 24
+    }
+    
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 24) {
+                    // Header
+                    VStack(spacing: 12) {
+                        ZStack {
+                            Circle()
+                                .fill(appointment.examType.color.opacity(0.15))
+                                .frame(width: 80, height: 80)
+                            
+                            Image(systemName: appointment.examType.icon)
+                                .font(.system(size: 36))
+                                .foregroundColor(appointment.examType.color)
+                        }
+                        
+                        Text(appointment.examType.displayName)
+                            .font(.title2)
+                            .fontWeight(.bold)
+                        
+                        ExamStatusBadge(status: appointment.status)
+                    }
+                    .padding(.top, 20)
+                    
+                    // Appointment Details
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text("Appointment Details")
+                            .font(.headline)
+                        
+                        VStack(spacing: 12) {
+                            DetailRow(icon: "calendar", label: "Date & Time", value: appointment.formattedDate)
+                            DetailRow(icon: "clock", label: "Duration", value: "\(appointment.durationMinutes) minutes")
+                            DetailRow(icon: appointment.locationType.icon, label: "Format", value: appointment.locationType.displayName)
+                            
+                            if let address = appointment.locationAddress {
+                                DetailRow(icon: "mappin.and.ellipse", label: "Location", value: address)
+                            }
+                        }
+                    }
+                    .padding()
+                    .background(Color(.systemGray6))
+                    .cornerRadius(12)
+                    .padding(.horizontal)
+                    
+                    // Zoom Link Section (for online exams)
+                    if appointment.locationType == .online, appointment.hasValidZoomLink, let meetingLink = appointment.meetingLink {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Zoom Meeting")
+                                .font(.headline)
+                            
+                            VStack(alignment: .leading, spacing: 8) {
+                                HStack {
+                                    Image(systemName: "video.fill")
+                                        .foregroundColor(.blue)
+                                    Text("Meeting Link")
+                                        .font(.subheadline)
+                                        .fontWeight(.medium)
+                                }
+                                
+                                HStack {
+                                    Text(meetingLink)
+                                        .font(.caption)
+                                        .foregroundColor(.blue)
+                                        .lineLimit(1)
+                                        .truncationMode(.middle)
+                                    
+                                    Spacer()
+                                    
+                                    Button(action: {
+                                        UIPasteboard.general.string = meetingLink
+                                        showCopiedAlert = true
+                                    }) {
+                                        HStack(spacing: 4) {
+                                            Image(systemName: "doc.on.doc")
+                                            Text("Copy")
+                                        }
+                                        .font(.caption)
+                                        .foregroundColor(.blue)
+                                    }
+                                }
+                                
+                                if let password = appointment.zoomMeetingPassword, !password.isEmpty {
+                                    HStack {
+                                        Text("Password: \(password)")
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                        
+                                        Button(action: {
+                                            UIPasteboard.general.string = password
+                                            showCopiedAlert = true
+                                        }) {
+                                            Image(systemName: "doc.on.doc")
+                                                .font(.caption2)
+                                                .foregroundColor(.secondary)
+                                        }
+                                    }
+                                }
+                                
+                                // Join Meeting Button
+                                if let url = URL(string: meetingLink) {
+                                    Link(destination: url) {
+                                        HStack {
+                                            Image(systemName: "video.fill")
+                                            Text("Join Zoom Meeting")
+                                        }
+                                        .font(.subheadline)
+                                        .fontWeight(.semibold)
+                                        .frame(maxWidth: .infinity)
+                                        .padding()
+                                        .background(Color.blue)
+                                        .foregroundColor(.white)
+                                        .cornerRadius(10)
+                                    }
+                                    .padding(.top, 8)
+                                }
+                            }
+                        }
+                        .padding()
+                        .background(Color.blue.opacity(0.05))
+                        .cornerRadius(12)
+                        .padding(.horizontal)
+                    }
+                    
+                    // Reschedule & Cancel Buttons
+                    if canCancel {
+                        VStack(spacing: 12) {
+                            // Reschedule Button (only available more than 24 hours before)
+                            if canReschedule {
+                                Button(action: {
+                                    showRescheduleView = true
+                                }) {
+                                    HStack {
+                                        Image(systemName: "calendar.badge.clock")
+                                        Text("Reschedule")
+                                    }
+                                    .fontWeight(.semibold)
+                                    .frame(maxWidth: .infinity)
+                                    .padding()
+                                    .background(Color.blue)
+                                    .foregroundColor(.white)
+                                    .cornerRadius(12)
+                                }
+                            }
+                            
+                            // Cancel Button
+                            Button(action: {
+                                showCancelConfirmation = true
+                            }) {
+                                HStack {
+                                    if isCancelling {
+                                        ProgressView()
+                                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                    } else {
+                                        Image(systemName: "xmark.circle")
+                                        Text("Cancel Appointment")
+                                    }
+                                }
+                                .fontWeight(.semibold)
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(Color.red)
+                                .foregroundColor(.white)
+                                .cornerRadius(12)
+                            }
+                            .disabled(isCancelling)
+                            
+                            // Policy notice
+                            HStack {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .foregroundColor(.orange)
+                                Text("Exam fees are non-refundable. Rescheduling is not available within 24 hours.")
+                                    .font(.caption)
+                                    .foregroundColor(.orange)
+                            }
+                        }
+                        .padding(.horizontal)
+                    }
+                    
+                    Spacer(minLength: 40)
+                }
+            }
+            .navigationTitle("Appointment")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+            }
+            .confirmationDialog(
+                "Cancel Appointment",
+                isPresented: $showCancelConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button("Cancel Appointment", role: .destructive) {
+                    Task {
+                        await cancelAppointment()
+                    }
+                }
+                Button("Keep Appointment", role: .cancel) {}
+            } message: {
+                Text("Are you sure you want to cancel this appointment? Exam fees are non-refundable.")
+            }
+            .alert("Error", isPresented: $showError) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(errorMessage)
+            }
+            .alert("Copied!", isPresented: $showCopiedAlert) {
+                Button("OK", role: .cancel) {}
+            }
+            .sheet(isPresented: $showRescheduleView) {
+                RescheduleExamView(
+                    appointment: appointment,
+                    examService: examService,
+                    onRescheduled: {
+                        showRescheduleView = false
+                        onCancelled() // Reuse this callback to refresh the parent view
+                    }
+                )
+                .environmentObject(authService)
+            }
+        }
+    }
+    
+    private func cancelAppointment() async {
+        guard let currentUser = authService.currentUser else { return }
+        
+        isCancelling = true
+        
+        do {
+            try await examService.cancelAppointment(
+                appointmentId: appointment.id,
+                pilotId: currentUser.id
+            )
+            isCancelling = false
+            onCancelled()
+        } catch {
+            isCancelling = false
+            errorMessage = error.localizedDescription
+            showError = true
+        }
+    }
+}
+
+struct DetailRow: View {
+    let icon: String
+    let label: String
+    let value: String
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .foregroundColor(.blue)
+                .frame(width: 24)
+            
+            Text(label)
+                .foregroundColor(.secondary)
+            
+            Spacer()
+            
+            Text(value)
+                .fontWeight(.medium)
+                .multilineTextAlignment(.trailing)
+        }
+    }
+}
+
+// MARK: - Reschedule Exam View
+
+struct RescheduleExamView: View {
+    let appointment: ExamAppointment
+    let examService: ExamService
+    let onRescheduled: () -> Void
+    
+    @EnvironmentObject var authService: AuthService
+    @Environment(\.dismiss) private var dismiss
+    
+    @State private var selectedDate = Date()
+    @State private var selectedTime: Date?
+    @State private var locationType: ExamLocationType = .inPerson
+    @State private var locationAddress = ""
+    @State private var isRescheduling = false
+    @State private var showError = false
+    @State private var errorMessage = ""
+    @State private var showSuccess = false
+    
+    // Minimum scheduling date is tomorrow
+    private var minimumDate: Date {
+        Calendar.current.date(byAdding: .day, value: 1, to: Date()) ?? Date()
+    }
+    
+    // Maximum scheduling date is 3 months from now
+    private var maximumDate: Date {
+        Calendar.current.date(byAdding: .month, value: 3, to: Date()) ?? Date()
+    }
+    
+    private var availableTimeSlots: [Date] {
+        examService.getAvailableTimeSlots(for: selectedDate)
+    }
+    
+    private var canProceed: Bool {
+        guard selectedTime != nil else { return false }
+        
+        if locationType == .inPerson {
+            return !locationAddress.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+        
+        return true
+    }
+    
+    private var scheduledDateTime: Date? {
+        guard let time = selectedTime else { return nil }
+        
+        let calendar = Calendar.current
+        let dateComponents = calendar.dateComponents([.year, .month, .day], from: selectedDate)
+        let timeComponents = calendar.dateComponents([.hour, .minute], from: time)
+        
+        var combinedComponents = DateComponents()
+        combinedComponents.year = dateComponents.year
+        combinedComponents.month = dateComponents.month
+        combinedComponents.day = dateComponents.day
+        combinedComponents.hour = timeComponents.hour
+        combinedComponents.minute = timeComponents.minute
+        
+        return calendar.date(from: combinedComponents)
+    }
+    
+    private var formattedScheduledDateTime: String {
+        guard let dateTime = scheduledDateTime else {
+            return "Not selected"
+        }
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        return formatter.string(from: dateTime)
+    }
+    
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 24) {
+                    if showSuccess {
+                        // Success View
+                        VStack(spacing: 24) {
+                            Spacer()
+                            
+                            ZStack {
+                                Circle()
+                                    .fill(Color.green.opacity(0.1))
+                                    .frame(width: 120, height: 120)
+                                
+                                Image(systemName: "checkmark.circle.fill")
+                                    .font(.system(size: 80))
+                                    .foregroundColor(.green)
+                            }
+                            
+                            Text("Exam Rescheduled!")
+                                .font(.title)
+                                .fontWeight(.bold)
+                            
+                            Text("Your \(appointment.examType.displayName) has been rescheduled successfully.")
+                                .font(.body)
+                                .foregroundColor(.secondary)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal)
+                            
+                            Spacer()
+                            
+                            Button(action: {
+                                onRescheduled()
+                            }) {
+                                Text("Done")
+                                    .fontWeight(.semibold)
+                                    .frame(maxWidth: .infinity)
+                                    .padding()
+                                    .background(Color.blue)
+                                    .foregroundColor(.white)
+                                    .cornerRadius(12)
+                            }
+                            .padding(.horizontal)
+                            .padding(.bottom, 20)
+                        }
+                    } else {
+                        // Header
+                        VStack(spacing: 12) {
+                            Image(systemName: "calendar.badge.clock")
+                                .font(.system(size: 48))
+                                .foregroundColor(.blue)
+                            
+                            Text("Reschedule Exam")
+                                .font(.title2)
+                                .fontWeight(.bold)
+                            
+                            Text("Select a new date and time for your \(appointment.examType.displayName)")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                                .multilineTextAlignment(.center)
+                        }
+                        .padding(.top, 20)
+                        
+                        // Date Selection
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("1. Select New Date")
+                                .font(.headline)
+                                .padding(.horizontal)
+                            
+                            DatePicker(
+                                "Exam Date",
+                                selection: $selectedDate,
+                                in: minimumDate...maximumDate,
+                                displayedComponents: [.date]
+                            )
+                            .datePickerStyle(.graphical)
+                            .padding(.horizontal)
+                            .onChange(of: selectedDate) { _, _ in
+                                selectedTime = nil
+                            }
+                        }
+                        
+                        Divider()
+                            .padding(.horizontal)
+                        
+                        // Time Selection
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("2. Select New Time")
+                                .font(.headline)
+                                .padding(.horizontal)
+                            
+                            LazyVGrid(columns: [
+                                GridItem(.flexible()),
+                                GridItem(.flexible()),
+                                GridItem(.flexible())
+                            ], spacing: 12) {
+                                ForEach(availableTimeSlots, id: \.self) { slot in
+                                    TimeSlotButton(
+                                        time: slot,
+                                        isSelected: selectedTime == slot,
+                                        action: {
+                                            selectedTime = slot
+                                        }
+                                    )
+                                }
+                            }
+                            .padding(.horizontal)
+                        }
+                        
+                        Divider()
+                            .padding(.horizontal)
+                        
+                        // Location Selection
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("3. \(appointment.examType.allowsOnline ? "Select Format" : "Enter Location")")
+                                .font(.headline)
+                                .padding(.horizontal)
+                            
+                            if appointment.examType.allowsOnline {
+                                VStack(spacing: 12) {
+                                    LocationTypeButton(
+                                        type: .inPerson,
+                                        isSelected: locationType == .inPerson,
+                                        action: { locationType = .inPerson }
+                                    )
+                                    
+                                    LocationTypeButton(
+                                        type: .online,
+                                        isSelected: locationType == .online,
+                                        action: { locationType = .online }
+                                    )
+                                }
+                                .padding(.horizontal)
+                            }
+                            
+                            if locationType == .inPerson {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text("Enter the address where the exam will be conducted:")
+                                        .font(.subheadline)
+                                        .foregroundColor(.secondary)
+                                    
+                                    TextField("Street address, City, State, ZIP", text: $locationAddress)
+                                        .textFieldStyle(.roundedBorder)
+                                        .textContentType(.fullStreetAddress)
+                                }
+                                .padding(.horizontal)
+                            } else {
+                                HStack(spacing: 12) {
+                                    Image(systemName: "video.fill")
+                                        .foregroundColor(.blue)
+                                        .font(.title2)
+                                    
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text("Online Exam via Zoom")
+                                            .font(.subheadline)
+                                            .fontWeight(.semibold)
+                                        
+                                        Text("A new Zoom meeting link will be sent to your email.")
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                    }
+                                }
+                                .padding()
+                                .background(Color.blue.opacity(0.1))
+                                .cornerRadius(10)
+                                .padding(.horizontal)
+                            }
+                        }
+                        
+                        Divider()
+                            .padding(.horizontal)
+                        
+                        // Summary
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("4. Confirm New Schedule")
+                                .font(.headline)
+                                .padding(.horizontal)
+                            
+                            VStack(spacing: 8) {
+                                SummaryRow(label: "Exam", value: appointment.examType.displayName)
+                                SummaryRow(label: "Duration", value: "\(appointment.examType.durationMinutes) minutes")
+                                SummaryRow(
+                                    label: "New Date & Time",
+                                    value: formattedScheduledDateTime,
+                                    valueColor: scheduledDateTime == nil ? .orange : .primary
+                                )
+                                SummaryRow(label: "Format", value: locationType.displayName)
+                                
+                                if locationType == .inPerson && !locationAddress.isEmpty {
+                                    SummaryRow(label: "Location", value: locationAddress)
+                                }
+                            }
+                            .padding()
+                            .background(Color(.systemGray6))
+                            .cornerRadius(10)
+                            .padding(.horizontal)
+                        }
+                        
+                        // Reschedule Button
+                        Button(action: {
+                            Task {
+                                await rescheduleAppointment()
+                            }
+                        }) {
+                            HStack {
+                                if isRescheduling {
+                                    ProgressView()
+                                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                    Text("Rescheduling...")
+                                } else {
+                                    Image(systemName: "calendar.badge.clock")
+                                    Text("Confirm Reschedule")
+                                }
+                            }
+                            .fontWeight(.semibold)
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(canProceed && !isRescheduling ? Color.blue : Color.gray)
+                            .foregroundColor(.white)
+                            .cornerRadius(12)
+                        }
+                        .disabled(!canProceed || isRescheduling)
+                        .padding(.horizontal)
+                        
+                        // Note
+                        Text("No additional payment required for rescheduling.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .padding(.horizontal)
+                        
+                        Spacer(minLength: 40)
+                    }
+                }
+            }
+            .navigationTitle("Reschedule")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    if !showSuccess {
+                        Button("Cancel") {
+                            dismiss()
+                        }
+                    }
+                }
+            }
+            .alert("Error", isPresented: $showError) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(errorMessage)
+            }
+            .onAppear {
+                // Set initial values from current appointment
+                locationType = appointment.locationType
+                locationAddress = appointment.locationAddress ?? ""
+            }
+        }
+    }
+    
+    private func rescheduleAppointment() async {
+        guard let currentUser = authService.currentUser,
+              let dateTime = scheduledDateTime else { return }
+        
+        isRescheduling = true
+        
+        do {
+            _ = try await examService.rescheduleAppointment(
+                appointmentId: appointment.id,
+                pilotId: currentUser.id,
+                newScheduledDate: dateTime,
+                locationType: locationType,
+                locationAddress: locationType == .inPerson ? locationAddress : nil,
+                examType: appointment.examType,
+                pilotEmail: currentUser.email
+            )
+            isRescheduling = false
+            showSuccess = true
+        } catch {
+            isRescheduling = false
+            errorMessage = error.localizedDescription
+            showError = true
+        }
     }
 }
 

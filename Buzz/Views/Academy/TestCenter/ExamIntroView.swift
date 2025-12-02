@@ -13,6 +13,7 @@ struct ExamIntroView: View {
     
     @EnvironmentObject var authService: AuthService
     @StateObject private var examService = ExamService()
+    @Environment(\.dismiss) private var dismiss
     @State private var priceInfo: ExamPriceResponse?
     @State private var isLoadingPrice = true
     @State private var priceError: String?
@@ -197,7 +198,18 @@ struct ExamIntroView: View {
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(isPresented: $showSchedulingView) {
             if let price = priceInfo {
-                ExamSchedulingView(examType: examType, priceInfo: price)
+                ExamSchedulingView(
+                    examType: examType,
+                    priceInfo: price,
+                    onBookingComplete: {
+                        // First dismiss child views
+                        showSchedulingView = false
+                        // Then dismiss this view to go back to Test Center
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                            dismiss()
+                        }
+                    }
+                )
             }
         }
         .task {
