@@ -177,6 +177,8 @@ struct ExamAppointment: Identifiable, Codable {
     let locationType: ExamLocationType
     let locationAddress: String?
     let meetingLink: String?
+    let zoomMeetingId: String?
+    let zoomMeetingPassword: String?
     let status: ExamAppointmentStatus
     let stripePaymentIntentId: String?
     let stripeChargeId: String?
@@ -195,6 +197,8 @@ struct ExamAppointment: Identifiable, Codable {
         case locationType = "location_type"
         case locationAddress = "location_address"
         case meetingLink = "meeting_link"
+        case zoomMeetingId = "zoom_meeting_id"
+        case zoomMeetingPassword = "zoom_meeting_password"
         case status
         case stripePaymentIntentId = "stripe_payment_intent_id"
         case stripeChargeId = "stripe_charge_id"
@@ -216,6 +220,8 @@ struct ExamAppointment: Identifiable, Codable {
         locationType = try container.decode(ExamLocationType.self, forKey: .locationType)
         locationAddress = try container.decodeIfPresent(String.self, forKey: .locationAddress)
         meetingLink = try container.decodeIfPresent(String.self, forKey: .meetingLink)
+        zoomMeetingId = try container.decodeIfPresent(String.self, forKey: .zoomMeetingId)
+        zoomMeetingPassword = try container.decodeIfPresent(String.self, forKey: .zoomMeetingPassword)
         status = try container.decode(ExamAppointmentStatus.self, forKey: .status)
         stripePaymentIntentId = try container.decodeIfPresent(String.self, forKey: .stripePaymentIntentId)
         stripeChargeId = try container.decodeIfPresent(String.self, forKey: .stripeChargeId)
@@ -268,6 +274,8 @@ struct ExamAppointment: Identifiable, Codable {
         locationType: ExamLocationType,
         locationAddress: String? = nil,
         meetingLink: String? = nil,
+        zoomMeetingId: String? = nil,
+        zoomMeetingPassword: String? = nil,
         status: ExamAppointmentStatus = .pending,
         stripePaymentIntentId: String? = nil,
         stripeChargeId: String? = nil,
@@ -285,6 +293,8 @@ struct ExamAppointment: Identifiable, Codable {
         self.locationType = locationType
         self.locationAddress = locationAddress
         self.meetingLink = meetingLink
+        self.zoomMeetingId = zoomMeetingId
+        self.zoomMeetingPassword = zoomMeetingPassword
         self.status = status
         self.stripePaymentIntentId = stripePaymentIntentId
         self.stripeChargeId = stripeChargeId
@@ -312,6 +322,21 @@ struct ExamAppointment: Identifiable, Codable {
     
     var endDate: Date {
         Calendar.current.date(byAdding: .minute, value: durationMinutes, to: scheduledDate) ?? scheduledDate
+    }
+    
+    /// Returns true if the meeting link is a valid Zoom link (not a placeholder)
+    var hasValidZoomLink: Bool {
+        guard let link = meetingLink else { return false }
+        return link.contains("zoom.us") && !link.contains("placeholder") && !link.contains("pending")
+    }
+    
+    /// Returns the full Zoom meeting info for display
+    var zoomMeetingInfo: String? {
+        guard let link = meetingLink, hasValidZoomLink else { return nil }
+        if let password = zoomMeetingPassword, !password.isEmpty {
+            return "\(link)\nPassword: \(password)"
+        }
+        return link
     }
 }
 

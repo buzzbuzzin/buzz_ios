@@ -182,6 +182,39 @@ class ExamService: ObservableObject {
         }
     }
     
+    // MARK: - Create Zoom Meeting
+    
+    /// Creates a Zoom meeting for online exams
+    private func createZoomMeeting(
+        examType: ExamType,
+        scheduledDate: Date,
+        pilotEmail: String?
+    ) async throws -> ZoomMeetingResponse {
+        let dateFormatter = ISO8601DateFormatter()
+        dateFormatter.formatOptions = [.withInternetDateTime]
+        
+        struct ZoomRequest: Codable {
+            let topic: String
+            let scheduled_date: String
+            let duration_minutes: Int
+            let pilot_email: String?
+        }
+        
+        let request = ZoomRequest(
+            topic: "\(examType.displayName) Exam",
+            scheduled_date: dateFormatter.string(from: scheduledDate),
+            duration_minutes: examType.durationMinutes,
+            pilot_email: pilotEmail
+        )
+        
+        let response: ZoomMeetingResponse = try await supabase.functions
+            .invoke("create-zoom-meeting", options: FunctionInvokeOptions(
+                body: request
+            ))
+        
+        return response
+    }
+    
     // MARK: - Create Exam Appointment
     
     /// Creates an exam appointment record in the database after successful payment
@@ -193,7 +226,8 @@ class ExamService: ObservableObject {
         locationAddress: String?,
         paymentIntentId: String,
         chargeId: String?,
-        paymentAmount: Decimal
+        paymentAmount: Decimal,
+        pilotEmail: String? = nil
     ) async throws -> ExamAppointment {
         isLoading = true
         errorMessage = nil
@@ -202,10 +236,30 @@ class ExamService: ObservableObject {
             let dateFormatter = ISO8601DateFormatter()
             dateFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
             
-            // Generate meeting link placeholder for online exams
-            let meetingLink: String? = locationType == .online ? "https://zoom.us/j/placeholder" : nil
+            // Create Zoom meeting for online exams
+            var meetingLink: String? = nil
+            var zoomMeetingId: String? = nil
+            var zoomMeetingPassword: String? = nil
             
-            let appointmentData: [String: AnyJSON] = [
+            if locationType == .online {
+                do {
+                    let zoomMeeting = try await createZoomMeeting(
+                        examType: examType,
+                        scheduledDate: scheduledDate,
+                        pilotEmail: pilotEmail
+                    )
+                    meetingLink = zoomMeeting.joinUrl
+                    zoomMeetingId = zoomMeeting.meetingId
+                    zoomMeetingPassword = zoomMeeting.password
+                    print("✅ [ExamService] Created Zoom meeting: \(zoomMeeting.meetingId)")
+                } catch {
+                    // Log error but continue with placeholder - meeting can be created manually if needed
+                    print("⚠️ [ExamService] Failed to create Zoom meeting: \(error.localizedDescription)")
+                    meetingLink = "https://zoom.us/j/pending"
+                }
+            }
+            
+            var appointmentData: [String: AnyJSON] = [
                 "pilot_id": .string(pilotId.uuidString),
                 "exam_type": .string(examType.rawValue),
                 "scheduled_date": .string(dateFormatter.string(from: scheduledDate)),
@@ -218,6 +272,14 @@ class ExamService: ObservableObject {
                 "stripe_charge_id": chargeId.map { .string($0) } ?? .null,
                 "payment_amount": .double(NSDecimalNumber(decimal: paymentAmount).doubleValue)
             ]
+            
+            // Add Zoom-specific fields if available
+            if let zoomId = zoomMeetingId {
+                appointmentData["zoom_meeting_id"] = .string(zoomId)
+            }
+            if let zoomPassword = zoomMeetingPassword {
+                appointmentData["zoom_meeting_password"] = .string(zoomPassword)
+            }
             
             let response: [ExamAppointment] = try await supabase
                 .from("exam_appointments")
@@ -341,6 +403,20 @@ class ExamService: ObservableObject {
 }
 
 // MARK: - Response Models
+
+struct ZoomMeetingResponse: Codable {
+    let joinUrl: String
+    let meetingId: String
+    let password: String
+    let startUrl: String?
+    
+    enum CodingKeys: String, CodingKey {
+        case joinUrl = "join_url"
+        case meetingId = "meeting_id"
+        case password
+        case startUrl = "start_url"
+    }
+}
 
 struct ExamPaymentIntentResponse: Codable {
     let clientSecret: String

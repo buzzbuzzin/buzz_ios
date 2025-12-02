@@ -218,7 +218,8 @@ struct ExamPaymentView: View {
                     locationAddress: locationAddress,
                     paymentIntentId: paymentIntent.paymentIntentId,
                     chargeId: nil,
-                    paymentAmount: paymentIntent.decimalAmount
+                    paymentAmount: paymentIntent.decimalAmount,
+                    pilotEmail: currentUser.email
                 )
                 
                 createdAppointment = appointment
@@ -330,12 +331,64 @@ struct SuccessView: View {
                 }
                 
                 if appointment.locationType == .online {
-                    HStack {
-                        Image(systemName: "info.circle")
-                            .foregroundColor(.orange)
-                        Text("Zoom link will be sent via email")
-                            .font(.caption)
-                            .foregroundColor(.orange)
+                    if appointment.hasValidZoomLink, let meetingLink = appointment.meetingLink {
+                        // Show actual Zoom link with copy button
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Image(systemName: "video.fill")
+                                    .foregroundColor(.blue)
+                                Text("Zoom Meeting Link")
+                                    .font(.caption)
+                                    .fontWeight(.semibold)
+                            }
+                            
+                            HStack {
+                                Text(meetingLink)
+                                    .font(.caption)
+                                    .foregroundColor(.blue)
+                                    .lineLimit(1)
+                                    .truncationMode(.middle)
+                                
+                                Spacer()
+                                
+                                Button(action: {
+                                    UIPasteboard.general.string = meetingLink
+                                }) {
+                                    Image(systemName: "doc.on.doc")
+                                        .font(.caption)
+                                        .foregroundColor(.blue)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                            
+                            if let password = appointment.zoomMeetingPassword, !password.isEmpty {
+                                HStack {
+                                    Text("Password: \(password)")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                    
+                                    Button(action: {
+                                        UIPasteboard.general.string = password
+                                    }) {
+                                        Image(systemName: "doc.on.doc")
+                                            .font(.caption2)
+                                            .foregroundColor(.secondary)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                        }
+                        .padding(10)
+                        .background(Color.blue.opacity(0.1))
+                        .cornerRadius(8)
+                    } else {
+                        HStack {
+                            Image(systemName: "info.circle")
+                                .foregroundColor(.orange)
+                            Text("Zoom link will be sent via email")
+                                .font(.caption)
+                                .foregroundColor(.orange)
+                        }
                     }
                 }
             }
