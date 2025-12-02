@@ -133,24 +133,46 @@ struct CourseContentView: View {
         
         do {
             // Fetch sections from database
-            sections = try await academyService.fetchCourseSections(courseId: course.id)
-            print("✅ [CourseContentView] Loaded \(sections.count) sections")
+            let dbSections = try await academyService.fetchCourseSections(courseId: course.id)
+            print("✅ [CourseContentView] Loaded \(dbSections.count) sections from database")
             
             // Fetch all units for the course
             let allUnits = try await academyService.fetchCourseUnits(courseId: course.id)
             print("✅ [CourseContentView] Loaded \(allUnits.count) units")
             
-            // Group units by section_id
-            var grouped: [UUID: [CourseUnit]] = [:]
-            for unit in allUnits {
-                if let sectionId = unit.sectionId {
-                    if grouped[sectionId] == nil {
-                        grouped[sectionId] = []
+            // Check if course has sections defined in database
+            if dbSections.isEmpty && !allUnits.isEmpty {
+                // FALLBACK: Course has no sections in database - create legacy sections
+                print("⚠️ [CourseContentView] No sections found, using legacy fallback")
+                let (fallbackSections, fallbackGrouped) = createLegacySections(from: allUnits)
+                sections = fallbackSections
+                unitsBySection = fallbackGrouped
+            } else {
+                // Use database sections and group units
+                sections = dbSections
+                var grouped: [UUID: [CourseUnit]] = [:]
+                var unassignedUnits: [CourseUnit] = []
+                
+                for unit in allUnits {
+                    if let sectionId = unit.sectionId {
+                        if grouped[sectionId] == nil {
+                            grouped[sectionId] = []
+                        }
+                        grouped[sectionId]?.append(unit)
+                    } else {
+                        // Collect units without section_id
+                        unassignedUnits.append(unit)
                     }
-                    grouped[sectionId]?.append(unit)
                 }
+                
+                // Handle unassigned units by placing them in appropriate legacy sections
+                if !unassignedUnits.isEmpty {
+                    print("⚠️ [CourseContentView] Found \(unassignedUnits.count) units without section_id, assigning to legacy sections")
+                    assignUnassignedUnits(unassignedUnits, to: &grouped, sections: sections)
+                }
+                
+                unitsBySection = grouped
             }
-            unitsBySection = grouped
             
             for section in sections {
                 let unitCount = unitsBySection[section.id]?.count ?? 0
@@ -162,6 +184,120 @@ struct CourseContentView: View {
         }
         
         isLoading = false
+    }
+    
+    /// Creates legacy sections based on step_number and is_mandatory fields for courses without database sections
+    private func createLegacySections(from units: [CourseUnit]) -> ([CourseSection], [UUID: [CourseUnit]]) {
+        var sections: [LegacySection] = []
+        var grouped: [UUID: [CourseUnit]] = [:]
+        
+        // Separate units by legacy fields
+        let mandatoryUnits = units.filter { $0.isMandatory }
+        let step1Units = units.filter { !$0.isMandatory && $0.stepNumber == 1 }
+        let step2Units = units.filter { !$0.isMandatory && $0.stepNumber == 2 }
+        let step3Units = units.filter { !$0.isMandatory && $0.stepNumber == 3 }
+        let otherUnits = units.filter { !$0.isMandatory && ($0.stepNumber == nil || $0.stepNumber == 0 || $0.stepNumber! > 3) }
+        
+        // Create sections for non-empty groups
+        if !mandatoryUnits.isEmpty {
+            let section = LegacySection(name: "MANDATORY UNITS", displayOrder: 1, requiresSubscription: false, requiresTestPassed: false)
+            sections.append(section)
+            grouped[section.id] = mandatoryUnits.sorted { $0.orderIndex < $1.orderIndex }
+        }
+        
+        if !step1Units.isEmpty {
+            let section = LegacySection(name: "BASE PROGRAM", displayOrder: 2, requiresSubscription: false, requiresTestPassed: true)
+            sections.append(section)
+            grouped[section.id] = step1Units.sorted { $0.orderIndex < $1.orderIndex }
+        }
+        
+        if !step2Units.isEmpty {
+            let section = LegacySection(name: "EXTENSION COURSES", displayOrder: 3, requiresSubscription: true, requiresTestPassed: true)
+            sections.append(section)
+            grouped[section.id] = step2Units.sorted { $0.orderIndex < $1.orderIndex }
+        }
+        
+        if !step3Units.isEmpty {
+            let section = LegacySection(name: "FURTHER YOUR BASE TRAINING", displayOrder: 4, requiresSubscription: true, requiresTestPassed: true)
+            sections.append(section)
+            grouped[section.id] = step3Units.sorted { $0.orderIndex < $1.orderIndex }
+        }
+        
+        if !otherUnits.isEmpty {
+            let section = LegacySection(name: "COURSE CONTENT", displayOrder: sections.count + 1, requiresSubscription: false, requiresTestPassed: false)
+            sections.append(section)
+            grouped[section.id] = otherUnits.sorted { $0.orderIndex < $1.orderIndex }
+        }
+        
+        // Convert to CourseSection format
+        let courseSections = sections.sorted { $0.displayOrder < $1.displayOrder }.map { $0.toCourseSection(courseId: course.id) }
+        return (courseSections, grouped)
+    }
+    
+    /// Assigns units without section_id to appropriate sections based on legacy fields
+    private func assignUnassignedUnits(_ units: [CourseUnit], to grouped: inout [UUID: [CourseUnit]], sections: [CourseSection]) {
+        for unit in units {
+            // Try to find matching section based on legacy fields
+            var targetSectionId: UUID?
+            
+            if unit.isMandatory {
+                // Find MANDATORY UNITS section
+                targetSectionId = sections.first { $0.name.uppercased().contains("MANDATORY") }?.id
+            } else if let stepNumber = unit.stepNumber {
+                switch stepNumber {
+                case 1:
+                    targetSectionId = sections.first { $0.name.uppercased().contains("BASE PROGRAM") }?.id
+                case 2:
+                    targetSectionId = sections.first { $0.name.uppercased().contains("EXTENSION") }?.id
+                case 3:
+                    targetSectionId = sections.first { $0.name.uppercased().contains("FURTHER") }?.id
+                default:
+                    break
+                }
+            }
+            
+            // Fallback: assign to first available units section
+            if targetSectionId == nil {
+                targetSectionId = sections.first { $0.sectionType == "units" }?.id
+            }
+            
+            if let sectionId = targetSectionId {
+                if grouped[sectionId] == nil {
+                    grouped[sectionId] = []
+                }
+                grouped[sectionId]?.append(unit)
+                // Sort units by order_index after adding
+                grouped[sectionId]?.sort { $0.orderIndex < $1.orderIndex }
+            } else {
+                print("⚠️ [CourseContentView] Could not assign unit '\(unit.title)' to any section")
+            }
+        }
+    }
+}
+
+// MARK: - Legacy Section Helper (for courses without database sections)
+
+private struct LegacySection {
+    let id: UUID = UUID()
+    let name: String
+    let displayOrder: Int
+    let requiresSubscription: Bool
+    let requiresTestPassed: Bool
+    
+    func toCourseSection(courseId: UUID) -> CourseSection {
+        return CourseSection(
+            id: id,
+            courseId: courseId,
+            name: name,
+            displayOrder: displayOrder,
+            description: nil,
+            sectionType: "units",
+            requiresSubscription: requiresSubscription,
+            requiresTestPassed: requiresTestPassed,
+            prerequisiteSectionId: nil,
+            isActive: true,
+            examType: nil
+        )
     }
 }
 

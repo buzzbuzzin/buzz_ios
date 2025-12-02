@@ -48,5 +48,32 @@ struct CourseSection: Identifiable, Codable {
         isActive = try container.decodeIfPresent(Bool.self, forKey: .isActive) ?? true
         examType = try container.decodeIfPresent(String.self, forKey: .examType)
     }
+    
+    /// Convenience initializer for creating legacy/fallback sections programmatically
+    init(
+        id: UUID = UUID(),
+        courseId: UUID,
+        name: String,
+        displayOrder: Int,
+        description: String? = nil,
+        sectionType: String = "units",
+        requiresSubscription: Bool = false,
+        requiresTestPassed: Bool = false,
+        prerequisiteSectionId: UUID? = nil,
+        isActive: Bool = true,
+        examType: String? = nil
+    ) {
+        self.id = id
+        self.courseId = courseId
+        self.name = name
+        self.displayOrder = displayOrder
+        self.description = description
+        self.sectionType = sectionType
+        self.requiresSubscription = requiresSubscription
+        self.requiresTestPassed = requiresTestPassed
+        self.prerequisiteSectionId = prerequisiteSectionId
+        self.isActive = isActive
+        self.examType = examType
+    }
 }
 
