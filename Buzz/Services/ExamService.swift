@@ -292,6 +292,16 @@ class ExamService: ObservableObject {
                 throw ExamServiceError.failedToCreateAppointment
             }
             
+            // Send confirmation email (don't block on this)
+            if let email = pilotEmail {
+                Task {
+                    await sendConfirmationEmail(
+                        appointment: appointment,
+                        pilotEmail: email
+                    )
+                }
+            }
+            
             // Refresh appointments list
             await fetchAppointments(pilotId: pilotId)
             
@@ -301,6 +311,56 @@ class ExamService: ObservableObject {
             isLoading = false
             errorMessage = error.localizedDescription
             throw error
+        }
+    }
+    
+    // MARK: - Send Confirmation Email
+    
+    /// Sends a confirmation email for the exam appointment
+    private func sendConfirmationEmail(
+        appointment: ExamAppointment,
+        pilotEmail: String
+    ) async {
+        let dateFormatter = ISO8601DateFormatter()
+        dateFormatter.formatOptions = [.withInternetDateTime]
+        
+        struct EmailRequest: Codable {
+            let pilot_id: String
+            let pilot_email: String
+            let exam_type: String
+            let exam_type_display: String
+            let scheduled_date: String
+            let duration_minutes: Int
+            let location_type: String
+            let location_address: String?
+            let meeting_link: String?
+            let zoom_meeting_password: String?
+            let appointment_id: String
+        }
+        
+        let request = EmailRequest(
+            pilot_id: appointment.pilotId.uuidString,
+            pilot_email: pilotEmail,
+            exam_type: appointment.examType.rawValue,
+            exam_type_display: appointment.examType.displayName,
+            scheduled_date: dateFormatter.string(from: appointment.scheduledDate),
+            duration_minutes: appointment.durationMinutes,
+            location_type: appointment.locationType.rawValue,
+            location_address: appointment.locationAddress,
+            meeting_link: appointment.meetingLink,
+            zoom_meeting_password: appointment.zoomMeetingPassword,
+            appointment_id: appointment.id.uuidString
+        )
+        
+        do {
+            let _: EmptyResponse = try await supabase.functions
+                .invoke("send-exam-confirmation", options: FunctionInvokeOptions(
+                    body: request
+                ))
+            print("✅ [ExamService] Confirmation email sent to \(pilotEmail)")
+        } catch {
+            // Don't throw - email is not critical
+            print("⚠️ [ExamService] Failed to send confirmation email: \(error.localizedDescription)")
         }
     }
     
@@ -337,12 +397,13 @@ class ExamService: ObservableObject {
         errorMessage = nil
         
         do {
+            // Cancel the appointment - allow cancelling both pending and confirmed appointments
             try await supabase
                 .from("exam_appointments")
                 .update(["status": ExamAppointmentStatus.cancelled.rawValue])
                 .eq("id", value: appointmentId.uuidString)
                 .eq("pilot_id", value: pilotId.uuidString)
-                .eq("status", value: ExamAppointmentStatus.pending.rawValue)
+                .in("status", values: [ExamAppointmentStatus.pending.rawValue, ExamAppointmentStatus.confirmed.rawValue])
                 .execute()
             
             // Refresh appointments list
@@ -403,6 +464,8 @@ class ExamService: ObservableObject {
 }
 
 // MARK: - Response Models
+
+struct EmptyResponse: Codable {}
 
 struct ZoomMeetingResponse: Codable {
     let joinUrl: String

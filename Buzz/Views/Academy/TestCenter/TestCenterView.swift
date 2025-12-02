@@ -14,6 +14,7 @@ struct TestCenterView: View {
     @State private var prerequisitesStatus: ExamPrerequisitesStatus?
     @State private var isCheckingPrerequisites = true
     @State private var existingAppointments: [ExamType: Bool] = [:]
+    @State private var selectedAppointment: ExamAppointment?
     
     var body: some View {
         ScrollView {
@@ -67,9 +68,13 @@ struct TestCenterView: View {
                             .font(.headline)
                             .padding(.horizontal)
                         
-                        ForEach(examService.appointments) { appointment in
+                        ForEach(examService.appointments.filter { $0.status != .cancelled }) { appointment in
                             AppointmentCard(appointment: appointment)
                                 .padding(.horizontal)
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    selectedAppointment = appointment
+                                }
                         }
                     }
                     .padding(.top, 8)
@@ -85,6 +90,19 @@ struct TestCenterView: View {
         }
         .refreshable {
             await loadData()
+        }
+        .sheet(item: $selectedAppointment) { appointment in
+            AppointmentDetailSheet(
+                appointment: appointment,
+                examService: examService,
+                onCancelled: {
+                    selectedAppointment = nil
+                    Task {
+                        await loadData()
+                    }
+                }
+            )
+            .environmentObject(authService)
         }
     }
     
@@ -349,6 +367,280 @@ struct ExamStatusBadge: View {
         .padding(.vertical, 4)
         .background(status.color.opacity(0.1))
         .cornerRadius(6)
+    }
+}
+
+// MARK: - Appointment Detail Sheet
+
+struct AppointmentDetailSheet: View {
+    let appointment: ExamAppointment
+    let examService: ExamService
+    let onCancelled: () -> Void
+    
+    @EnvironmentObject var authService: AuthService
+    @Environment(\.dismiss) private var dismiss
+    
+    @State private var showCancelConfirmation = false
+    @State private var isCancelling = false
+    @State private var showError = false
+    @State private var errorMessage = ""
+    @State private var showCopiedAlert = false
+    
+    private var canCancel: Bool {
+        // Can only cancel pending or confirmed appointments
+        appointment.status == .pending || appointment.status == .confirmed
+    }
+    
+    private var isWithin24Hours: Bool {
+        let hoursUntilExam = Calendar.current.dateComponents([.hour], from: Date(), to: appointment.scheduledDate).hour ?? 0
+        return hoursUntilExam < 24
+    }
+    
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 24) {
+                    // Header
+                    VStack(spacing: 12) {
+                        ZStack {
+                            Circle()
+                                .fill(appointment.examType.color.opacity(0.15))
+                                .frame(width: 80, height: 80)
+                            
+                            Image(systemName: appointment.examType.icon)
+                                .font(.system(size: 36))
+                                .foregroundColor(appointment.examType.color)
+                        }
+                        
+                        Text(appointment.examType.displayName)
+                            .font(.title2)
+                            .fontWeight(.bold)
+                        
+                        ExamStatusBadge(status: appointment.status)
+                    }
+                    .padding(.top, 20)
+                    
+                    // Appointment Details
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text("Appointment Details")
+                            .font(.headline)
+                        
+                        VStack(spacing: 12) {
+                            DetailRow(icon: "calendar", label: "Date & Time", value: appointment.formattedDate)
+                            DetailRow(icon: "clock", label: "Duration", value: "\(appointment.durationMinutes) minutes")
+                            DetailRow(icon: appointment.locationType.icon, label: "Format", value: appointment.locationType.displayName)
+                            
+                            if let address = appointment.locationAddress {
+                                DetailRow(icon: "mappin.and.ellipse", label: "Location", value: address)
+                            }
+                        }
+                    }
+                    .padding()
+                    .background(Color(.systemGray6))
+                    .cornerRadius(12)
+                    .padding(.horizontal)
+                    
+                    // Zoom Link Section (for online exams)
+                    if appointment.locationType == .online, appointment.hasValidZoomLink, let meetingLink = appointment.meetingLink {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Zoom Meeting")
+                                .font(.headline)
+                            
+                            VStack(alignment: .leading, spacing: 8) {
+                                HStack {
+                                    Image(systemName: "video.fill")
+                                        .foregroundColor(.blue)
+                                    Text("Meeting Link")
+                                        .font(.subheadline)
+                                        .fontWeight(.medium)
+                                }
+                                
+                                HStack {
+                                    Text(meetingLink)
+                                        .font(.caption)
+                                        .foregroundColor(.blue)
+                                        .lineLimit(1)
+                                        .truncationMode(.middle)
+                                    
+                                    Spacer()
+                                    
+                                    Button(action: {
+                                        UIPasteboard.general.string = meetingLink
+                                        showCopiedAlert = true
+                                    }) {
+                                        HStack(spacing: 4) {
+                                            Image(systemName: "doc.on.doc")
+                                            Text("Copy")
+                                        }
+                                        .font(.caption)
+                                        .foregroundColor(.blue)
+                                    }
+                                }
+                                
+                                if let password = appointment.zoomMeetingPassword, !password.isEmpty {
+                                    HStack {
+                                        Text("Password: \(password)")
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                        
+                                        Button(action: {
+                                            UIPasteboard.general.string = password
+                                            showCopiedAlert = true
+                                        }) {
+                                            Image(systemName: "doc.on.doc")
+                                                .font(.caption2)
+                                                .foregroundColor(.secondary)
+                                        }
+                                    }
+                                }
+                                
+                                // Join Meeting Button
+                                if let url = URL(string: meetingLink) {
+                                    Link(destination: url) {
+                                        HStack {
+                                            Image(systemName: "video.fill")
+                                            Text("Join Zoom Meeting")
+                                        }
+                                        .font(.subheadline)
+                                        .fontWeight(.semibold)
+                                        .frame(maxWidth: .infinity)
+                                        .padding()
+                                        .background(Color.blue)
+                                        .foregroundColor(.white)
+                                        .cornerRadius(10)
+                                    }
+                                    .padding(.top, 8)
+                                }
+                            }
+                        }
+                        .padding()
+                        .background(Color.blue.opacity(0.05))
+                        .cornerRadius(12)
+                        .padding(.horizontal)
+                    }
+                    
+                    // Cancel Button
+                    if canCancel {
+                        VStack(spacing: 12) {
+                            Button(action: {
+                                showCancelConfirmation = true
+                            }) {
+                                HStack {
+                                    if isCancelling {
+                                        ProgressView()
+                                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                    } else {
+                                        Image(systemName: "xmark.circle")
+                                        Text("Cancel Appointment")
+                                    }
+                                }
+                                .fontWeight(.semibold)
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(Color.red)
+                                .foregroundColor(.white)
+                                .cornerRadius(12)
+                            }
+                            .disabled(isCancelling)
+                            
+                            if isWithin24Hours {
+                                HStack {
+                                    Image(systemName: "exclamationmark.triangle.fill")
+                                        .foregroundColor(.orange)
+                                    Text("Cancellation within 24 hours is non-refundable")
+                                        .font(.caption)
+                                        .foregroundColor(.orange)
+                                }
+                            } else {
+                                Text("You can cancel up to 24 hours before for a full refund")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        .padding(.horizontal)
+                    }
+                    
+                    Spacer(minLength: 40)
+                }
+            }
+            .navigationTitle("Appointment")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+            }
+            .confirmationDialog(
+                "Cancel Appointment",
+                isPresented: $showCancelConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button("Cancel Appointment", role: .destructive) {
+                    Task {
+                        await cancelAppointment()
+                    }
+                }
+                Button("Keep Appointment", role: .cancel) {}
+            } message: {
+                if isWithin24Hours {
+                    Text("This cancellation is within 24 hours and is non-refundable. Are you sure you want to cancel?")
+                } else {
+                    Text("Are you sure you want to cancel this appointment? You will receive a full refund.")
+                }
+            }
+            .alert("Error", isPresented: $showError) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(errorMessage)
+            }
+            .alert("Copied!", isPresented: $showCopiedAlert) {
+                Button("OK", role: .cancel) {}
+            }
+        }
+    }
+    
+    private func cancelAppointment() async {
+        guard let currentUser = authService.currentUser else { return }
+        
+        isCancelling = true
+        
+        do {
+            try await examService.cancelAppointment(
+                appointmentId: appointment.id,
+                pilotId: currentUser.id
+            )
+            isCancelling = false
+            onCancelled()
+        } catch {
+            isCancelling = false
+            errorMessage = error.localizedDescription
+            showError = true
+        }
+    }
+}
+
+struct DetailRow: View {
+    let icon: String
+    let label: String
+    let value: String
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .foregroundColor(.blue)
+                .frame(width: 24)
+            
+            Text(label)
+                .foregroundColor(.secondary)
+            
+            Spacer()
+            
+            Text(value)
+                .fontWeight(.medium)
+                .multilineTextAlignment(.trailing)
+        }
     }
 }
 

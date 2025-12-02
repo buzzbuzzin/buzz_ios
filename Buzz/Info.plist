@@ -10,6 +10,10 @@
 	<string>Buzz needs your location to show weather conditions, display your position on maps, and provide flight safety information.</string>
 	<key>NSUserNotificationsUsageDescription</key>
 	<string>Buzz sends you important notifications about bookings, messages, weather updates, and nearby drone activity to keep you informed and safe.</string>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>Buzz needs calendar access to add your scheduled exams and bookings to your calendar so you don't miss them.</string>
+	<key>NSCalendarsUsageDescription</key>
+	<string>Buzz needs calendar access to add your scheduled exams and bookings to your calendar so you don't miss them.</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
