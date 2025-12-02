@@ -188,7 +188,7 @@ struct ExamPaymentView: View {
     
     // MARK: - Test Mode Flag
     // TODO: Remove this before production release!
-    private let testModeBypassPayment = true
+    private let testModeBypassPayment = false
     
     private func processPayment() async {
         guard let currentUser = authService.currentUser else {
