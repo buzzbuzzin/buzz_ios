@@ -15,8 +15,9 @@ struct CourseUnit: Identifiable, Codable {
     let description: String?
     let content: String?
     let pdfUrls: [String] // Array of URLs to PDF course materials (multiple modules per unit)
-    let stepNumber: Int?
-    let isMandatory: Bool
+    let sectionId: UUID?  // NEW: Reference to course_sections table
+    let stepNumber: Int?  // DEPRECATED: Use sectionId instead
+    let isMandatory: Bool // DEPRECATED: Use sectionId instead
     let orderIndex: Int
     
     enum CodingKeys: String, CodingKey {
@@ -27,6 +28,7 @@ struct CourseUnit: Identifiable, Codable {
         case description
         case content
         case pdfUrl = "pdf_url"
+        case sectionId = "section_id"
         case stepNumber = "step_number"
         case isMandatory = "is_mandatory"
         case orderIndex = "order_index"
@@ -40,8 +42,9 @@ struct CourseUnit: Identifiable, Codable {
         title = try container.decode(String.self, forKey: .title)
         description = try container.decodeIfPresent(String.self, forKey: .description)
         content = try container.decodeIfPresent(String.self, forKey: .content)
+        sectionId = try container.decodeIfPresent(UUID.self, forKey: .sectionId)
         stepNumber = try container.decodeIfPresent(Int.self, forKey: .stepNumber)
-        isMandatory = try container.decode(Bool.self, forKey: .isMandatory)
+        isMandatory = try container.decodeIfPresent(Bool.self, forKey: .isMandatory) ?? false
         orderIndex = try container.decode(Int.self, forKey: .orderIndex)
         
         // Handle pdf_url as either JSON array or single string (for backward compatibility)
@@ -62,6 +65,7 @@ struct CourseUnit: Identifiable, Codable {
         try container.encode(title, forKey: .title)
         try container.encodeIfPresent(description, forKey: .description)
         try container.encodeIfPresent(content, forKey: .content)
+        try container.encodeIfPresent(sectionId, forKey: .sectionId)
         try container.encodeIfPresent(stepNumber, forKey: .stepNumber)
         try container.encode(isMandatory, forKey: .isMandatory)
         try container.encode(orderIndex, forKey: .orderIndex)

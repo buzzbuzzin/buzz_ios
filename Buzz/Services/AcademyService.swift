@@ -152,6 +152,27 @@ class AcademyService: ObservableObject {
         }
     }
     
+    // MARK: - Fetch Course Sections
+    
+    func fetchCourseSections(courseId: UUID) async throws -> [CourseSection] {
+        do {
+            let response: [CourseSection] = try await supabase
+                .from("course_sections")
+                .select()
+                .eq("course_id", value: courseId.uuidString)
+                .eq("is_active", value: true)
+                .order("display_order", ascending: true)
+                .execute()
+                .value
+            
+            print("✅ [AcademyService] Fetched \(response.count) sections for course")
+            return response
+        } catch {
+            print("Error fetching course sections: \(error)")
+            throw error
+        }
+    }
+    
     // MARK: - Fetch Course Units
     
     func fetchCourseUnits(courseId: UUID) async throws -> [CourseUnit] {
@@ -167,6 +188,25 @@ class AcademyService: ObservableObject {
             return response
         } catch {
             print("Error fetching course units: \(error)")
+            throw error
+        }
+    }
+    
+    // MARK: - Fetch Units for Section
+    
+    func fetchUnitsForSection(sectionId: UUID) async throws -> [CourseUnit] {
+        do {
+            let response: [CourseUnit] = try await supabase
+                .from("course_units")
+                .select()
+                .eq("section_id", value: sectionId.uuidString)
+                .order("order_index", ascending: true)
+                .execute()
+                .value
+            
+            return response
+        } catch {
+            print("Error fetching units for section: \(error)")
             throw error
         }
     }
