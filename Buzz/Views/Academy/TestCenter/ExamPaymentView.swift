@@ -17,6 +17,7 @@ struct ExamPaymentView: View {
     let scheduledDate: Date
     let locationType: ExamLocationType
     let locationAddress: String?
+    var onBookingComplete: (() -> Void)?
     
     @EnvironmentObject var authService: AuthService
     @StateObject private var examService = ExamService()
@@ -44,7 +45,11 @@ struct ExamPaymentView: View {
                 if showSuccess, let appointment = createdAppointment {
                     SuccessView(appointment: appointment) {
                         // Dismiss back to Test Center
-                        dismiss()
+                        if let onComplete = onBookingComplete {
+                            onComplete()
+                        } else {
+                            dismiss()
+                        }
                     }
                 } else {
                     // Header
@@ -152,13 +157,13 @@ struct ExamPaymentView: View {
                     .disabled(isProcessingPayment)
                     .padding(.horizontal)
                     
-                    // Cancellation Policy
+                    // Reschedule Policy
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("Cancellation Policy")
+                        Text("Reschedule Policy")
                             .font(.caption)
                             .fontWeight(.semibold)
                         
-                        Text("You may cancel or reschedule your exam up to 24 hours before the scheduled time for a full refund. Cancellations made less than 24 hours before the exam are non-refundable.")
+                        Text("Exam fees are non-refundable. You may reschedule your exam up to 24 hours before the scheduled time at no additional cost. Rescheduling is not available within 24 hours of your exam.")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }

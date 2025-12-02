@@ -417,6 +417,93 @@ class ExamService: ObservableObject {
         }
     }
     
+    // MARK: - Reschedule Appointment
+    
+    /// Reschedules an exam appointment to a new date/time
+    /// Note: Rescheduling is only allowed more than 24 hours before the scheduled time
+    func rescheduleAppointment(
+        appointmentId: UUID,
+        pilotId: UUID,
+        newScheduledDate: Date,
+        locationType: ExamLocationType,
+        locationAddress: String?,
+        examType: ExamType,
+        pilotEmail: String? = nil
+    ) async throws -> ExamAppointment {
+        isLoading = true
+        errorMessage = nil
+        
+        do {
+            let dateFormatter = ISO8601DateFormatter()
+            dateFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            
+            // Create new Zoom meeting for online exams
+            var meetingLink: String? = nil
+            var zoomMeetingId: String? = nil
+            var zoomMeetingPassword: String? = nil
+            
+            if locationType == .online {
+                do {
+                    let zoomMeeting = try await createZoomMeeting(
+                        examType: examType,
+                        scheduledDate: newScheduledDate,
+                        pilotEmail: pilotEmail
+                    )
+                    meetingLink = zoomMeeting.joinUrl
+                    zoomMeetingId = zoomMeeting.meetingId
+                    zoomMeetingPassword = zoomMeeting.password
+                    print("✅ [ExamService] Created new Zoom meeting for reschedule: \(zoomMeeting.meetingId)")
+                } catch {
+                    print("⚠️ [ExamService] Failed to create Zoom meeting for reschedule: \(error.localizedDescription)")
+                    meetingLink = "https://zoom.us/j/pending"
+                }
+            }
+            
+            var updateData: [String: AnyJSON] = [
+                "scheduled_date": .string(dateFormatter.string(from: newScheduledDate)),
+                "location_type": .string(locationType.rawValue),
+                "location_address": locationAddress.map { .string($0) } ?? .null,
+                "meeting_link": meetingLink.map { .string($0) } ?? .null,
+                "zoom_meeting_id": zoomMeetingId.map { .string($0) } ?? .null,
+                "zoom_meeting_password": zoomMeetingPassword.map { .string($0) } ?? .null
+            ]
+            
+            let response: [ExamAppointment] = try await supabase
+                .from("exam_appointments")
+                .update(updateData)
+                .eq("id", value: appointmentId.uuidString)
+                .eq("pilot_id", value: pilotId.uuidString)
+                .in("status", values: [ExamAppointmentStatus.pending.rawValue, ExamAppointmentStatus.confirmed.rawValue])
+                .select()
+                .execute()
+                .value
+            
+            guard let appointment = response.first else {
+                throw ExamServiceError.failedToRescheduleAppointment
+            }
+            
+            // Send confirmation email for rescheduled appointment
+            if let email = pilotEmail {
+                Task {
+                    await sendConfirmationEmail(
+                        appointment: appointment,
+                        pilotEmail: email
+                    )
+                }
+            }
+            
+            // Refresh appointments list
+            await fetchAppointments(pilotId: pilotId)
+            
+            isLoading = false
+            return appointment
+        } catch {
+            isLoading = false
+            errorMessage = error.localizedDescription
+            throw error
+        }
+    }
+    
     // MARK: - Check if Exam Already Scheduled
     
     /// Checks if a pilot already has a pending/confirmed appointment for this exam type
@@ -517,20 +604,26 @@ struct ExamPaymentIntentResponse: Codable {
 
 enum ExamServiceError: LocalizedError {
     case failedToCreateAppointment
+    case failedToRescheduleAppointment
     case prerequisitesNotMet
     case examAlreadyScheduled
     case invalidExamType
+    case cannotRescheduleWithin24Hours
     
     var errorDescription: String? {
         switch self {
         case .failedToCreateAppointment:
             return "Failed to create exam appointment. Please try again."
+        case .failedToRescheduleAppointment:
+            return "Failed to reschedule exam appointment. Please try again."
         case .prerequisitesNotMet:
             return "You must pass the Ground School Test and complete Unit 4 before scheduling this exam."
         case .examAlreadyScheduled:
             return "You already have a pending or confirmed appointment for this exam."
         case .invalidExamType:
             return "Invalid exam type selected."
+        case .cannotRescheduleWithin24Hours:
+            return "Rescheduling is not available within 24 hours of your scheduled exam."
         }
     }
 }

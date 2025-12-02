@@ -197,7 +197,13 @@ struct ExamIntroView: View {
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(isPresented: $showSchedulingView) {
             if let price = priceInfo {
-                ExamSchedulingView(examType: examType, priceInfo: price)
+                ExamSchedulingView(
+                    examType: examType,
+                    priceInfo: price,
+                    onBookingComplete: {
+                        showSchedulingView = false
+                    }
+                )
             }
         }
         .task {

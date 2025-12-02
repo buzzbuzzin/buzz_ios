@@ -44,156 +44,147 @@ function formatDate(dateString: string): string {
   })
 }
 
+// Helper function to remove trailing whitespace from each line
+function trimLines(str: string): string {
+  return str.split('\n').map(line => line.trimEnd()).join('\n')
+}
+
 function generateEmailHtml(data: ExamConfirmationRequest): string {
   const formattedDate = formatDate(data.scheduled_date)
   const isOnline = data.location_type === 'online'
   const currentYear = new Date().getFullYear()
-  
-  // Build Zoom meeting section for online exams (no indentation to avoid =20 encoding)
+
+  // Build Zoom meeting section for online exams (inline to avoid whitespace)
   let zoomSection = ''
   if (isOnline && data.meeting_link) {
-    const passwordHtml = data.zoom_meeting_password 
-      ? `<p style="font-size:14px; color:#7f8c8d;"><strong>Password:</strong> ${data.zoom_meeting_password}</p>` 
+    const passwordHtml = data.zoom_meeting_password
+      ? `<p style="font-size:14px;color:#7f8c8d;margin:8px 0 0 0;"><strong>Password:</strong> ${data.zoom_meeting_password}</p>`
       : ''
-    zoomSection = `<p style="margin-top:24px; margin-bottom:8px; font-weight:bold; color:#282C35;">Zoom Meeting Details:</p><p style="text-align:center; margin:16px 0;"><a href="${data.meeting_link}" style="background-color:#282C35; text-decoration:none; color:white; padding:14px 28px; border-radius:6px; font-weight:bold; display:inline-block;">Join Zoom Meeting</a></p><p style="font-size:14px; word-break:break-word; color:#7f8c8d;"><strong>Meeting Link:</strong> <a href="${data.meeting_link}" style="color:#2563EB;">${data.meeting_link}</a></p>${passwordHtml}`
+    zoomSection = `<p style="margin-top:24px;margin-bottom:8px;font-weight:bold;color:#282C35;">Zoom Meeting Details:</p><p style="text-align:center;margin:16px 0;"><a href="${data.meeting_link}" style="background-color:#282C35;text-decoration:none;color:white;padding:14px 28px;border-radius:6px;font-weight:bold;display:inline-block;">Join Zoom Meeting</a></p><p style="font-size:14px;word-break:break-word;color:#7f8c8d;margin:0;"><strong>Meeting Link:</strong> <a href="${data.meeting_link}" style="color:#2563EB;">${data.meeting_link}</a></p>${passwordHtml}`
   }
-  
-  // Build location section for in-person exams (no indentation to avoid =20 encoding)
+
+  // Build location section for in-person exams (inline to avoid whitespace)
   let locationSection = ''
   if (!isOnline && data.location_address) {
-    locationSection = `<p style="margin-top:24px; margin-bottom:8px; font-weight:bold; color:#282C35;">Location:</p><p style="font-size:14px; color:#7f8c8d;">${data.location_address}</p>`
+    locationSection = `<p style="margin-top:24px;margin-bottom:8px;font-weight:bold;color:#282C35;">Location:</p><p style="font-size:14px;color:#7f8c8d;margin:0;">${data.location_address}</p>`
   }
 
-  return `<!DOCTYPE html>
+  // Build reminder items
+  const reminderItems = isOnline
+    ? '<li>Please be ready 10 minutes before your scheduled time</li><li>Ensure you have a stable internet connection and working camera/microphone</li><li>Results will be provided immediately after completion</li>'
+    : '<li>Please be ready 10 minutes before your scheduled time</li><li>Bring valid government-issued identification</li><li>Results will be provided immediately after completion</li>'
+
+  // Use trimLines to remove any trailing whitespace from each line
+  const html = trimLines(`<!DOCTYPE html>
 <html>
 <head>
-  <meta charset="UTF-8" />
-  <title>Exam Confirmed</title>
+<meta charset="UTF-8"/>
+<title>Exam Confirmed</title>
 </head>
-<body style="margin:0; padding:0; background-color:#EFEFF3; font-family:Arial, sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#EFEFF3; padding:40px 0;">
-    <tr>
-      <td align="center">
-
-        <!-- Container -->
-        <table width="480" cellpadding="0" cellspacing="0" 
-          style="background:#ffffff; border-radius:10px; overflow:hidden; box-shadow:0px 4px 8px rgba(0,0,0,0.08);">
-
-          <!-- Header -->
-          <tr>
-            <td style="background:#282C35; padding:24px; text-align:center; color:white; font-size:24px; font-weight:bold;">
-              Exam Confirmed
-            </td>
-          </tr>
-
-          <!-- Body -->
-          <tr>
-            <td style="padding:32px; color:#444444; font-size:16px; line-height:1.6;">
-              <p>Hi there,</p>
-              <p>Great news! Your <strong>${data.exam_type_display}</strong> has been successfully scheduled. Here are your appointment details:</p>
-
-              <!-- Appointment Details Box -->
-              <table width="100%" cellpadding="12" cellspacing="0" style="background-color:#F4F4F6; border-radius:8px; margin:24px 0;">
-                <tr>
-                  <td style="color:#666666; width:40%;">Exam Type:</td>
-                  <td style="font-weight:bold; color:#282C35;">${data.exam_type_display}</td>
-                </tr>
-                <tr>
-                  <td style="color:#666666;">Date & Time:</td>
-                  <td style="font-weight:bold; color:#282C35;">${formattedDate}</td>
-                </tr>
-                <tr>
-                  <td style="color:#666666;">Duration:</td>
-                  <td style="font-weight:bold; color:#282C35;">${data.duration_minutes} minutes</td>
-                </tr>
-                <tr>
-                  <td style="color:#666666;">Format:</td>
-                  <td style="font-weight:bold; color:#282C35;">${isOnline ? 'Online (Zoom)' : 'In-Person'}</td>
-                </tr>
-              </table>
-
-              ${zoomSection}
-              ${locationSection}
-
-              <!-- Reminders -->
-              <p style="margin-top:24px; font-weight:bold; color:#282C35;">Important Reminders:</p>
-              <ul style="color:#666666; padding-left:20px;">
-                <li>Please be ready 10 minutes before your scheduled time</li>
-                ${isOnline ? '<li>Ensure you have a stable internet connection and working camera/microphone</li>' : '<li>Bring valid government-issued identification</li>'}
-                <li>Results will be provided immediately after completion</li>
-              </ul>
-
-              <!-- Cancellation Policy -->
-              <p style="margin-top:24px; padding:16px; background-color:#FFF3CD; border-radius:8px; font-size:14px; color:#856404;">
-                <strong>Cancellation Policy:</strong> You may cancel or reschedule up to 24 hours before your scheduled time for a full refund. Late cancellations are non-refundable.
-              </p>
-
-              <p style="margin-top:24px;">If you have any questions, please don't hesitate to contact our support team.</p>
-              
-              <p>See you soon!</p>
-            </td>
-          </tr>
-
-          <!-- Footer -->
-          <tr>
-            <td style="background-color:#F4F4F6; padding:16px; text-align:center; font-size:12px; color:#888888;">
-              © ${currentYear} Buzz Inc. | All rights reserved
-            </td>
-          </tr>
-
-        </table>
-        <!-- End Container -->
-
-      </td>
-    </tr>
-  </table>
+<body style="margin:0;padding:0;background-color:#EFEFF3;font-family:Arial,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background-color:#EFEFF3;padding:40px 0;">
+<tr>
+<td align="center">
+<table width="480" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:10px;overflow:hidden;box-shadow:0px 4px 8px rgba(0,0,0,0.08);">
+<tr>
+<td style="background:#282C35;padding:24px;text-align:center;color:white;font-size:24px;font-weight:bold;">
+Exam Confirmed
+</td>
+</tr>
+<tr>
+<td style="padding:32px;color:#444444;font-size:16px;line-height:1.6;">
+<p style="margin:0 0 16px 0;">Hi there,</p>
+<p style="margin:0 0 16px 0;">Great news! Your <strong>${data.exam_type_display}</strong> has been successfully scheduled. Here are your appointment details:</p>
+<table width="100%" cellpadding="12" cellspacing="0" style="background-color:#F4F4F6;border-radius:8px;margin:24px 0;">
+<tr>
+<td style="color:#666666;width:40%;">Exam Type:</td>
+<td style="font-weight:bold;color:#282C35;">${data.exam_type_display}</td>
+</tr>
+<tr>
+<td style="color:#666666;">Date &amp; Time:</td>
+<td style="font-weight:bold;color:#282C35;">${formattedDate}</td>
+</tr>
+<tr>
+<td style="color:#666666;">Duration:</td>
+<td style="font-weight:bold;color:#282C35;">${data.duration_minutes} minutes</td>
+</tr>
+<tr>
+<td style="color:#666666;">Format:</td>
+<td style="font-weight:bold;color:#282C35;">${isOnline ? 'Online (Zoom)' : 'In-Person'}</td>
+</tr>
+</table>
+${zoomSection}${locationSection}
+<p style="margin-top:24px;margin-bottom:8px;font-weight:bold;color:#282C35;">Important Reminders:</p>
+<ul style="color:#666666;padding-left:20px;margin:0 0 16px 0;">
+${reminderItems}
+</ul>
+<p style="margin-top:24px;padding:16px;background-color:#FFF3CD;border-radius:8px;font-size:14px;color:#856404;">
+<strong>Reschedule Policy:</strong> Exam fees are non-refundable. You may reschedule up to 24 hours before your scheduled time at no additional cost. Rescheduling is not available within 24 hours of your exam.
+</p>
+<p style="margin-top:24px;margin-bottom:16px;">If you have any questions, please don't hesitate to contact our support team.</p>
+<p style="margin:0;">See you soon!</p>
+</td>
+</tr>
+<tr>
+<td style="background-color:#F4F4F6;padding:16px;text-align:center;font-size:12px;color:#888888;">
+&copy; ${currentYear} Buzz Inc. | All rights reserved
+</td>
+</tr>
+</table>
+</td>
+</tr>
+</table>
 </body>
-</html>`
+</html>`)
+
+  return html
 }
 
 function generateEmailText(data: ExamConfirmationRequest): string {
   const formattedDate = formatDate(data.scheduled_date)
   const isOnline = data.location_type === 'online'
-  
-  let locationInfo = ''
+
+  const lines: string[] = [
+    'EXAM CONFIRMED!',
+    '',
+    `Your ${data.exam_type_display} has been successfully scheduled.`,
+    '',
+    'APPOINTMENT DETAILS',
+    `- Exam Type: ${data.exam_type_display}`,
+    `- Date & Time: ${formattedDate}`,
+    `- Duration: ${data.duration_minutes} minutes`,
+    `- Format: ${isOnline ? 'Online (Zoom)' : 'In-Person'}`,
+  ]
+
   if (isOnline && data.meeting_link) {
-    locationInfo = `
-ZOOM MEETING DETAILS
-Join Link: ${data.meeting_link}
-${data.zoom_meeting_password ? `Password: ${data.zoom_meeting_password}` : ''}
-`
+    lines.push('')
+    lines.push('ZOOM MEETING DETAILS')
+    lines.push(`Join Link: ${data.meeting_link}`)
+    if (data.zoom_meeting_password) {
+      lines.push(`Password: ${data.zoom_meeting_password}`)
+    }
   } else if (data.location_address) {
-    locationInfo = `
-LOCATION
-${data.location_address}
-`
+    lines.push('')
+    lines.push('LOCATION')
+    lines.push(data.location_address)
   }
 
-  return `
-EXAM CONFIRMED!
+  lines.push('')
+  lines.push('IMPORTANT REMINDERS')
+  lines.push('- Please be ready 10 minutes before your scheduled time')
+  lines.push(isOnline
+    ? '- Ensure you have a stable internet connection and working camera/microphone'
+    : '- Bring valid government-issued identification')
+  lines.push('- Results will be provided immediately after completion')
+  lines.push('')
+  lines.push('RESCHEDULE POLICY')
+  lines.push('Exam fees are non-refundable. You may reschedule your exam up to 24 hours before the scheduled time at no additional cost. Rescheduling is not available within 24 hours of your exam.')
+  lines.push('')
+  lines.push('---')
+  lines.push('This email was sent by Buzz App.')
+  lines.push('If you have any questions, please contact our support team.')
 
-Your ${data.exam_type_display} has been successfully scheduled.
-
-APPOINTMENT DETAILS
-- Exam Type: ${data.exam_type_display}
-- Date & Time: ${formattedDate}
-- Duration: ${data.duration_minutes} minutes
-- Format: ${isOnline ? 'Online (Zoom)' : 'In-Person'}
-${locationInfo}
-
-IMPORTANT REMINDERS
-- Please confirm your appointment 24 hours before the scheduled time
-- ${isOnline ? 'Join the Zoom meeting 5 minutes early' : 'Arrive at the location 10 minutes early'}
-- Bring valid identification
-- Results will be provided immediately after completion
-
-CANCELLATION POLICY
-You may cancel or reschedule your exam up to 24 hours before the scheduled time for a full refund. Cancellations made less than 24 hours before the exam are non-refundable.
-
----
-This email was sent by Buzz App.
-If you have any questions, please contact our support team.
-`
+  return lines.join('\n')
 }
 
 serve(async (req) => {
@@ -251,11 +242,14 @@ serve(async (req) => {
     })
 
     try {
+      // Generate plain text version
+      const textContent = generateEmailText(data)
+
       await client.send({
         from: `${FROM_NAME} <${FROM_EMAIL}>`,
         to: data.pilot_email,
         subject: emailSubject,
-        content: "auto",
+        content: textContent,
         html: htmlContent,
       })
       
