@@ -49,31 +49,19 @@ function generateEmailHtml(data: ExamConfirmationRequest): string {
   const isOnline = data.location_type === 'online'
   const currentYear = new Date().getFullYear()
   
-  // Build Zoom meeting section for online exams
+  // Build Zoom meeting section for online exams (no indentation to avoid =20 encoding)
   let zoomSection = ''
   if (isOnline && data.meeting_link) {
-    zoomSection = `
-      <p style="margin-top: 24px; margin-bottom: 8px; font-weight: bold; color: #282C35;">Zoom Meeting Details:</p>
-      <p style="text-align:center; margin:16px 0;">
-        <a href="${data.meeting_link}"
-          style="background-color:#282C35; text-decoration:none; color:white; padding:14px 28px; border-radius:6px; font-weight:bold; display:inline-block;">
-          Join Zoom Meeting
-        </a>
-      </p>
-      <p style="font-size:14px; word-break:break-word; color:#7f8c8d;">
-        <strong>Meeting Link:</strong> ${data.meeting_link}
-      </p>
-      ${data.zoom_meeting_password ? `<p style="font-size:14px; color:#7f8c8d;"><strong>Password:</strong> ${data.zoom_meeting_password}</p>` : ''}
-    `
+    const passwordHtml = data.zoom_meeting_password 
+      ? `<p style="font-size:14px; color:#7f8c8d;"><strong>Password:</strong> ${data.zoom_meeting_password}</p>` 
+      : ''
+    zoomSection = `<p style="margin-top:24px; margin-bottom:8px; font-weight:bold; color:#282C35;">Zoom Meeting Details:</p><p style="text-align:center; margin:16px 0;"><a href="${data.meeting_link}" style="background-color:#282C35; text-decoration:none; color:white; padding:14px 28px; border-radius:6px; font-weight:bold; display:inline-block;">Join Zoom Meeting</a></p><p style="font-size:14px; word-break:break-word; color:#7f8c8d;"><strong>Meeting Link:</strong> <a href="${data.meeting_link}" style="color:#2563EB;">${data.meeting_link}</a></p>${passwordHtml}`
   }
   
-  // Build location section for in-person exams
+  // Build location section for in-person exams (no indentation to avoid =20 encoding)
   let locationSection = ''
   if (!isOnline && data.location_address) {
-    locationSection = `
-      <p style="margin-top: 24px; margin-bottom: 8px; font-weight: bold; color: #282C35;">Location:</p>
-      <p style="font-size:14px; color:#7f8c8d;">${data.location_address}</p>
-    `
+    locationSection = `<p style="margin-top:24px; margin-bottom:8px; font-weight:bold; color:#282C35;">Location:</p><p style="font-size:14px; color:#7f8c8d;">${data.location_address}</p>`
   }
 
   return `<!DOCTYPE html>
