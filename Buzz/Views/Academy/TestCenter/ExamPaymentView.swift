@@ -8,6 +8,8 @@
 import SwiftUI
 import Auth
 import StripePaymentSheet
+import EventKit
+import EventKitUI
 
 struct ExamPaymentView: View {
     let examType: ExamType
@@ -179,6 +181,10 @@ struct ExamPaymentView: View {
         }
     }
     
+    // MARK: - Test Mode Flag
+    // TODO: Remove this before production release!
+    private let testModeBypassPayment = true
+    
     private func processPayment() async {
         guard let currentUser = authService.currentUser else {
             errorMessage = "You must be logged in to make a payment."
@@ -189,6 +195,27 @@ struct ExamPaymentView: View {
         isProcessingPayment = true
         
         do {
+            // TEST MODE: Bypass payment for testing Zoom integration
+            if testModeBypassPayment {
+                print("⚠️ TEST MODE: Bypassing payment flow")
+                let appointment = try await examService.createExamAppointment(
+                    pilotId: currentUser.id,
+                    examType: examType,
+                    scheduledDate: scheduledDate,
+                    locationType: locationType,
+                    locationAddress: locationAddress,
+                    paymentIntentId: "test_pi_\(UUID().uuidString)",
+                    chargeId: nil,
+                    paymentAmount: priceInfo.decimalAmount,
+                    pilotEmail: currentUser.email
+                )
+                
+                createdAppointment = appointment
+                isProcessingPayment = false
+                showSuccess = true
+                return
+            }
+            
             // Create PaymentIntent
             let paymentIntent = try await examService.createExamPaymentIntent(
                 examType: examType,
@@ -272,6 +299,12 @@ struct BookingDetailRow: View {
 struct SuccessView: View {
     let appointment: ExamAppointment
     let onDone: () -> Void
+    
+    @State private var showCalendarAlert = false
+    @State private var calendarAlertMessage = ""
+    @State private var calendarAdded = false
+    
+    private let eventStore = EKEventStore()
     
     var body: some View {
         VStack(spacing: 24) {
@@ -397,6 +430,24 @@ struct SuccessView: View {
             .cornerRadius(12)
             .padding(.horizontal)
             
+            // Add to Calendar Button
+            Button(action: {
+                addToCalendar()
+            }) {
+                HStack {
+                    Image(systemName: calendarAdded ? "checkmark.circle.fill" : "calendar.badge.plus")
+                    Text(calendarAdded ? "Added to Calendar" : "Add to Calendar")
+                }
+                .fontWeight(.medium)
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(calendarAdded ? Color.green.opacity(0.2) : Color(.systemGray5))
+                .foregroundColor(calendarAdded ? .green : .primary)
+                .cornerRadius(12)
+            }
+            .disabled(calendarAdded)
+            .padding(.horizontal)
+            
             // Confirmation Message
             VStack(spacing: 8) {
                 Image(systemName: "envelope.fill")
@@ -421,6 +472,79 @@ struct SuccessView: View {
             }
             .padding(.horizontal)
             .padding(.bottom, 20)
+        }
+        .alert("Calendar", isPresented: $showCalendarAlert) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(calendarAlertMessage)
+        }
+    }
+    
+    private func addToCalendar() {
+        eventStore.requestFullAccessToEvents { granted, error in
+            DispatchQueue.main.async {
+                if granted {
+                    createCalendarEvent()
+                } else {
+                    calendarAlertMessage = "Calendar access denied. Please enable calendar access in Settings to add this event."
+                    showCalendarAlert = true
+                }
+            }
+        }
+    }
+    
+    private func createCalendarEvent() {
+        let event = EKEvent(eventStore: eventStore)
+        
+        // Set event title
+        event.title = "\(appointment.examType.displayName) - Buzz"
+        
+        // Set start and end times
+        event.startDate = appointment.scheduledDate
+        event.endDate = appointment.endDate
+        
+        // Set location
+        if appointment.locationType == .online {
+            if let meetingLink = appointment.meetingLink {
+                event.location = meetingLink
+            } else {
+                event.location = "Online via Zoom"
+            }
+        } else if let address = appointment.locationAddress {
+            event.location = address
+        }
+        
+        // Set notes with details
+        var notes = "Exam Type: \(appointment.examType.displayName)\n"
+        notes += "Duration: \(appointment.durationMinutes) minutes\n"
+        notes += "Format: \(appointment.locationType.displayName)\n"
+        
+        if appointment.locationType == .online {
+            if let meetingLink = appointment.meetingLink {
+                notes += "\nZoom Link: \(meetingLink)\n"
+            }
+            if let password = appointment.zoomMeetingPassword, !password.isEmpty {
+                notes += "Password: \(password)\n"
+            }
+        }
+        
+        notes += "\nBooked via Buzz App"
+        event.notes = notes
+        
+        // Add 30-minute reminder
+        event.addAlarm(EKAlarm(relativeOffset: -1800)) // 30 minutes before
+        
+        // Add to default calendar
+        event.calendar = eventStore.defaultCalendarForNewEvents
+        
+        do {
+            try eventStore.save(event, span: .thisEvent)
+            calendarAdded = true
+            calendarAlertMessage = "Event added to your calendar!"
+            showCalendarAlert = true
+        } catch {
+            calendarAlertMessage = "Failed to add event: \(error.localizedDescription)"
+            showCalendarAlert = true
         }
     }
 }

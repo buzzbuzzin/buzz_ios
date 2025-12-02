@@ -4,13 +4,13 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts"
 
-// SMTP Configuration - set these as Supabase secrets
-const SMTP_HOST = Deno.env.get("SMTP_HOST") || "mail.buzzacademy.world"
-const SMTP_PORT = parseInt(Deno.env.get("SMTP_PORT") || "465")
-const SMTP_USERNAME = Deno.env.get("SMTP_USERNAME") || "hello@buzzacademy.world"
-const SMTP_PASSWORD = Deno.env.get("SMTP_PASSWORD") || "S*w@;O%y(F2ZFzPM"
-const FROM_EMAIL = Deno.env.get("FROM_EMAIL") || "hello@buzzacademy.world"
-const FROM_NAME = Deno.env.get("FROM_NAME") || "Buzz Academy"
+// SMTP Configuration - uses EXAM_EMAIL_ prefix to avoid conflicts with other SMTP configs
+const SMTP_HOST = Deno.env.get("EXAM_EMAIL_HOST") || "mail.buzzacademy.world"
+const SMTP_PORT = parseInt(Deno.env.get("EXAM_EMAIL_PORT") || "465")
+const SMTP_USERNAME = Deno.env.get("EXAM_EMAIL_USERNAME") || "hello@buzzacademy.world"
+const SMTP_PASSWORD = Deno.env.get("EXAM_EMAIL_PASSWORD")
+const FROM_EMAIL = Deno.env.get("EXAM_EMAIL_FROM") || "hello@buzzacademy.world"
+const FROM_NAME = Deno.env.get("EXAM_EMAIL_FROM_NAME") || "Buzz Academy"
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
