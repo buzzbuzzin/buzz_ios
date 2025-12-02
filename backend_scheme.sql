@@ -123,11 +123,12 @@ CREATE TABLE public.course_sections (
   name text NOT NULL,                          -- Section name (e.g., "MANDATORY UNITS", "BASE PROGRAM")
   display_order integer NOT NULL,              -- Order in which sections appear (1, 2, 3, etc.)
   description text,                            -- Optional description for the section
-  section_type text DEFAULT 'units',           -- Type: 'units', 'test', 'recurrent' (for special handling)
+  section_type text DEFAULT 'units',           -- Type: 'units', 'test', 'recurrent', 'exam' (for special handling)
   requires_subscription boolean DEFAULT false, -- Whether units in this section require subscription
   requires_test_passed boolean DEFAULT false,  -- Whether units require passing a prerequisite test
   prerequisite_section_id uuid,                -- Optional: section that must be completed first
   is_active boolean DEFAULT true,              -- Whether this section is currently active/visible
+  exam_type text CHECK (exam_type IS NULL OR exam_type = ANY (ARRAY['flight_review'::text, 'roc_a'::text])),  -- For 'exam' sections: links to Test Center exams
   created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
   updated_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
   CONSTRAINT course_sections_pkey PRIMARY KEY (id),

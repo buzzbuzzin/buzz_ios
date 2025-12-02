@@ -207,6 +207,13 @@ struct DynamicSectionView: View {
             }
             .buttonStyle(PlainButtonStyle())
             
+        case "exam":
+            // Render exam section (Flight Review, ROC-A Test - links to Test Center)
+            TestCenterExamSectionView(
+                section: section,
+                hasPassedTest: hasPassedTest
+            )
+            
         case "recurrent":
             // Render recurrent training section
             RecurrentTrainingSectionContent(
@@ -552,6 +559,133 @@ struct RecurrentTrainingCardContent: View {
                         Text("Available")
                             .font(.caption)
                             .foregroundColor(.green)
+                            .fontWeight(.semibold)
+                    }
+                }
+            }
+            
+            Spacer()
+            
+            if isLocked {
+                Image(systemName: "lock.circle.fill")
+                    .foregroundColor(.gray)
+                    .font(.title3)
+            } else {
+                Image(systemName: "chevron.right")
+                    .foregroundColor(.secondary)
+                    .font(.caption)
+            }
+        }
+        .padding()
+        .background(isLocked ? Color(.systemGray5) : Color(.systemGray6))
+        .cornerRadius(12)
+        .opacity(isLocked ? 0.7 : 1.0)
+    }
+}
+
+// MARK: - Test Center Exam Section View
+
+struct TestCenterExamSectionView: View {
+    let section: CourseSection
+    let hasPassedTest: Bool
+    
+    private var examType: ExamType? {
+        guard let examTypeString = section.examType else { return nil }
+        return ExamType(rawValue: examTypeString)
+    }
+    
+    private var isLocked: Bool {
+        section.requiresTestPassed && !hasPassedTest
+    }
+    
+    private var lockReason: String {
+        if isLocked {
+            return "Complete Ground School Test to unlock"
+        }
+        return ""
+    }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text(section.name)
+                .font(.headline)
+                .fontWeight(.bold)
+                .foregroundColor(.primary)
+                .padding(.horizontal)
+            
+            VStack(spacing: 12) {
+                if let examType = examType {
+                    if isLocked {
+                        // Locked - show disabled card
+                        TestCenterExamCardContent(
+                            examType: examType,
+                            sectionDescription: section.description,
+                            isLocked: true,
+                            lockReason: lockReason
+                        )
+                    } else {
+                        // Unlocked - navigate to exam intro
+                        NavigationLink(destination: ExamIntroView(examType: examType)) {
+                            TestCenterExamCardContent(
+                                examType: examType,
+                                sectionDescription: section.description,
+                                isLocked: false,
+                                lockReason: ""
+                            )
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                    }
+                }
+            }
+            .padding(.horizontal)
+        }
+    }
+}
+
+// MARK: - Test Center Exam Card Content
+
+struct TestCenterExamCardContent: View {
+    let examType: ExamType
+    let sectionDescription: String?
+    let isLocked: Bool
+    let lockReason: String
+    
+    var body: some View {
+        HStack(spacing: 16) {
+            // Exam Icon
+            ZStack {
+                Circle()
+                    .fill(isLocked ? Color.gray.opacity(0.2) : examType.color.opacity(0.2))
+                    .frame(width: 50, height: 50)
+                
+                Image(systemName: isLocked ? "lock.fill" : examType.icon)
+                    .foregroundColor(isLocked ? .gray : examType.color)
+                    .font(.headline)
+            }
+            
+            VStack(alignment: .leading, spacing: 4) {
+                Text(examType.displayName)
+                    .font(.headline)
+                    .foregroundColor(isLocked ? .secondary : .primary)
+                
+                Text(sectionDescription ?? examType.shortDescription)
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .lineLimit(2)
+                
+                if isLocked {
+                    Text(lockReason)
+                        .font(.caption)
+                        .foregroundColor(.blue)
+                        .fontWeight(.semibold)
+                } else {
+                    HStack(spacing: 4) {
+                        Image(systemName: "calendar.badge.clock")
+                            .foregroundColor(.blue)
+                            .font(.caption)
+                        Text("Schedule in Test Center")
+                            .font(.caption)
+                            .foregroundColor(.blue)
                             .fontWeight(.semibold)
                     }
                 }

@@ -13,11 +13,12 @@ struct CourseSection: Identifiable, Codable {
     let name: String
     let displayOrder: Int
     let description: String?
-    let sectionType: String  // 'units', 'test', 'recurrent'
+    let sectionType: String  // 'units', 'test', 'recurrent', 'exam'
     let requiresSubscription: Bool
     let requiresTestPassed: Bool
     let prerequisiteSectionId: UUID?
     let isActive: Bool
+    let examType: String?  // For 'exam' sections: 'flight_review' or 'roc_a'
     
     enum CodingKeys: String, CodingKey {
         case id
@@ -30,6 +31,7 @@ struct CourseSection: Identifiable, Codable {
         case requiresTestPassed = "requires_test_passed"
         case prerequisiteSectionId = "prerequisite_section_id"
         case isActive = "is_active"
+        case examType = "exam_type"
     }
     
     init(from decoder: Decoder) throws {
@@ -44,6 +46,7 @@ struct CourseSection: Identifiable, Codable {
         requiresTestPassed = try container.decodeIfPresent(Bool.self, forKey: .requiresTestPassed) ?? false
         prerequisiteSectionId = try container.decodeIfPresent(UUID.self, forKey: .prerequisiteSectionId)
         isActive = try container.decodeIfPresent(Bool.self, forKey: .isActive) ?? true
+        examType = try container.decodeIfPresent(String.self, forKey: .examType)
     }
 }
 
