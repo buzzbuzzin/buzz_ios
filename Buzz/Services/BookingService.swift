@@ -790,6 +790,8 @@ class BookingService: ObservableObject {
     
     // MARK: - Accept Booking (Pilot)
     
+    /// Accept a booking. For automotive bookings, this joins the crew instead.
+    /// For other bookings, this assigns the pilot directly.
     func acceptBooking(bookingId: UUID, pilotId: UUID) async throws {
         isLoading = true
         errorMessage = nil
@@ -804,7 +806,14 @@ class BookingService: ObservableObject {
                 .execute()
                 .value
             
-            // Update booking status
+            // For automotive bookings, use the crew system
+            if booking.isAutomotiveCrewBooking {
+                isLoading = false // joinAutomotiveBooking manages its own loading state
+                let _ = try await joinAutomotiveBooking(bookingId: bookingId, pilotId: pilotId)
+                return
+            }
+            
+            // Non-automotive booking: original single-pilot acceptance logic
             let updateData: [String: AnyJSON] = [
                 "pilot_id": .string(pilotId.uuidString),
                 "status": .string(BookingStatus.accepted.rawValue)
@@ -860,6 +869,93 @@ class BookingService: ObservableObject {
         } catch {
             isLoading = false
             errorMessage = error.localizedDescription
+            throw error
+        }
+    }
+    
+    // MARK: - Join Automotive Booking Crew (Pilot)
+    
+    /// Join an automotive booking crew. For automotive bookings, 4 pilots can join
+    /// and the highest-ranked Lieutenant+ becomes the lead.
+    func joinAutomotiveBooking(bookingId: UUID, pilotId: UUID) async throws -> JoinCrewResponse {
+        isLoading = true
+        errorMessage = nil
+        
+        do {
+            struct JoinRequest: Codable {
+                let booking_id: String
+                let pilot_id: String
+            }
+            
+            let request = JoinRequest(
+                booking_id: bookingId.uuidString,
+                pilot_id: pilotId.uuidString
+            )
+            
+            let response: JoinCrewResponse = try await supabase.functions
+                .invoke("join-automotive-booking", options: FunctionInvokeOptions(
+                    body: request
+                ))
+            
+            isLoading = false
+            
+            // If there was an error in the response, throw it
+            if let error = response.error, !response.success {
+                throw NSError(domain: "BookingService", code: -1, userInfo: [NSLocalizedDescriptionKey: error])
+            }
+            
+            return response
+        } catch {
+            isLoading = false
+            errorMessage = error.localizedDescription
+            throw error
+        }
+    }
+    
+    // MARK: - Fetch Booking Crew
+    
+    /// Fetch crew members for a booking. For automotive bookings, returns crew details.
+    /// For non-automotive bookings, returns empty crew.
+    func fetchBookingCrew(bookingId: UUID, requesterId: UUID?, requesterType: String?) async throws -> BookingCrewResponse {
+        do {
+            struct CrewRequest: Codable {
+                let booking_id: String
+                let requester_id: String?
+                let requester_type: String?
+            }
+            
+            let request = CrewRequest(
+                booking_id: bookingId.uuidString,
+                requester_id: requesterId?.uuidString,
+                requester_type: requesterType
+            )
+            
+            let response: BookingCrewResponse = try await supabase.functions
+                .invoke("get-booking-crew", options: FunctionInvokeOptions(
+                    body: request
+                ))
+            
+            return response
+        } catch {
+            throw error
+        }
+    }
+    
+    // MARK: - Fetch Pilot's Crew Memberships
+    
+    /// Fetch all crew memberships for a pilot (for earnings/balance display)
+    func fetchPilotCrewMemberships(pilotId: UUID) async throws -> [BookingCrewMember] {
+        do {
+            let memberships: [BookingCrewMember] = try await supabase
+                .from("booking_crew")
+                .select()
+                .eq("pilot_id", value: pilotId.uuidString)
+                .order("joined_at", ascending: false)
+                .execute()
+                .value
+            
+            return memberships
+        } catch {
             throw error
         }
     }

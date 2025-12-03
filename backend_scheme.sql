@@ -74,6 +74,23 @@ CREATE TABLE public.bookings (
   CONSTRAINT bookings_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES public.profiles(id),
   CONSTRAINT bookings_pilot_id_fkey FOREIGN KEY (pilot_id) REFERENCES public.profiles(id)
 );
+CREATE TABLE public.booking_crew (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  booking_id uuid NOT NULL,
+  pilot_id uuid NOT NULL,
+  role text NOT NULL CHECK (role IN ('lead', 'crew')),
+  rank_at_acceptance integer NOT NULL CHECK (rank_at_acceptance >= 1 AND rank_at_acceptance <= 4),
+  payout_amount numeric NOT NULL,
+  transfer_id text,
+  joined_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  CONSTRAINT booking_crew_pkey PRIMARY KEY (id),
+  CONSTRAINT booking_crew_booking_id_fkey FOREIGN KEY (booking_id) REFERENCES public.bookings(id) ON DELETE CASCADE,
+  CONSTRAINT booking_crew_pilot_id_fkey FOREIGN KEY (pilot_id) REFERENCES public.profiles(id),
+  CONSTRAINT booking_crew_unique_pilot UNIQUE (booking_id, pilot_id)
+);
+-- Note: booking_crew is used for automotive bookings where 4 pilots form a crew
+-- rank_at_acceptance: 1=Sublieutenant($350), 2=Lieutenant($450), 3=Commander($550), 4=Captain($650)
+-- role: 'lead' is the highest-ranked pilot, 'crew' for others
 CREATE TABLE public.course_enrollments (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
   pilot_id uuid NOT NULL,

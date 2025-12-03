@@ -147,5 +147,162 @@ struct Booking: Codable, Identifiable {
     var coordinate: CLLocationCoordinate2D {
         CLLocationCoordinate2D(latitude: locationLat, longitude: locationLng)
     }
+    
+    /// Returns true if this is an automotive booking that uses the crew system
+    var isAutomotiveCrewBooking: Bool {
+        specialization == .automotive
+    }
+}
+
+// MARK: - Booking Crew Models (for automotive bookings)
+
+/// Role of a pilot in an automotive booking crew
+enum CrewRole: String, Codable {
+    case lead
+    case crew
+    
+    var displayName: String {
+        switch self {
+        case .lead: return "Lead Pilot"
+        case .crew: return "Crew Member"
+        }
+    }
+}
+
+/// Represents a crew member in an automotive booking
+struct BookingCrewMember: Codable, Identifiable {
+    let id: UUID
+    let bookingId: UUID
+    let pilotId: UUID
+    let role: CrewRole
+    let rankAtAcceptance: Int
+    let payoutAmount: Decimal
+    let joinedAt: Date
+    var transferId: String?
+    
+    // Optional profile info (populated when fetched with profile data)
+    var pilotName: String?
+    var callSign: String?
+    var profilePictureUrl: String?
+    
+    enum CodingKeys: String, CodingKey {
+        case id
+        case bookingId = "booking_id"
+        case pilotId = "pilot_id"
+        case role
+        case rankAtAcceptance = "rank_at_acceptance"
+        case payoutAmount = "payout_amount"
+        case joinedAt = "joined_at"
+        case transferId = "transfer_id"
+        case pilotName = "pilot_name"
+        case callSign = "call_sign"
+        case profilePictureUrl = "profile_picture_url"
+    }
+    
+    /// Returns the rank name for this crew member
+    var rankName: String {
+        switch rankAtAcceptance {
+        case 1: return "Sublieutenant"
+        case 2: return "Lieutenant"
+        case 3: return "Commander"
+        case 4: return "Captain"
+        default: return "Unknown"
+        }
+    }
+    
+    /// Returns true if this crew member's earnings have been posted to their balance
+    /// (transfer completed, available to withdraw)
+    var isPosted: Bool {
+        transferId != nil
+    }
+}
+
+/// Response from get-booking-crew edge function
+struct BookingCrewResponse: Codable {
+    let isAutomotive: Bool
+    let crewCount: Int
+    let maxCrew: Int
+    let status: String?
+    let hasQualifiedLead: Bool?
+    let isCrewFull: Bool?
+    let isReady: Bool?
+    let crew: [BookingCrewMember]?
+    let leadPilot: BookingCrewLeadInfo?
+    let totalPayout: Decimal?
+    
+    enum CodingKeys: String, CodingKey {
+        case isAutomotive = "is_automotive"
+        case crewCount = "crew_count"
+        case maxCrew = "max_crew"
+        case status
+        case hasQualifiedLead = "has_qualified_lead"
+        case isCrewFull = "is_crew_full"
+        case isReady = "is_ready"
+        case crew
+        case leadPilot = "lead_pilot"
+        case totalPayout = "total_payout"
+    }
+}
+
+/// Lead pilot info (shown to customers)
+struct BookingCrewLeadInfo: Codable {
+    let pilotId: UUID?
+    let pilotName: String?
+    let callSign: String?
+    let rankName: String?
+    let profilePictureUrl: String?
+    
+    enum CodingKeys: String, CodingKey {
+        case pilotId = "pilot_id"
+        case pilotName = "pilot_name"
+        case callSign = "call_sign"
+        case rankName = "rank_name"
+        case profilePictureUrl = "profile_picture_url"
+    }
+}
+
+/// Response from join-automotive-booking edge function
+struct JoinCrewResponse: Codable {
+    let success: Bool
+    let message: String?
+    let crewMember: JoinedCrewMemberInfo?
+    let crewStatus: CrewStatusInfo?
+    let error: String?
+    
+    enum CodingKeys: String, CodingKey {
+        case success
+        case message
+        case crewMember = "crew_member"
+        case crewStatus = "crew_status"
+        case error
+    }
+}
+
+struct JoinedCrewMemberInfo: Codable {
+    let id: UUID
+    let role: String
+    let rank: String
+    let payoutAmount: Decimal
+    
+    enum CodingKeys: String, CodingKey {
+        case id
+        case role
+        case rank
+        case payoutAmount = "payout_amount"
+    }
+}
+
+struct CrewStatusInfo: Codable {
+    let currentCount: Int
+    let maxCount: Int
+    let hasQualifiedLead: Bool
+    let bookingAccepted: Bool
+    
+    enum CodingKeys: String, CodingKey {
+        case currentCount = "current_count"
+        case maxCount = "max_count"
+        case hasQualifiedLead = "has_qualified_lead"
+        case bookingAccepted = "booking_accepted"
+    }
 }
 

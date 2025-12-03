@@ -38,6 +38,13 @@ struct BookingDetailView: View {
     @State private var showCompletionSuccess = false
     @State private var currentBooking: Booking
     
+    // Crew-related state (for automotive bookings)
+    @State private var crewInfo: BookingCrewResponse?
+    @State private var isLoadingCrew = false
+    @State private var showJoinCrewAlert = false
+    @State private var joinCrewResult: JoinCrewResponse?
+    @State private var showJoinCrewSuccess = false
+    
     init(booking: Booking) {
         self.booking = booking
         _region = State(initialValue: MKCoordinateRegion(
@@ -284,6 +291,156 @@ struct BookingDetailView: View {
                 }
                 .padding(.horizontal)
                 
+                // Crew Status Section (for automotive bookings)
+                if currentBooking.isAutomotiveCrewBooking {
+                    Divider()
+                        .padding(.horizontal)
+                    
+                    VStack(alignment: .leading, spacing: 12) {
+                        Label("Crew Status", systemImage: "person.3.fill")
+                            .font(.headline)
+                            .foregroundColor(.blue)
+                        
+                        if isLoadingCrew {
+                            HStack {
+                                ProgressView()
+                                    .scaleEffect(0.8)
+                                Text("Loading crew info...")
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                            }
+                        } else if let crew = crewInfo {
+                            VStack(alignment: .leading, spacing: 8) {
+                                // Crew count progress
+                                HStack {
+                                    Text("\(crew.crewCount)/\(crew.maxCrew) pilots joined")
+                                        .font(.subheadline)
+                                        .fontWeight(.medium)
+                                    
+                                    Spacer()
+                                    
+                                    if crew.isReady == true {
+                                        Label("Ready", systemImage: "checkmark.circle.fill")
+                                            .font(.caption)
+                                            .foregroundColor(.green)
+                                    } else if crew.hasQualifiedLead == true {
+                                        Label("Has Lead", systemImage: "star.fill")
+                                            .font(.caption)
+                                            .foregroundColor(.orange)
+                                    } else {
+                                        Label("Needs Lieutenant+", systemImage: "exclamationmark.triangle.fill")
+                                            .font(.caption)
+                                            .foregroundColor(.orange)
+                                    }
+                                }
+                                
+                                // Progress bar
+                                GeometryReader { geometry in
+                                    ZStack(alignment: .leading) {
+                                        RoundedRectangle(cornerRadius: 4)
+                                            .fill(Color.gray.opacity(0.2))
+                                            .frame(height: 8)
+                                        
+                                        RoundedRectangle(cornerRadius: 4)
+                                            .fill(crew.isReady == true ? Color.green : Color.blue)
+                                            .frame(width: geometry.size.width * CGFloat(crew.crewCount) / CGFloat(crew.maxCrew), height: 8)
+                                    }
+                                }
+                                .frame(height: 8)
+                                
+                                // Lead pilot info (if available)
+                                if let lead = crew.leadPilot {
+                                    HStack(spacing: 8) {
+                                        // Lead profile picture
+                                        if let pictureUrl = lead.profilePictureUrl,
+                                           let url = URL(string: pictureUrl) {
+                                            AsyncImage(url: url) { phase in
+                                                switch phase {
+                                                case .success(let image):
+                                                    image
+                                                        .resizable()
+                                                        .scaledToFill()
+                                                        .frame(width: 32, height: 32)
+                                                        .clipShape(Circle())
+                                                default:
+                                                    Image(systemName: "person.circle.fill")
+                                                        .font(.system(size: 32))
+                                                        .foregroundColor(.blue)
+                                                }
+                                            }
+                                        } else {
+                                            Image(systemName: "person.circle.fill")
+                                                .font(.system(size: 32))
+                                                .foregroundColor(.blue)
+                                        }
+                                        
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text("Lead: \(lead.pilotName ?? lead.callSign ?? "Unknown")")
+                                                .font(.subheadline)
+                                                .fontWeight(.medium)
+                                            if let rankName = lead.rankName {
+                                                Text(rankName)
+                                                    .font(.caption)
+                                                    .foregroundColor(.secondary)
+                                            }
+                                        }
+                                    }
+                                    .padding(.top, 4)
+                                }
+                                
+                                // Show crew members list for pilots
+                                if authService.userProfile?.userType == .pilot,
+                                   let crewMembers = crew.crew, !crewMembers.isEmpty {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text("Crew Members:")
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                            .padding(.top, 4)
+                                        
+                                        ForEach(crewMembers) { member in
+                                            HStack {
+                                                Circle()
+                                                    .fill(member.role == .lead ? Color.orange : Color.blue)
+                                                    .frame(width: 8, height: 8)
+                                                
+                                                Text(member.pilotName ?? member.callSign ?? "Pilot")
+                                                    .font(.caption)
+                                                
+                                                Text("(\(member.rankName))")
+                                                    .font(.caption)
+                                                    .foregroundColor(.secondary)
+                                                
+                                                if member.role == .lead {
+                                                    Text("Lead")
+                                                        .font(.caption2)
+                                                        .fontWeight(.bold)
+                                                        .foregroundColor(.orange)
+                                                        .padding(.horizontal, 6)
+                                                        .padding(.vertical, 2)
+                                                        .background(Color.orange.opacity(0.2))
+                                                        .cornerRadius(4)
+                                                }
+                                                
+                                                Spacer()
+                                                
+                                                Text(String(format: "$%.0f", NSDecimalNumber(decimal: member.payoutAmount).doubleValue))
+                                                    .font(.caption)
+                                                    .fontWeight(.semibold)
+                                                    .foregroundColor(.green)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        } else {
+                            Text("Crew info unavailable")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    .padding(.horizontal)
+                }
+                
                 // Posted Date
                 Text("Posted on \(booking.createdAt.formatted(date: .long, time: .shortened))")
                     .font(.caption)
@@ -294,17 +451,65 @@ struct BookingDetailView: View {
                 if authService.userProfile?.userType == .pilot {
                     VStack(spacing: 12) {
                         if currentBooking.status == .available {
+                            // Check if pilot is already in crew (for automotive bookings)
+                            let isAlreadyInCrew = crewInfo?.crew?.contains(where: { $0.pilotId == authService.currentUser?.id }) ?? false
+                            
                             if isIdentityVerified {
-                                CustomButton(
-                                    title: "Accept Booking",
-                                    action: { showAcceptAlert = true },
-                                    isLoading: bookingService.isLoading
-                                )
-                                .padding(.horizontal)
+                                if currentBooking.isAutomotiveCrewBooking {
+                                    // Automotive booking - show Join Crew button
+                                    if isAlreadyInCrew {
+                                        VStack(spacing: 8) {
+                                            HStack {
+                                                Image(systemName: "checkmark.circle.fill")
+                                                    .foregroundColor(.green)
+                                                Text("You've joined this crew")
+                                                    .fontWeight(.semibold)
+                                            }
+                                            .foregroundColor(.green)
+                                            .padding()
+                                            .frame(maxWidth: .infinity)
+                                            .background(Color.green.opacity(0.1))
+                                            .cornerRadius(12)
+                                            .padding(.horizontal)
+                                            
+                                            if let crew = crewInfo {
+                                                Text("Waiting for \(crew.maxCrew - crew.crewCount) more pilot(s) to join")
+                                                    .font(.caption)
+                                                    .foregroundColor(.secondary)
+                                            }
+                                        }
+                                    } else {
+                                        CustomButton(
+                                            title: "Join Crew",
+                                            action: { showJoinCrewAlert = true },
+                                            isLoading: bookingService.isLoading
+                                        )
+                                        .padding(.horizontal)
+                                        
+                                        // Show crew requirements info
+                                        VStack(spacing: 4) {
+                                            Text("Automotive bookings require a crew of 4 pilots")
+                                                .font(.caption)
+                                                .foregroundColor(.secondary)
+                                            Text("At least one Lieutenant or above must lead")
+                                                .font(.caption)
+                                                .foregroundColor(.secondary)
+                                        }
+                                        .padding(.horizontal)
+                                    }
+                                } else {
+                                    // Non-automotive booking - regular accept
+                                    CustomButton(
+                                        title: "Accept Booking",
+                                        action: { showAcceptAlert = true },
+                                        isLoading: bookingService.isLoading
+                                    )
+                                    .padding(.horizontal)
+                                }
                             } else {
                                 VStack(spacing: 8) {
                                     CustomButton(
-                                        title: "Accept Booking",
+                                        title: currentBooking.isAutomotiveCrewBooking ? "Join Crew" : "Accept Booking",
                                         action: { showVerificationRequiredAlert = true },
                                         isLoading: false
                                     )
@@ -436,6 +641,27 @@ struct BookingDetailView: View {
         } message: {
             Text("You must verify your identity before accepting bookings. Please complete identity verification in your Profile settings.")
         }
+        .alert("Join Crew", isPresented: $showJoinCrewAlert) {
+            Button("Cancel", role: .cancel) {}
+            Button("Join") {
+                joinCrew()
+            }
+        } message: {
+            Text("Join this automotive booking crew? You'll be paid based on your current rank when the booking is completed.")
+        }
+        .alert("Joined Crew!", isPresented: $showJoinCrewSuccess) {
+            Button("OK") {
+                Task {
+                    await loadCrewInfo()
+                }
+            }
+        } message: {
+            if let result = joinCrewResult, let member = result.crewMember, let status = result.crewStatus {
+                Text("You've joined as \(member.role). Payout: $\(String(format: "%.0f", NSDecimalNumber(decimal: member.payoutAmount).doubleValue)). Crew: \(status.currentCount)/\(status.maxCount)")
+            } else {
+                Text("Successfully joined the crew!")
+            }
+        }
         .sheet(isPresented: $showRatingSheet) {
             RatingView(
                 userName: customerProfile?.fullName ?? "Customer",
@@ -485,6 +711,9 @@ struct BookingDetailView: View {
             await loadCustomerProfile()
             await checkIdentityVerification()
             await refreshBooking()
+            if currentBooking.isAutomotiveCrewBooking {
+                await loadCrewInfo()
+            }
         }
         .onAppear {
             // Refresh booking when view appears to get latest status
@@ -729,6 +958,54 @@ struct BookingDetailView: View {
         // Auto-dismiss after 2 seconds
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
             showCopyConfirmation = false
+        }
+    }
+    
+    // MARK: - Crew Functions (Automotive Bookings)
+    
+    private func loadCrewInfo() async {
+        guard currentBooking.isAutomotiveCrewBooking else { return }
+        
+        isLoadingCrew = true
+        do {
+            let requesterType = authService.userProfile?.userType == .pilot ? "pilot" : "customer"
+            crewInfo = try await bookingService.fetchBookingCrew(
+                bookingId: currentBooking.id,
+                requesterId: authService.currentUser?.id,
+                requesterType: requesterType
+            )
+            isLoadingCrew = false
+        } catch {
+            isLoadingCrew = false
+            print("Error loading crew info: \(error)")
+        }
+    }
+    
+    private func joinCrew() {
+        guard let currentUser = authService.currentUser else { return }
+        
+        Task {
+            do {
+                let result = try await bookingService.joinAutomotiveBooking(
+                    bookingId: currentBooking.id,
+                    pilotId: currentUser.id
+                )
+                joinCrewResult = result
+                
+                if result.success {
+                    showJoinCrewSuccess = true
+                    // Reload crew info
+                    await loadCrewInfo()
+                    // Refresh booking in case status changed
+                    await refreshBooking()
+                } else if let error = result.error {
+                    errorMessage = error
+                    showError = true
+                }
+            } catch {
+                errorMessage = error.localizedDescription
+                showError = true
+            }
         }
     }
 }
