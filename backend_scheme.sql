@@ -200,12 +200,25 @@ CREATE TABLE public.drone_registrations (
   CONSTRAINT drone_registrations_pkey PRIMARY KEY (id),
   CONSTRAINT drone_registrations_pilot_id_fkey FOREIGN KEY (pilot_id) REFERENCES public.profiles(id)
 );
+CREATE TABLE public.exam_type_config (
+  exam_type text NOT NULL PRIMARY KEY CHECK (exam_type IN ('flight_review', 'roc_a')),
+  display_name text NOT NULL,
+  short_description text NOT NULL,
+  full_description text NOT NULL,
+  icon text NOT NULL,
+  duration_minutes integer NOT NULL DEFAULT 30,
+  allows_online boolean NOT NULL DEFAULT false,
+  stripe_product_id text NOT NULL,
+  prerequisites jsonb NOT NULL DEFAULT '[]'::jsonb,
+  created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  updated_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now())
+);
 CREATE TABLE public.exam_appointments (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
   pilot_id uuid NOT NULL,
   exam_type text NOT NULL CHECK (exam_type = ANY (ARRAY['flight_review'::text, 'roc_a'::text])),
   scheduled_date timestamp with time zone NOT NULL,
-  duration_minutes integer NOT NULL DEFAULT 15,
+  duration_minutes integer NOT NULL DEFAULT 30,
   location_type text NOT NULL CHECK (location_type = ANY (ARRAY['in_person'::text, 'online'::text])),
   location_address text,
   meeting_link text,

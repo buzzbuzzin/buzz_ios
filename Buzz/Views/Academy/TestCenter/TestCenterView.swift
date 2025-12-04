@@ -52,8 +52,10 @@ struct TestCenterView: View {
                         .padding(.horizontal)
                     
                     ForEach(ExamType.allCases) { examType in
+                        let config = examService.getConfig(for: examType)
                         ExamCard(
                             examType: examType,
+                            config: config,
                             isEligible: prerequisitesStatus?.isEligible ?? false,
                             hasExistingAppointment: existingAppointments[examType] ?? false
                         )
@@ -110,6 +112,9 @@ struct TestCenterView: View {
         guard let currentUser = authService.currentUser else { return }
         
         isCheckingPrerequisites = true
+        
+        // Load exam configurations from backend
+        await examService.fetchExamConfigs()
         
         // Check prerequisites
         do {
@@ -205,6 +210,7 @@ struct PrerequisiteRow: View {
 
 struct ExamCard: View {
     let examType: ExamType
+    let config: ExamTypeConfig
     let isEligible: Bool
     let hasExistingAppointment: Bool
     
@@ -223,7 +229,7 @@ struct ExamCard: View {
                         .fill(isLocked ? Color.gray.opacity(0.2) : examType.color.opacity(0.2))
                         .frame(width: 56, height: 56)
                     
-                    Image(systemName: examType.icon)
+                    Image(systemName: config.icon)
                         .font(.system(size: 24))
                         .foregroundColor(isLocked ? .gray : examType.color)
                 }
@@ -231,7 +237,7 @@ struct ExamCard: View {
                 // Content
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
-                        Text(examType.displayName)
+                        Text(config.displayName)
                             .font(.headline)
                             .foregroundColor(isLocked ? .secondary : .primary)
                         
@@ -247,17 +253,17 @@ struct ExamCard: View {
                         }
                     }
                     
-                    Text(examType.shortDescription)
+                    Text(config.shortDescription)
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                         .lineLimit(2)
                     
                     HStack(spacing: 12) {
-                        Label("\(examType.durationMinutes) min", systemImage: "clock")
+                        Label("\(config.durationMinutes) min", systemImage: "clock")
                             .font(.caption)
                             .foregroundColor(.secondary)
                         
-                        if examType.allowsOnline {
+                        if config.allowsOnline {
                             Label("In-person or Online", systemImage: "video")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
@@ -386,6 +392,10 @@ struct AppointmentDetailSheet: View {
     @State private var errorMessage = ""
     @State private var showCopiedAlert = false
     @State private var showRescheduleView = false
+    
+    private var config: ExamTypeConfig {
+        examService.getConfig(for: appointment.examType)
+    }
     
     private var canReschedule: Bool {
         // Can only reschedule pending or confirmed appointments that are more than 24 hours away
@@ -690,6 +700,10 @@ struct RescheduleExamView: View {
     @State private var errorMessage = ""
     @State private var showSuccess = false
     
+    private var config: ExamTypeConfig {
+        examService.getConfig(for: appointment.examType)
+    }
+    
     // Minimum scheduling date is tomorrow
     private var minimumDate: Date {
         Calendar.current.date(byAdding: .day, value: 1, to: Date()) ?? Date()
@@ -855,11 +869,11 @@ struct RescheduleExamView: View {
                         
                         // Location Selection
                         VStack(alignment: .leading, spacing: 12) {
-                            Text("3. \(appointment.examType.allowsOnline ? "Select Format" : "Enter Location")")
+                            Text("3. \(config.allowsOnline ? "Select Format" : "Enter Location")")
                                 .font(.headline)
                                 .padding(.horizontal)
                             
-                            if appointment.examType.allowsOnline {
+                            if config.allowsOnline {
                                 VStack(spacing: 12) {
                                     LocationTypeButton(
                                         type: .inPerson,
@@ -920,8 +934,8 @@ struct RescheduleExamView: View {
                                 .padding(.horizontal)
                             
                             VStack(spacing: 8) {
-                                SummaryRow(label: "Exam", value: appointment.examType.displayName)
-                                SummaryRow(label: "Duration", value: "\(appointment.examType.durationMinutes) minutes")
+                                SummaryRow(label: "Exam", value: config.displayName)
+                                SummaryRow(label: "Duration", value: "\(config.durationMinutes) minutes")
                                 SummaryRow(
                                     label: "New Date & Time",
                                     value: formattedScheduledDateTime,

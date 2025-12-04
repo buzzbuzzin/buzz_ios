@@ -16,6 +16,7 @@ enum ExamType: String, Codable, CaseIterable, Identifiable {
     
     var id: String { rawValue }
     
+    /// Display name - fallback value, prefer config.displayName
     var displayName: String {
         switch self {
         case .flightReview:
@@ -25,24 +26,7 @@ enum ExamType: String, Codable, CaseIterable, Identifiable {
         }
     }
     
-    var shortDescription: String {
-        switch self {
-        case .flightReview:
-            return "In-person hands-on flight assessment"
-        case .rocA:
-            return "Radio communication competency exam"
-        }
-    }
-    
-    var fullDescription: String {
-        switch self {
-        case .flightReview:
-            return "The Flight Review is an in-person, hands-on assessment that evaluates your ability to plan and execute a drone flight safely. An examiner will observe your pre-flight procedures, flight execution, and post-flight protocols."
-        case .rocA:
-            return "A Restricted Operator Certificate with Aeronautical Qualification (ROC-A) exam demonstrates your competence in operating aeronautical radio equipment. It ensures you understand and can use proper radiotelephone communication procedures with air traffic control."
-        }
-    }
-    
+    /// Icon name - fallback value, prefer config.icon
     var icon: String {
         switch self {
         case .flightReview:
@@ -52,6 +36,7 @@ enum ExamType: String, Codable, CaseIterable, Identifiable {
         }
     }
     
+    /// Color for this exam type (not configurable from backend)
     var color: Color {
         switch self {
         case .flightReview:
@@ -61,34 +46,17 @@ enum ExamType: String, Codable, CaseIterable, Identifiable {
         }
     }
     
-    var stripeProductId: String {
-        switch self {
-        case .flightReview:
-            return "prod_TW3nHwTNX9Xtec"
-        case .rocA:
-            return "prod_TW3nnJ9zKy3tC3"
-        }
-    }
-    
-    var durationMinutes: Int {
-        return 15 // Both exams are 15 minutes
-    }
-    
-    var allowsOnline: Bool {
-        switch self {
-        case .flightReview:
-            return false // Flight Review must be in-person
-        case .rocA:
-            return true // ROC-A can be online or in-person
-        }
-    }
-    
-    var prerequisites: [String] {
-        return [
-            "Passed Ground School Test",
-            "Completed Unit 4 of UAS Pilot Course"
-        ]
-    }
+    // MARK: - Config-Based Properties (use ExamService.getConfig() for these)
+    // The following properties have been moved to ExamTypeConfig and are fetched from the backend:
+    // - shortDescription
+    // - fullDescription
+    // - durationMinutes
+    // - allowsOnline
+    // - stripeProductId
+    // - prerequisites
+    //
+    // Use ExamService.shared.getConfig(for: examType) to access these values.
+    // Fallback defaults are available in ExamTypeConfig.defaultConfig(for:)
 }
 
 // MARK: - Location Type
@@ -270,7 +238,7 @@ struct ExamAppointment: Identifiable, Codable {
         pilotId: UUID,
         examType: ExamType,
         scheduledDate: Date,
-        durationMinutes: Int = 15,
+        durationMinutes: Int = 30,
         locationType: ExamLocationType,
         locationAddress: String? = nil,
         meetingLink: String? = nil,

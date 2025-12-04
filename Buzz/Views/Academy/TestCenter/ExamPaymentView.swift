@@ -31,6 +31,10 @@ struct ExamPaymentView: View {
     @State private var showSuccess = false
     @State private var createdAppointment: ExamAppointment?
     
+    private var config: ExamTypeConfig {
+        examService.getConfig(for: examType)
+    }
+    
     private var formattedDate: String {
         let formatter = DateFormatter()
         formatter.dateStyle = .full
@@ -74,9 +78,9 @@ struct ExamPaymentView: View {
                             .font(.headline)
                         
                         VStack(spacing: 12) {
-                            BookingDetailRow(icon: examType.icon, label: "Exam", value: examType.displayName, iconColor: examType.color)
+                            BookingDetailRow(icon: config.icon, label: "Exam", value: config.displayName, iconColor: examType.color)
                             BookingDetailRow(icon: "calendar", label: "Date & Time", value: formattedDate)
-                            BookingDetailRow(icon: "clock", label: "Duration", value: "\(examType.durationMinutes) minutes")
+                            BookingDetailRow(icon: "clock", label: "Duration", value: "\(config.durationMinutes) minutes")
                             BookingDetailRow(icon: locationType.icon, label: "Format", value: locationType.displayName)
                             
                             if let address = locationAddress {
@@ -96,7 +100,7 @@ struct ExamPaymentView: View {
                         
                         VStack(spacing: 12) {
                             HStack {
-                                Text(examType.displayName)
+                                Text(config.displayName)
                                     .foregroundColor(.secondary)
                                 Spacer()
                                 Text(priceInfo.formattedPrice)
@@ -179,6 +183,10 @@ struct ExamPaymentView: View {
         .navigationTitle("Payment")
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(showSuccess)
+        .task {
+            // Load configs if not already loaded
+            await examService.ensureConfigsLoaded()
+        }
         .alert("Payment Error", isPresented: $showError) {
             Button("OK", role: .cancel) {}
         } message: {

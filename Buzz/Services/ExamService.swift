@@ -16,8 +16,64 @@ class ExamService: ObservableObject {
     @Published var errorMessage: String?
     @Published var appointments: [ExamAppointment] = []
     @Published var prerequisitesStatus: ExamPrerequisitesStatus?
+    @Published var examConfigs: [ExamType: ExamTypeConfig] = [:]
+    @Published var isLoadingConfigs = false
     
     private let supabase = SupabaseClient.shared.client
+    
+    // Singleton for shared config access
+    static let shared = ExamService()
+    
+    // MARK: - Fetch Exam Configurations
+    
+    /// Fetches exam type configurations from the backend
+    /// Results are cached in examConfigs dictionary
+    func fetchExamConfigs() async {
+        // Skip if already loading or already have configs
+        guard !isLoadingConfigs else { return }
+        
+        isLoadingConfigs = true
+        
+        do {
+            let response: [ExamTypeConfig] = try await supabase
+                .from("exam_type_config")
+                .select()
+                .execute()
+                .value
+            
+            // Map configs to ExamType
+            var configs: [ExamType: ExamTypeConfig] = [:]
+            for config in response {
+                if let examType = ExamType(rawValue: config.examType) {
+                    configs[examType] = config
+                }
+            }
+            
+            examConfigs = configs
+            isLoadingConfigs = false
+            print("✅ [ExamService] Loaded \(configs.count) exam configurations")
+        } catch {
+            isLoadingConfigs = false
+            print("⚠️ [ExamService] Failed to load exam configs: \(error.localizedDescription)")
+            // Use default configs as fallback
+            examConfigs = [
+                .flightReview: ExamTypeConfig.defaultFlightReview,
+                .rocA: ExamTypeConfig.defaultRocA
+            ]
+        }
+    }
+    
+    /// Gets the config for an exam type, using cached value or default
+    func getConfig(for examType: ExamType) -> ExamTypeConfig {
+        return examConfigs[examType] ?? ExamTypeConfig.defaultConfig(for: examType)
+    }
+    
+    /// Ensures configs are loaded, fetching if needed
+    func ensureConfigsLoaded() async {
+        if examConfigs.isEmpty && !isLoadingConfigs {
+            await fetchExamConfigs()
+        }
+    }
     
     // UAS Pilot Course UUID (fixed) - same as in CourseSubscriptionService
     static let uasPilotCourseId = UUID(uuidString: "a1b2c3d4-e5f6-7890-abcd-ef1234567890")!
@@ -113,12 +169,16 @@ class ExamService: ObservableObject {
         isLoading = true
         errorMessage = nil
         
+        // Ensure configs are loaded
+        await ensureConfigsLoaded()
+        let config = getConfig(for: examType)
+        
         do {
             struct PriceRequest: Codable {
                 let product_id: String
             }
             
-            let request = PriceRequest(product_id: examType.stripeProductId)
+            let request = PriceRequest(product_id: config.stripeProductId)
             
             let response: ExamPriceResponse = try await supabase.functions
                 .invoke("get-exam-price", options: FunctionInvokeOptions(
@@ -147,6 +207,10 @@ class ExamService: ObservableObject {
         isLoading = true
         errorMessage = nil
         
+        // Ensure configs are loaded
+        await ensureConfigsLoaded()
+        let config = getConfig(for: examType)
+        
         do {
             let dateFormatter = ISO8601DateFormatter()
             
@@ -160,7 +224,7 @@ class ExamService: ObservableObject {
             }
             
             let request = PaymentRequest(
-                product_id: examType.stripeProductId,
+                product_id: config.stripeProductId,
                 pilot_id: pilotId.uuidString,
                 exam_type: examType.rawValue,
                 scheduled_date: dateFormatter.string(from: scheduledDate),
@@ -188,7 +252,8 @@ class ExamService: ObservableObject {
     private func createZoomMeeting(
         examType: ExamType,
         scheduledDate: Date,
-        pilotEmail: String?
+        pilotEmail: String?,
+        config: ExamTypeConfig
     ) async throws -> ZoomMeetingResponse {
         let dateFormatter = ISO8601DateFormatter()
         dateFormatter.formatOptions = [.withInternetDateTime]
@@ -201,9 +266,9 @@ class ExamService: ObservableObject {
         }
         
         let request = ZoomRequest(
-            topic: "\(examType.displayName) Exam",
+            topic: "\(config.displayName) Exam",
             scheduled_date: dateFormatter.string(from: scheduledDate),
-            duration_minutes: examType.durationMinutes,
+            duration_minutes: config.durationMinutes,
             pilot_email: pilotEmail
         )
         
@@ -232,6 +297,10 @@ class ExamService: ObservableObject {
         isLoading = true
         errorMessage = nil
         
+        // Ensure configs are loaded
+        await ensureConfigsLoaded()
+        let config = getConfig(for: examType)
+        
         do {
             let dateFormatter = ISO8601DateFormatter()
             dateFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
@@ -246,7 +315,8 @@ class ExamService: ObservableObject {
                     let zoomMeeting = try await createZoomMeeting(
                         examType: examType,
                         scheduledDate: scheduledDate,
-                        pilotEmail: pilotEmail
+                        pilotEmail: pilotEmail,
+                        config: config
                     )
                     meetingLink = zoomMeeting.joinUrl
                     zoomMeetingId = zoomMeeting.meetingId
@@ -263,7 +333,7 @@ class ExamService: ObservableObject {
                 "pilot_id": .string(pilotId.uuidString),
                 "exam_type": .string(examType.rawValue),
                 "scheduled_date": .string(dateFormatter.string(from: scheduledDate)),
-                "duration_minutes": .integer(examType.durationMinutes),
+                "duration_minutes": .integer(config.durationMinutes),
                 "location_type": .string(locationType.rawValue),
                 "location_address": locationAddress.map { .string($0) } ?? .null,
                 "meeting_link": meetingLink.map { .string($0) } ?? .null,
@@ -433,6 +503,10 @@ class ExamService: ObservableObject {
         isLoading = true
         errorMessage = nil
         
+        // Ensure configs are loaded
+        await ensureConfigsLoaded()
+        let config = getConfig(for: examType)
+        
         do {
             let dateFormatter = ISO8601DateFormatter()
             dateFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
@@ -447,7 +521,8 @@ class ExamService: ObservableObject {
                     let zoomMeeting = try await createZoomMeeting(
                         examType: examType,
                         scheduledDate: newScheduledDate,
-                        pilotEmail: pilotEmail
+                        pilotEmail: pilotEmail,
+                        config: config
                     )
                     meetingLink = zoomMeeting.joinUrl
                     zoomMeetingId = zoomMeeting.meetingId

@@ -804,7 +804,7 @@ struct TestCenterExamCardContent: View {
                     .font(.headline)
                     .foregroundColor(isLocked ? .secondary : .primary)
                 
-                Text(sectionDescription ?? examType.shortDescription)
+                Text(sectionDescription ?? ExamTypeConfig.defaultConfig(for: examType).shortDescription)
                     .font(.subheadline)
                     .foregroundColor(.secondary)
                     .lineLimit(2)

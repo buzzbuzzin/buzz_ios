@@ -25,6 +25,10 @@ struct ExamSchedulingView: View {
     @State private var showError = false
     @State private var errorMessage = ""
     
+    private var config: ExamTypeConfig {
+        examService.getConfig(for: examType)
+    }
+    
     // Minimum scheduling date is tomorrow
     private var minimumDate: Date {
         Calendar.current.date(byAdding: .day, value: 1, to: Date()) ?? Date()
@@ -80,7 +84,7 @@ struct ExamSchedulingView: View {
         ScrollView {
             VStack(spacing: 24) {
                 // Exam Summary Card
-                ExamSummaryCard(examType: examType, priceInfo: priceInfo)
+                ExamSummaryCard(examType: examType, config: config, priceInfo: priceInfo)
                     .padding(.horizontal)
                 
                 // Date Selection
@@ -140,11 +144,11 @@ struct ExamSchedulingView: View {
                 
                 // Location Selection
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("3. \(examType.allowsOnline ? "Select Format" : "Enter Location")")
+                    Text("3. \(config.allowsOnline ? "Select Format" : "Enter Location")")
                         .font(.headline)
                         .padding(.horizontal)
                     
-                    if examType.allowsOnline {
+                    if config.allowsOnline {
                         // Format Selection for ROC-A
                         VStack(spacing: 12) {
                             LocationTypeButton(
@@ -212,8 +216,8 @@ struct ExamSchedulingView: View {
                         .padding(.horizontal)
                     
                     VStack(spacing: 8) {
-                        SummaryRow(label: "Exam", value: examType.displayName)
-                        SummaryRow(label: "Duration", value: "\(examType.durationMinutes) minutes")
+                        SummaryRow(label: "Exam", value: config.displayName)
+                        SummaryRow(label: "Duration", value: "\(config.durationMinutes) minutes")
                         SummaryRow(
                             label: "Date & Time",
                             value: formattedScheduledDateTime,
@@ -285,9 +289,13 @@ struct ExamSchedulingView: View {
         } message: {
             Text(errorMessage)
         }
+        .task {
+            // Load configs if not already loaded
+            await examService.ensureConfigsLoaded()
+        }
         .onAppear {
             // Set default location type based on exam
-            if !examType.allowsOnline {
+            if !config.allowsOnline {
                 locationType = .inPerson
             }
         }
@@ -309,6 +317,7 @@ struct ExamSchedulingView: View {
 
 struct ExamSummaryCard: View {
     let examType: ExamType
+    let config: ExamTypeConfig
     let priceInfo: ExamPriceResponse
     
     var body: some View {
@@ -318,16 +327,16 @@ struct ExamSummaryCard: View {
                     .fill(examType.color.opacity(0.2))
                     .frame(width: 56, height: 56)
                 
-                Image(systemName: examType.icon)
+                Image(systemName: config.icon)
                     .font(.system(size: 24))
                     .foregroundColor(examType.color)
             }
             
             VStack(alignment: .leading, spacing: 4) {
-                Text(examType.displayName)
+                Text(config.displayName)
                     .font(.headline)
                 
-                Text("\(examType.durationMinutes) minutes • \(priceInfo.formattedPrice)")
+                Text("\(config.durationMinutes) minutes • \(priceInfo.formattedPrice)")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
             }

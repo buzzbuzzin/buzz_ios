@@ -20,6 +20,10 @@ struct ExamIntroView: View {
     @State private var prerequisitesStatus: ExamPrerequisitesStatus?
     @State private var showSchedulingView = false
     
+    private var config: ExamTypeConfig {
+        examService.getConfig(for: examType)
+    }
+    
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
@@ -33,11 +37,11 @@ struct ExamIntroView: View {
                     .frame(height: 200)
                     
                     VStack(spacing: 12) {
-                        Image(systemName: examType.icon)
+                        Image(systemName: config.icon)
                             .font(.system(size: 60))
                             .foregroundColor(.white)
                         
-                        Text(examType.displayName)
+                        Text(config.displayName)
                             .font(.title)
                             .fontWeight(.bold)
                             .foregroundColor(.white)
@@ -50,7 +54,7 @@ struct ExamIntroView: View {
                         Text("About This Exam")
                             .font(.headline)
                         
-                        Text(examType.fullDescription)
+                        Text(config.fullDescription)
                             .font(.body)
                             .foregroundColor(.secondary)
                     }
@@ -69,13 +73,13 @@ struct ExamIntroView: View {
                             ExamDetailRow(
                                 icon: "clock",
                                 label: "Duration",
-                                value: "\(examType.durationMinutes) minutes"
+                                value: "\(config.durationMinutes) minutes"
                             )
                             
                             ExamDetailRow(
-                                icon: examType.allowsOnline ? "video" : "mappin.and.ellipse",
+                                icon: config.allowsOnline ? "video" : "mappin.and.ellipse",
                                 label: "Format",
-                                value: examType.allowsOnline ? "In-person or Online" : "In-person only"
+                                value: config.allowsOnline ? "In-person or Online" : "In-person only"
                             )
                             
                             // Price Row
@@ -130,7 +134,7 @@ struct ExamIntroView: View {
                             .padding(.horizontal)
                         
                         VStack(spacing: 12) {
-                            ForEach(Array(examType.prerequisites.enumerated()), id: \.offset) { index, prerequisite in
+                            ForEach(Array(config.prerequisites.enumerated()), id: \.offset) { index, prerequisite in
                                 PrerequisiteDetailRow(
                                     number: index + 1,
                                     title: prerequisite,
@@ -149,7 +153,7 @@ struct ExamIntroView: View {
                         
                         VStack(alignment: .leading, spacing: 8) {
                             WhatToExpectRow(text: "Confirm your appointment 24 hours before")
-                            WhatToExpectRow(text: examType.allowsOnline ? "Join via Zoom or arrive at the location 10 minutes early" : "Arrive at the location 10 minutes early")
+                            WhatToExpectRow(text: config.allowsOnline ? "Join via Zoom or arrive at the location 10 minutes early" : "Arrive at the location 10 minutes early")
                             WhatToExpectRow(text: "Bring valid identification")
                             if examType == .flightReview {
                                 WhatToExpectRow(text: "Bring your drone and necessary equipment")
@@ -194,7 +198,7 @@ struct ExamIntroView: View {
                 }
             }
         }
-        .navigationTitle(examType.displayName)
+        .navigationTitle(config.displayName)
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(isPresented: $showSchedulingView) {
             if let price = priceInfo {
@@ -219,6 +223,9 @@ struct ExamIntroView: View {
     
     private func loadData() async {
         guard let currentUser = authService.currentUser else { return }
+        
+        // Load exam configurations from backend
+        await examService.fetchExamConfigs()
         
         // Load prerequisites status
         do {
