@@ -24,6 +24,7 @@ enum LicenseType: String, Codable, CaseIterable {
     case rocaCertificate = "ROC-A (CAN)"
     case restrictedRadiotelephone = "Restricted Radiotelephone Operator Permit (US)"
     case rpaFlightReviewer = "Flight Reviewer (CAN)"
+    case rocaExaminerCertificate = "ROC-A Examiner (CAN)"
     case custom = "Custom"
     
     var displayName: String {
@@ -43,6 +44,8 @@ enum LicenseType: String, Codable, CaseIterable {
             return .radioOperator
         case .rpaFlightReviewer:
             return .flightReviewer
+        case .rocaExaminerCertificate:
+            return .examiner
         case .custom:
             return .other
         }
@@ -53,6 +56,7 @@ enum LicenseCategory {
     case dronePilot
     case radioOperator
     case flightReviewer
+    case examiner
     case other
     
     var title: String {
@@ -63,6 +67,8 @@ enum LicenseCategory {
             return "Radio Operator Permit Type"
         case .flightReviewer:
             return "Flight Reviewer"
+        case .examiner:
+            return "Examiner"
         case .other:
             return "Other"
         }

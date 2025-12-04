@@ -147,6 +147,27 @@ struct LicenseManagementView: View {
                                     )
                                 }
                                 
+                                // Examiner Section
+                                if !groupedLicenses[.examiner]!.isEmpty {
+                                    LicenseCategorySection(
+                                        category: .examiner,
+                                        licenses: groupedLicenses[.examiner]!,
+                                        onView: { license in
+                                            Task { @MainActor in
+                                                self.selectedLicense = license
+                                            }
+                                        },
+                                        onDelete: { license in
+                                            licenseToDelete = license
+                                            showDeleteConfirmation = true
+                                        },
+                                        onEdit: { license in
+                                            licenseToEdit = license
+                                            showEditSheet = true
+                                        }
+                                    )
+                                }
+                                
                                 // Other Section
                                 if !groupedLicenses[.other]!.isEmpty {
                                     LicenseCategorySection(
@@ -516,6 +537,7 @@ struct LicenseManagementView: View {
             .dronePilot: [],
             .radioOperator: [],
             .flightReviewer: [],
+            .examiner: [],
             .other: []
         ]
         
@@ -616,7 +638,13 @@ struct LicenseCard: View {
     }
     
     private func isROCACertificate(_ license: PilotLicense) -> Bool {
-        return license.licenseType?.contains("ROC-A") ?? false
+        guard let licenseType = license.licenseType else { return false }
+        // ROC-A but not ROC-A Examiner
+        return licenseType.contains("ROC-A") && !licenseType.contains("Examiner")
+    }
+    
+    private func isROCAExaminerCertificate(_ license: PilotLicense) -> Bool {
+        return license.licenseType?.contains("ROC-A Examiner") ?? false
     }
     
     private func isRestrictedRadioPermit(_ license: PilotLicense) -> Bool {
@@ -734,8 +762,10 @@ struct LicenseCard: View {
                             label: {
                                 if isRPACertificate(license) {
                                     return "Date"
-                                } else if isROCACertificate(license) {
+                                } else if isROCAExaminerCertificate(license) {
                                     return "Expiration Date"
+                                } else if isROCACertificate(license) {
+                                    return "Issue Date"
                                 } else {
                                     return "Completion Date"
                                 }
@@ -762,11 +792,11 @@ struct LicenseCard: View {
                             isEmpty: license.courseCompleted == nil
                         )
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .opacity(isROCACertificate(license) ? 0 : 1)
+                        .opacity((isROCACertificate(license) || isROCAExaminerCertificate(license)) ? 0 : 1)
                         
                         LicenseInfoRow(
                             label: {
-                                if isROCACertificate(license) {
+                                if isROCAExaminerCertificate(license) {
                                     return "Examiner Number"
                                 } else if isRestrictedRadioPermit(license) {
                                     return "Serial Number"
@@ -864,7 +894,12 @@ struct EditPilotLicenseView: View {
     }
     
     private var isROCACertificate: Bool {
-        license.licenseType?.contains("ROC-A") ?? false
+        guard let licenseType = license.licenseType else { return false }
+        return licenseType.contains("ROC-A") && !licenseType.contains("Examiner")
+    }
+    
+    private var isROCAExaminerCertificate: Bool {
+        license.licenseType?.contains("ROC-A Examiner") ?? false
     }
     
     private var isRestrictedRadioPermit: Bool {
@@ -938,7 +973,7 @@ struct EditPilotLicenseView: View {
                     Text({
                         if isRPACertificate {
                             return "TC Account"
-                        } else if isROCACertificate {
+                        } else if isROCACertificate || isROCAExaminerCertificate {
                             return "Not Applicable"
                         } else if isRestrictedRadioPermit {
                             return "FRN"
@@ -951,7 +986,7 @@ struct EditPilotLicenseView: View {
                     TextField({
                         if isRPACertificate {
                             return "Enter TC Account"
-                        } else if isROCACertificate {
+                        } else if isROCACertificate || isROCAExaminerCertificate {
                             return "N/A"
                         } else if isRestrictedRadioPermit {
                             return "Enter FRN"
@@ -959,15 +994,17 @@ struct EditPilotLicenseView: View {
                             return "Enter course name"
                         }
                     }(), text: $courseCompleted)
-                    .disabled(isROCACertificate)
+                    .disabled(isROCACertificate || isROCAExaminerCertificate)
                 }
                 
                 VStack(alignment: .leading, spacing: 4) {
                     Text({
                         if isRPACertificate {
                             return "Date"
-                        } else if isROCACertificate {
+                        } else if isROCAExaminerCertificate {
                             return "Expiration Date"
+                        } else if isROCACertificate {
+                            return "Issue Date"
                         } else if isRestrictedRadioPermit {
                             return "Not Applicable"
                         } else {
@@ -1021,7 +1058,7 @@ struct EditPilotLicenseView: View {
                 
                 VStack(alignment: .leading, spacing: 4) {
                     Text({
-                        if isROCACertificate {
+                        if isROCAExaminerCertificate {
                             return "Examiner Number"
                         } else if isRestrictedRadioPermit {
                             return "Serial Number"
@@ -1032,7 +1069,7 @@ struct EditPilotLicenseView: View {
                         .font(.caption)
                         .foregroundColor(.secondary)
                     TextField({
-                        if isROCACertificate {
+                        if isROCAExaminerCertificate {
                             return "Enter examiner number"
                         } else if isRestrictedRadioPermit {
                             return "Enter serial number"
@@ -1044,8 +1081,10 @@ struct EditPilotLicenseView: View {
                             Text({
                                 if isRPACertificate {
                                     return "e.g., PC2020952034"
-                                } else if isROCACertificate {
+                                } else if isROCAExaminerCertificate {
                                     return "e.g., 17950"
+                                } else if isROCACertificate {
+                                    return "e.g., 202005469"
                                 } else if isRestrictedRadioPermit {
                                     return "e.g., RR00207601"
                                 } else {
@@ -1209,6 +1248,10 @@ struct LicenseTypeSelectionView: View {
         LicenseType.allCases.filter { $0.category == .flightReviewer }
     }
     
+    private var examinerLicenses: [LicenseType] {
+        LicenseType.allCases.filter { $0.category == .examiner }
+    }
+    
     private var otherLicenses: [LicenseType] {
         LicenseType.allCases.filter { $0.category == .other }
     }
@@ -1259,6 +1302,26 @@ struct LicenseTypeSelectionView: View {
                 // Flight Reviewer Section
                 Section(header: Text("Flight Reviewer")) {
                     ForEach(flightReviewerLicenses, id: \.self) { type in
+                        Button(action: {
+                            selectedType = type
+                            showCustomTextField = false
+                        }) {
+                            HStack {
+                                Text(type.displayName)
+                                    .foregroundColor(.primary)
+                                Spacer()
+                                if selectedType == type {
+                                    Image(systemName: "checkmark")
+                                        .foregroundColor(.blue)
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                // Examiner Section
+                Section(header: Text("Examiner")) {
+                    ForEach(examinerLicenses, id: \.self) { type in
                         Button(action: {
                             selectedType = type
                             showCustomTextField = false
