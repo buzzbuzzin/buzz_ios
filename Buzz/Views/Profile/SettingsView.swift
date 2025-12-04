@@ -108,26 +108,26 @@ struct SettingsView: View {
                 saveAppearanceMode(newValue)
             }
             
-            // Demo Mode Toggle
-            Section(header: Text("Development")) {
-                Toggle("Demo Mode", isOn: $demoModeManager.isDemoModeEnabled)
-                    .onChange(of: demoModeManager.isDemoModeEnabled) { newValue in
-                        // Demo mode is saved immediately - no need to click Save Changes
-                        // The change is already persisted via DemoModeManager's didSet
-                    }
-                
-                if demoModeManager.isDemoModeEnabled {
-                    Text("Demo mode is enabled. The app will show sample data instead of connecting to the backend.")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .padding(.top, 4)
-                } else {
-                    Text("Demo mode is disabled. The app will connect to the backend for all data.")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .padding(.top, 4)
-                }
-            }
+            // Demo Mode Toggle - Hidden
+//            Section(header: Text("Development")) {
+//                Toggle("Demo Mode", isOn: $demoModeManager.isDemoModeEnabled)
+//                    .onChange(of: demoModeManager.isDemoModeEnabled) { newValue in
+//                        // Demo mode is saved immediately - no need to click Save Changes
+//                        // The change is already persisted via DemoModeManager's didSet
+//                    }
+//                
+//                if demoModeManager.isDemoModeEnabled {
+//                    Text("Demo mode is enabled. The app will show sample data instead of connecting to the backend.")
+//                        .font(.caption)
+//                        .foregroundColor(.secondary)
+//                        .padding(.top, 4)
+//                } else {
+//                    Text("Demo mode is disabled. The app will connect to the backend for all data.")
+//                        .font(.caption)
+//                        .foregroundColor(.secondary)
+//                        .padding(.top, 4)
+//                }
+//            }
         }
         .navigationTitle("Settings")
         .navigationBarTitleDisplayMode(.inline)
