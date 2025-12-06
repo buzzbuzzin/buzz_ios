@@ -13,7 +13,8 @@ struct AuthenticationView: View {
     @EnvironmentObject var authService: AuthService
     @State private var showSignUp = false
     @State private var showPasswordReset = false
-    @State private var selectedTab = 0
+    // Temporarily disabled: swipe between auth methods
+    // @State private var selectedTab = 0
     @State private var showPremiumIntro = false
     
     var body: some View {
@@ -36,7 +37,9 @@ struct AuthenticationView: View {
                 .padding(.top, 10)
                 .padding(.bottom, 10)
                 
-                // Auth Methods
+                // Auth Methods - Temporarily showing only email sign-in
+                // Original TabView with swipe between Email, Phone, and Social sign-in is disabled
+                /*
                 TabView(selection: $selectedTab) {
                     EmailSignInView()
                         .tag(0)
@@ -49,6 +52,11 @@ struct AuthenticationView: View {
                 }
                 .tabViewStyle(.page(indexDisplayMode: .always))
                 .frame(height: 400)
+                */
+                
+                // Email sign-in only (temporary)
+                EmailSignInView()
+                    .frame(height: 400)
                 
                 // Sign Up Link
                 HStack {
