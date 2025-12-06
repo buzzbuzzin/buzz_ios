@@ -176,7 +176,7 @@ struct LocationSearchView: View {
                     locationName = ""
                 }
             } message: {
-                Text("Your address is outside of our covered area. We are currently only supporting the Ithaca region (100 miles).")
+                Text("As a first to market app, we currently do not service your area. Please continue to check the app as we are growing and rolling out in many more locations in 2026")
             }
         }
     }

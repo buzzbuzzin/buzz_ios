@@ -25,96 +25,74 @@ struct CreateBookingStep2DetailsView: View {
     
     var body: some View {
         ScrollView {
-            VStack(spacing: 24) {
+            VStack(spacing: 16) {
                 // Location Section
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("1. Location")
-                        .font(.headline)
-                        .padding(.horizontal)
-                    
-                    // Address Text Field (Uber-style)
+                SectionCard2(number: 1, title: "Location") {
                     Button(action: {
                         showLocationSearch = true
                     }) {
                         HStack {
-                            Image(systemName: "magnifyingglass")
-                                .foregroundColor(.blue)
+                            Text("📍")
                                 .font(.system(size: 20))
                             
                             Text(locationName.isEmpty ? "Where to?" : locationName)
                                 .foregroundColor(locationName.isEmpty ? .secondary : .primary)
                                 .font(.body)
+                                .lineLimit(1)
                             
                             Spacer()
                             
-                            if selectedLocation != nil {
-                                Image(systemName: "checkmark.circle.fill")
-                                    .foregroundColor(.green)
-                            } else {
-                                Image(systemName: "chevron.right")
-                                    .foregroundColor(.secondary)
-                                    .font(.caption)
-                            }
+                            Image(systemName: "arrow.right")
+                                .foregroundColor(.secondary)
+                                .font(.system(size: 14, weight: .semibold))
                         }
                         .padding()
                         .background(Color(.systemGray6))
-                        .cornerRadius(10)
+                        .cornerRadius(12)
                     }
                     .buttonStyle(PlainButtonStyle())
-                    .padding(.horizontal)
                 }
                 
-                // Date Section
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("2. Select Date")
-                        .font(.headline)
-                        .padding(.horizontal)
-                    
-                    DatePicker(
-                        "",
-                        selection: $selectedDate,
-                        displayedComponents: [.date]
-                    )
-                    .datePickerStyle(.compact)
-                    .labelsHidden()
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal)
-                }
-                
-                // Time Section
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("3. Select Time")
-                        .font(.headline)
-                        .padding(.horizontal)
-                    
-                    if selectedSpecialization == .automotive {
-                        Text("For Automotive industry, start time must be no later than noon")
-                            .font(.caption)
-                            .foregroundColor(.orange)
-                            .padding(.horizontal)
-                    }
-                    
-                    // Create time range for Automotive (8 AM - 12 PM) or full day for others
-                    let calendar = Calendar.current
-                    let timeRange: ClosedRange<Date> = {
-                        if selectedSpecialization == .automotive {
-                            let startOfDay = calendar.date(bySettingHour: 8, minute: 0, second: 0, of: selectedDate) ?? selectedDate
-                            let endOfDay = calendar.date(bySettingHour: 12, minute: 0, second: 0, of: selectedDate) ?? selectedDate
-                            return startOfDay...endOfDay
-                        } else {
-                            let startOfDay = calendar.startOfDay(for: selectedDate)
-                            let endOfDay = calendar.date(bySettingHour: 23, minute: 59, second: 59, of: selectedDate) ?? selectedDate
-                            return startOfDay...endOfDay
+                // Date & Time Section
+                SectionCard2(number: 2, title: "Date & Time") {
+                    VStack(alignment: .leading, spacing: 12) {
+                        // Date picker
+                        HStack {
+                            Text("📅")
+                                .font(.system(size: 20))
+                            
+                            DatePicker(
+                                "",
+                                selection: $selectedDate,
+                                displayedComponents: [.date]
+                            )
+                            .datePickerStyle(.compact)
+                            .labelsHidden()
+                            
+                            Spacer()
                         }
-                    }()
-                    
-                    // Start Time and End Time in HStack
-                    HStack(alignment: .top, spacing: 12) {
-                        // Start Time on the left
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Start Time")
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
+                        .padding()
+                        .background(Color(.systemGray6))
+                        .cornerRadius(12)
+                        
+                        // Time picker
+                        HStack {
+                            Text("🕐")
+                                .font(.system(size: 20))
+                            
+                            // Create time range for Automotive (8 AM - 12 PM) or full day for others
+                            let calendar = Calendar.current
+                            let timeRange: ClosedRange<Date> = {
+                                if selectedSpecialization == .automotive {
+                                    let startOfDay = calendar.date(bySettingHour: 8, minute: 0, second: 0, of: selectedDate) ?? selectedDate
+                                    let endOfDay = calendar.date(bySettingHour: 12, minute: 0, second: 0, of: selectedDate) ?? selectedDate
+                                    return startOfDay...endOfDay
+                                } else {
+                                    let startOfDay = calendar.startOfDay(for: selectedDate)
+                                    let endOfDay = calendar.date(bySettingHour: 23, minute: 59, second: 59, of: selectedDate) ?? selectedDate
+                                    return startOfDay...endOfDay
+                                }
+                            }()
                             
                             DatePicker(
                                 "",
@@ -124,91 +102,75 @@ struct CreateBookingStep2DetailsView: View {
                             )
                             .datePickerStyle(.compact)
                             .labelsHidden()
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        
-                        // End Time on the right
-                        VStack(alignment: .trailing, spacing: 8) {
-                            HStack(spacing: 4) {
-                                Text("End Time (Optional)")
-                                    .font(.subheadline)
-                                    .foregroundColor(.secondary)
-                                
-                                // Toggle button to clear end time
-                                if endTime != nil {
-                                    Button(action: {
-                                        endTime = nil
-                                    }) {
-                                        Image(systemName: "xmark.circle.fill")
-                                            .foregroundColor(.secondary)
-                                            .font(.caption)
-                                    }
-                                }
-                            }
                             
-                            DatePicker(
-                                "",
-                                selection: Binding(
-                                    get: { endTime ?? calendar.date(byAdding: .hour, value: 2, to: startTime) ?? startTime },
-                                    set: { endTime = $0 }
-                                ),
-                                in: startTime...,
-                                displayedComponents: [.hourAndMinute]
-                            )
-                            .datePickerStyle(.compact)
-                            .labelsHidden()
+                            Spacer()
                         }
-                        .frame(maxWidth: .infinity, alignment: .trailing)
+                        .padding()
+                        .background(Color(.systemGray6))
+                        .cornerRadius(12)
+                        
+                        // Warning for Automotive
+                        if selectedSpecialization == .automotive {
+                            HStack(spacing: 8) {
+                                Text("⚠️")
+                                    .font(.system(size: 14))
+                                Text("Start time must be before noon")
+                                    .font(.subheadline)
+                                    .foregroundColor(.orange)
+                                Spacer()
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 10)
+                            .background(Color.orange.opacity(0.1))
+                            .cornerRadius(8)
+                        }
                     }
-                    .padding(.horizontal)
                 }
                 
-                // Required Minimum Rank Section
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack {
-                        Text("4. Pilot Rank")
-                            .font(.headline)
-                        Spacer()
-                        Button(action: {
-                            showRankInfo = true
-                        }) {
-                            Image(systemName: "info.circle")
-                                .foregroundColor(.blue)
-                                .font(.subheadline)
+                // Pilot Rank Section
+                SectionCard2(number: 3, title: "Pilot Rank") {
+                    VStack(spacing: 12) {
+                        HStack {
+                            Text("⭐")
+                                .font(.system(size: 20))
+                            
+                            Picker("Minimum Rank", selection: $requiredMinimumRank) {
+                                // For Automotive, exclude Ensign (rank 0), start from Sub Lieutenant (rank 1)
+                                // Display ranks in descending order: Captain (4) -> Ensign (0)
+                                let rankRange = selectedSpecialization == .automotive ? (1...4) : (0...4)
+                                ForEach(Array(rankRange.reversed()), id: \.self) { rank in
+                                    Text(PilotStats(pilotId: UUID(), totalFlightHours: 0, completedBookings: 0, tier: rank).tierName)
+                                        .tag(rank)
+                                }
+                            }
+                            .pickerStyle(.menu)
+                            .labelsHidden()
+                            
+                            Spacer()
                         }
-                    }
-                    .padding(.horizontal)
-                    
-                    Text("Booking price varies with different rank.")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                        .padding(.horizontal)
-                    
-                    Picker("Minimum Rank", selection: $requiredMinimumRank) {
-                        // For Automotive, exclude Ensign (rank 0), start from Sub Lieutenant (rank 1)
-                        // Display ranks in descending order: Captain (4) -> Ensign (0)
-                        let rankRange = selectedSpecialization == .automotive ? (1...4) : (0...4)
-                        ForEach(Array(rankRange.reversed()), id: \.self) { rank in
-                            Text(PilotStats(pilotId: UUID(), totalFlightHours: 0, completedBookings: 0, tier: rank).tierName)
-                                .tag(rank)
+                        .padding()
+                        .background(Color(.systemGray6))
+                        .cornerRadius(12)
+                        .onAppear {
+                            // Ensure rank is valid for Automotive (must be at least 1)
+                            // Default to Captain (4) if not set or invalid
+                            if selectedSpecialization == .automotive && requiredMinimumRank < 1 {
+                                requiredMinimumRank = 4 // Default to Captain for Automotive
+                            } else if requiredMinimumRank < 0 || requiredMinimumRank > 4 {
+                                requiredMinimumRank = 4 // Default to Captain
+                            }
                         }
-                    }
-                    .pickerStyle(.menu)
-                    .padding(.horizontal)
-                    .onAppear {
-                        // Ensure rank is valid for Automotive (must be at least 1)
-                        // Default to Captain (4) if not set or invalid
-                        if selectedSpecialization == .automotive && requiredMinimumRank < 1 {
-                            requiredMinimumRank = 4 // Default to Captain for Automotive
-                        } else if requiredMinimumRank < 0 || requiredMinimumRank > 4 {
-                            requiredMinimumRank = 4 // Default to Captain
+                        .onChange(of: selectedSpecialization) { _, newSpecialization in
+                            // Reset rank if switching to Automotive and current rank is Ensign
+                            if newSpecialization == .automotive && requiredMinimumRank < 1 {
+                                requiredMinimumRank = 4 // Default to Captain for Automotive
+                            }
                         }
-                    }
-                    .onChange(of: selectedSpecialization) { _, newSpecialization in
-                        // Reset rank if switching to Automotive and current rank is Ensign
-                        if newSpecialization == .automotive && requiredMinimumRank < 1 {
-                            requiredMinimumRank = 4 // Default to Captain for Automotive
-                        }
+                        
+                        Text("Pricing varies by rank")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .center)
                     }
                 }
                 
@@ -230,11 +192,12 @@ struct CreateBookingStep2DetailsView: View {
                     )
                     .frame(maxWidth: .infinity)
                 }
-                .padding(.horizontal)
                 .padding(.bottom, 20)
             }
-            .padding(.vertical)
+            .padding(.vertical, 20)
+            .padding(.horizontal, 16)
         }
+        .background(Color(.systemGroupedBackground))
         .fullScreenCover(isPresented: $showLocationSearch) {
             LocationSearchView(
                 selectedLocation: $selectedLocation,
@@ -246,5 +209,47 @@ struct CreateBookingStep2DetailsView: View {
         .sheet(isPresented: $showRankInfo) {
             RankInfoView()
         }
+    }
+}
+
+// MARK: - Section Card for Step 2
+
+struct SectionCard2<Content: View>: View {
+    let number: Int
+    let title: String
+    let content: Content
+    
+    init(number: Int, title: String, @ViewBuilder content: () -> Content) {
+        self.number = number
+        self.title = title
+        self.content = content()
+    }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(spacing: 12) {
+                // Numbered badge
+                ZStack {
+                    Circle()
+                        .fill(Color.blue)
+                        .frame(width: 32, height: 32)
+                    
+                    Text("\(number)")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.white)
+                }
+                
+                Text(title)
+                    .font(.system(size: 20, weight: .semibold))
+                
+                Spacer()
+            }
+            
+            content
+        }
+        .padding(20)
+        .background(Color(.systemBackground))
+        .cornerRadius(16)
+        .shadow(color: Color.black.opacity(0.05), radius: 8, x: 0, y: 2)
     }
 }

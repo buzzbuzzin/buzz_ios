@@ -72,53 +72,68 @@ struct CreateBookingStep3PaymentView: View {
     }
     
     var body: some View {
-        Form {
-            Section("Booking Details (Optional)") {
-                TextField("Enter details about this booking. This could be something that you want pilots to be aware of before or during the flight. ", text: $description, axis: .vertical)
-                    .lineLimit(3...6)
-            }
-            
-            // Payment Section - Different for Automotive vs other industries
-            if selectedSpecialization == .automotive {
-                Section("Payment") {
-                    // Show fixed pricing for Automotive
-                    VStack(alignment: .leading, spacing: 12) {
-                        HStack {
-                            Text("Selected Rank:")
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
-                            Spacer()
-                            Text(rankName)
-                                .font(.subheadline)
-                                .fontWeight(.semibold)
-                        }
-                        
-                        Divider()
-                        
-                        HStack {
-                            Text("Payment Amount:")
-                                .font(.headline)
-                            Spacer()
-                            Text("$\(String(format: "%.2f", NSDecimalNumber(decimal: automotivePrice).doubleValue))")
-                                .font(.title2)
-                                .fontWeight(.bold)
-                                .foregroundColor(.green)
-                        }
-                        
-                        // Show pricing message
-                        if isFirstAutomotiveBooking {
-                            VStack(alignment: .leading, spacing: 8) {
+        ScrollView {
+            VStack(spacing: 16) {
+                // Booking Details Section
+                SectionCard3(number: 1, title: "Booking Details", subtitle: "Optional") {
+                    TextField("Enter details about this booking. This could be something that you want pilots to be aware of before or during the flight.", text: $description, axis: .vertical)
+                        .lineLimit(3...6)
+                        .padding()
+                        .background(Color(.systemGray6))
+                        .cornerRadius(12)
+                }
+                
+                // Payment Section
+                SectionCard3(number: 2, title: "Payment") {
+                    if selectedSpecialization == .automotive {
+                        // Automotive fixed pricing
+                        VStack(alignment: .leading, spacing: 16) {
+                            // Selected Rank
+                            HStack {
+                                Text("Selected Rank:")
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                                Spacer()
+                                Text(rankName)
+                                    .font(.subheadline)
+                                    .fontWeight(.semibold)
+                            }
+                            .padding()
+                            .background(Color(.systemGray6))
+                            .cornerRadius(12)
+                            
+                            // Payment Amount
+                            HStack {
+                                Text("Payment Amount:")
+                                    .font(.headline)
+                                Spacer()
+                                Text("$\(String(format: "%.2f", NSDecimalNumber(decimal: automotivePrice).doubleValue))")
+                                    .font(.title2)
+                                    .fontWeight(.bold)
+                                    .foregroundColor(.green)
+                            }
+                            .padding()
+                            .background(Color(.systemGray6))
+                            .cornerRadius(12)
+                            
+                            // Pricing info messages
+                            if isFirstAutomotiveBooking {
                                 HStack(spacing: 6) {
                                     Image(systemName: "info.circle.fill")
                                         .foregroundColor(.blue)
-                                        .font(.caption)
+                                        .font(.subheadline)
                                     Text("First-month special price")
-                                        .font(.caption)
+                                        .font(.subheadline)
                                         .foregroundColor(.blue)
+                                    Spacer()
                                 }
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 10)
+                                .background(Color.blue.opacity(0.1))
+                                .cornerRadius(8)
                                 
                                 if !hasAutomotiveSubscription {
-                                    VStack(alignment: .leading, spacing: 6) {
+                                    VStack(alignment: .leading, spacing: 12) {
                                         Text("💡 Save on future bookings!")
                                             .font(.subheadline)
                                             .fontWeight(.semibold)
@@ -138,7 +153,6 @@ struct CreateBookingStep3PaymentView: View {
                                         .foregroundColor(.secondary)
                                         .padding(.leading, 8)
                                         
-                                        // Subscribe Now button
                                         Button(action: {
                                             showSubscription = true
                                         }) {
@@ -147,203 +161,202 @@ struct CreateBookingStep3PaymentView: View {
                                                 .fontWeight(.semibold)
                                                 .foregroundColor(.white)
                                                 .frame(maxWidth: .infinity)
-                                                .padding(.vertical, 10)
+                                                .padding(.vertical, 12)
                                                 .background(Color.blue)
-                                                .cornerRadius(8)
+                                                .cornerRadius(10)
                                         }
-                                        .padding(.top, 8)
                                     }
                                     .padding()
                                     .background(Color.orange.opacity(0.1))
-                                    .cornerRadius(8)
+                                    .cornerRadius(12)
                                 }
-                            }
-                            .padding(.top, 8)
-                        } else if !hasAutomotiveSubscription {
-                            // Returning user without subscription
-                            VStack(alignment: .leading, spacing: 8) {
-                                HStack(spacing: 6) {
-                                    Image(systemName: "exclamationmark.triangle.fill")
-                                        .foregroundColor(.orange)
-                                        .font(.caption)
-                                    Text("Higher pricing - No subscription")
-                                        .font(.caption)
-                                        .foregroundColor(.orange)
-                                }
-                                
-                                Text("Subscribe the Buzz Automotive Package to get lower prices on future bookings!")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                                
-                                // Subscribe Now button
-                                Button(action: {
-                                    showSubscription = true
-                                }) {
-                                    Text("Subscribe Now!")
-                                        .font(.subheadline)
-                                        .fontWeight(.semibold)
-                                        .foregroundColor(.white)
-                                        .frame(maxWidth: .infinity)
-                                        .padding(.vertical, 10)
-                                        .background(Color.blue)
-                                        .cornerRadius(8)
-                                }
-                                .padding(.top, 8)
-                            }
-                            .padding(.top, 8)
-                        } else {
-                            // Has subscription
-                            HStack(spacing: 6) {
-                                Image(systemName: "checkmark.circle.fill")
-                                    .foregroundColor(.green)
-                                    .font(.caption)
-                                Text("Subscriber pricing")
-                                    .font(.caption)
-                                    .foregroundColor(.green)
-                            }
-                            .padding(.top, 8)
-                        }
-                    }
-                    .padding(.vertical, 4)
-                }
-            } else {
-                // Other industries - use existing payment input system
-                Section("Payment") {
-                    // Payment Input Type Selector
-                    Picker("Payment Type", selection: $paymentInputType) {
-                        ForEach(PaymentInputType.allCases, id: \.self) { type in
-                            Text(type.rawValue).tag(type)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .onChange(of: paymentInputType) { _, _ in
-                        // Clear inputs when switching types
-                        hourlyRateInput = ""
-                        totalPaymentInput = ""
-                        paymentAmount = ""
-                    }
-                    
-                    // Input field based on selection
-                    if paymentInputType == .totalPayment {
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack {
-                                Text("Total Payment ($)")
-                                    .font(.subheadline)
-                                Spacer()
-                                TextField("0.00", text: $totalPaymentInput)
-                                    .keyboardType(.decimalPad)
-                                    .multilineTextAlignment(.trailing)
-                                    .onChange(of: totalPaymentInput) { _, newValue in
-                                        // Filter to only allow numbers and decimal point
-                                        let filtered = newValue.filter { $0.isNumber || $0 == "." }
-                                        if filtered != newValue {
-                                            totalPaymentInput = filtered
-                                        } else {
-                                            paymentAmount = filtered
-                                            updateCalculatedValue()
-                                        }
-                                    }
-                            }
-                            
-                            if showMinRateWarning {
-                                HStack(spacing: 4) {
-                                    Image(systemName: "exclamationmark.triangle.fill")
-                                        .foregroundColor(.orange)
-                                        .font(.caption)
-                                    Text("Calculated hourly rate is below minimum of $\(String(format: "%.2f", minimumHourlyRate))/hr")
-                                        .font(.caption)
-                                        .foregroundColor(.orange)
-                                }
-                            }
-                        }
-                    } else {
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack {
-                                Text("Hourly Rate ($)")
-                                    .font(.subheadline)
-                                Spacer()
-                                TextField("0.00", text: $hourlyRateInput)
-                                    .keyboardType(.decimalPad)
-                                    .multilineTextAlignment(.trailing)
-                                    .onChange(of: hourlyRateInput) { _, newValue in
-                                        // Filter to only allow numbers and decimal point
-                                        let filtered = newValue.filter { $0.isNumber || $0 == "." }
-                                        if filtered != newValue {
-                                            hourlyRateInput = filtered
-                                        } else {
-                                            if let rate = Double(filtered), rate > 0 {
-                                                if rate < minimumHourlyRate {
-                                                    showMinRateWarning = true
-                                                } else {
-                                                    showMinRateWarning = false
-                                                }
-                                            } else {
-                                                showMinRateWarning = false
-                                            }
-                                            updateCalculatedValue()
-                                        }
-                                    }
-                            }
-                            
-                            if showMinRateWarning {
-                                HStack(spacing: 4) {
-                                    Image(systemName: "exclamationmark.triangle.fill")
-                                        .foregroundColor(.orange)
-                                        .font(.caption)
-                                    Text("Minimum hourly rate is $\(String(format: "%.2f", minimumHourlyRate))")
-                                        .font(.caption)
-                                        .foregroundColor(.orange)
-                                }
-                            }
-                        }
-                    }
-                    
-                    // Display calculated value (using default 2 hours)
-                    let defaultHours: Double = 2.0
-                    Divider()
-                    
-                    if paymentInputType == .totalPayment {
-                        // Show calculated hourly rate
-                        if !totalPaymentInput.isEmpty, let total = Double(totalPaymentInput), total > 0 {
-                            let hourlyRate = total / defaultHours
-                            HStack {
-                                Text("Calculated Hourly Rate:")
-                                    .font(.subheadline)
-                                    .foregroundColor(.secondary)
-                                Spacer()
-                                VStack(alignment: .trailing, spacing: 2) {
-                                    Text("$\(String(format: "%.2f", hourlyRate))/hr")
-                                        .font(.subheadline)
-                                        .fontWeight(.semibold)
-                                        .foregroundColor(hourlyRate < minimumHourlyRate ? .orange : .purple)
-                                    if hourlyRate < minimumHourlyRate {
-                                        Text("Below minimum")
-                                            .font(.caption2)
+                            } else if !hasAutomotiveSubscription {
+                                VStack(alignment: .leading, spacing: 12) {
+                                    HStack(spacing: 6) {
+                                        Image(systemName: "exclamationmark.triangle.fill")
+                                            .foregroundColor(.orange)
+                                            .font(.subheadline)
+                                        Text("Higher pricing - No subscription")
+                                            .font(.subheadline)
                                             .foregroundColor(.orange)
                                     }
+                                    
+                                    Text("Subscribe the Buzz Automotive Package to get lower prices on future bookings!")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                    
+                                    Button(action: {
+                                        showSubscription = true
+                                    }) {
+                                        Text("Subscribe Now!")
+                                            .font(.subheadline)
+                                            .fontWeight(.semibold)
+                                            .foregroundColor(.white)
+                                            .frame(maxWidth: .infinity)
+                                            .padding(.vertical, 12)
+                                            .background(Color.blue)
+                                            .cornerRadius(10)
+                                    }
                                 }
+                                .padding()
+                                .background(Color.orange.opacity(0.1))
+                                .cornerRadius(12)
+                            } else {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .foregroundColor(.green)
+                                        .font(.subheadline)
+                                    Text("Subscriber pricing")
+                                        .font(.subheadline)
+                                        .foregroundColor(.green)
+                                    Spacer()
+                                }
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 10)
+                                .background(Color.green.opacity(0.1))
+                                .cornerRadius(8)
                             }
                         }
                     } else {
-                        // Show calculated total payment
-                        if !hourlyRateInput.isEmpty, let rate = Double(hourlyRateInput), rate > 0 {
-                            let total = rate * defaultHours
-                            HStack {
-                                Text("Calculated Total Payment:")
-                                    .font(.subheadline)
-                                    .foregroundColor(.secondary)
-                                Spacer()
-                                Text("$\(String(format: "%.2f", total))")
-                                    .font(.subheadline)
-                                    .fontWeight(.semibold)
-                                    .foregroundColor(.green)
+                        // Other industries - payment input
+                        VStack(alignment: .leading, spacing: 16) {
+                            Picker("Payment Type", selection: $paymentInputType) {
+                                ForEach(PaymentInputType.allCases, id: \.self) { type in
+                                    Text(type.rawValue).tag(type)
+                                }
+                            }
+                            .pickerStyle(.segmented)
+                            .onChange(of: paymentInputType) { _, _ in
+                                hourlyRateInput = ""
+                                totalPaymentInput = ""
+                                paymentAmount = ""
+                            }
+                            
+                            if paymentInputType == .totalPayment {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    HStack {
+                                        Text("💵")
+                                            .font(.system(size: 20))
+                                        Text("Total Payment ($)")
+                                            .font(.subheadline)
+                                        Spacer()
+                                        TextField("0.00", text: $totalPaymentInput)
+                                            .keyboardType(.decimalPad)
+                                            .multilineTextAlignment(.trailing)
+                                            .onChange(of: totalPaymentInput) { _, newValue in
+                                                let filtered = newValue.filter { $0.isNumber || $0 == "." }
+                                                if filtered != newValue {
+                                                    totalPaymentInput = filtered
+                                                } else {
+                                                    paymentAmount = filtered
+                                                    updateCalculatedValue()
+                                                }
+                                            }
+                                    }
+                                    .padding()
+                                    .background(Color(.systemGray6))
+                                    .cornerRadius(12)
+                                    
+                                    if showMinRateWarning {
+                                        HStack(spacing: 4) {
+                                            Text("⚠️")
+                                            Text("Calculated hourly rate is below minimum of $\(String(format: "%.2f", minimumHourlyRate))/hr")
+                                                .font(.caption)
+                                                .foregroundColor(.orange)
+                                        }
+                                        .padding(.horizontal, 12)
+                                        .padding(.vertical, 8)
+                                        .background(Color.orange.opacity(0.1))
+                                        .cornerRadius(8)
+                                    }
+                                }
+                            } else {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    HStack {
+                                        Text("⏱️")
+                                            .font(.system(size: 20))
+                                        Text("Hourly Rate ($)")
+                                            .font(.subheadline)
+                                        Spacer()
+                                        TextField("0.00", text: $hourlyRateInput)
+                                            .keyboardType(.decimalPad)
+                                            .multilineTextAlignment(.trailing)
+                                            .onChange(of: hourlyRateInput) { _, newValue in
+                                                let filtered = newValue.filter { $0.isNumber || $0 == "." }
+                                                if filtered != newValue {
+                                                    hourlyRateInput = filtered
+                                                } else {
+                                                    if let rate = Double(filtered), rate > 0 {
+                                                        showMinRateWarning = rate < minimumHourlyRate
+                                                    } else {
+                                                        showMinRateWarning = false
+                                                    }
+                                                    updateCalculatedValue()
+                                                }
+                                            }
+                                    }
+                                    .padding()
+                                    .background(Color(.systemGray6))
+                                    .cornerRadius(12)
+                                    
+                                    if showMinRateWarning {
+                                        HStack(spacing: 4) {
+                                            Text("⚠️")
+                                            Text("Minimum hourly rate is $\(String(format: "%.2f", minimumHourlyRate))")
+                                                .font(.caption)
+                                                .foregroundColor(.orange)
+                                        }
+                                        .padding(.horizontal, 12)
+                                        .padding(.vertical, 8)
+                                        .background(Color.orange.opacity(0.1))
+                                        .cornerRadius(8)
+                                    }
+                                }
+                            }
+                            
+                            // Calculated value display
+                            let defaultHours: Double = 2.0
+                            
+                            if paymentInputType == .totalPayment {
+                                if !totalPaymentInput.isEmpty, let total = Double(totalPaymentInput), total > 0 {
+                                    let hourlyRate = total / defaultHours
+                                    HStack {
+                                        Text("Calculated Hourly Rate:")
+                                            .font(.subheadline)
+                                            .foregroundColor(.secondary)
+                                        Spacer()
+                                        Text("$\(String(format: "%.2f", hourlyRate))/hr")
+                                            .font(.subheadline)
+                                            .fontWeight(.semibold)
+                                            .foregroundColor(hourlyRate < minimumHourlyRate ? .orange : .purple)
+                                    }
+                                    .padding()
+                                    .background(Color(.systemGray6))
+                                    .cornerRadius(12)
+                                }
+                            } else {
+                                if !hourlyRateInput.isEmpty, let rate = Double(hourlyRateInput), rate > 0 {
+                                    let total = rate * defaultHours
+                                    HStack {
+                                        Text("Calculated Total Payment:")
+                                            .font(.subheadline)
+                                            .foregroundColor(.secondary)
+                                        Spacer()
+                                        Text("$\(String(format: "%.2f", total))")
+                                            .font(.subheadline)
+                                            .fontWeight(.semibold)
+                                            .foregroundColor(.green)
+                                    }
+                                    .padding()
+                                    .background(Color(.systemGray6))
+                                    .cornerRadius(12)
+                                }
                             }
                         }
                     }
                 }
-            }
-            
-            Section {
+                
+                // Navigation Buttons
                 HStack(spacing: 12) {
                     Button("Back") {
                         onBack()
@@ -362,8 +375,12 @@ struct CreateBookingStep3PaymentView: View {
                     )
                     .frame(maxWidth: .infinity)
                 }
+                .padding(.bottom, 20)
             }
+            .padding(.vertical, 20)
+            .padding(.horizontal, 16)
         }
+        .background(Color(.systemGroupedBackground))
         .onAppear {
             // Initialize input fields based on current paymentAmount
             if let amount = Double(paymentAmount), amount > 0 {
@@ -441,6 +458,60 @@ struct CreateBookingStep3PaymentView: View {
                 showMinRateWarning = false
             }
         }
+    }
+}
+
+// MARK: - Section Card for Step 3
+
+struct SectionCard3<Content: View>: View {
+    let number: Int
+    let title: String
+    var subtitle: String? = nil
+    let content: Content
+    
+    init(number: Int, title: String, subtitle: String? = nil, @ViewBuilder content: () -> Content) {
+        self.number = number
+        self.title = title
+        self.subtitle = subtitle
+        self.content = content()
+    }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(spacing: 12) {
+                // Numbered badge
+                ZStack {
+                    Circle()
+                        .fill(Color.blue)
+                        .frame(width: 32, height: 32)
+                    
+                    Text("\(number)")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.white)
+                }
+                
+                if let subtitle = subtitle {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(title)
+                            .font(.system(size: 20, weight: .semibold))
+                        Text(subtitle)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                } else {
+                    Text(title)
+                        .font(.system(size: 20, weight: .semibold))
+                }
+                
+                Spacer()
+            }
+            
+            content
+        }
+        .padding(20)
+        .background(Color(.systemBackground))
+        .cornerRadius(16)
+        .shadow(color: Color.black.opacity(0.05), radius: 8, x: 0, y: 2)
     }
 }
 

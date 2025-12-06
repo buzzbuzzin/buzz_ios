@@ -7,6 +7,8 @@
 
 import SwiftUI
 import Auth
+import Supabase
+import PostgREST
 
 struct CourseContentView: View {
     let course: TrainingCourse
@@ -20,6 +22,7 @@ struct CourseContentView: View {
     @State private var showSubscriptionSheet = false
     @State private var hasPassedGroundSchoolTest = false
     @State private var navigateToTest = false
+    @State private var completedUnitIds: Set<UUID> = []
     
     var hasSubscription: Bool {
         storeKitManager.hasAcademyPassSubscription()
@@ -64,6 +67,7 @@ struct CourseContentView: View {
                             course: course,
                             hasSubscription: hasSubscription,
                             hasPassedTest: hasPassedGroundSchoolTest,
+                            completedUnitIds: completedUnitIds,
                             onSubscribe: {
                                 showSubscriptionSheet = true
                             },
@@ -77,6 +81,14 @@ struct CourseContentView: View {
         }
         .navigationTitle("Course Content")
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            // Refresh completed units when returning from UnitDetailView
+            if let currentUser = authService.currentUser {
+                Task {
+                    await loadCompletedUnits(pilotId: currentUser.id)
+                }
+            }
+        }
         .task {
             print("🚀 [CourseContentView] Loading course content...")
             await loadSectionsAndUnits()
@@ -94,6 +106,9 @@ struct CourseContentView: View {
                 } catch {
                     print("❌ [CourseContentView] Error checking test status: \(error)")
                 }
+                
+                // Fetch completed unit IDs
+                await loadCompletedUnits(pilotId: currentUser.id)
             }
         }
         .sheet(isPresented: $showSubscriptionSheet) {
@@ -124,6 +139,24 @@ struct CourseContentView: View {
             }
             .hidden()
         )
+    }
+    
+    private func loadCompletedUnits(pilotId: UUID) async {
+        do {
+            let supabase = SupabaseClient.shared.client
+            let response: [UnitCompletion] = try await supabase
+                .from("unit_completions")
+                .select()
+                .eq("pilot_id", value: pilotId.uuidString)
+                .eq("course_id", value: course.id.uuidString)
+                .execute()
+                .value
+            
+            completedUnitIds = Set(response.map { $0.unitId })
+            print("✅ [CourseContentView] Loaded \(completedUnitIds.count) completed units")
+        } catch {
+            print("❌ [CourseContentView] Error loading completed units: \(error)")
+        }
     }
     
     private func loadSectionsAndUnits() async {
@@ -309,6 +342,7 @@ struct DynamicSectionView: View {
     let course: TrainingCourse
     let hasSubscription: Bool
     let hasPassedTest: Bool
+    let completedUnitIds: Set<UUID>
     let onSubscribe: () -> Void
     let onNavigateToTest: () -> Void
     
@@ -368,6 +402,7 @@ struct DynamicSectionView: View {
                     course: course,
                     hasSubscription: hasSubscription,
                     hasPassedTest: hasPassedTest,
+                    completedUnitIds: completedUnitIds,
                     onSubscribe: onSubscribe
                 )
             }
@@ -383,6 +418,7 @@ struct DynamicUnitsSectionView: View {
     let course: TrainingCourse
     let hasSubscription: Bool
     let hasPassedTest: Bool
+    let completedUnitIds: Set<UUID>
     let onSubscribe: () -> Void
     
     var body: some View {
@@ -396,19 +432,20 @@ struct DynamicUnitsSectionView: View {
             VStack(spacing: 12) {
                 ForEach(units) { unit in
                     let (isLocked, lockReason, requiresAction) = getLockStatus(for: unit)
+                    let isCompleted = completedUnitIds.contains(unit.id)
                     
                     if isLocked {
                         if requiresAction == .subscribe {
                             Button(action: onSubscribe) {
-                                UnitRow(unit: unit, isLocked: true, lockReason: lockReason)
+                                UnitRow(unit: unit, isLocked: true, lockReason: lockReason, isCompleted: false)
                             }
                             .buttonStyle(PlainButtonStyle())
                         } else {
-                            UnitRow(unit: unit, isLocked: true, lockReason: lockReason)
+                            UnitRow(unit: unit, isLocked: true, lockReason: lockReason, isCompleted: false)
                         }
                     } else {
                         NavigationLink(destination: UnitDetailView(unit: unit, course: course)) {
-                            UnitRow(unit: unit, isLocked: false)
+                            UnitRow(unit: unit, isLocked: false, isCompleted: isCompleted)
                         }
                         .buttonStyle(PlainButtonStyle())
                     }
@@ -446,18 +483,23 @@ struct UnitRow: View {
     let unit: CourseUnit
     var isLocked: Bool = false
     var lockReason: String = "Subscribe to unlock"
+    var isCompleted: Bool = false
     
     var body: some View {
         HStack(spacing: 16) {
             // Unit Number Badge
             ZStack {
                 Circle()
-                    .fill(isLocked ? Color.gray.opacity(0.2) : Color.blue.opacity(0.2))
+                    .fill(isLocked ? Color.gray.opacity(0.2) : (isCompleted ? Color.green.opacity(0.2) : Color.blue.opacity(0.2)))
                     .frame(width: 50, height: 50)
                 
                 if isLocked {
                     Image(systemName: "lock.fill")
                         .foregroundColor(.gray)
+                        .font(.headline)
+                } else if isCompleted {
+                    Image(systemName: "checkmark.seal.fill")
+                        .foregroundColor(.green)
                         .font(.headline)
                 } else {
                     Text("\(unit.unitNumber)")
@@ -491,6 +533,16 @@ struct UnitRow: View {
                         .font(.caption)
                         .foregroundColor(.blue)
                         .fontWeight(.semibold)
+                } else if isCompleted {
+                    HStack(spacing: 4) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundColor(.green)
+                            .font(.caption)
+                        Text("Completed")
+                            .font(.caption)
+                            .foregroundColor(.green)
+                            .fontWeight(.semibold)
+                    }
                 }
             }
             
@@ -507,7 +559,7 @@ struct UnitRow: View {
             }
         }
         .padding()
-        .background(isLocked ? Color(.systemGray5) : Color(.systemGray6))
+        .background(isLocked ? Color(.systemGray5) : (isCompleted ? Color.green.opacity(0.1) : Color(.systemGray6)))
         .cornerRadius(12)
         .opacity(isLocked ? 0.7 : 1.0)
     }

@@ -33,21 +33,16 @@ struct CreateBookingStep1View: View {
     
     var body: some View {
         ScrollView {
-            VStack(spacing: 24) {
+            VStack(spacing: 16) {
                 // Location Section
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("1. Location")
-                        .font(.headline)
-                        .padding(.horizontal)
-                    
-                    // Address Text Field (Uber-style)
+                SectionCard(number: 1, title: "Location") {
                     Button(action: {
                         showLocationSearch = true
                     }) {
                         HStack {
-                            Image(systemName: "magnifyingglass")
-                                .foregroundColor(.blue)
-                                .font(.system(size: 20))
+                            Image(systemName: "mappin.circle.fill")
+                                .foregroundColor(.red)
+                                .font(.system(size: 24))
                             
                             Text(locationName.isEmpty ? "Where to?" : locationName)
                                 .foregroundColor(locationName.isEmpty ? .secondary : .primary)
@@ -55,122 +50,107 @@ struct CreateBookingStep1View: View {
                             
                             Spacer()
                             
-                            if selectedLocation != nil {
-                                Image(systemName: "checkmark.circle.fill")
-                                    .foregroundColor(.green)
-                            } else {
-                                Image(systemName: "chevron.right")
-                                    .foregroundColor(.secondary)
-                                    .font(.caption)
-                            }
+                            Image(systemName: "arrow.right")
+                                .foregroundColor(.secondary)
+                                .font(.system(size: 14, weight: .semibold))
                         }
                         .padding()
                         .background(Color(.systemGray6))
-                        .cornerRadius(10)
+                        .cornerRadius(12)
                     }
                     .buttonStyle(PlainButtonStyle())
-                    .padding(.horizontal)
                 }
                 
-                // Date Section
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("2. Select Date")
-                        .font(.headline)
-                        .padding(.horizontal)
-                    
-                    DatePicker(
-                        "Booking Date",
-                        selection: $selectedDate,
-                        displayedComponents: [.date]
-                    )
-                    .datePickerStyle(.compact)
-                    .padding(.horizontal)
-                }
-                
-                // Time Section
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("4. Select Time")
-                        .font(.headline)
-                        .padding(.horizontal)
-                    
-                    VStack(spacing: 16) {
-                        HStack(spacing: 12) {
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text("Start Time")
+                // Date & Time Section
+                SectionCard(number: 2, title: "Date & Time") {
+                    VStack(spacing: 12) {
+                        // Date picker button
+                        HStack {
+                            Image(systemName: "calendar")
+                                .foregroundColor(.red)
+                                .font(.system(size: 20))
+                            
+                            DatePicker(
+                                "",
+                                selection: $selectedDate,
+                                displayedComponents: [.date]
+                            )
+                            .datePickerStyle(.compact)
+                            .labelsHidden()
+                        }
+                        .padding()
+                        .background(Color(.systemGray6))
+                        .cornerRadius(12)
+                        
+                        // Time picker button
+                        HStack {
+                            Image(systemName: "clock")
+                                .foregroundColor(.red)
+                                .font(.system(size: 20))
+                            
+                            DatePicker(
+                                "",
+                                selection: $startTime,
+                                displayedComponents: [.hourAndMinute]
+                            )
+                            .datePickerStyle(.compact)
+                            .labelsHidden()
+                        }
+                        .padding()
+                        .background(Color(.systemGray6))
+                        .cornerRadius(12)
+                        
+                        // Warning message for specific industries
+                        if selectedSpecialization == .automotive {
+                            HStack(spacing: 8) {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .foregroundColor(.orange)
+                                    .font(.system(size: 14))
+                                Text("Start time must be before noon")
                                     .font(.subheadline)
-                                    .foregroundColor(.secondary)
-                                
-                                DatePicker(
-                                    "",
-                                    selection: $startTime,
-                                    displayedComponents: [.hourAndMinute]
-                                )
-                                .datePickerStyle(.compact)
-                                .labelsHidden()
+                                    .foregroundColor(.orange)
+                                Spacer()
                             }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 10)
+                            .background(Color.orange.opacity(0.1))
+                            .cornerRadius(8)
+                        }
+                    }
+                }
+                
+                // Pilot Rank Section
+                SectionCard(number: 3, title: "Pilot Rank") {
+                    VStack(spacing: 12) {
+                        HStack {
+                            Image(systemName: "star.fill")
+                                .foregroundColor(.orange)
+                                .font(.system(size: 20))
+                            
+                            Picker("Minimum Rank", selection: $requiredMinimumRank) {
+                                ForEach(0...4, id: \.self) { rank in
+                                    Text(PilotStats(pilotId: UUID(), totalFlightHours: 0, completedBookings: 0, tier: rank).tierName)
+                                        .tag(rank)
+                                }
+                            }
+                            .pickerStyle(.menu)
+                            .labelsHidden()
                             
                             Spacer()
-                            
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text("End Time")
-                                    .font(.subheadline)
-                                    .foregroundColor(.secondary)
-                                
-                                DatePicker(
-                                    "",
-                                    selection: $endTime,
-                                    displayedComponents: [.hourAndMinute]
-                                )
-                                .datePickerStyle(.compact)
-                                .labelsHidden()
-                            }
                         }
+                        .padding()
+                        .background(Color(.systemGray6))
+                        .cornerRadius(12)
+                        
+                        Text("Pricing varies by rank")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .center)
                     }
-                    .padding(.horizontal)
-                }
-                
-                // Required Minimum Rank Section
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack {
-                        Text("3. Pilot Rank")
-                            .font(.headline)
-                        Spacer()
-                        Button(action: {
-                            showRankInfo = true
-                        }) {
-                            Image(systemName: "info.circle")
-                                .foregroundColor(.blue)
-                                .font(.subheadline)
-                        }
-                    }
-                    .padding(.horizontal)
-                    
-                    Text("Booking price varies with different rank.")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                        .padding(.horizontal)
-                    
-                    Picker("Minimum Rank", selection: $requiredMinimumRank) {
-                        ForEach(0...4, id: \.self) { rank in
-                            Text(PilotStats(pilotId: UUID(), totalFlightHours: 0, completedBookings: 0, tier: rank).tierName)
-                                .tag(rank)
-                        }
-                    }
-                    .pickerStyle(.menu)
-                    .padding(.horizontal)
                 }
                 
                 // Specialization Section
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("5. Choose Specialization")
-                        .font(.headline)
-                        .padding(.horizontal)
-                    
-                    Text("Select the type of drone service needed")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                        .padding(.horizontal)
-                    
+                SectionCard(number: 4, title: "Choose Specialization") {
                     LazyVGrid(columns: [
                         GridItem(.flexible(), spacing: 12),
                         GridItem(.flexible(), spacing: 12)
@@ -184,7 +164,6 @@ struct CreateBookingStep1View: View {
                             }
                         }
                     }
-                    .padding(.horizontal)
                 }
                 
                 // Next Button
@@ -196,7 +175,8 @@ struct CreateBookingStep1View: View {
                 .padding(.horizontal)
                 .padding(.bottom, 20)
             }
-            .padding(.vertical)
+            .padding(.vertical, 20)
+            .padding(.horizontal, 16)
         }
         .fullScreenCover(isPresented: $showLocationSearch) {
             LocationSearchView(
@@ -223,7 +203,7 @@ struct CreateBookingStep1View: View {
                 locationName = ""
             }
         } message: {
-            Text("Your address is outside of our covered area. We are currently only supporting the Ithaca region (100 miles).")
+            Text("As a first to market app, we currently do not service your area. Please continue to check the app as we are growing and rolling out in many more locations in 2026")
         }
     }
     
@@ -338,6 +318,48 @@ struct RankInfoRow: View {
         .padding()
         .background(Color(.systemGray6))
         .cornerRadius(12)
+    }
+}
+
+// MARK: - Section Card
+
+struct SectionCard<Content: View>: View {
+    let number: Int
+    let title: String
+    let content: Content
+    
+    init(number: Int, title: String, @ViewBuilder content: () -> Content) {
+        self.number = number
+        self.title = title
+        self.content = content()
+    }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(spacing: 12) {
+                // Numbered badge
+                ZStack {
+                    Circle()
+                        .fill(Color.blue)
+                        .frame(width: 32, height: 32)
+                    
+                    Text("\(number)")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.white)
+                }
+                
+                Text(title)
+                    .font(.system(size: 20, weight: .semibold))
+                
+                Spacer()
+            }
+            
+            content
+        }
+        .padding(20)
+        .background(Color(.systemBackground))
+        .cornerRadius(16)
+        .shadow(color: Color.black.opacity(0.05), radius: 8, x: 0, y: 2)
     }
 }
 
