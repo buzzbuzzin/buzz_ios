@@ -16,7 +16,7 @@ struct BookingMapView: View {
     
     @StateObject private var locationManager = BookingMapLocationManager()
     @State private var region = MKCoordinateRegion(
-        center: CLLocationCoordinate2D(latitude: 37.7749, longitude: -122.4194),
+        center: LocationHelper.shared.defaultSimulatorLocation,
         span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
     )
     @State private var hasInitializedLocation = false
@@ -90,9 +90,9 @@ struct BookingMapView: View {
                     span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
                 )
             } else {
-                // Use default San Francisco location at street-scale
+                // Use default location (Ithaca, NY in simulator) at street-scale
                 region = MKCoordinateRegion(
-                    center: CLLocationCoordinate2D(latitude: 37.7749, longitude: -122.4194),
+                    center: LocationHelper.shared.defaultSimulatorLocation,
                     span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
                 )
             }
@@ -279,7 +279,7 @@ struct LocationPickerMap: View {
     @Binding var locationName: String
     
     @State private var region = MKCoordinateRegion(
-        center: CLLocationCoordinate2D(latitude: 37.7749, longitude: -122.4194),
+        center: LocationHelper.shared.defaultSimulatorLocation,
         span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
     )
     

@@ -120,13 +120,14 @@ serve(async (req) => {
       const profile = pilotProfiles[member.pilot_id] || {}
       return {
         id: member.id,
+        booking_id: booking_id, // Required by Swift model
         pilot_id: member.pilot_id,
         role: member.role,
-        rank: member.rank_at_acceptance,
+        rank_at_acceptance: member.rank_at_acceptance, // Swift expects this key name
         rank_name: RANK_NAMES[member.rank_at_acceptance],
         payout_amount: member.payout_amount,
         joined_at: member.joined_at,
-        is_posted: !!member.transfer_id, // Posted = transferred to balance, available to withdraw
+        transfer_id: member.transfer_id, // Swift expects transfer_id directly
         pilot_name: profile.first_name && profile.last_name 
           ? `${profile.first_name} ${profile.last_name}` 
           : profile.call_sign || "Unknown",
@@ -135,12 +136,11 @@ serve(async (req) => {
       }
     }) || []
 
-    // Find the lead pilot
-    const leadPilot = crewWithProfiles.find(m => m.role === "lead") || 
-      (crewWithProfiles.length > 0 ? crewWithProfiles[0] : null)
+    // Find the lead pilot - only someone with role === "lead" (must be Lieutenant+)
+    const leadPilot = crewWithProfiles.find(m => m.role === "lead") || null
 
-    // Check if crew has a qualified lead (Lieutenant+)
-    const hasQualifiedLead = crewWithProfiles.some(m => m.rank >= 2)
+    // Check if crew has a qualified lead (Lieutenant+ with lead role)
+    const hasQualifiedLead = leadPilot !== null && leadPilot.rank_at_acceptance >= 2
 
     // Determine what to return based on requester type
     const isCustomer = requester_type === "customer" || 

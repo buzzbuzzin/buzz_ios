@@ -18,7 +18,7 @@ struct FlightRadarView: View {
     @State private var activeTransponders: [Transponder] = []
     @State private var selectedTransponder: Transponder?
     @State private var region = MKCoordinateRegion(
-        center: CLLocationCoordinate2D(latitude: 37.7749, longitude: -122.4194),
+        center: LocationHelper.shared.defaultSimulatorLocation,
         span: MKCoordinateSpan(latitudeDelta: 2.0, longitudeDelta: 2.0)
     )
     @State private var updateTimer: Timer?
@@ -205,10 +205,11 @@ struct FlightRadarView: View {
         let latitudes = locations.map { $0.latitude }
         let longitudes = locations.map { $0.longitude }
         
-        let minLat = latitudes.min() ?? 37.7749
-        let maxLat = latitudes.max() ?? 37.7749
-        let minLng = longitudes.min() ?? -122.4194
-        let maxLng = longitudes.max() ?? -122.4194
+        let defaultLocation = LocationHelper.shared.defaultSimulatorLocation
+        let minLat = latitudes.min() ?? defaultLocation.latitude
+        let maxLat = latitudes.max() ?? defaultLocation.latitude
+        let minLng = longitudes.min() ?? defaultLocation.longitude
+        let maxLng = longitudes.max() ?? defaultLocation.longitude
         
         let centerLat = (minLat + maxLat) / 2
         let centerLng = (minLng + maxLng) / 2

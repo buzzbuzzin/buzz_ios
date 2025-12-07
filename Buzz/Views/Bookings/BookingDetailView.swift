@@ -657,7 +657,7 @@ struct BookingDetailView: View {
             }
         } message: {
             if let result = joinCrewResult, let member = result.crewMember, let status = result.crewStatus {
-                Text("You've joined as \(member.role). Payout: $\(String(format: "%.0f", NSDecimalNumber(decimal: member.payoutAmount).doubleValue)). Crew: \(status.currentCount)/\(status.maxCount)")
+                Text("You've joined the crew! Crew: \(status.currentCount)/\(status.maxCount)")
             } else {
                 Text("Successfully joined the crew!")
             }

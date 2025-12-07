@@ -15,19 +15,25 @@ class LocationHelper {
     
     // MARK: - Default Test Locations
     
-    /// Default location for simulator testing (San Francisco area - near demo drones)
+    /// Default location for simulator testing (Ithaca, NY)
     /// Change this to test different scenarios:
     /// - Use testLocationWithNearbyDrones for testing "Caution" status
     /// - Use testLocationFarFromDrones for testing "Safe" status
     var defaultSimulatorLocation: CLLocationCoordinate2D {
-        // San Francisco - Near demo drone locations
-        return CLLocationCoordinate2D(latitude: 37.7749, longitude: -122.4194)
+        // Ithaca, NY - Default test location
+        return testLocationIthaca
         
         // Uncomment one of these to test different scenarios:
         // return testLocationWithNearbyDrones // For testing "Caution" status
         // return testLocationFarFromDrones    // For testing "Safe" status
+        // return testLocationSanFrancisco     // San Francisco area
         // return testLocationLosAngeles       // Los Angeles area
-        // return testLocationNewYork          // New York area
+        // return testLocationNewYork          // New York City area
+    }
+    
+    /// Ithaca, NY - Cornell University area (default for simulator)
+    var testLocationIthaca: CLLocationCoordinate2D {
+        return CLLocationCoordinate2D(latitude: 42.4440, longitude: -76.5019)
     }
     
     /// Location near active drones (within 1 km) - for testing "Caution" status
@@ -40,12 +46,17 @@ class LocationHelper {
         return CLLocationCoordinate2D(latitude: 38.0000, longitude: -122.0000)
     }
     
+    /// San Francisco area
+    var testLocationSanFrancisco: CLLocationCoordinate2D {
+        return CLLocationCoordinate2D(latitude: 37.7749, longitude: -122.4194)
+    }
+    
     /// Los Angeles area
     var testLocationLosAngeles: CLLocationCoordinate2D {
         return CLLocationCoordinate2D(latitude: 34.0522, longitude: -118.2437)
     }
     
-    /// New York area
+    /// New York City area
     var testLocationNewYork: CLLocationCoordinate2D {
         return CLLocationCoordinate2D(latitude: 40.7128, longitude: -74.0060)
     }

@@ -177,7 +177,7 @@ struct BookingCrewMember: Codable, Identifiable {
     let role: CrewRole
     let rankAtAcceptance: Int
     let payoutAmount: Decimal
-    let joinedAt: Date
+    let joinedAtString: String  // ISO 8601 string from edge function
     var transferId: String?
     
     // Optional profile info (populated when fetched with profile data)
@@ -192,11 +192,23 @@ struct BookingCrewMember: Codable, Identifiable {
         case role
         case rankAtAcceptance = "rank_at_acceptance"
         case payoutAmount = "payout_amount"
-        case joinedAt = "joined_at"
+        case joinedAtString = "joined_at"
         case transferId = "transfer_id"
         case pilotName = "pilot_name"
         case callSign = "call_sign"
         case profilePictureUrl = "profile_picture_url"
+    }
+    
+    /// Parsed Date from joinedAtString
+    var joinedAt: Date {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = formatter.date(from: joinedAtString) {
+            return date
+        }
+        // Fallback without fractional seconds
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter.date(from: joinedAtString) ?? Date()
     }
     
     /// Returns the rank name for this crew member

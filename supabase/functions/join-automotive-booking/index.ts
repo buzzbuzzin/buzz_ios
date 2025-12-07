@@ -179,12 +179,16 @@ serve(async (req) => {
       )
     }
 
-    // Determine role - pilot becomes lead if they have the highest rank
-    const highestCurrentRank = currentCrew?.reduce((max, member) => 
-      Math.max(max, member.rank_at_acceptance), 0) || 0
+    // Determine role - only Lieutenant+ (rank >= 2) can be lead
+    // Lead is the highest-ranked Lieutenant+ in the crew
+    const qualifiedCrewMembers = currentCrew?.filter(m => m.rank_at_acceptance >= MIN_LEAD_RANK) || []
+    const highestQualifiedRank = qualifiedCrewMembers.reduce((max, member) => 
+      Math.max(max, member.rank_at_acceptance), 0)
     
-    const isHighestRank = pilotRank > highestCurrentRank
-    const role = isHighestRank ? "lead" : "crew"
+    // Pilot can only be lead if they're Lieutenant+ AND have the highest qualified rank
+    const canBeLead = pilotRank >= MIN_LEAD_RANK
+    const isHighestQualified = canBeLead && pilotRank > highestQualifiedRank
+    const role = isHighestQualified ? "lead" : "crew"
 
     // Insert new crew member
     const { data: newMember, error: insertError } = await supabase
@@ -204,7 +208,7 @@ serve(async (req) => {
     }
 
     // If this pilot is the new lead, update previous lead to crew
-    if (isHighestRank && crewCount > 0) {
+    if (isHighestQualified && qualifiedCrewMembers.length > 0) {
       const previousLead = currentCrew?.find(m => m.role === "lead")
       if (previousLead) {
         await supabase
