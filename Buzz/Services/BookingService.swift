@@ -1142,31 +1142,47 @@ class BookingService: ObservableObject {
                 .eq("id", value: bookingId.uuidString)
                 .execute()
             
-            // Send completion notifications for automotive bookings
+            // Handle automotive booking completion tasks
             let isCompleted = customerCompleted && pilotCompleted
-            if isCompleted && booking.isAutomotiveCrewBooking && isPilot {
-                // Fetch crew members and notify the current pilot (notification is local)
-                if let currentUserId = userId {
-                    do {
-                        let crewMemberships: [BookingCrewMember] = try await supabase
-                            .from("booking_crew")
-                            .select()
-                            .eq("booking_id", value: bookingId.uuidString)
-                            .execute()
-                            .value
-                        
-                        // Find current pilot's membership to get their payout
-                        if let myMembership = crewMemberships.first(where: { $0.pilotId == currentUserId }) {
-                            await NotificationManager.shared.notifyCrewBookingCompleted(
-                                bookingId: bookingId,
-                                payoutAmount: myMembership.payoutAmount,
-                                role: myMembership.role.rawValue
-                            )
-                        }
-                    } catch {
-                        print("Error fetching crew for completion notification: \(error)")
-                        // Don't throw - notification is not critical
+            if isCompleted && booking.isAutomotiveCrewBooking {
+                // Fetch crew members for notifications and stats updates
+                do {
+                    let crewMemberships: [BookingCrewMember] = try await supabase
+                        .from("booking_crew")
+                        .select()
+                        .eq("booking_id", value: bookingId.uuidString)
+                        .execute()
+                        .value
+                    
+                    // Send completion notification to current pilot (if pilot is completing)
+                    if isPilot, let currentUserId = userId,
+                       let myMembership = crewMemberships.first(where: { $0.pilotId == currentUserId }) {
+                        await NotificationManager.shared.notifyCrewBookingCompleted(
+                            bookingId: bookingId,
+                            payoutAmount: myMembership.payoutAmount,
+                            role: myMembership.role.rawValue
+                        )
                     }
+                    
+                    // Update pilot stats for ALL crew members
+                    if let hours = booking.estimatedFlightHours {
+                        let rankingService = RankingService()
+                        for member in crewMemberships {
+                            do {
+                                try await rankingService.updateFlightHours(
+                                    pilotId: member.pilotId,
+                                    additionalHours: hours
+                                )
+                                print("✅ Updated stats for crew member: \(member.pilotId)")
+                            } catch {
+                                // Log but don't fail the whole operation if one pilot's stats fail
+                                print("⚠️ Error updating stats for crew member \(member.pilotId): \(error)")
+                            }
+                        }
+                    }
+                } catch {
+                    print("Error fetching crew for completion tasks: \(error)")
+                    // Don't throw - these tasks are not critical to booking completion
                 }
             }
             

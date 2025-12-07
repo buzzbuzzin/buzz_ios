@@ -859,8 +859,11 @@ struct BookingDetailView: View {
                     // Both parties confirmed, booking is completed
                     showCompletionSuccess = true
                     
-                    // Update pilot stats
-                    if let hours = currentBooking.estimatedFlightHours, let userId = userId {
+                    // Update pilot stats (for non-automotive bookings only)
+                    // Automotive bookings update ALL crew members' stats in BookingService
+                    if !currentBooking.isAutomotiveCrewBooking,
+                       let hours = currentBooking.estimatedFlightHours, 
+                       let userId = userId {
                         try await rankingService.updateFlightHours(pilotId: userId, additionalHours: hours)
                     }
                 } else {
@@ -887,8 +890,11 @@ struct BookingDetailView: View {
                     // Both parties confirmed, booking is completed
                     showCompletionSuccess = true
                     
-                    // Update pilot stats
-                    if let hours = currentBooking.estimatedFlightHours, let userId = userId {
+                    // Update pilot stats (for non-automotive bookings only)
+                    // Automotive bookings update ALL crew members' stats in BookingService
+                    if !currentBooking.isAutomotiveCrewBooking,
+                       let hours = currentBooking.estimatedFlightHours, 
+                       let userId = userId {
                         try await rankingService.updateFlightHours(pilotId: userId, additionalHours: hours)
                     }
                 }
