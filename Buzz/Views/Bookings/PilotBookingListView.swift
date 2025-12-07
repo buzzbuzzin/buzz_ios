@@ -8,6 +8,7 @@
 import SwiftUI
 import CoreLocation
 import Combine
+import Auth
 
 struct PilotBookingListView: View {
     @EnvironmentObject var authService: AuthService
