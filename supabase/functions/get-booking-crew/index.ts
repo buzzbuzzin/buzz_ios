@@ -47,7 +47,7 @@ serve(async (req) => {
     // Get booking to verify it exists and check specialization
     const { data: booking, error: bookingError } = await supabase
       .from("bookings")
-      .select("id, specialization, customer_id, pilot_id, status")
+      .select("id, specialization, customer_id, pilot_id, status, required_minimum_rank")
       .eq("id", booking_id)
       .single()
 
@@ -136,11 +136,14 @@ serve(async (req) => {
       }
     }) || []
 
-    // Find the lead pilot - only someone with role === "lead" (must be Lieutenant+)
+    // Get dynamic minimum lead rank from booking (customer's choice), fallback to default (2 = Lieutenant)
+    const minLeadRank = booking.required_minimum_rank ?? 2
+
+    // Find the lead pilot - only someone with role === "lead" (must meet minimum rank)
     const leadPilot = crewWithProfiles.find(m => m.role === "lead") || null
 
-    // Check if crew has a qualified lead (Lieutenant+ with lead role)
-    const hasQualifiedLead = leadPilot !== null && leadPilot.rank_at_acceptance >= 2
+    // Check if crew has a qualified lead (meets minimum rank requirement with lead role)
+    const hasQualifiedLead = leadPilot !== null && leadPilot.rank_at_acceptance >= minLeadRank
 
     // Determine what to return based on requester type
     const isCustomer = requester_type === "customer" || 
@@ -172,6 +175,9 @@ serve(async (req) => {
       )
     }
 
+    // Check if last seat is reserved for qualified lead
+    const isLastSeatReserved = crewWithProfiles.length === 3 && !hasQualifiedLead
+
     // For pilots (in crew or viewing available booking), return full details
     return new Response(
       JSON.stringify({
@@ -185,6 +191,9 @@ serve(async (req) => {
         is_ready: crewWithProfiles.length >= 4 && hasQualifiedLead,
         lead_pilot: leadPilot,
         total_payout: crewWithProfiles.reduce((sum, m) => sum + Number(m.payout_amount), 0),
+        min_lead_rank: minLeadRank,
+        min_lead_rank_name: RANK_NAMES[minLeadRank],
+        is_last_seat_reserved: isLastSeatReserved,
       }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },

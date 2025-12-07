@@ -260,7 +260,8 @@ struct PilotBookingListView: View {
     }
     
     private func loadBookings() async {
-        try? await bookingService.fetchAvailableBookings()
+        // Pass pilot ID to filter bookings based on eligibility (rank requirements)
+        try? await bookingService.fetchAvailableBookings(forPilotId: authService.currentUser?.id)
     }
 }
 

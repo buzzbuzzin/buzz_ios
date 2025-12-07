@@ -32,7 +32,7 @@ const RANK_NAMES: Record<number, string> = {
 }
 
 const MAX_CREW_SIZE = 4
-const MIN_LEAD_RANK = 2  // Lieutenant or above required
+const DEFAULT_MIN_LEAD_RANK = 2  // Default: Lieutenant or above required (can be overridden by booking)
 
 serve(async (req) => {
   // Handle CORS preflight requests
@@ -54,10 +54,10 @@ serve(async (req) => {
       )
     }
 
-    // Get booking details
+    // Get booking details including required_minimum_rank
     const { data: booking, error: bookingError } = await supabase
       .from("bookings")
-      .select("id, status, specialization, customer_id")
+      .select("id, status, specialization, customer_id, required_minimum_rank")
       .eq("id", booking_id)
       .single()
 
@@ -167,6 +167,32 @@ serve(async (req) => {
       )
     }
 
+    // Get dynamic minimum lead rank from booking (customer's choice), fallback to default
+    const minLeadRank = booking.required_minimum_rank ?? DEFAULT_MIN_LEAD_RANK
+
+    // Check if crew already has a qualified lead
+    const qualifiedCrewMembers = currentCrew?.filter(m => m.rank_at_acceptance >= minLeadRank) || []
+    const hasQualifiedLeadAlready = qualifiedCrewMembers.length > 0
+
+    // RESERVE LAST SEAT FOR QUALIFIED LEAD:
+    // If crew has 3 members but no qualified lead, the 4th seat is reserved
+    // Only pilots with rank >= minLeadRank can take the last spot
+    if (crewCount === MAX_CREW_SIZE - 1 && !hasQualifiedLeadAlready) {
+      if (pilotRank < minLeadRank) {
+        return new Response(
+          JSON.stringify({ 
+            error: `The last crew spot is reserved for ${RANK_NAMES[minLeadRank]}+ pilots to ensure the crew has a qualified lead.`,
+            required_rank: RANK_NAMES[minLeadRank],
+            your_rank: RANK_NAMES[pilotRank]
+          }),
+          {
+            status: 403,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        )
+      }
+    }
+
     // Calculate payout based on rank
     const payoutAmount = RANK_PAYOUTS[pilotRank] || 0
     if (payoutAmount === 0) {
@@ -179,14 +205,13 @@ serve(async (req) => {
       )
     }
 
-    // Determine role - only Lieutenant+ (rank >= 2) can be lead
-    // Lead is the highest-ranked Lieutenant+ in the crew
-    const qualifiedCrewMembers = currentCrew?.filter(m => m.rank_at_acceptance >= MIN_LEAD_RANK) || []
+    // Determine role - only pilots with rank >= minLeadRank can be lead
+    // Lead is the highest-ranked qualified pilot in the crew
     const highestQualifiedRank = qualifiedCrewMembers.reduce((max, member) => 
       Math.max(max, member.rank_at_acceptance), 0)
     
-    // Pilot can only be lead if they're Lieutenant+ AND have the highest qualified rank
-    const canBeLead = pilotRank >= MIN_LEAD_RANK
+    // Pilot can only be lead if they meet minimum lead rank AND have the highest qualified rank
+    const canBeLead = pilotRank >= minLeadRank
     const isHighestQualified = canBeLead && pilotRank > highestQualifiedRank
     const role = isHighestQualified ? "lead" : "crew"
 
@@ -220,8 +245,8 @@ serve(async (req) => {
 
     // Check if crew is now complete and has valid composition
     const newCrewCount = crewCount + 1
-    const hasQualifiedLead = pilotRank >= MIN_LEAD_RANK || 
-      (currentCrew?.some(m => m.rank_at_acceptance >= MIN_LEAD_RANK) || false)
+    const hasQualifiedLead = pilotRank >= minLeadRank || 
+      (currentCrew?.some(m => m.rank_at_acceptance >= minLeadRank) || false)
 
     let bookingAccepted = false
 

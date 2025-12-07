@@ -169,7 +169,7 @@ class BookingService: ObservableObject {
     
     // MARK: - Fetch Available Bookings (Pilot)
     
-    func fetchAvailableBookings() async throws {
+    func fetchAvailableBookings(forPilotId pilotId: UUID? = nil) async throws {
         isLoading = true
         errorMessage = nil
         
@@ -191,13 +191,18 @@ class BookingService: ObservableObject {
         // Real backend call
         do {
             // Fetch available bookings from database (status = available)
-            let bookings: [Booking] = try await supabase
+            var bookings: [Booking] = try await supabase
                 .from("bookings")
                 .select()
                 .eq("status", value: BookingStatus.available.rawValue)
                 .order("created_at", ascending: false)
                 .execute()
                 .value
+            
+            // If pilot ID provided, filter bookings based on pilot eligibility
+            if let pilotId = pilotId {
+                bookings = try await filterBookingsForPilot(bookings: bookings, pilotId: pilotId)
+            }
             
             await MainActor.run {
                 self.availableBookings = bookings
@@ -210,6 +215,61 @@ class BookingService: ObservableObject {
             }
             throw error
         }
+    }
+    
+    /// Filter bookings based on pilot's rank eligibility
+    /// - Ensigns (rank 0) cannot see automotive bookings
+    /// - If automotive booking has 3/4 crew with no qualified lead, only show to pilots who can be lead
+    private func filterBookingsForPilot(bookings: [Booking], pilotId: UUID) async throws -> [Booking] {
+        // Get pilot's rank
+        let pilotStats: PilotStats? = try? await supabase
+            .from("pilot_stats")
+            .select()
+            .eq("pilot_id", value: pilotId.uuidString)
+            .single()
+            .execute()
+            .value
+        
+        let pilotRank = pilotStats?.tier ?? 0
+        
+        var filteredBookings: [Booking] = []
+        
+        for booking in bookings {
+            // For automotive bookings, apply rank-based filtering
+            if booking.isAutomotiveCrewBooking {
+                // Ensigns (rank 0) cannot participate in automotive bookings
+                if pilotRank < 1 {
+                    continue // Skip this booking
+                }
+                
+                // Check crew status to see if last seat is reserved
+                do {
+                    let crewInfo = try await fetchBookingCrew(
+                        bookingId: booking.id,
+                        requesterId: pilotId,
+                        requesterType: "pilot"
+                    )
+                    
+                    // Get minimum lead rank from booking (default to 2 = Lieutenant)
+                    let minLeadRank = booking.requiredMinimumRank ?? 2
+                    
+                    // If last seat is reserved (3/4 crew, no qualified lead)
+                    if crewInfo.crewCount == 3 && !(crewInfo.hasQualifiedLead ?? false) {
+                        // Only show to pilots who can be lead
+                        if pilotRank < minLeadRank {
+                            continue // Skip - last seat reserved for qualified leads
+                        }
+                    }
+                } catch {
+                    // If we can't fetch crew info, include the booking (fail open)
+                    print("Error fetching crew info for booking \(booking.id): \(error)")
+                }
+            }
+            
+            filteredBookings.append(booking)
+        }
+        
+        return filteredBookings
     }
     
     // MARK: - Sample Data for Demo (Available Bookings)
