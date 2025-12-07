@@ -511,40 +511,132 @@ class AuthService: ObservableObject {
         }
     }
     
-    // MARK: - Change Email
+    // MARK: - Change Email with Token Verification
     
-    func changeEmail(newEmail: String) async throws {
+    func changeEmail(newEmail: String) async throws -> Date {
         guard let userId = currentUser?.id else {
             throw NSError(domain: "AuthError", code: -1, userInfo: [NSLocalizedDescriptionKey: "No user logged in"])
         }
         
-        // Note: We don't set isLoading here to avoid triggering view updates
-        // that could dismiss the email edit sheet
+        guard let oldEmail = currentUser?.email else {
+            throw NSError(domain: "AuthError", code: -1, userInfo: [NSLocalizedDescriptionKey: "No email found for current user"])
+        }
         
-        print("DEBUG AuthService: Starting email change for user \(userId) to \(newEmail)")
+        print("DEBUG AuthService: Starting email change for user \(userId) from \(oldEmail) to \(newEmail)")
         
         do {
-            // Update auth email - Supabase will send a confirmation email to the new address
-            // The email won't change until the user confirms via the link in the email
-            var attributes = UserAttributes(email: newEmail)
-            try await supabase.auth.update(
-                user: attributes,
-                redirectTo: URL(string: "https://buzzbuzzin.com/elementor-1147/")
+            // Define request and response structures
+            struct EmailChangeRequest: Codable {
+                let old_email: String
+                let new_email: String
+            }
+            
+            struct EmailChangeResponse: Codable {
+                let success: Bool?
+                let message: String?
+                let expires_at: String?
+                let error: String?
+            }
+            
+            let request = EmailChangeRequest(
+                old_email: oldEmail,
+                new_email: newEmail
             )
             
-            print("DEBUG AuthService: Email change request sent successfully!")
+            // Call edge function to send verification token
+            // Supabase automatically handles authorization
+            let response: EmailChangeResponse = try await supabase.functions.invoke(
+                "send-email-change-token",
+                options: FunctionInvokeOptions(body: request)
+            )
             
-            // IMPORTANT: We do NOT update the profile table here
-            // The profile email will only update after the user confirms the email change
-            // This should be handled via a database trigger or when user logs back in
-            // This prevents email mismatch if user doesn't confirm the change
+            // Check for errors in response
+            if let error = response.error {
+                throw NSError(domain: "AuthError", code: -1, userInfo: [NSLocalizedDescriptionKey: error])
+            }
+            
+            // Parse response to get expiration time
+            if let expiresAtString = response.expires_at {
+                let formatter = ISO8601DateFormatter()
+                if let expiresAt = formatter.date(from: expiresAtString) {
+                    print("DEBUG AuthService: Email change token sent successfully, expires at \(expiresAt)")
+                    return expiresAt
+                }
+            }
+            
+            // Default expiration: 30 minutes from now
+            let defaultExpiration = Date().addingTimeInterval(30 * 60)
+            print("DEBUG AuthService: Email change token sent successfully (using default expiration)")
+            return defaultExpiration
             
         } catch {
             print("DEBUG AuthService: Email change failed: \(error)")
-            // Note: We don't set errorMessage here to avoid triggering view updates
-            // that could dismiss the email edit sheet. The view handles errors locally.
             throw error
         }
+    }
+    
+    func verifyEmailChangeToken(token: String, newEmail: String) async throws {
+        guard currentUser != nil else {
+            throw NSError(domain: "AuthError", code: -1, userInfo: [NSLocalizedDescriptionKey: "No user logged in"])
+        }
+        
+        print("DEBUG AuthService: Verifying email change token")
+        
+        do {
+            // Define request and response structures
+            struct VerifyTokenRequest: Codable {
+                let token: String
+                let new_email: String
+            }
+            
+            struct VerifyTokenResponse: Codable {
+                let success: Bool?
+                let message: String?
+                let new_email: String?
+                let error: String?
+            }
+            
+            let request = VerifyTokenRequest(
+                token: token,
+                new_email: newEmail
+            )
+            
+            // Call edge function to verify token
+            // Supabase automatically handles authorization
+            let response: VerifyTokenResponse = try await supabase.functions.invoke(
+                "verify-email-change-token",
+                options: FunctionInvokeOptions(body: request)
+            )
+            
+            // Check for errors in response
+            if let error = response.error {
+                throw NSError(domain: "AuthError", code: -1, userInfo: [NSLocalizedDescriptionKey: error])
+            }
+            
+            if response.success == true {
+                print("DEBUG AuthService: Email verified and updated successfully")
+                // Reload user session to get updated email
+                await checkAuthStatus()
+                return
+            }
+            
+            throw NSError(domain: "AuthError", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to verify email change"])
+            
+        } catch {
+            print("DEBUG AuthService: Email verification failed: \(error)")
+            throw error
+        }
+    }
+    
+    func resendEmailChangeToken(oldEmail: String, newEmail: String) async throws -> Date {
+        guard currentUser != nil else {
+            throw NSError(domain: "AuthError", code: -1, userInfo: [NSLocalizedDescriptionKey: "No user logged in"])
+        }
+        
+        print("DEBUG AuthService: Resending email change token")
+        
+        // Just call changeEmail again - it will generate a new token
+        return try await changeEmail(newEmail: newEmail)
     }
     
     // MARK: - Delete Account

@@ -17,13 +17,22 @@ struct EmailEditView: View {
     @State private var isLoading = false
     @State private var showError = false
     @State private var errorMessage = ""
+    @State private var showTokenInput = false
     @State private var showSuccessView = false
+    @State private var verificationToken = ""
+    @State private var tokenExpiration: Date?
+    @State private var timeRemaining: TimeInterval = 0
+    @State private var isTokenVerified = false
+    @State private var timer: Timer?
     
     var body: some View {
         VStack(spacing: 0) {
             if showSuccessView {
-                // Success confirmation view
+                // Success confirmation view with logout
                 successConfirmationView
+            } else if showTokenInput {
+                // Token input view
+                tokenInputView
             } else {
                 // Email edit form
                 emailEditFormView
@@ -35,6 +44,7 @@ struct EmailEditView: View {
             ToolbarItem(placement: .navigationBarLeading) {
                 if !showSuccessView {
                     Button("Cancel") {
+                        stopTimer()
                         dismiss()
                     }
                 }
@@ -45,12 +55,10 @@ struct EmailEditView: View {
             loadCurrentEmail()
         }
         .onDisappear {
-            print("DEBUG: EmailEditView disappeared! showSuccessView was: \(showSuccessView)")
+            print("DEBUG: EmailEditView disappeared!")
+            stopTimer()
         }
-        .onChange(of: showSuccessView) { oldValue, newValue in
-            print("DEBUG: showSuccessView changed from \(oldValue) to \(newValue)")
-        }
-        .interactiveDismissDisabled(isLoading || showSuccessView)
+        .interactiveDismissDisabled(isLoading || showTokenInput || showSuccessView)
     }
     
     // MARK: - Email Edit Form View
@@ -105,17 +113,17 @@ struct EmailEditView: View {
                 
                 // Description
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("This is the email address associated with your account. A confirmation email will be sent to your new email address.")
+                    Text("This is the email address associated with your account. A verification code will be sent to your new email address.")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                     
-                    Text("⚠️ Important: You will be automatically logged out after requesting the email change. After confirming via the email link, log back in with your new email address.")
+                    Text("ℹ️ You'll verify your new email with a 6-digit code before logging out.")
                         .font(.subheadline)
-                        .foregroundColor(.orange)
+                        .foregroundColor(.blue)
                         .fontWeight(.medium)
                         .padding(.vertical, 8)
                         .padding(.horizontal, 12)
-                        .background(Color.orange.opacity(0.1))
+                        .background(Color.blue.opacity(0.1))
                         .cornerRadius(8)
                 }
                 
@@ -164,6 +172,143 @@ struct EmailEditView: View {
         }
     }
     
+    // MARK: - Token Input View
+    
+    private var tokenInputView: some View {
+        VStack(spacing: 0) {
+            // Content
+            ScrollView {
+                VStack(alignment: .leading, spacing: 24) {
+                    // Title
+                    Text("Verify Your Email")
+                        .font(.largeTitle)
+                        .fontWeight(.bold)
+                        .padding(.top, 8)
+                    
+                    // Error Message (shown inline)
+                    if showError && !errorMessage.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack(spacing: 12) {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .font(.title3)
+                                    .foregroundColor(.red)
+                                
+                                Text("Error")
+                                    .font(.headline)
+                                    .foregroundColor(.red)
+                                
+                                Spacer()
+                                
+                                Button(action: {
+                                    showError = false
+                                    errorMessage = ""
+                                }) {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+                            
+                            Text(errorMessage)
+                                .font(.subheadline)
+                                .foregroundColor(.primary)
+                                .multilineTextAlignment(.leading)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .padding()
+                        .background(Color.red.opacity(0.1))
+                        .cornerRadius(10)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10)
+                                .stroke(Color.red.opacity(0.3), lineWidth: 1)
+                        )
+                    }
+                    
+                    // Instruction
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("We've sent a 6-digit verification code to:")
+                            .font(.body)
+                            .foregroundColor(.secondary)
+                        
+                        Text(email)
+                            .font(.headline)
+                            .foregroundColor(.primary)
+                            .padding(.vertical, 12)
+                            .padding(.horizontal, 16)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color(.systemGray6))
+                            .cornerRadius(8)
+                        
+                        Text("Enter the code below to verify your email change.")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    // Token Input Field
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Verification Code")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                        
+                        TextField("000000", text: $verificationToken)
+                            .textContentType(.oneTimeCode)
+                            .keyboardType(.numberPad)
+                            .font(.system(size: 24, weight: .semibold, design: .monospaced))
+                            .multilineTextAlignment(.center)
+                            .padding()
+                            .background(Color(.systemGray6))
+                            .cornerRadius(10)
+                            .onChange(of: verificationToken) { oldValue, newValue in
+                                // Limit to 6 digits
+                                if newValue.count > 6 {
+                                    verificationToken = String(newValue.prefix(6))
+                                }
+                            }
+                    }
+                    
+                    // Timer Display
+                    if let expiration = tokenExpiration {
+                        HStack {
+                            Image(systemName: "clock")
+                                .foregroundColor(timeRemaining < 300 ? .orange : .secondary)
+                            Text(formatTimeRemaining(timeRemaining))
+                                .font(.subheadline)
+                                .foregroundColor(timeRemaining < 300 ? .orange : .secondary)
+                            Spacer()
+                        }
+                        .padding(.vertical, 8)
+                    }
+                    
+                    // Resend Code Button
+                    Button(action: resendCode) {
+                        HStack {
+                            Image(systemName: "arrow.clockwise")
+                            Text("Resend Code")
+                        }
+                        .font(.subheadline)
+                        .foregroundColor(.blue)
+                    }
+                    .disabled(isLoading)
+                    
+                    Spacer()
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 8)
+            }
+            
+            // Verify Button
+            VStack {
+                CustomButton(
+                    title: "Verify",
+                    action: verifyToken,
+                    isLoading: isLoading
+                )
+                .padding(.horizontal, 20)
+                .padding(.bottom, 20)
+                .disabled(verificationToken.count != 6)
+            }
+        }
+    }
+    
     // MARK: - Success Confirmation View
     
     private var successConfirmationView: some View {
@@ -183,7 +328,7 @@ struct EmailEditView: View {
                 }
                 
                 // Title
-                Text("Email Change Request Complete")
+                Text("Email Verified!")
                     .font(.title2)
                     .fontWeight(.bold)
                     .multilineTextAlignment(.center)
@@ -191,25 +336,25 @@ struct EmailEditView: View {
                 
                 // Message
                 VStack(spacing: 12) {
-                    Text("The email change request is complete. You will need to check your email to confirm the change.")
-                        .font(.body)
-                        .foregroundColor(.primary)
-                        .multilineTextAlignment(.center)
-                    
-                    Text("Logging out is required for email change to take effect.")
-                        .font(.body)
-                        .foregroundColor(.orange)
-                        .fontWeight(.medium)
-                        .multilineTextAlignment(.center)
-                    
-                    Text("After confirming via the email link, log back in with your new email address.")
+                    Text("Your email has been successfully changed to:")
                         .font(.body)
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
+                    
+                    Text(email)
+                        .font(.headline)
+                        .foregroundColor(.primary)
+                        .multilineTextAlignment(.center)
+                    
+                    Text("You can now log out. Next time, log in with your new email address.")
+                        .font(.body)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.top, 8)
                 }
                 .padding(.horizontal, 32)
                 
-                // Log Out Button
+                // Log Out Button (now enabled and blue)
                 CustomButton(
                     title: "Log Out",
                     action: {
@@ -235,8 +380,6 @@ struct EmailEditView: View {
     }
     
     private func updateEmail() {
-        guard let currentUser = authService.currentUser else { return }
-        
         // Validate email format
         guard isValidEmail(email) else {
             errorMessage = "Please enter a valid email address"
@@ -257,22 +400,18 @@ struct EmailEditView: View {
         
         Task {
             do {
-                // Use the auth service to change email which will:
-                // 1. Update the auth.users email (with confirmation required)
-                // 2. Send confirmation email to new address
-                try await authService.changeEmail(newEmail: email)
+                // Request email change and get expiration time
+                let expiration = try await authService.changeEmail(newEmail: email)
                 
-                print("DEBUG: Email change succeeded!")
-                
-                // Small delay to ensure auth service completes
-                try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+                print("DEBUG: Email change token sent successfully!")
                 
                 // Ensure UI updates happen on the main thread
                 await MainActor.run {
-                    print("DEBUG: Setting showSuccessView = true")
                     isLoading = false
-                    showSuccessView = true
-                    print("DEBUG: showSuccessView is now: \(showSuccessView)")
+                    tokenExpiration = expiration
+                    showTokenInput = true
+                    startTimer()
+                    print("DEBUG: Showing token input view")
                 }
             } catch {
                 print("DEBUG: Email change failed with error: \(error.localizedDescription)")
@@ -291,6 +430,102 @@ struct EmailEditView: View {
                 }
             }
         }
+    }
+    
+    private func verifyToken() {
+        guard verificationToken.count == 6 else {
+            errorMessage = "Please enter a valid 6-digit code"
+            showError = true
+            return
+        }
+        
+        isLoading = true
+        
+        Task {
+            do {
+                try await authService.verifyEmailChangeToken(token: verificationToken, newEmail: email)
+                
+                print("DEBUG: Token verified successfully!")
+                
+                await MainActor.run {
+                    isLoading = false
+                    stopTimer()
+                    showSuccessView = true
+                    print("DEBUG: Email verified, showing success view")
+                }
+            } catch {
+                print("DEBUG: Token verification failed: \(error.localizedDescription)")
+                await MainActor.run {
+                    isLoading = false
+                    errorMessage = error.localizedDescription
+                    showError = true
+                }
+            }
+        }
+    }
+    
+    private func resendCode() {
+        guard let oldEmail = authService.currentUser?.email else { return }
+        
+        isLoading = true
+        showError = false
+        
+        Task {
+            do {
+                let expiration = try await authService.resendEmailChangeToken(oldEmail: oldEmail, newEmail: email)
+                
+                await MainActor.run {
+                    isLoading = false
+                    tokenExpiration = expiration
+                    verificationToken = ""
+                    startTimer()
+                    print("DEBUG: Code resent successfully")
+                }
+            } catch {
+                await MainActor.run {
+                    isLoading = false
+                    errorMessage = "Failed to resend code. Please try again."
+                    showError = true
+                }
+            }
+        }
+    }
+    
+    private func startTimer() {
+        stopTimer() // Stop any existing timer
+        
+        guard let expiration = tokenExpiration else { return }
+        
+        // Update time remaining immediately
+        timeRemaining = expiration.timeIntervalSinceNow
+        
+        // Create timer to update every second
+        timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [self] _ in
+            DispatchQueue.main.async {
+                self.timeRemaining = expiration.timeIntervalSinceNow
+                
+                if self.timeRemaining <= 0 {
+                    self.stopTimer()
+                    self.errorMessage = "Verification code has expired. Please request a new one."
+                    self.showError = true
+                }
+            }
+        }
+    }
+    
+    private func stopTimer() {
+        timer?.invalidate()
+        timer = nil
+    }
+    
+    private func formatTimeRemaining(_ seconds: TimeInterval) -> String {
+        if seconds <= 0 {
+            return "Code expired"
+        }
+        
+        let minutes = Int(seconds) / 60
+        let secs = Int(seconds) % 60
+        return String(format: "Code expires in %d:%02d", minutes, secs)
     }
     
     private func isValidEmail(_ email: String) -> Bool {
