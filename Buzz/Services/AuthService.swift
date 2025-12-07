@@ -518,8 +518,10 @@ class AuthService: ObservableObject {
             throw NSError(domain: "AuthError", code: -1, userInfo: [NSLocalizedDescriptionKey: "No user logged in"])
         }
         
-        isLoading = true
-        errorMessage = nil
+        // Note: We don't set isLoading here to avoid triggering view updates
+        // that could dismiss the email edit sheet
+        
+        print("DEBUG AuthService: Starting email change for user \(userId) to \(newEmail)")
         
         do {
             // Update auth email - Supabase will send a confirmation email to the new address
@@ -530,15 +532,17 @@ class AuthService: ObservableObject {
                 redirectTo: URL(string: "https://buzzbuzzin.com/elementor-1147/")
             )
             
+            print("DEBUG AuthService: Email change request sent successfully!")
+            
             // IMPORTANT: We do NOT update the profile table here
             // The profile email will only update after the user confirms the email change
             // This should be handled via a database trigger or when user logs back in
             // This prevents email mismatch if user doesn't confirm the change
             
-            isLoading = false
         } catch {
-            isLoading = false
-            errorMessage = error.localizedDescription
+            print("DEBUG AuthService: Email change failed: \(error)")
+            // Note: We don't set errorMessage here to avoid triggering view updates
+            // that could dismiss the email edit sheet. The view handles errors locally.
             throw error
         }
     }

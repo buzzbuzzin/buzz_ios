@@ -10,8 +10,10 @@ import Auth
 
 struct PersonalInfoView: View {
     @EnvironmentObject var authService: AuthService
+    @State private var showEmailEdit = false
     
     var body: some View {
+        let _ = print("DEBUG PersonalInfoView: body re-rendered, showEmailEdit = \(showEmailEdit)")
         List {
             // Name Card
             NavigationLink(destination: NameEditView()) {
@@ -23,13 +25,20 @@ struct PersonalInfoView: View {
             }
             .buttonStyle(PlainButtonStyle())
             
-            // Email Card
-            NavigationLink(destination: EmailEditView()) {
-                PersonalInfoCard(
-                    title: "Email",
-                    value: authService.userProfile?.email ?? "Not set",
-                    icon: "envelope.fill"
-                )
+            // Email Card - Using sheet presentation to prevent navigation issues
+            Button {
+                showEmailEdit = true
+            } label: {
+                HStack {
+                    PersonalInfoCard(
+                        title: "Email",
+                        value: authService.userProfile?.email ?? "Not set",
+                        icon: "envelope.fill"
+                    )
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
             }
             .buttonStyle(PlainButtonStyle())
             
@@ -79,6 +88,15 @@ struct PersonalInfoView: View {
         }
         .navigationTitle("Personal Info")
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $showEmailEdit) {
+            NavigationStack {
+                EmailEditView()
+                    .environmentObject(authService)
+            }
+        }
+        .onChange(of: showEmailEdit) { oldValue, newValue in
+            print("DEBUG PersonalInfoView: showEmailEdit changed from \(oldValue) to \(newValue)")
+        }
     }
 }
 

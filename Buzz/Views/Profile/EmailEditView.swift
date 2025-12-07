@@ -17,9 +17,45 @@ struct EmailEditView: View {
     @State private var isLoading = false
     @State private var showError = false
     @State private var errorMessage = ""
-    @State private var showSuccessAlert = false
+    @State private var showSuccessView = false
     
     var body: some View {
+        VStack(spacing: 0) {
+            if showSuccessView {
+                // Success confirmation view
+                successConfirmationView
+            } else {
+                // Email edit form
+                emailEditFormView
+            }
+        }
+        .navigationTitle("Email")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarLeading) {
+                if !showSuccessView {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+        .onAppear {
+            print("DEBUG: EmailEditView appeared")
+            loadCurrentEmail()
+        }
+        .onDisappear {
+            print("DEBUG: EmailEditView disappeared! showSuccessView was: \(showSuccessView)")
+        }
+        .onChange(of: showSuccessView) { oldValue, newValue in
+            print("DEBUG: showSuccessView changed from \(oldValue) to \(newValue)")
+        }
+        .interactiveDismissDisabled(isLoading || showSuccessView)
+    }
+    
+    // MARK: - Email Edit Form View
+    
+    private var emailEditFormView: some View {
         VStack(spacing: 0) {
             // Content
             VStack(alignment: .leading, spacing: 24) {
@@ -28,6 +64,44 @@ struct EmailEditView: View {
                     .font(.largeTitle)
                     .fontWeight(.bold)
                     .padding(.top, 8)
+                
+                // Error Message (shown inline)
+                if showError && !errorMessage.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack(spacing: 12) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .font(.title3)
+                                .foregroundColor(.red)
+                            
+                            Text("Error")
+                                .font(.headline)
+                                .foregroundColor(.red)
+                            
+                            Spacer()
+                            
+                            Button(action: {
+                                showError = false
+                                errorMessage = ""
+                            }) {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        
+                        Text(errorMessage)
+                            .font(.subheadline)
+                            .foregroundColor(.primary)
+                            .multilineTextAlignment(.leading)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding()
+                    .background(Color.red.opacity(0.1))
+                    .cornerRadius(10)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(Color.red.opacity(0.3), lineWidth: 1)
+                    )
+                }
                 
                 // Description
                 VStack(alignment: .leading, spacing: 8) {
@@ -88,24 +162,71 @@ struct EmailEditView: View {
                 .padding(.bottom, 20)
             }
         }
-        .navigationTitle("Email")
-        .navigationBarTitleDisplayMode(.inline)
-        .onAppear {
-            loadCurrentEmail()
-        }
-        .alert("Error", isPresented: $showError) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(errorMessage)
-        }
-        .alert("Confirmation Email Sent", isPresented: $showSuccessAlert) {
-            Button("Log Out") {
-                Task {
-                    try? await authService.signOut()
+    }
+    
+    // MARK: - Success Confirmation View
+    
+    private var successConfirmationView: some View {
+        VStack(spacing: 0) {
+            Spacer()
+            
+            VStack(spacing: 24) {
+                // Success Icon
+                ZStack {
+                    Circle()
+                        .fill(Color.green.opacity(0.1))
+                        .frame(width: 100, height: 100)
+                    
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 60))
+                        .foregroundColor(.green)
                 }
+                
+                // Title
+                Text("Email Change Request Complete")
+                    .font(.title2)
+                    .fontWeight(.bold)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal)
+                
+                // Message
+                VStack(spacing: 12) {
+                    Text("The email change request is complete. You will need to check your email to confirm the change.")
+                        .font(.body)
+                        .foregroundColor(.primary)
+                        .multilineTextAlignment(.center)
+                    
+                    Text("Logging out is required for email change to take effect.")
+                        .font(.body)
+                        .foregroundColor(.orange)
+                        .fontWeight(.medium)
+                        .multilineTextAlignment(.center)
+                    
+                    Text("After confirming via the email link, log back in with your new email address.")
+                        .font(.body)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+                .padding(.horizontal, 32)
+                
+                // Log Out Button
+                CustomButton(
+                    title: "Log Out",
+                    action: {
+                        Task {
+                            try? await authService.signOut()
+                            await MainActor.run {
+                                dismiss()
+                            }
+                        }
+                    },
+                    isLoading: false
+                )
+                .padding(.horizontal, 32)
+                .padding(.top, 8)
             }
-        } message: {
-            Text("A confirmation email has been sent to \(email).\n\nPlease check your inbox and click the confirmation link to verify your new email.\n\nYou will now be logged out to clear all cached data. After confirming your email, log back in with your new email address.")
+            
+            Spacer()
         }
     }
     
@@ -131,23 +252,41 @@ struct EmailEditView: View {
         }
         
         isLoading = true
+        
+        print("DEBUG: Starting email change to: \(email)")
+        
         Task {
             do {
                 // Use the auth service to change email which will:
                 // 1. Update the auth.users email (with confirmation required)
                 // 2. Send confirmation email to new address
-                // 3. Update profile table
                 try await authService.changeEmail(newEmail: email)
+                
+                print("DEBUG: Email change succeeded!")
+                
+                // Small delay to ensure auth service completes
+                try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
                 
                 // Ensure UI updates happen on the main thread
                 await MainActor.run {
+                    print("DEBUG: Setting showSuccessView = true")
                     isLoading = false
-                    showSuccessAlert = true
+                    showSuccessView = true
+                    print("DEBUG: showSuccessView is now: \(showSuccessView)")
                 }
             } catch {
+                print("DEBUG: Email change failed with error: \(error.localizedDescription)")
                 await MainActor.run {
                     isLoading = false
-                    errorMessage = error.localizedDescription
+                    
+                    // Provide user-friendly error messages
+                    let errorDescription = error.localizedDescription.lowercased()
+                    if errorDescription.contains("rate limit") || errorDescription.contains("over_email_send_rate_limit") {
+                        errorMessage = "You have made too many email change requests. Please try again in an hour."
+                    } else {
+                        errorMessage = error.localizedDescription
+                    }
+                    
                     showError = true
                 }
             }
