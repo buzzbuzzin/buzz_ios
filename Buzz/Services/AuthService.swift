@@ -615,8 +615,8 @@ class AuthService: ObservableObject {
             
             if response.success == true {
                 print("DEBUG AuthService: Email verified and updated successfully")
-                // Reload user session to get updated email
-                await checkAuthStatus()
+                // Don't reload auth status yet - let the user log out first
+                // The new email will be loaded when they log back in
                 return
             }
             

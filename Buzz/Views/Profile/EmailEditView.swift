@@ -26,7 +26,9 @@ struct EmailEditView: View {
     @State private var timer: Timer?
     
     var body: some View {
-        VStack(spacing: 0) {
+        let _ = print("DEBUG: EmailEditView body - showSuccessView: \(showSuccessView), showTokenInput: \(showTokenInput)")
+        
+        return VStack(spacing: 0) {
             if showSuccessView {
                 // Success confirmation view with logout
                 successConfirmationView
@@ -57,6 +59,12 @@ struct EmailEditView: View {
         .onDisappear {
             print("DEBUG: EmailEditView disappeared!")
             stopTimer()
+        }
+        .onChange(of: showSuccessView) { oldValue, newValue in
+            print("DEBUG: showSuccessView changed from \(oldValue) to \(newValue)")
+        }
+        .onChange(of: showTokenInput) { oldValue, newValue in
+            print("DEBUG: showTokenInput changed from \(oldValue) to \(newValue)")
         }
         .interactiveDismissDisabled(isLoading || showTokenInput || showSuccessView)
     }
