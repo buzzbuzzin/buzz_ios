@@ -63,6 +63,32 @@ class AuthService: ObservableObject {
                 .value
             
             userProfile = profile
+            
+            // Sync email from auth to profile if they don't match
+            // This handles the case where user confirmed email change and logged back in
+            if let authEmail = currentUser?.email,
+               authEmail != profile.email {
+                let updates: [String: AnyJSON] = [
+                    "email": .string(authEmail)
+                ]
+                
+                try await supabase
+                    .from("profiles")
+                    .update(updates)
+                    .eq("id", value: userId.uuidString)
+                    .execute()
+                
+                // Reload profile to get updated data
+                let updatedProfile: UserProfile = try await supabase
+                    .from("profiles")
+                    .select()
+                    .eq("id", value: userId.uuidString)
+                    .single()
+                    .execute()
+                    .value
+                
+                userProfile = updatedProfile
+            }
         } catch {
             print("Error loading profile: \(error)")
         }
@@ -504,20 +530,10 @@ class AuthService: ObservableObject {
                 redirectTo: URL(string: "https://buzzbuzzin.com/elementor-1147/")
             )
             
-            // Update the email in the profile table as well
-            // Note: You might want to keep the old email until confirmation, or handle this via a database trigger
-            let updates: [String: AnyJSON] = [
-                "email": .string(newEmail)
-            ]
-            
-            try await supabase
-                .from("profiles")
-                .update(updates)
-                .eq("id", value: userId.uuidString)
-                .execute()
-            
-            // Reload user profile to reflect changes
-            await checkAuthStatus()
+            // IMPORTANT: We do NOT update the profile table here
+            // The profile email will only update after the user confirms the email change
+            // This should be handled via a database trigger or when user logs back in
+            // This prevents email mismatch if user doesn't confirm the change
             
             isLoading = false
         } catch {

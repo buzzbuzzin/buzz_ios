@@ -91,12 +91,7 @@ struct EmailEditView: View {
         .navigationTitle("Email")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
-            Task {
-                // Refresh auth status to get the latest email from Supabase
-                await authService.checkAuthStatus()
-                // Then load the current email
-                loadCurrentEmail()
-            }
+            loadCurrentEmail()
         }
         .alert("Error", isPresented: $showError) {
             Button("OK", role: .cancel) {}
@@ -143,12 +138,18 @@ struct EmailEditView: View {
                 // 2. Send confirmation email to new address
                 // 3. Update profile table
                 try await authService.changeEmail(newEmail: email)
-                isLoading = false
-                showSuccessAlert = true
+                
+                // Ensure UI updates happen on the main thread
+                await MainActor.run {
+                    isLoading = false
+                    showSuccessAlert = true
+                }
             } catch {
-                isLoading = false
-                errorMessage = error.localizedDescription
-                showError = true
+                await MainActor.run {
+                    isLoading = false
+                    errorMessage = error.localizedDescription
+                    showError = true
+                }
             }
         }
     }
