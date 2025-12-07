@@ -849,7 +849,8 @@ struct BookingDetailView: View {
     private func finishBooking() {
         Task {
             do {
-                let isCompleted = try await bookingService.markBookingCompletion(bookingId: currentBooking.id, isPilot: true)
+                let userId = authService.currentUser?.id
+                let isCompleted = try await bookingService.markBookingCompletion(bookingId: currentBooking.id, isPilot: true, userId: userId)
                 
                 // Refresh booking to get latest status
                 await refreshBooking()
@@ -859,7 +860,7 @@ struct BookingDetailView: View {
                     showCompletionSuccess = true
                     
                     // Update pilot stats
-                    if let hours = currentBooking.estimatedFlightHours, let userId = authService.currentUser?.id {
+                    if let hours = currentBooking.estimatedFlightHours, let userId = userId {
                         try await rankingService.updateFlightHours(pilotId: userId, additionalHours: hours)
                     }
                 } else {
@@ -876,7 +877,8 @@ struct BookingDetailView: View {
     private func confirmCompletion() {
         Task {
             do {
-                let isCompleted = try await bookingService.markBookingCompletion(bookingId: currentBooking.id, isPilot: true)
+                let userId = authService.currentUser?.id
+                let isCompleted = try await bookingService.markBookingCompletion(bookingId: currentBooking.id, isPilot: true, userId: userId)
                 
                 // Refresh booking to get latest status
                 await refreshBooking()
@@ -886,7 +888,7 @@ struct BookingDetailView: View {
                     showCompletionSuccess = true
                     
                     // Update pilot stats
-                    if let hours = currentBooking.estimatedFlightHours, let userId = authService.currentUser?.id {
+                    if let hours = currentBooking.estimatedFlightHours, let userId = userId {
                         try await rankingService.updateFlightHours(pilotId: userId, additionalHours: hours)
                     }
                 }
@@ -998,6 +1000,17 @@ struct BookingDetailView: View {
                     await loadCrewInfo()
                     // Refresh booking in case status changed
                     await refreshBooking()
+                    
+                    // Send notification if booking was just accepted (crew complete)
+                    if let crewStatus = result.crewStatus, crewStatus.bookingAccepted {
+                        let role = result.crewMember?.role ?? "crew"
+                        await NotificationManager.shared.notifyCrewBookingAccepted(
+                            bookingId: currentBooking.id,
+                            crewCount: crewStatus.currentCount,
+                            role: role,
+                            scheduledDate: currentBooking.scheduledDate
+                        )
+                    }
                 } else if let error = result.error {
                     errorMessage = error
                     showError = true

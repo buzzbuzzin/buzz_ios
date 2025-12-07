@@ -379,12 +379,45 @@ class BookingService: ObservableObject {
             
             let realBookings: [Booking]
             if isPilot {
-                realBookings = try await query
+                // Fetch bookings where pilot is assigned
+                let pilotBookings: [Booking] = try await query
                     .eq("pilot_id", value: userId.uuidString)
                     .in("status", values: [BookingStatus.accepted.rawValue, BookingStatus.completed.rawValue])
                     .order("created_at", ascending: false)
                     .execute()
                     .value
+                
+                // Also fetch automotive bookings where pilot is a crew member
+                let crewMemberships: [BookingCrewMember] = try await supabase
+                    .from("booking_crew")
+                    .select()
+                    .eq("pilot_id", value: userId.uuidString)
+                    .execute()
+                    .value
+                
+                let crewBookingIds = crewMemberships.map { $0.bookingId.uuidString }
+                var crewBookings: [Booking] = []
+                
+                if !crewBookingIds.isEmpty {
+                    crewBookings = try await supabase
+                        .from("bookings")
+                        .select()
+                        .in("id", values: crewBookingIds)
+                        .in("status", values: [BookingStatus.accepted.rawValue, BookingStatus.completed.rawValue])
+                        .execute()
+                        .value
+                }
+                
+                // Combine and deduplicate bookings
+                var allBookings = pilotBookings
+                for crewBooking in crewBookings {
+                    if !allBookings.contains(where: { $0.id == crewBooking.id }) {
+                        allBookings.append(crewBooking)
+                    }
+                }
+                
+                // Sort by created_at descending
+                realBookings = allBookings.sorted { ($0.createdAt ?? Date.distantPast) > ($1.createdAt ?? Date.distantPast) }
             } else {
                 realBookings = try await query
                     .eq("customer_id", value: userId.uuidString)
@@ -962,7 +995,7 @@ class BookingService: ObservableObject {
     
     // MARK: - Mark Booking Completion (Mutual Confirmation)
     
-    func markBookingCompletion(bookingId: UUID, isPilot: Bool) async throws -> Bool {
+    func markBookingCompletion(bookingId: UUID, isPilot: Bool, userId: UUID? = nil) async throws -> Bool {
         isLoading = true
         errorMessage = nil
         
@@ -1011,7 +1044,13 @@ class BookingService: ObservableObject {
                     }
                     
                     struct TransferResponse: Codable {
-                        let transfer_id: String
+                        let transferId: String?
+                        let isAutomotive: Bool?
+                        
+                        enum CodingKeys: String, CodingKey {
+                            case transferId = "transfer_id"
+                            case isAutomotive = "is_automotive"
+                        }
                     }
                     
                     let transferRequest = TransferRequest(
@@ -1026,8 +1065,11 @@ class BookingService: ObservableObject {
                             body: transferRequest
                         ))
                     
-                    // Update booking with transfer_id
-                    updateData["transfer_id"] = .string(transferResponse.transfer_id)
+                    // Update booking with transfer_id (for non-automotive bookings)
+                    // For automotive bookings, transfer_id is updated by the edge function
+                    if let transferId = transferResponse.transferId {
+                        updateData["transfer_id"] = .string(transferId)
+                    }
                     
                     // Note: Balance is managed by Stripe, no need to update database balance
                     // The transfer adds funds to the pilot's Stripe account balance
@@ -1040,8 +1082,36 @@ class BookingService: ObservableObject {
                 .eq("id", value: bookingId.uuidString)
                 .execute()
             
+            // Send completion notifications for automotive bookings
+            let isCompleted = customerCompleted && pilotCompleted
+            if isCompleted && booking.isAutomotiveCrewBooking && isPilot {
+                // Fetch crew members and notify the current pilot (notification is local)
+                if let currentUserId = userId {
+                    do {
+                        let crewMemberships: [BookingCrewMember] = try await supabase
+                            .from("booking_crew")
+                            .select()
+                            .eq("booking_id", value: bookingId.uuidString)
+                            .execute()
+                            .value
+                        
+                        // Find current pilot's membership to get their payout
+                        if let myMembership = crewMemberships.first(where: { $0.pilotId == currentUserId }) {
+                            await NotificationManager.shared.notifyCrewBookingCompleted(
+                                bookingId: bookingId,
+                                payoutAmount: myMembership.payoutAmount,
+                                role: myMembership.role.rawValue
+                            )
+                        }
+                    } catch {
+                        print("Error fetching crew for completion notification: \(error)")
+                        // Don't throw - notification is not critical
+                    }
+                }
+            }
+            
             isLoading = false
-            return customerCompleted && pilotCompleted
+            return isCompleted
         } catch {
             isLoading = false
             errorMessage = error.localizedDescription
@@ -1089,7 +1159,13 @@ class BookingService: ObservableObject {
                 }
                 
                 struct TransferResponse: Codable {
-                    let transfer_id: String
+                    let transferId: String?
+                    let isAutomotive: Bool?
+                    
+                    enum CodingKeys: String, CodingKey {
+                        case transferId = "transfer_id"
+                        case isAutomotive = "is_automotive"
+                    }
                 }
                 
                 let transferRequest = TransferRequest(
@@ -1150,7 +1226,13 @@ class BookingService: ObservableObject {
                 }
                 
                 struct TransferResponse: Codable {
-                    let transfer_id: String
+                    let transferId: String?
+                    let isAutomotive: Bool?
+                    
+                    enum CodingKeys: String, CodingKey {
+                        case transferId = "transfer_id"
+                        case isAutomotive = "is_automotive"
+                    }
                 }
                 
                 let transferRequest = TransferRequest(
@@ -1165,8 +1247,10 @@ class BookingService: ObservableObject {
                         body: transferRequest
                     ))
                 
-                // Update booking with transfer_id
-                updateData["transfer_id"] = .string(transferResponse.transfer_id)
+                // Update booking with transfer_id (for non-automotive bookings)
+                if let transferId = transferResponse.transferId {
+                    updateData["transfer_id"] = .string(transferId)
+                }
             }
             
             try await supabase

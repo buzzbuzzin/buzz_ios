@@ -27,6 +27,8 @@ class NotificationManager: NSObject, ObservableObject {
         case droneActivity = "DRONE_ACTIVITY"
         case weatherChange = "WEATHER_CHANGE"
         case receivedReview = "RECEIVED_REVIEW"
+        case crewBookingAccepted = "CREW_BOOKING_ACCEPTED"
+        case crewBookingCompleted = "CREW_BOOKING_COMPLETED"
     }
     
     private override init() {
@@ -230,6 +232,68 @@ class NotificationManager: NSObject, ObservableObject {
         try? await notificationCenter.add(request)
     }
     
+    // MARK: - Automotive Crew Booking Notifications
+    
+    /// Notify crew member that their automotive booking crew is complete and booking is accepted
+    /// Called when the 4th pilot joins and the crew has a qualified lead (Lieutenant+)
+    func notifyCrewBookingAccepted(bookingId: UUID, crewCount: Int, role: String, scheduledDate: Date?) async {
+        let content = UNMutableNotificationContent()
+        content.title = "Crew Complete! 🚗"
+        
+        let roleText = role == "lead" ? "You're the Lead Pilot" : "You're part of the crew"
+        if let date = scheduledDate {
+            let dateFormatter = DateFormatter()
+            dateFormatter.dateStyle = .medium
+            dateFormatter.timeStyle = .short
+            content.body = "\(roleText) for the automotive booking on \(dateFormatter.string(from: date))"
+        } else {
+            content.body = "\(roleText). All \(crewCount) pilots are ready!"
+        }
+        
+        content.sound = .default
+        content.categoryIdentifier = NotificationCategory.crewBookingAccepted.rawValue
+        content.userInfo = [
+            "bookingId": bookingId.uuidString,
+            "type": "crew_booking_accepted",
+            "role": role
+        ]
+        
+        let request = UNNotificationRequest(
+            identifier: "crew-accepted-\(bookingId.uuidString)",
+            content: content,
+            trigger: nil
+        )
+        
+        try? await notificationCenter.add(request)
+    }
+    
+    /// Notify crew member that their automotive booking has been completed
+    /// Earnings will be visible in their Balance view
+    func notifyCrewBookingCompleted(bookingId: UUID, payoutAmount: Decimal, role: String) async {
+        let content = UNMutableNotificationContent()
+        content.title = "Booking Completed! 🎉"
+        
+        let amountString = String(format: "$%.0f", NSDecimalNumber(decimal: payoutAmount).doubleValue)
+        content.body = "Great job! You earned \(amountString) from this automotive booking. View details in your Balance."
+        
+        content.sound = .default
+        content.categoryIdentifier = NotificationCategory.crewBookingCompleted.rawValue
+        content.userInfo = [
+            "bookingId": bookingId.uuidString,
+            "type": "crew_booking_completed",
+            "payoutAmount": NSDecimalNumber(decimal: payoutAmount).doubleValue,
+            "role": role
+        ]
+        
+        let request = UNNotificationRequest(
+            identifier: "crew-completed-\(bookingId.uuidString)",
+            content: content,
+            trigger: nil
+        )
+        
+        try? await notificationCenter.add(request)
+    }
+    
     // MARK: - Message Notifications (Both Client & Pilot)
     
     /// Notify user about a new message
@@ -268,6 +332,8 @@ class NotificationManager: NSObject, ObservableObject {
             return preferences.weatherUpdates.system
         case .receivedReview:
             return preferences.receivedReviews.system
+        case .crewBookingAccepted, .crewBookingCompleted:
+            return preferences.bookingReminders.system
         }
     }
     

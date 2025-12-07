@@ -249,6 +249,11 @@ serve(async (req) => {
         console.error("Error updating booking status:", updateError)
       } else {
         bookingAccepted = true
+        
+        // TODO: Notify all crew members that the booking is now accepted
+        // This would require a notification system (push notifications, email, or in-app)
+        // For now, crew members will see the status change when they open the app
+        console.log(`Automotive booking ${booking_id} is now accepted with full crew of ${MAX_CREW_SIZE} pilots`)
       }
     }
 
