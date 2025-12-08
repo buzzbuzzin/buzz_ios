@@ -125,6 +125,7 @@ struct EmailSignInView: View {
     @State private var selectedUserType: UserType = .pilot
     @State private var callSign = ""
     @State private var appleAuthorization: ASAuthorization?
+    @State private var hasAgreedToPolicies = false
     
     enum SocialAuthMethod {
         case apple, google
@@ -148,6 +149,9 @@ struct EmailSignInView: View {
                     .cornerRadius(10)
             }
             .padding(.horizontal)
+            
+            policyAgreementView
+                .padding(.horizontal)
             
             CustomButton(
                 title: "Sign In",
@@ -213,7 +217,39 @@ struct EmailSignInView: View {
     }
     
     private var isFormValid: Bool {
-        !email.isEmpty && !password.isEmpty
+        !email.isEmpty && !password.isEmpty && hasAgreedToPolicies
+    }
+    
+    private var policyAgreementView: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Button {
+                hasAgreedToPolicies.toggle()
+            } label: {
+                Image(systemName: hasAgreedToPolicies ? "checkmark.square.fill" : "square")
+                    .foregroundColor(hasAgreedToPolicies ? .blue : .secondary)
+                    .font(.system(size: 18, weight: .semibold))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Agree to terms")
+            .accessibilityValue(hasAgreedToPolicies ? "Selected" : "Not selected")
+            
+            Text(.init("I agree to the [End User License Agreement](https://developer.apple.com/documentation/appstoreconnectapi/end-user-license-agreements-eula) and [Privacy Policy](https://buzzbuzzin.com/legal/)"))
+                .font(.footnote)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
+            
+            Spacer()
+        }
+        .padding(.vertical, 4)
+    }
+    
+    private var eulaURL: URL {
+        URL(string: "https://developer.apple.com/documentation/appstoreconnectapi/end-user-license-agreements-eula")!
+    }
+    
+    private var privacyPolicyURL: URL {
+        URL(string: "https://buzzbuzzin.com/legal/")!
     }
     
     private func signIn() {

@@ -20,6 +20,8 @@ class BookingService: ObservableObject {
     private let supabase = SupabaseClient.shared.client
     private let notificationManager = NotificationManager.shared
     private let notificationPreferencesService = NotificationPreferencesService()
+    private let defaultPilotSearchRadiusMiles: Double = 25.0
+    private let metersPerMile: Double = 1609.34
     
     // MARK: - Create Booking (Customer)
     
@@ -1641,11 +1643,13 @@ class BookingService: ObservableObject {
     
     // MARK: - Notification Helpers
     
-    /// Notify pilots about a new available booking
-    /// Note: Currently notifies all pilots who have booking notifications enabled.
-    /// In the future, this could be enhanced to use saved search preferences or geofencing.
+    /// Notify pilots about a new available booking using geofencing
+    /// Uses last known pilot location (transponder) and a default search radius to filter recipients.
     private func notifyNearbyPilotsAboutNewBooking(booking: Booking) async {
         do {
+            // Preload latest pilot locations to avoid N+1 lookups
+            let pilotLocations = try await fetchLatestPilotLocations()
+            
             // Fetch all pilots
             let profiles: [UserProfile] = try await supabase
                 .from("user_profiles")
@@ -1661,6 +1665,25 @@ class BookingService: ObservableObject {
                     continue
                 }
                 
+                // Require a recent location for geofencing
+                guard let locationSnapshot = pilotLocations[profile.id],
+                      let pilotLat = locationSnapshot.lastLocationLat,
+                      let pilotLng = locationSnapshot.lastLocationLng else {
+                    continue
+                }
+                
+                let bookingLocation = CLLocation(latitude: booking.locationLat, longitude: booking.locationLng)
+                let pilotLocation = CLLocation(latitude: pilotLat, longitude: pilotLng)
+                
+                // Compute distance and filter by pilot radius (fallback to default if none saved)
+                let distanceMeters = bookingLocation.distance(from: pilotLocation)
+                let searchRadiusMeters = defaultPilotSearchRadiusMiles * metersPerMile
+                
+                // Skip pilots outside their search radius
+                guard distanceMeters <= searchRadiusMeters else { continue }
+                
+                let distanceMiles = distanceMeters / metersPerMile
+                
                 // Load pilot's notification preferences
                 do {
                     try await notificationPreferencesService.loadPreferences(userId: profile.id)
@@ -1669,14 +1692,10 @@ class BookingService: ObservableObject {
                     if notificationPreferencesService.preferences.bookingUpdates.system {
                         let aircraftType = booking.specialization?.displayName ?? "Drone flight"
                         
-                        // For now, use a placeholder distance since we don't have saved search locations
-                        // Pilots can filter by opening the app and checking the Jobs tab with their radius filter
-                        let distance = 0.0 // Will show as "0.0 miles away" - indicates notification sent to all
-                        
                         await notificationManager.notifyNearbyBooking(
                             bookingId: booking.id,
                             aircraftType: aircraftType,
-                            distance: distance,
+                            distance: distanceMiles,
                             departureTime: booking.scheduledDate ?? Date()
                         )
                     }
@@ -1689,5 +1708,54 @@ class BookingService: ObservableObject {
             print("Error notifying pilots about new booking: \(error)")
             // Non-critical error, don't throw
         }
+    }
+    
+    /// Fetch the most recent location for each pilot from transponder records
+    private func fetchLatestPilotLocations() async throws -> [UUID: PilotLocationSnapshot] {
+        let records: [PilotLocationSnapshot] = try await supabase
+            .from("transponders")
+            .select("pilot_id,last_location_lat,last_location_lng,last_location_update,is_location_tracking_enabled")
+            .execute()
+            .value
+        
+        var latestByPilot: [UUID: PilotLocationSnapshot] = [:]
+        
+        for record in records {
+            // Skip if tracking disabled or location missing
+            guard record.isLocationTrackingEnabled ?? true,
+                  record.lastLocationLat != nil,
+                  record.lastLocationLng != nil else {
+                continue
+            }
+            
+            if let existing = latestByPilot[record.pilotId] {
+                // Keep the most recent update per pilot
+                if (record.lastLocationUpdate ?? .distantPast) > (existing.lastLocationUpdate ?? .distantPast) {
+                    latestByPilot[record.pilotId] = record
+                }
+            } else {
+                latestByPilot[record.pilotId] = record
+            }
+        }
+        
+        return latestByPilot
+    }
+}
+
+// MARK: - Supporting Models
+
+private struct PilotLocationSnapshot: Decodable {
+    let pilotId: UUID
+    let lastLocationLat: Double?
+    let lastLocationLng: Double?
+    let lastLocationUpdate: Date?
+    let isLocationTrackingEnabled: Bool?
+    
+    enum CodingKeys: String, CodingKey {
+        case pilotId = "pilot_id"
+        case lastLocationLat = "last_location_lat"
+        case lastLocationLng = "last_location_lng"
+        case lastLocationUpdate = "last_location_update"
+        case isLocationTrackingEnabled = "is_location_tracking_enabled"
     }
 }

@@ -45,6 +45,45 @@ CREATE TABLE public.badges_catalog (
   CONSTRAINT badges_catalog_pkey PRIMARY KEY (id),
   CONSTRAINT badges_catalog_course_id_fkey FOREIGN KEY (course_id) REFERENCES public.training_courses(id)
 );
+CREATE TABLE public.booking_crew (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  booking_id uuid NOT NULL,
+  pilot_id uuid NOT NULL,
+  role text NOT NULL CHECK (role = ANY (ARRAY['lead'::text, 'crew'::text])),
+  rank_at_acceptance integer NOT NULL CHECK (rank_at_acceptance >= 1 AND rank_at_acceptance <= 4),
+  payout_amount numeric NOT NULL,
+  transfer_id text,
+  joined_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  CONSTRAINT booking_crew_pkey PRIMARY KEY (id),
+  CONSTRAINT booking_crew_booking_id_fkey FOREIGN KEY (booking_id) REFERENCES public.bookings(id),
+  CONSTRAINT booking_crew_pilot_id_fkey FOREIGN KEY (pilot_id) REFERENCES public.profiles(id)
+);
+CREATE TABLE public.booking_editors (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  booking_id uuid NOT NULL,
+  editor_id uuid NOT NULL,
+  assigned_by uuid,
+  assigned_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  CONSTRAINT booking_editors_pkey PRIMARY KEY (id),
+  CONSTRAINT booking_editors_booking_id_fkey FOREIGN KEY (booking_id) REFERENCES public.bookings(id),
+  CONSTRAINT booking_editors_editor_id_fkey FOREIGN KEY (editor_id) REFERENCES public.profiles(id),
+  CONSTRAINT booking_editors_assigned_by_fkey FOREIGN KEY (assigned_by) REFERENCES public.profiles(id)
+);
+CREATE TABLE public.booking_media_files (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  booking_id uuid NOT NULL,
+  uploaded_by uuid NOT NULL,
+  role text NOT NULL CHECK (role = ANY (ARRAY['pilot'::text, 'editor'::text, 'system'::text])),
+  kind text NOT NULL DEFAULT 'raw'::text CHECK (kind = ANY (ARRAY['raw'::text, 'proxy'::text, 'final'::text, 'notes'::text])),
+  storage_path text NOT NULL,
+  file_name text,
+  file_size bigint,
+  mime_type text,
+  created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  CONSTRAINT booking_media_files_pkey PRIMARY KEY (id),
+  CONSTRAINT booking_media_files_booking_id_fkey FOREIGN KEY (booking_id) REFERENCES public.bookings(id),
+  CONSTRAINT booking_media_files_uploaded_by_fkey FOREIGN KEY (uploaded_by) REFERENCES public.profiles(id)
+);
 CREATE TABLE public.bookings (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
   customer_id uuid NOT NULL,
@@ -74,23 +113,6 @@ CREATE TABLE public.bookings (
   CONSTRAINT bookings_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES public.profiles(id),
   CONSTRAINT bookings_pilot_id_fkey FOREIGN KEY (pilot_id) REFERENCES public.profiles(id)
 );
-CREATE TABLE public.booking_crew (
-  id uuid NOT NULL DEFAULT uuid_generate_v4(),
-  booking_id uuid NOT NULL,
-  pilot_id uuid NOT NULL,
-  role text NOT NULL CHECK (role IN ('lead', 'crew')),
-  rank_at_acceptance integer NOT NULL CHECK (rank_at_acceptance >= 1 AND rank_at_acceptance <= 4),
-  payout_amount numeric NOT NULL,
-  transfer_id text,
-  joined_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
-  CONSTRAINT booking_crew_pkey PRIMARY KEY (id),
-  CONSTRAINT booking_crew_booking_id_fkey FOREIGN KEY (booking_id) REFERENCES public.bookings(id) ON DELETE CASCADE,
-  CONSTRAINT booking_crew_pilot_id_fkey FOREIGN KEY (pilot_id) REFERENCES public.profiles(id),
-  CONSTRAINT booking_crew_unique_pilot UNIQUE (booking_id, pilot_id)
-);
--- Note: booking_crew is used for automotive bookings where 4 pilots form a crew
--- rank_at_acceptance: 1=Sublieutenant($350), 2=Lieutenant($450), 3=Commander($550), 4=Captain($650)
--- role: 'lead' is the highest-ranked pilot, 'crew' for others
 CREATE TABLE public.course_enrollments (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
   pilot_id uuid NOT NULL,
@@ -101,6 +123,24 @@ CREATE TABLE public.course_enrollments (
   CONSTRAINT course_enrollments_pkey PRIMARY KEY (id),
   CONSTRAINT course_enrollments_pilot_id_fkey FOREIGN KEY (pilot_id) REFERENCES public.profiles(id),
   CONSTRAINT course_enrollments_course_id_fkey FOREIGN KEY (course_id) REFERENCES public.training_courses(id)
+);
+CREATE TABLE public.course_sections (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  course_id uuid NOT NULL,
+  name text NOT NULL,
+  display_order integer NOT NULL,
+  description text,
+  section_type text DEFAULT 'units'::text,
+  requires_subscription boolean DEFAULT false,
+  requires_test_passed boolean DEFAULT false,
+  prerequisite_section_id uuid,
+  is_active boolean DEFAULT true,
+  created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  updated_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  exam_type text CHECK (exam_type IS NULL OR (exam_type = ANY (ARRAY['flight_review'::text, 'roc_a'::text]))),
+  CONSTRAINT course_sections_pkey PRIMARY KEY (id),
+  CONSTRAINT course_sections_course_id_fkey FOREIGN KEY (course_id) REFERENCES public.training_courses(id),
+  CONSTRAINT course_sections_prerequisite_fkey FOREIGN KEY (prerequisite_section_id) REFERENCES public.course_sections(id)
 );
 CREATE TABLE public.course_subscriptions (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
@@ -134,24 +174,6 @@ CREATE TABLE public.course_tests (
   CONSTRAINT course_tests_pkey PRIMARY KEY (id),
   CONSTRAINT course_tests_course_id_fkey FOREIGN KEY (course_id) REFERENCES public.training_courses(id)
 );
-CREATE TABLE public.course_sections (
-  id uuid NOT NULL DEFAULT uuid_generate_v4(),
-  course_id uuid NOT NULL,
-  name text NOT NULL,                          -- Section name (e.g., "MANDATORY UNITS", "BASE PROGRAM")
-  display_order integer NOT NULL,              -- Order in which sections appear (1, 2, 3, etc.)
-  description text,                            -- Optional description for the section
-  section_type text DEFAULT 'units',           -- Type: 'units', 'test', 'recurrent', 'exam' (for special handling)
-  requires_subscription boolean DEFAULT false, -- Whether units in this section require subscription
-  requires_test_passed boolean DEFAULT false,  -- Whether units require passing a prerequisite test
-  prerequisite_section_id uuid,                -- Optional: section that must be completed first
-  is_active boolean DEFAULT true,              -- Whether this section is currently active/visible
-  exam_type text CHECK (exam_type IS NULL OR exam_type = ANY (ARRAY['flight_review'::text, 'roc_a'::text])),  -- For 'exam' sections: links to Test Center exams
-  created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
-  updated_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
-  CONSTRAINT course_sections_pkey PRIMARY KEY (id),
-  CONSTRAINT course_sections_course_id_fkey FOREIGN KEY (course_id) REFERENCES public.training_courses(id) ON DELETE CASCADE,
-  CONSTRAINT course_sections_prerequisite_fkey FOREIGN KEY (prerequisite_section_id) REFERENCES public.course_sections(id) ON DELETE SET NULL
-);
 CREATE TABLE public.course_units (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
   course_id uuid NOT NULL,
@@ -159,16 +181,16 @@ CREATE TABLE public.course_units (
   title text NOT NULL,
   description text,
   content text,
-  step_number integer,                         -- DEPRECATED: Use section_id instead
-  is_mandatory boolean DEFAULT false,          -- DEPRECATED: Use section_id instead
-  section_id uuid,                             -- NEW: Reference to course_sections table
+  step_number integer,
+  is_mandatory boolean DEFAULT false,
   order_index integer NOT NULL,
   created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
   updated_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
   pdf_url jsonb,
+  section_id uuid,
   CONSTRAINT course_units_pkey PRIMARY KEY (id),
   CONSTRAINT course_units_course_id_fkey FOREIGN KEY (course_id) REFERENCES public.training_courses(id),
-  CONSTRAINT course_units_section_id_fkey FOREIGN KEY (section_id) REFERENCES public.course_sections(id) ON DELETE SET NULL
+  CONSTRAINT course_units_section_id_fkey FOREIGN KEY (section_id) REFERENCES public.course_sections(id)
 );
 CREATE TABLE public.direct_messages (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
@@ -200,25 +222,33 @@ CREATE TABLE public.drone_registrations (
   CONSTRAINT drone_registrations_pkey PRIMARY KEY (id),
   CONSTRAINT drone_registrations_pilot_id_fkey FOREIGN KEY (pilot_id) REFERENCES public.profiles(id)
 );
-CREATE TABLE public.exam_type_config (
-  exam_type text NOT NULL PRIMARY KEY CHECK (exam_type IN ('flight_review', 'roc_a')),
-  display_name text NOT NULL,
-  short_description text NOT NULL,
-  full_description text NOT NULL,
-  icon text NOT NULL,
-  duration_minutes integer NOT NULL DEFAULT 30,
-  allows_online boolean NOT NULL DEFAULT false,
-  stripe_product_id text NOT NULL,
-  prerequisites jsonb NOT NULL DEFAULT '[]'::jsonb,
+CREATE TABLE public.email_change_tokens (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  user_id uuid NOT NULL,
+  old_email text NOT NULL,
+  new_email text NOT NULL,
+  token text NOT NULL CHECK (token ~ '^\d{6}$'::text),
+  verified boolean NOT NULL DEFAULT false,
   created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
-  updated_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now())
+  expires_at timestamp with time zone NOT NULL,
+  CONSTRAINT email_change_tokens_pkey PRIMARY KEY (id),
+  CONSTRAINT email_change_tokens_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
+);
+CREATE TABLE public.employee_profiles (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  email text NOT NULL UNIQUE,
+  role text NOT NULL DEFAULT 'employee'::text CHECK (role = ANY (ARRAY['employee'::text, 'editor'::text, 'admin'::text, 'owner'::text])),
+  created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  updated_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  name text,
+  CONSTRAINT employee_profiles_pkey PRIMARY KEY (id)
 );
 CREATE TABLE public.exam_appointments (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
   pilot_id uuid NOT NULL,
   exam_type text NOT NULL CHECK (exam_type = ANY (ARRAY['flight_review'::text, 'roc_a'::text])),
   scheduled_date timestamp with time zone NOT NULL,
-  duration_minutes integer NOT NULL DEFAULT 30,
+  duration_minutes integer NOT NULL DEFAULT 15,
   location_type text NOT NULL CHECK (location_type = ANY (ARRAY['in_person'::text, 'online'::text])),
   location_address text,
   meeting_link text,
@@ -235,6 +265,20 @@ CREATE TABLE public.exam_appointments (
   CONSTRAINT exam_appointments_pkey PRIMARY KEY (id),
   CONSTRAINT exam_appointments_pilot_id_fkey FOREIGN KEY (pilot_id) REFERENCES public.profiles(id),
   CONSTRAINT exam_appointments_examiner_id_fkey FOREIGN KEY (examiner_id) REFERENCES public.profiles(id)
+);
+CREATE TABLE public.exam_type_config (
+  exam_type text NOT NULL CHECK (exam_type = ANY (ARRAY['flight_review'::text, 'roc_a'::text])),
+  display_name text NOT NULL,
+  short_description text NOT NULL,
+  full_description text NOT NULL,
+  icon text NOT NULL,
+  duration_minutes integer NOT NULL DEFAULT 30,
+  allows_online boolean NOT NULL DEFAULT false,
+  stripe_product_id text NOT NULL,
+  prerequisites jsonb NOT NULL DEFAULT '[]'::jsonb,
+  created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  updated_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  CONSTRAINT exam_type_config_pkey PRIMARY KEY (exam_type)
 );
 CREATE TABLE public.express_promotion_applications (
   id uuid NOT NULL DEFAULT gen_random_uuid(),

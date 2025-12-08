@@ -444,10 +444,13 @@ struct BookingDetailView: View {
                                                 
                                                 Spacer()
                                                 
-                                                Text(String(format: "$%.0f", NSDecimalNumber(decimal: member.payoutAmount).doubleValue))
-                                                    .font(.caption)
-                                                    .fontWeight(.semibold)
-                                                    .foregroundColor(.green)
+                                                // Only show payout for the current user
+                                                if member.pilotId == authService.currentUser?.id {
+                                                    Text(String(format: "$%.0f", NSDecimalNumber(decimal: member.payoutAmount).doubleValue))
+                                                        .font(.caption)
+                                                        .fontWeight(.semibold)
+                                                        .foregroundColor(.green)
+                                                }
                                             }
                                         }
                                     }
