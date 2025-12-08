@@ -111,7 +111,7 @@ struct BookingDetailView: View {
                 // Customer Info Section (for pilots)
                 if authService.userProfile?.userType == .pilot {
                     VStack(alignment: .leading, spacing: 12) {
-                        Label("Posted by", systemImage: "person.fill")
+                        Label("Charted by", systemImage: "person.fill")
                             .font(.headline)
                         
                         HStack(spacing: 12) {
@@ -276,6 +276,27 @@ struct BookingDetailView: View {
                 Divider()
                     .padding(.horizontal)
                 
+                // Start Time
+                if let scheduledDate = booking.scheduledDate {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Label("Start Time", systemImage: "calendar.badge.clock")
+                            .font(.headline)
+                        
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(formatStartTime(scheduledDate))
+                                .font(.body)
+                            
+                            Text("Zulu: \(formatZuluTime(scheduledDate))")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    .padding(.horizontal)
+                    
+                    Divider()
+                        .padding(.horizontal)
+                }
+                
                 // Status
                 VStack(alignment: .leading, spacing: 8) {
                     Label("Status", systemImage: "info.circle.fill")
@@ -375,7 +396,7 @@ struct BookingDetailView: View {
                                         }
                                         
                                         VStack(alignment: .leading, spacing: 2) {
-                                            Text("Lead: \(lead.pilotName ?? lead.callSign ?? "Unknown")")
+                                            Text("Lead: \(lead.callSign ?? "Unknown Callsign")")
                                                 .font(.subheadline)
                                                 .fontWeight(.medium)
                                             if let rankName = lead.rankName {
@@ -403,7 +424,7 @@ struct BookingDetailView: View {
                                                     .fill(member.role == .lead ? Color.orange : Color.blue)
                                                     .frame(width: 8, height: 8)
                                                 
-                                                Text(member.pilotName ?? member.callSign ?? "Pilot")
+                                                Text(member.callSign ?? "Pilot")
                                                     .font(.caption)
                                                 
                                                 Text("(\(member.rankName))")
@@ -967,6 +988,30 @@ struct BookingDetailView: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
             showCopyConfirmation = false
         }
+    }
+    
+    private func formatStartTime(_ date: Date) -> String {
+        let timeFormatter = DateFormatter()
+        timeFormatter.dateFormat = "h:mm a"
+        let timeString = timeFormatter.string(from: date)
+        
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "MMM d, yyyy"
+        let dateString = dateFormatter.string(from: date)
+        
+        return "\(timeString), \(dateString)"
+    }
+    
+    private func formatZuluTime(_ date: Date) -> String {
+        let utcTimeZone = TimeZone(secondsFromGMT: 0) ?? TimeZone(abbreviation: "UTC") ?? .current
+        let calendar = Calendar(identifier: .gregorian)
+        let utcComponents = calendar.dateComponents(in: utcTimeZone, from: date)
+        
+        let day = utcComponents.day ?? 0
+        let hour = utcComponents.hour ?? 0
+        let minute = utcComponents.minute ?? 0
+        
+        return String(format: "%02d%02d%02dZ", day, hour, minute)
     }
     
     // MARK: - Crew Functions (Automotive Bookings)
