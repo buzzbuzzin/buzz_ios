@@ -465,7 +465,6 @@ class BookingService: ObservableObject {
                         .from("bookings")
                         .select()
                         .in("id", values: crewBookingIds)
-                        .in("status", values: [BookingStatus.accepted.rawValue, BookingStatus.completed.rawValue])
                         .execute()
                         .value
                 }

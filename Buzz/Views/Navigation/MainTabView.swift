@@ -144,8 +144,13 @@ struct MyFlightsView: View {
                     )
                 } else {
                     List {
+                        let activeBookings = bookingService.myBookings.filter { booking in
+                            booking.status == .accepted ||
+                            (booking.isAutomotiveCrewBooking && booking.status == .available)
+                        }
+                        
                         Section("Active") {
-                            ForEach(bookingService.myBookings.filter { $0.status == .accepted }) { booking in
+                            ForEach(activeBookings) { booking in
                                 NavigationLink(destination: BookingDetailView(booking: booking)) {
                                     MyFlightsBookingCard(booking: booking)
                                 }
