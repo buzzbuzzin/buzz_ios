@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		0B5EE2B02ED4DD8C007E42DE /* StoreKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 0B5EE2AF2ED4DD8C007E42DE /* StoreKit.framework */; };
 		0B5EE2B22ED4DF55007E42DE /* BuzzStoreKit.storekit in Resources */ = {isa = PBXBuildFile; fileRef = 0B5EE2B12ED4DF55007E42DE /* BuzzStoreKit.storekit */; };
+		0B5EFCE32EE75E02007E42DE /* TestPlan.xctestplan in Resources */ = {isa = PBXBuildFile; fileRef = 0B5EFCE22EE75E02007E42DE /* TestPlan.xctestplan */; };
 		0BAC7F6F2EB5BD03009067B6 /* Auth in Frameworks */ = {isa = PBXBuildFile; productRef = 0BAC7F6E2EB5BD03009067B6 /* Auth */; };
 		0BAC7F712EB5BD03009067B6 /* Functions in Frameworks */ = {isa = PBXBuildFile; productRef = 0BAC7F702EB5BD03009067B6 /* Functions */; };
 		0BAC7F732EB5BD03009067B6 /* PostgREST in Frameworks */ = {isa = PBXBuildFile; productRef = 0BAC7F722EB5BD03009067B6 /* PostgREST */; };
@@ -28,9 +29,29 @@
 		0BEE07B32EBD416300FAE1FE /* StripePaymentsUI in Frameworks */ = {isa = PBXBuildFile; productRef = 0BEE07B22EBD416300FAE1FE /* StripePaymentsUI */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		0B5EFCEC2EE8A4CC007E42DE /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 0BAC7F192EB5B021009067B6 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 0BAC7F202EB5B021009067B6;
+			remoteInfo = Buzz;
+		};
+		0B5EFCFF2EE8A4EC007E42DE /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 0BAC7F192EB5B021009067B6 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 0BAC7F202EB5B021009067B6;
+			remoteInfo = Buzz;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
 		0B5EE2AF2ED4DD8C007E42DE /* StoreKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = StoreKit.framework; path = System/Library/Frameworks/StoreKit.framework; sourceTree = SDKROOT; };
 		0B5EE2B12ED4DF55007E42DE /* BuzzStoreKit.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; path = BuzzStoreKit.storekit; sourceTree = "<group>"; };
+		0B5EFCE22EE75E02007E42DE /* TestPlan.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = TestPlan.xctestplan; sourceTree = "<group>"; };
+		0B5EFCE82EE8A4CC007E42DE /* BuzzTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = BuzzTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		0B5EFCFB2EE8A4EC007E42DE /* BuzzUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = BuzzUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		0BAC7F212EB5B021009067B6 /* Buzz.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Buzz.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -45,6 +66,16 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		0B5EFCE92EE8A4CC007E42DE /* BuzzTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = BuzzTests;
+			sourceTree = "<group>";
+		};
+		0B5EFCFC2EE8A4EC007E42DE /* BuzzUITests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = BuzzUITests;
+			sourceTree = "<group>";
+		};
 		0BAC7F232EB5B021009067B6 /* Buzz */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
@@ -56,6 +87,20 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		0B5EFCE52EE8A4CC007E42DE /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		0B5EFCF82EE8A4EC007E42DE /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		0BAC7F1E2EB5B021009067B6 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -95,8 +140,11 @@
 		0BAC7F182EB5B021009067B6 = {
 			isa = PBXGroup;
 			children = (
+				0B5EFCE22EE75E02007E42DE /* TestPlan.xctestplan */,
 				0B5EE2B12ED4DF55007E42DE /* BuzzStoreKit.storekit */,
 				0BAC7F232EB5B021009067B6 /* Buzz */,
+				0B5EFCE92EE8A4CC007E42DE /* BuzzTests */,
+				0B5EFCFC2EE8A4EC007E42DE /* BuzzUITests */,
 				0B5EE2AE2ED4DD8C007E42DE /* Frameworks */,
 				0BAC7F222EB5B021009067B6 /* Products */,
 			);
@@ -106,6 +154,8 @@
 			isa = PBXGroup;
 			children = (
 				0BAC7F212EB5B021009067B6 /* Buzz.app */,
+				0B5EFCE82EE8A4CC007E42DE /* BuzzTests.xctest */,
+				0B5EFCFB2EE8A4EC007E42DE /* BuzzUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -113,6 +163,52 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		0B5EFCE72EE8A4CC007E42DE /* BuzzTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 0B5EFCEE2EE8A4CC007E42DE /* Build configuration list for PBXNativeTarget "BuzzTests" */;
+			buildPhases = (
+				0B5EFCE42EE8A4CC007E42DE /* Sources */,
+				0B5EFCE52EE8A4CC007E42DE /* Frameworks */,
+				0B5EFCE62EE8A4CC007E42DE /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				0B5EFCED2EE8A4CC007E42DE /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				0B5EFCE92EE8A4CC007E42DE /* BuzzTests */,
+			);
+			name = BuzzTests;
+			packageProductDependencies = (
+			);
+			productName = BuzzTests;
+			productReference = 0B5EFCE82EE8A4CC007E42DE /* BuzzTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		0B5EFCFA2EE8A4EC007E42DE /* BuzzUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 0B5EFD012EE8A4EC007E42DE /* Build configuration list for PBXNativeTarget "BuzzUITests" */;
+			buildPhases = (
+				0B5EFCF72EE8A4EC007E42DE /* Sources */,
+				0B5EFCF82EE8A4EC007E42DE /* Frameworks */,
+				0B5EFCF92EE8A4EC007E42DE /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				0B5EFD002EE8A4EC007E42DE /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				0B5EFCFC2EE8A4EC007E42DE /* BuzzUITests */,
+			);
+			name = BuzzUITests;
+			packageProductDependencies = (
+			);
+			productName = BuzzUITests;
+			productReference = 0B5EFCFB2EE8A4EC007E42DE /* BuzzUITests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 		0BAC7F202EB5B021009067B6 /* Buzz */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 0BAC7F2C2EB5B022009067B6 /* Build configuration list for PBXNativeTarget "Buzz" */;
@@ -162,6 +258,14 @@
 				LastSwiftUpdateCheck = 2600;
 				LastUpgradeCheck = 2600;
 				TargetAttributes = {
+					0B5EFCE72EE8A4CC007E42DE = {
+						CreatedOnToolsVersion = 26.0.1;
+						TestTargetID = 0BAC7F202EB5B021009067B6;
+					};
+					0B5EFCFA2EE8A4EC007E42DE = {
+						CreatedOnToolsVersion = 26.0.1;
+						TestTargetID = 0BAC7F202EB5B021009067B6;
+					};
 					0BAC7F202EB5B021009067B6 = {
 						CreatedOnToolsVersion = 26.0.1;
 					};
@@ -187,22 +291,53 @@
 			projectRoot = "";
 			targets = (
 				0BAC7F202EB5B021009067B6 /* Buzz */,
+				0B5EFCE72EE8A4CC007E42DE /* BuzzTests */,
+				0B5EFCFA2EE8A4EC007E42DE /* BuzzUITests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		0B5EFCE62EE8A4CC007E42DE /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		0B5EFCF92EE8A4EC007E42DE /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		0BAC7F1F2EB5B021009067B6 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 				0B5EE2B22ED4DF55007E42DE /* BuzzStoreKit.storekit in Resources */,
+				0B5EFCE32EE75E02007E42DE /* TestPlan.xctestplan in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		0B5EFCE42EE8A4CC007E42DE /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		0B5EFCF72EE8A4EC007E42DE /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		0BAC7F1D2EB5B021009067B6 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -212,7 +347,104 @@
 		};
 /* End PBXSourcesBuildPhase section */
 
+/* Begin PBXTargetDependency section */
+		0B5EFCED2EE8A4CC007E42DE /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 0BAC7F202EB5B021009067B6 /* Buzz */;
+			targetProxy = 0B5EFCEC2EE8A4CC007E42DE /* PBXContainerItemProxy */;
+		};
+		0B5EFD002EE8A4EC007E42DE /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 0BAC7F202EB5B021009067B6 /* Buzz */;
+			targetProxy = 0B5EFCFF2EE8A4EC007E42DE /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin XCBuildConfiguration section */
+		0B5EFCEF2EE8A4CC007E42DE /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 8Z3F4XB85L;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.buzz.BuzzTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Buzz.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Buzz";
+			};
+			name = Debug;
+		};
+		0B5EFCF02EE8A4CC007E42DE /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 8Z3F4XB85L;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.buzz.BuzzTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Buzz.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Buzz";
+			};
+			name = Release;
+		};
+		0B5EFD022EE8A4EC007E42DE /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 8Z3F4XB85L;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.buzz.BuzzUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Buzz.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Buzz";
+			};
+			name = Debug;
+		};
+		0B5EFD032EE8A4EC007E42DE /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 8Z3F4XB85L;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.buzz.BuzzUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Buzz.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Buzz";
+			};
+			name = Release;
+		};
 		0BAC7F2A2EB5B022009067B6 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -411,6 +643,24 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		0B5EFCEE2EE8A4CC007E42DE /* Build configuration list for PBXNativeTarget "BuzzTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				0B5EFCEF2EE8A4CC007E42DE /* Debug */,
+				0B5EFCF02EE8A4CC007E42DE /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		0B5EFD012EE8A4EC007E42DE /* Build configuration list for PBXNativeTarget "BuzzUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				0B5EFD022EE8A4EC007E42DE /* Debug */,
+				0B5EFD032EE8A4EC007E42DE /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		0BAC7F1C2EB5B021009067B6 /* Build configuration list for PBXProject "Buzz" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

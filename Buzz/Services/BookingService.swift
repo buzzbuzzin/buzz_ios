@@ -10,6 +10,26 @@ import Supabase
 import CoreLocation
 import Combine
 
+protocol BookingBackend {
+    func createBooking(payload: [String: AnyJSON], bookingId: UUID) async throws -> Booking
+    func fetchBooking(id: UUID) async throws -> Booking
+    func updateBooking(id: UUID, values: [String: AnyJSON]) async throws
+    func joinAutomotiveBooking(bookingId: UUID, pilotId: UUID) async throws -> JoinCrewResponse
+    func fetchUserProfile(userId: UUID) async throws -> UserProfile
+}
+
+protocol BookingNotificationManaging {
+    func notifyBookingAccepted(bookingId: UUID, pilotName: String, aircraftType: String, departureTime: Date) async
+    func scheduleBookingReminder(bookingId: UUID, aircraftType: String, departureTime: Date, pilotName: String) async
+    func notifyNearbyBooking(bookingId: UUID, aircraftType: String, distance: Double, departureTime: Date) async
+    func notifyCrewBookingCompleted(bookingId: UUID, payoutAmount: Decimal, role: String) async
+}
+
+protocol NotificationPreferencesProviding {
+    var preferences: NotificationPreferences { get }
+    func loadPreferences(userId: UUID) async throws
+}
+
 @MainActor
 class BookingService: ObservableObject {
     @Published var availableBookings: [Booking] = []
@@ -18,10 +38,24 @@ class BookingService: ObservableObject {
     @Published var errorMessage: String?
     
     private let supabase = SupabaseClient.shared.client
-    private let notificationManager = NotificationManager.shared
-    private let notificationPreferencesService = NotificationPreferencesService()
+    private let backend: BookingBackend
+    private let notificationManager: BookingNotificationManaging
+    private let notificationPreferencesService: NotificationPreferencesProviding
+    private let skipNetworkCalls: Bool
     private let defaultPilotSearchRadiusMiles: Double = 25.0
     private let metersPerMile: Double = 1609.34
+
+    init(
+        backend: BookingBackend? = nil,
+        notificationManager: BookingNotificationManaging = NotificationManager.shared,
+        notificationPreferencesService: NotificationPreferencesProviding = NotificationPreferencesService(),
+        skipNetworkCalls: Bool = false
+    ) {
+        self.backend = backend ?? SupabaseBookingBackend()
+        self.notificationManager = notificationManager
+        self.notificationPreferencesService = notificationPreferencesService
+        self.skipNetworkCalls = skipNetworkCalls
+    }
     
     // MARK: - Create Booking (Customer)
     
@@ -81,23 +115,14 @@ class BookingService: ObservableObject {
                 booking["charge_id"] = .string(chargeId)
             }
             
-            try await supabase
-                .from("bookings")
-                .insert(booking)
-                .execute()
-            
-            // Fetch the created booking to return
-            let createdBooking: Booking = try await supabase
-                .from("bookings")
-                .select()
-                .eq("id", value: bookingId.uuidString)
-                .single()
-                .execute()
-                .value
+            // Insert + fetch via backend so tests can inject a mock
+            let createdBooking = try await backend.createBooking(payload: booking, bookingId: bookingId)
             
             // Notify nearby pilots about the new booking
-            Task {
-                await notifyNearbyPilotsAboutNewBooking(booking: createdBooking)
+            if !skipNetworkCalls {
+                Task {
+                    await notifyNearbyPilotsAboutNewBooking(booking: createdBooking)
+                }
             }
             
             isLoading = false
@@ -892,13 +917,7 @@ class BookingService: ObservableObject {
         
         do {
             // Get booking details first
-            let booking: Booking = try await supabase
-                .from("bookings")
-                .select()
-                .eq("id", value: bookingId.uuidString)
-                .single()
-                .execute()
-                .value
+            let booking = try await backend.fetchBooking(id: bookingId)
             
             // For automotive bookings, use the crew system
             if booking.isAutomotiveCrewBooking {
@@ -912,51 +931,43 @@ class BookingService: ObservableObject {
                 "pilot_id": .string(pilotId.uuidString),
                 "status": .string(BookingStatus.accepted.rawValue)
             ]
-            try await supabase
-                .from("bookings")
-                .update(updateData)
-                .eq("id", value: bookingId.uuidString)
-                .execute()
+            try await backend.updateBooking(id: bookingId, values: updateData)
             
             // Get pilot info for notification
-            let pilotProfile: UserProfile = try await supabase
-                .from("user_profiles")
-                .select()
-                .eq("user_id", value: pilotId.uuidString)
-                .single()
-                .execute()
-                .value
+            let pilotProfile = try await backend.fetchUserProfile(userId: pilotId)
             
             // Check customer's notification preferences
-            do {
-                try await notificationPreferencesService.loadPreferences(userId: booking.customerId)
-                
-                // Send notification to customer if they have booking reminders enabled
-                if notificationPreferencesService.preferences.bookingReminders.system {
-                    let aircraftType = booking.specialization?.displayName ?? "drone flight"
-                    let pilotName = pilotProfile.fullName
-                    await notificationManager.notifyBookingAccepted(
-                        bookingId: bookingId,
-                        pilotName: pilotName,
-                        aircraftType: aircraftType,
-                        departureTime: booking.scheduledDate ?? Date()
-                    )
+            if !skipNetworkCalls {
+                do {
+                    try await notificationPreferencesService.loadPreferences(userId: booking.customerId)
+                    
+                    // Send notification to customer if they have booking reminders enabled
+                    if notificationPreferencesService.preferences.bookingReminders.system {
+                        let aircraftType = booking.specialization?.displayName ?? "drone flight"
+                        let pilotName = pilotProfile.fullName
+                        await notificationManager.notifyBookingAccepted(
+                            bookingId: bookingId,
+                            pilotName: pilotName,
+                            aircraftType: aircraftType,
+                            departureTime: booking.scheduledDate ?? Date()
+                        )
+                    }
+                    
+                    // Schedule 24-hour reminder if there's a scheduled date
+                    if let scheduledDate = booking.scheduledDate,
+                       notificationPreferencesService.preferences.bookingReminders.system {
+                        let aircraftType = booking.specialization?.displayName ?? "drone flight"
+                        await notificationManager.scheduleBookingReminder(
+                            bookingId: bookingId,
+                            aircraftType: aircraftType,
+                            departureTime: scheduledDate,
+                            pilotName: pilotProfile.fullName
+                        )
+                    }
+                } catch {
+                    print("Could not load notification preferences: \(error)")
+                    // Continue anyway - notification is not critical
                 }
-                
-                // Schedule 24-hour reminder if there's a scheduled date
-                if let scheduledDate = booking.scheduledDate,
-                   notificationPreferencesService.preferences.bookingReminders.system {
-                    let aircraftType = booking.specialization?.displayName ?? "drone flight"
-                    await notificationManager.scheduleBookingReminder(
-                        bookingId: bookingId,
-                        aircraftType: aircraftType,
-                        departureTime: scheduledDate,
-                        pilotName: pilotProfile.fullName
-                    )
-                }
-            } catch {
-                print("Could not load notification preferences: \(error)")
-                // Continue anyway - notification is not critical
             }
             
             isLoading = false
@@ -976,21 +987,7 @@ class BookingService: ObservableObject {
         errorMessage = nil
         
         do {
-            struct JoinRequest: Codable {
-                let booking_id: String
-                let pilot_id: String
-            }
-            
-            let request = JoinRequest(
-                booking_id: bookingId.uuidString,
-                pilot_id: pilotId.uuidString
-            )
-            
-            let response: JoinCrewResponse = try await supabase.functions
-                .invoke("join-automotive-booking", options: FunctionInvokeOptions(
-                    body: request
-                ))
-            
+            let response = try await backend.joinAutomotiveBooking(bookingId: bookingId, pilotId: pilotId)
             isLoading = false
             
             // If there was an error in the response, throw it
@@ -1758,3 +1755,62 @@ private struct PilotLocationSnapshot: Decodable {
         case isLocationTrackingEnabled = "is_location_tracking_enabled"
     }
 }
+
+// MARK: - Default Backend & Protocol Conformances
+
+private struct SupabaseBookingBackend: BookingBackend {
+    private let client = SupabaseClient.shared.client
+    
+    func createBooking(payload: [String: AnyJSON], bookingId: UUID) async throws -> Booking {
+        try await client
+            .from("bookings")
+            .insert(payload)
+            .execute()
+        
+        return try await fetchBooking(id: bookingId)
+    }
+    
+    func fetchBooking(id: UUID) async throws -> Booking {
+        try await client
+            .from("bookings")
+            .select()
+            .eq("id", value: id.uuidString)
+            .single()
+            .execute()
+            .value
+    }
+    
+    func updateBooking(id: UUID, values: [String: AnyJSON]) async throws {
+        try await client
+            .from("bookings")
+            .update(values)
+            .eq("id", value: id.uuidString)
+            .execute()
+    }
+    
+    func joinAutomotiveBooking(bookingId: UUID, pilotId: UUID) async throws -> JoinCrewResponse {
+        struct JoinRequest: Codable {
+            let booking_id: String
+            let pilot_id: String
+        }
+        
+        let request = JoinRequest(booking_id: bookingId.uuidString, pilot_id: pilotId.uuidString)
+        
+        return try await client.functions
+            .invoke("join-automotive-booking", options: FunctionInvokeOptions(body: request))
+    }
+    
+    func fetchUserProfile(userId: UUID) async throws -> UserProfile {
+        try await client
+            .from("user_profiles")
+            .select()
+            .eq("user_id", value: userId.uuidString)
+            .single()
+            .execute()
+            .value
+    }
+}
+
+extension NotificationManager: BookingNotificationManaging {}
+
+extension NotificationPreferencesService: NotificationPreferencesProviding {}

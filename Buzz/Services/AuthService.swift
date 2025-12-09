@@ -21,11 +21,20 @@ class AuthService: ObservableObject {
     @Published var shouldDelayNavigation = false // Flag to delay navigation for promotion flow
     @Published var shouldShowPremiumIntro = false
     
+    var activeUserId: UUID? {
+        currentUser?.id ?? uiTestUserId
+    }
+    
     private let supabase = SupabaseClient.shared.client
+    private var uiTestUserId: UUID?
     
     init() {
-        Task {
-            await checkAuthStatus()
+        if isUITestMode {
+            bootstrapUITestUser()
+        } else {
+            Task {
+                await checkAuthStatus()
+            }
         }
     }
     
@@ -48,6 +57,53 @@ class AuthService: ObservableObject {
             currentUser = nil
             userProfile = nil
         }
+    }
+
+    private var isUITestMode: Bool {
+        ProcessInfo.processInfo.arguments.contains("UI_TESTING") ||
+        ProcessInfo.processInfo.environment["UITEST_MODE"] == "1"
+    }
+    
+    private var uiTestRole: UserType {
+        if let raw = ProcessInfo.processInfo.environment["UITEST_ROLE"],
+           let role = UserType(rawValue: raw) {
+            return role
+        }
+        return .customer
+    }
+    
+    private func bootstrapUITestUser() {
+        let userId = UUID(uuidString: ProcessInfo.processInfo.environment["UITEST_USER_ID"] ?? "") ?? UUID()
+        self.uiTestUserId = userId
+        let profile = UserProfile(
+            id: userId,
+            userType: uiTestRole,
+            firstName: "UITest",
+            lastName: uiTestRole == .pilot ? "Pilot" : "Customer",
+            callSign: uiTestRole == .pilot ? "testpilot" : "testcustomer",
+            email: "uitest@example.com",
+            phone: nil,
+            gender: nil,
+            profilePictureUrl: nil,
+            communicationPreference: nil,
+            role: uiTestRole == .customer ? .individual : nil,
+            specialization: .realEstate,
+            createdAt: Date(),
+            balance: nil,
+            stripeAccountId: nil,
+            isExMilitary: nil,
+            isGovernmentEmployee: nil,
+            hasFaaCertification: nil,
+            isBuzzAffiliate: nil,
+            veteranServiceName: nil,
+            veteranServiceCountry: nil,
+            veteranMilitaryBranch: nil,
+            veteranServiceNumber: nil
+        )
+        self.userProfile = profile
+        self.isAuthenticated = true
+        self.shouldDelayNavigation = false
+        self.shouldShowPremiumIntro = false
     }
     
     private func loadUserProfile() async {

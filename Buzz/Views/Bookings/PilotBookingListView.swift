@@ -225,6 +225,15 @@ struct PilotBookingListView: View {
                         Image(systemName: "map")
                     }
                 }
+                
+                if ProcessInfo.processInfo.arguments.contains("UI_TESTING") || ProcessInfo.processInfo.environment["UITEST_MODE"] == "1" {
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Button("Accept First") {
+                            Task { await acceptFirstAvailableBookingForUITest() }
+                        }
+                        .accessibilityIdentifier("pilot.acceptFirstBookingButton")
+                    }
+                }
             }
             .sheet(isPresented: $showConversations) {
                 ConversationsListView()
@@ -262,7 +271,13 @@ struct PilotBookingListView: View {
     
     private func loadBookings() async {
         // Pass pilot ID to filter bookings based on eligibility (rank requirements)
-        try? await bookingService.fetchAvailableBookings(forPilotId: authService.currentUser?.id)
+        try? await bookingService.fetchAvailableBookings(forPilotId: authService.activeUserId)
+    }
+    
+    private func acceptFirstAvailableBookingForUITest() async {
+        guard let first = bookingService.availableBookings.first,
+              let pilotId = authService.activeUserId else { return }
+        try? await bookingService.acceptBooking(bookingId: first.id, pilotId: pilotId)
     }
 }
 

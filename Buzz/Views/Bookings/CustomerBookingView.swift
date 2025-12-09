@@ -107,6 +107,7 @@ struct CustomerBookingView: View {
                     } label: {
                         Image(systemName: "plus")
                     }
+                    .accessibilityIdentifier("customer.createBookingButton")
                 }
             }
             .sheet(isPresented: $showCreateBooking, onDismiss: {
@@ -150,9 +151,9 @@ struct CustomerBookingView: View {
     }
     
     private func loadBookings() async {
-        guard let currentUser = authService.currentUser else { return }
+        guard let currentUserId = authService.activeUserId else { return }
         do {
-            try await bookingService.fetchMyBookings(userId: currentUser.id, isPilot: false)
+            try await bookingService.fetchMyBookings(userId: currentUserId, isPilot: false)
         } catch {
             print("Error loading bookings: \(error.localizedDescription)")
             // Error is handled in BookingService, which will show demo data as fallback
@@ -319,6 +320,14 @@ struct CreateBookingView: View {
     
     init(onBookingCreated: ((Booking) -> Void)? = nil) {
         self.onBookingCreated = onBookingCreated
+        
+        let isUITest = ProcessInfo.processInfo.arguments.contains("UI_TESTING") || ProcessInfo.processInfo.environment["UITEST_MODE"] == "1"
+        if isUITest {
+            _selectedLocation = State(initialValue: CLLocationCoordinate2D(latitude: 42.4434, longitude: -76.5017))
+            _locationName = State(initialValue: "Test Location")
+            _selectedSpecialization = State(initialValue: .realEstate)
+            _paymentAmount = State(initialValue: "100")
+        }
     }
     
     @State private var currentStep = 1
@@ -613,6 +622,36 @@ struct CreateBookingView: View {
     }
     
     private func createBooking() {
+        let isUITest = ProcessInfo.processInfo.arguments.contains("UI_TESTING") || ProcessInfo.processInfo.environment["UITEST_MODE"] == "1"
+        
+        // In UI test/demo mode, create a lightweight local booking to keep flows offline
+        if isUITest || DemoModeManager.shared.isDemoModeEnabled {
+            let booking = Booking(
+                id: UUID(),
+                customerId: authService.activeUserId ?? UUID(),
+                pilotId: nil,
+                locationLat: selectedLocation?.latitude ?? 0,
+                locationLng: selectedLocation?.longitude ?? 0,
+                locationName: locationName.isEmpty ? "Test Location" : locationName,
+                scheduledDate: selectedDate,
+                endDate: endTime,
+                specialization: selectedSpecialization,
+                description: description,
+                paymentAmount: getFinalPaymentAmount(),
+                tipAmount: nil,
+                status: .available,
+                createdAt: Date(),
+                estimatedFlightHours: getEstimatedHours(),
+                pilotRated: nil,
+                customerRated: nil,
+                requiredMinimumRank: requiredMinimumRank
+            )
+            createdBooking = booking
+            onBookingCreated?(booking)
+            showSuccessAnimation = true
+            return
+        }
+        
         guard let currentUser = authService.currentUser,
               let location = selectedLocation,
               let specialization = selectedSpecialization else {

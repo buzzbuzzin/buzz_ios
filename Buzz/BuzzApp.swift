@@ -15,6 +15,7 @@ struct BuzzApp: App {
     @StateObject private var authService = AuthService()
     @StateObject private var notificationManager = NotificationManager.shared
     @AppStorage("appearanceMode") private var appearanceModeString: String = "system"
+    private let isUITestMode = ProcessInfo.processInfo.arguments.contains("UI_TESTING") || ProcessInfo.processInfo.environment["UITEST_MODE"] == "1"
 
     init() {
         // Configure Google Sign In
@@ -27,6 +28,12 @@ struct BuzzApp: App {
         
         // Configure Stripe
         StripeAPI.defaultPublishableKey = Config.stripePublishableKey
+        
+        // Enable demo mode during UI tests to avoid network calls
+        if isUITestMode {
+            DemoModeManager.shared.isDemoModeEnabled = true
+            UserDefaults.standard.set(true, forKey: "demoModeEnabled")
+        }
     }
 
     var body: some Scene {

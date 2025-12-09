@@ -183,8 +183,8 @@ struct MyFlightsView: View {
     }
     
     private func loadBookings() async {
-        guard let currentUser = authService.currentUser else { return }
-        try? await bookingService.fetchMyBookings(userId: currentUser.id, isPilot: true)
+        guard let currentUserId = authService.activeUserId else { return }
+        try? await bookingService.fetchMyBookings(userId: currentUserId, isPilot: true)
     }
 }
 

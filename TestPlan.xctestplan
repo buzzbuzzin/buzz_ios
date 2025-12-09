@@ -12,7 +12,20 @@
     "testTimeoutsEnabled" : true
   },
   "testTargets" : [
-
+    {
+      "target" : {
+        "containerPath" : "container:Buzz.xcodeproj",
+        "identifier" : "0B5EFCE72EE8A4CC007E42DE",
+        "name" : "BuzzTests"
+      }
+    },
+    {
+      "target" : {
+        "containerPath" : "container:Buzz.xcodeproj",
+        "identifier" : "0B5EFCFA2EE8A4EC007E42DE",
+        "name" : "BuzzUITests"
+      }
+    }
   ],
   "version" : 1
 }
