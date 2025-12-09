@@ -19,6 +19,7 @@ struct CourseSubscriptionView: View {
     @State private var errorMessage: String?
     @State private var showSuccessAlert = false
     @State private var showRestoreAlert = false
+    @State private var hasAgreedToPolicies = false
     
     var body: some View {
         NavigationView {
@@ -74,6 +75,9 @@ struct CourseSubscriptionView: View {
                             SubscriptionProductCard(
                                 product: product,
                                 isLoading: $isLoading,
+                                hasAgreedToPolicies: $hasAgreedToPolicies,
+                                eulaURL: eulaURL,
+                                privacyPolicyURL: privacyPolicyURL,
                                 onPurchase: {
                                     await purchaseProduct(product)
                                 }
@@ -177,6 +181,14 @@ struct CourseSubscriptionView: View {
         }
     }
     
+    private var eulaURL: URL {
+        URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!
+    }
+    
+    private var privacyPolicyURL: URL {
+        URL(string: "https://buzzbuzzin.com/legal/")!
+    }
+    
     // MARK: - Purchase Functions
     
     private func purchaseProduct(_ product: Product) async {
@@ -240,7 +252,14 @@ struct CourseSubscriptionView: View {
 struct SubscriptionProductCard: View {
     let product: Product
     @Binding var isLoading: Bool
+    @Binding var hasAgreedToPolicies: Bool
+    let eulaURL: URL
+    let privacyPolicyURL: URL
     let onPurchase: () async -> Void
+    
+    private var isPurchaseDisabled: Bool {
+        isLoading || !hasAgreedToPolicies
+    }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -276,6 +295,28 @@ struct SubscriptionProductCard: View {
                 }
             }
             
+            // Agreement checkbox
+            HStack(alignment: .top, spacing: 12) {
+                Button {
+                    hasAgreedToPolicies.toggle()
+                } label: {
+                    Image(systemName: hasAgreedToPolicies ? "checkmark.square.fill" : "square")
+                        .foregroundColor(hasAgreedToPolicies ? .blue : .secondary)
+                        .font(.system(size: 18, weight: .semibold))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Agree to terms")
+                .accessibilityValue(hasAgreedToPolicies ? "Selected" : "Not selected")
+                
+                Text(.init("I agree to the [End User License Agreement](\(eulaURL.absoluteString)) and [Privacy Policy](\(privacyPolicyURL.absoluteString))"))
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                
+                Spacer()
+            }
+            
             // Purchase Button
             Button(action: {
                 Task {
@@ -293,11 +334,11 @@ struct SubscriptionProductCard: View {
                 }
                 .frame(maxWidth: .infinity)
                 .frame(height: 50)
-                .background(isLoading ? Color.gray : Color.blue)
+                .background(isPurchaseDisabled ? Color.gray : Color.blue)
                 .foregroundColor(.white)
                 .cornerRadius(12)
             }
-            .disabled(isLoading)
+            .disabled(isPurchaseDisabled)
         }
         .padding()
         .background(Color(.systemGray6))

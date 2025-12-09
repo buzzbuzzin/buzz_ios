@@ -48,12 +48,12 @@ class BookingService: ObservableObject {
     init(
         backend: BookingBackend? = nil,
         notificationManager: BookingNotificationManaging = NotificationManager.shared,
-        notificationPreferencesService: NotificationPreferencesProviding = NotificationPreferencesService(),
+        notificationPreferencesService: NotificationPreferencesProviding? = nil,
         skipNetworkCalls: Bool = false
     ) {
         self.backend = backend ?? SupabaseBookingBackend()
         self.notificationManager = notificationManager
-        self.notificationPreferencesService = notificationPreferencesService
+        self.notificationPreferencesService = notificationPreferencesService ?? NotificationPreferencesService()
         self.skipNetworkCalls = skipNetworkCalls
     }
     

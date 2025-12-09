@@ -108,6 +108,13 @@ struct SettingsView: View {
                 saveAppearanceMode(newValue)
             }
             
+            // Legal
+            NavigationLink(destination: LegalDocumentsView()) {
+                HStack {
+                    Text("Legal")
+                }
+            }
+            
             // Demo Mode Toggle - Hidden
 //            Section(header: Text("Development")) {
 //                Toggle("Demo Mode", isOn: $demoModeManager.isDemoModeEnabled)
@@ -173,6 +180,33 @@ struct SettingsView: View {
         
         // Post notification to update app-wide appearance
         NotificationCenter.default.post(name: NSNotification.Name("AppearanceModeChanged"), object: nil)
+    }
+}
+
+struct LegalDocumentsView: View {
+    private var eulaURL: URL {
+        URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!
+    }
+    
+    private var privacyPolicyURL: URL {
+        URL(string: "https://buzzbuzzin.com/legal/")!
+    }
+    
+    var body: some View {
+        List {
+            NavigationLink("End User License Agreement") {
+                SafariView(url: eulaURL)
+                    .navigationTitle("EULA")
+                    .navigationBarTitleDisplayMode(.inline)
+            }
+            
+            NavigationLink("Privacy Policy") {
+                SafariView(url: privacyPolicyURL)
+                    .navigationTitle("Privacy Policy")
+                    .navigationBarTitleDisplayMode(.inline)
+            }
+        }
+        .navigationTitle("Legal")
     }
 }
 

@@ -233,7 +233,7 @@ struct EmailSignInView: View {
             .accessibilityLabel("Agree to terms")
             .accessibilityValue(hasAgreedToPolicies ? "Selected" : "Not selected")
             
-            Text(.init("I agree to the [End User License Agreement](https://developer.apple.com/documentation/appstoreconnectapi/end-user-license-agreements-eula) and [Privacy Policy](https://buzzbuzzin.com/legal/)"))
+            Text(.init("I agree to the [End User License Agreement](https://www.apple.com/legal/internet-services/itunes/dev/stdeula/) and [Privacy Policy](https://buzzbuzzin.com/legal/)"))
                 .font(.footnote)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.leading)
@@ -245,7 +245,7 @@ struct EmailSignInView: View {
     }
     
     private var eulaURL: URL {
-        URL(string: "https://developer.apple.com/documentation/appstoreconnectapi/end-user-license-agreements-eula")!
+        URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!
     }
     
     private var privacyPolicyURL: URL {
