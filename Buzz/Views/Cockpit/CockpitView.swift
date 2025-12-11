@@ -85,6 +85,16 @@ struct CockpitView: View {
                                     )
                                 }
                                 .buttonStyle(PlainButtonStyle())
+                                
+                                // Checklist Card
+                                NavigationLink(destination: ChecklistView().environmentObject(authService)) {
+                                    CockpitGridCard(
+                                        title: "Checklist",
+                                        icon: "checklist",
+                                        color: .orange
+                                    )
+                                }
+                                .buttonStyle(PlainButtonStyle())
                             }
                             .padding(.horizontal, 16)
                         }
