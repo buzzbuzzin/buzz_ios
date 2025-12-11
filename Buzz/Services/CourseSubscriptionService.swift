@@ -54,14 +54,23 @@ class CourseSubscriptionService: ObservableObject {
     
     // MARK: - Create Subscription Record
     
-    /// Creates a subscription record in the database after successful Stripe payment
+    /// Creates a subscription record in the database after successful payment
+    /// - Parameters:
+    ///   - pilotId: The pilot's UUID
+    ///   - stripeSubscriptionId: For Stripe, the subscription ID. For Apple, the transaction ID as string
+    ///   - stripePriceId: For Stripe, the price ID. For Apple, the product ID
+    ///   - status: Subscription status (active, canceled, etc.)
+    ///   - currentPeriodStart: Start of the current billing period
+    ///   - currentPeriodEnd: End of the current billing period
+    ///   - source: Where the subscription was purchased ("apple" or "stripe")
     func createSubscriptionRecord(
         pilotId: UUID,
         stripeSubscriptionId: String,
         stripePriceId: String,
         status: String,
         currentPeriodStart: Date,
-        currentPeriodEnd: Date
+        currentPeriodEnd: Date,
+        source: SubscriptionSource = .apple
     ) async throws {
         isLoading = true
         errorMessage = nil
@@ -74,7 +83,8 @@ class CourseSubscriptionService: ObservableObject {
                 "stripe_price_id": .string(stripePriceId),
                 "status": .string(status),
                 "current_period_start": .string(ISO8601DateFormatter().string(from: currentPeriodStart)),
-                "current_period_end": .string(ISO8601DateFormatter().string(from: currentPeriodEnd))
+                "current_period_end": .string(ISO8601DateFormatter().string(from: currentPeriodEnd)),
+                "source": .string(source.rawValue)
             ]
             
             try await supabase
@@ -165,6 +175,7 @@ struct CourseSubscription: Codable, Identifiable {
     let currentPeriodEnd: Date?
     let createdAt: Date
     let updatedAt: Date
+    let source: String? // "apple" or "stripe"
     
     enum CodingKeys: String, CodingKey {
         case id
@@ -177,10 +188,16 @@ struct CourseSubscription: Codable, Identifiable {
         case currentPeriodEnd = "current_period_end"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
+        case source
     }
     
     var isActive: Bool {
         status == "active" || status == "trialing"
+    }
+    
+    var subscriptionSource: SubscriptionSource {
+        guard let source = source else { return .stripe } // Default to stripe for legacy records
+        return SubscriptionSource(rawValue: source) ?? .stripe
     }
 }
 

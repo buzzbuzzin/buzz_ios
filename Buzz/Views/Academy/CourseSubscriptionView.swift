@@ -15,11 +15,18 @@ struct CourseSubscriptionView: View {
     @Environment(\.dismiss) var dismiss
     @StateObject private var storeKitManager = StoreKitManager()
     @StateObject private var courseSubscriptionService = CourseSubscriptionService()
+    @ObservedObject private var entitlementManager = EntitlementManager.shared
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var showSuccessAlert = false
     @State private var showRestoreAlert = false
     @State private var hasAgreedToPolicies = false
+    @State private var isCheckingSubscription = true
+    
+    /// Check if user has active subscription from any source
+    private var hasActiveSubscription: Bool {
+        entitlementManager.hasAcademyPass
+    }
     
     var body: some View {
         NavigationView {
@@ -38,8 +45,22 @@ struct CourseSubscriptionView: View {
                     .padding(.horizontal)
                     .padding(.top)
                     
-                    // Check if already subscribed
-                    if storeKitManager.hasAcademyPassSubscription() {
+                    // Loading state while checking subscription
+                    if isCheckingSubscription {
+                        HStack {
+                            Spacer()
+                            ProgressView()
+                                .padding(.trailing, 8)
+                            Text("Checking subscription status...")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                            Spacer()
+                        }
+                        .padding()
+                    }
+                    
+                    // Check if already subscribed (from ANY source)
+                    if !isCheckingSubscription && hasActiveSubscription {
                         VStack(spacing: 16) {
                             Image(systemName: "checkmark.seal.fill")
                                 .font(.system(size: 60))
@@ -54,12 +75,31 @@ struct CourseSubscriptionView: View {
                                 .foregroundColor(.secondary)
                                 .multilineTextAlignment(.center)
                             
-                            if let subscription = storeKitManager.getActiveSubscription() {
+                            // Show subscription source
+                            Text("via \(entitlementManager.subscriptionSourceDisplayName)")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            
+                            // Show Apple subscription details
+                            if entitlementManager.subscriptionSource == .apple,
+                               let subscription = storeKitManager.getActiveSubscription() {
                                 Text(subscription.displayName)
                                     .font(.headline)
-                                Text(subscription.displayPrice + " / " + subscription.subscription!.subscriptionPeriod.localizedDescription)
-                                    .font(.subheadline)
-                                    .foregroundColor(.secondary)
+                                if let period = subscription.subscription?.subscriptionPeriod {
+                                    Text(subscription.displayPrice + " / " + period.localizedDescription)
+                                        .font(.subheadline)
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+                            
+                            // Show Stripe subscription details
+                            if entitlementManager.subscriptionSource == .stripe,
+                               let stripeSubscription = entitlementManager.stripeSubscription {
+                                if let endDate = stripeSubscription.currentPeriodEnd {
+                                    Text("Renews: \(endDate.formatted(date: .abbreviated, time: .omitted))")
+                                        .font(.subheadline)
+                                        .foregroundColor(.secondary)
+                                }
                             }
                         }
                         .frame(maxWidth: .infinity)
@@ -67,7 +107,7 @@ struct CourseSubscriptionView: View {
                         .background(Color.green.opacity(0.1))
                         .cornerRadius(12)
                         .padding(.horizontal)
-                    } else {
+                    } else if !isCheckingSubscription {
                         // Subscription Products
                         ForEach(storeKitManager.products.filter { 
                             ProductIdentifiers.academyPassProductIDs.contains($0.id) 
@@ -176,8 +216,10 @@ struct CourseSubscriptionView: View {
                 await storeKitManager.loadProducts()
             }
             
-            // Update purchased products
-            await storeKitManager.updatePurchasedProducts()
+            // Check ALL subscription sources (Apple + Stripe backend)
+            isCheckingSubscription = true
+            _ = await storeKitManager.checkAllSubscriptions(pilotId: pilotId)
+            isCheckingSubscription = false
         }
     }
     
@@ -229,17 +271,24 @@ struct CourseSubscriptionView: View {
             let startDate = transaction.purchaseDate
             let endDate = transaction.expirationDate ?? Calendar.current.date(byAdding: .month, value: 1, to: startDate)!
             
-            // Create subscription record in database
+            // Create subscription record in database with Apple as source
             try await courseSubscriptionService.createSubscriptionRecord(
                 pilotId: pilotId,
                 stripeSubscriptionId: String(transaction.id),
                 stripePriceId: transaction.productID,
                 status: "active",
                 currentPeriodStart: startDate,
-                currentPeriodEnd: endDate
+                currentPeriodEnd: endDate,
+                source: .apple  // Mark as Apple subscription
             )
             
-            print("✅ Recorded subscription in database")
+            print("✅ Recorded Apple subscription in database")
+            
+            // Update entitlement manager
+            _ = await EntitlementManager.shared.checkAllSubscriptionSources(
+                pilotId: pilotId,
+                appleProductIDs: ProductIdentifiers.academyPassProductIDs
+            )
         } catch {
             print("⚠️ Failed to record subscription in database: \(error)")
             // Don't show error to user as the purchase was successful

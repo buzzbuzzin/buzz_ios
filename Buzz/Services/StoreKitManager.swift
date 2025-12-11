@@ -10,6 +10,8 @@ import Foundation
 import StoreKit
 import SwiftUI
 import Combine
+import Supabase
+import PostgREST
 
 /// Main StoreKit manager for handling in-app purchases
 @MainActor
@@ -224,30 +226,152 @@ class StoreKitManager: ObservableObject {
     
     // MARK: - Subscription Status
     
-    /// Check if user has an active Academy Pass subscription
+    /// Check if user has an active Academy Pass subscription (Apple StoreKit only)
+    /// For a complete check including Stripe, use checkAllSubscriptions(pilotId:)
     func hasAcademyPassSubscription() -> Bool {
         return purchasedProductIDs.contains(where: { id in
             ProductIdentifiers.academyPassProductIDs.contains(id)
         })
     }
     
-    /// Get the active subscription product
+    /// Check all subscription sources (Apple + Stripe backend)
+    /// This is the recommended method to use in views
+    func checkAllSubscriptions(pilotId: UUID) async -> Bool {
+        // First update Apple purchases
+        await updatePurchasedProducts()
+        
+        // Then check all sources via EntitlementManager
+        return await entitlementManager.checkAllSubscriptionSources(
+            pilotId: pilotId,
+            appleProductIDs: ProductIdentifiers.academyPassProductIDs
+        )
+    }
+    
+    /// Get the active subscription product (Apple only)
     func getActiveSubscription() -> Product? {
         return products.first { product in
             purchasedProductIDs.contains(product.id)
         }
     }
+    
+    /// Check if user has subscription from a different source
+    /// Use before purchase to prevent double billing
+    func hasSubscriptionFromOtherSource(_ source: SubscriptionSource) -> Bool {
+        return entitlementManager.hasSubscriptionFromOtherSource(currentSource: source)
+    }
 }
 
 // MARK: - Entitlement Manager
 
+/// Subscription source - where the subscription was purchased
+enum SubscriptionSource: String, Codable {
+    case apple = "apple"
+    case stripe = "stripe"
+    case none = "none"
+}
+
 /// Manages user entitlements (what they have access to)
+/// Checks both Apple StoreKit and backend database for subscriptions
+@MainActor
 class EntitlementManager: ObservableObject {
     static let shared = EntitlementManager()
     
     @Published var hasAcademyPass = false
+    @Published var subscriptionSource: SubscriptionSource = .none
+    @Published var isCheckingSubscription = false
+    @Published var stripeSubscription: CourseSubscription?
+    
+    private let supabase = SupabaseClient.shared.client
     
     private init() {}
+    
+    // MARK: - Unified Subscription Check
+    
+    /// Checks both Apple StoreKit and backend database for active subscriptions
+    /// Returns true if user has an active subscription from ANY source
+    func checkAllSubscriptionSources(pilotId: UUID, appleProductIDs: Set<String>) async -> Bool {
+        isCheckingSubscription = true
+        
+        // 1. Check Apple StoreKit entitlements first (local, faster)
+        var hasAppleSubscription = false
+        for await result in Transaction.currentEntitlements {
+            if case .verified(let transaction) = result {
+                if appleProductIDs.contains(transaction.productID) {
+                    // Check if not expired
+                    if let expirationDate = transaction.expirationDate, expirationDate > Date() {
+                        hasAppleSubscription = true
+                        break
+                    } else if transaction.expirationDate == nil {
+                        // Lifetime purchase (no expiration)
+                        hasAppleSubscription = true
+                        break
+                    }
+                }
+            }
+        }
+        
+        if hasAppleSubscription {
+            hasAcademyPass = true
+            subscriptionSource = .apple
+            stripeSubscription = nil
+            isCheckingSubscription = false
+            print("✅ Found active Apple subscription")
+            return true
+        }
+        
+        // 2. Check backend database for Stripe subscription
+        do {
+            let response: [CourseSubscription] = try await supabase
+                .from("course_subscriptions")
+                .select()
+                .eq("pilot_id", value: pilotId.uuidString)
+                .eq("course_id", value: CourseSubscriptionService.uasPilotCourseId.uuidString)
+                .eq("status", value: "active")
+                .execute()
+                .value
+            
+            if let subscription = response.first {
+                // Verify the subscription period is still valid
+                if let endDate = subscription.currentPeriodEnd, endDate > Date() {
+                    hasAcademyPass = true
+                    subscriptionSource = .stripe
+                    stripeSubscription = subscription
+                    isCheckingSubscription = false
+                    print("✅ Found active Stripe subscription from backend")
+                    return true
+                }
+            }
+        } catch {
+            print("⚠️ Failed to check backend subscription: \(error)")
+        }
+        
+        // No active subscription found from any source
+        hasAcademyPass = false
+        subscriptionSource = .none
+        stripeSubscription = nil
+        isCheckingSubscription = false
+        print("ℹ️ No active subscription found from any source")
+        return false
+    }
+    
+    /// Check if user already has a subscription from another source
+    /// Use this before allowing a new purchase to prevent double billing
+    func hasSubscriptionFromOtherSource(currentSource: SubscriptionSource) -> Bool {
+        guard hasAcademyPass else { return false }
+        return subscriptionSource != currentSource && subscriptionSource != .none
+    }
+    
+    /// Get a display string for the subscription source
+    var subscriptionSourceDisplayName: String {
+        switch subscriptionSource {
+        case .apple:
+            return "App Store"
+        case .stripe:
+            return "Buzz Academy Website"
+        case .none:
+            return "None"
+        }
+    }
 }
 
 // MARK: - Store Error

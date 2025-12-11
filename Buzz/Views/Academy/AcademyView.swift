@@ -12,7 +12,7 @@ import Auth
 struct AcademyView: View {
     @EnvironmentObject var authService: AuthService
     @StateObject private var storeKitManager = StoreKitManager()
-    @StateObject private var entitlementManager = EntitlementManager.shared
+    @ObservedObject private var entitlementManager = EntitlementManager.shared
     @State private var selectedCategory: TrainingCourse.CourseCategory? = nil
     @State private var selectedProvider: TrainingCourse.CourseProvider? = nil
     @State private var courses: [TrainingCourse] = []
@@ -23,8 +23,9 @@ struct AcademyView: View {
     @State private var showRecurrentNotices = true
     @State private var isPromotionCardDismissed = false
     
+    /// Check if user has active subscription from any source (Apple or Stripe)
     var hasSubscription: Bool {
-        storeKitManager.hasAcademyPassSubscription()
+        entitlementManager.hasAcademyPass
     }
     
     func toggleEnrollment(for courseId: UUID) {
@@ -212,18 +213,22 @@ struct AcademyView: View {
             .task {
                 await loadCourses()
                 await loadRecurrentNotices()
-                // Update StoreKit subscriptions
-                await storeKitManager.updatePurchasedProducts()
+                // Check ALL subscription sources (Apple + Stripe backend)
+                if let currentUser = authService.currentUser {
+                    _ = await storeKitManager.checkAllSubscriptions(pilotId: currentUser.id)
+                }
             }
             .onAppear {
                 // Reset promotion card dismissal when view appears (so it shows again)
                 isPromotionCardDismissed = false
-                
+
                 // Refresh courses when view appears (e.g., after returning from course detail)
                 Task {
                     await loadCourses()
-                    // Update StoreKit subscriptions
-                    await storeKitManager.updatePurchasedProducts()
+                    // Check ALL subscription sources (Apple + Stripe backend)
+                    if let currentUser = authService.currentUser {
+                        _ = await storeKitManager.checkAllSubscriptions(pilotId: currentUser.id)
+                    }
                 }
             }
         }

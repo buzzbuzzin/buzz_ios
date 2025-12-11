@@ -14,6 +14,7 @@ struct CourseContentView: View {
     let course: TrainingCourse
     @StateObject private var academyService = AcademyService()
     @StateObject private var storeKitManager = StoreKitManager()
+    @ObservedObject private var entitlementManager = EntitlementManager.shared
     @EnvironmentObject var authService: AuthService
     @State private var sections: [CourseSection] = []
     @State private var unitsBySection: [UUID: [CourseUnit]] = [:]
@@ -24,8 +25,9 @@ struct CourseContentView: View {
     @State private var navigateToTest = false
     @State private var completedUnitIds: Set<UUID> = []
     
+    /// Check if user has active subscription from any source (Apple or Stripe)
     var hasSubscription: Bool {
-        storeKitManager.hasAcademyPassSubscription()
+        entitlementManager.hasAcademyPass
     }
     
     // Check if this is the UAS Pilot Course
@@ -95,9 +97,9 @@ struct CourseContentView: View {
             if let currentUser = authService.currentUser {
                 print("👤 [CourseContentView] Current user ID: \(currentUser.id)")
                 
-                // Update StoreKit subscriptions
-                await storeKitManager.updatePurchasedProducts()
-                print("📋 [CourseContentView] Subscription status: \(hasSubscription)")
+                // Check ALL subscription sources (Apple + Stripe backend)
+                _ = await storeKitManager.checkAllSubscriptions(pilotId: currentUser.id)
+                print("📋 [CourseContentView] Subscription status: \(hasSubscription) (source: \(entitlementManager.subscriptionSourceDisplayName))")
                 
                 do {
                     print("🔄 [CourseContentView] Checking Ground School Test status...")

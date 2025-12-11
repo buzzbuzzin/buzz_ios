@@ -12,8 +12,15 @@ import StoreKit
 struct AcademyPassManagementView: View {
     let pilotId: UUID
     @StateObject private var storeKitManager = StoreKitManager()
+    @StateObject private var entitlementManager = EntitlementManager.shared
     @State private var showSubscriptionSheet = false
+    @State private var isCheckingSubscription = true
     @Environment(\.dismiss) var dismiss
+    
+    /// Check if user has active subscription from any source
+    private var hasActiveSubscription: Bool {
+        entitlementManager.hasAcademyPass
+    }
     
     var body: some View {
         ScrollView {
@@ -37,8 +44,22 @@ struct AcademyPassManagementView: View {
                 .frame(maxWidth: .infinity)
                 .padding(.top)
                 
+                // Loading state while checking subscription
+                if isCheckingSubscription {
+                    HStack {
+                        Spacer()
+                        ProgressView()
+                            .padding(.trailing, 8)
+                        Text("Checking subscription status...")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                        Spacer()
+                    }
+                    .padding()
+                }
+                
                 // Subscription Status Card
-                if storeKitManager.hasAcademyPassSubscription() {
+                if !isCheckingSubscription && hasActiveSubscription {
                     // Active Subscription
                     VStack(spacing: 16) {
                         HStack {
@@ -51,13 +72,30 @@ struct AcademyPassManagementView: View {
                                     .font(.headline)
                                     .fontWeight(.semibold)
                                 
-                                if let subscription = storeKitManager.getActiveSubscription() {
+                                // Show subscription source
+                                Text("via \(entitlementManager.subscriptionSourceDisplayName)")
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                                
+                                // Show Apple subscription details if from Apple
+                                if entitlementManager.subscriptionSource == .apple,
+                                   let subscription = storeKitManager.getActiveSubscription() {
                                     Text(subscription.displayName)
                                         .font(.subheadline)
                                         .foregroundColor(.secondary)
                                     
                                     if let period = subscription.subscription?.subscriptionPeriod {
                                         Text("\(subscription.displayPrice) / \(period.localizedDescription)")
+                                            .font(.subheadline)
+                                            .foregroundColor(.secondary)
+                                    }
+                                }
+                                
+                                // Show Stripe subscription details if from Stripe
+                                if entitlementManager.subscriptionSource == .stripe,
+                                   let stripeSubscription = entitlementManager.stripeSubscription {
+                                    if let endDate = stripeSubscription.currentPeriodEnd {
+                                        Text("Renews: \(endDate.formatted(date: .abbreviated, time: .omitted))")
                                             .font(.subheadline)
                                             .foregroundColor(.secondary)
                                     }
@@ -69,27 +107,43 @@ struct AcademyPassManagementView: View {
                         
                         Divider()
                         
-                        // Manage Subscription Button
-                        Button(action: {
-                            openSubscriptionManagement()
-                        }) {
-                            HStack {
-                                Image(systemName: "gear")
-                                Text("Manage Subscription")
-                                Spacer()
-                                Image(systemName: "chevron.right")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
+                        // Manage Subscription Button - different based on source
+                        if entitlementManager.subscriptionSource == .apple {
+                            Button(action: {
+                                openAppleSubscriptionManagement()
+                            }) {
+                                HStack {
+                                    Image(systemName: "gear")
+                                    Text("Manage in App Store")
+                                    Spacer()
+                                    Image(systemName: "chevron.right")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
                             }
+                            .foregroundColor(.primary)
+                        } else if entitlementManager.subscriptionSource == .stripe {
+                            Button(action: {
+                                openStripeSubscriptionManagement()
+                            }) {
+                                HStack {
+                                    Image(systemName: "globe")
+                                    Text("Manage on Website")
+                                    Spacer()
+                                    Image(systemName: "arrow.up.right")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+                            .foregroundColor(.primary)
                         }
-                        .foregroundColor(.primary)
                     }
                     .padding()
                     .background(Color.green.opacity(0.1))
                     .cornerRadius(12)
                     .padding(.horizontal)
                     
-                } else {
+                } else if !isCheckingSubscription {
                     // No Active Subscription
                     VStack(spacing: 16) {
                         HStack {
@@ -203,7 +257,7 @@ struct AcademyPassManagementView: View {
                 .padding(.horizontal)
                 
                 // Pricing Info (if not subscribed)
-                if !storeKitManager.hasAcademyPassSubscription() {
+                if !isCheckingSubscription && !hasActiveSubscription {
                     VStack(spacing: 12) {
                         if let product = storeKitManager.products.first(where: { 
                             $0.id == ProductIdentifiers.academyPassMonthly 
@@ -257,17 +311,28 @@ struct AcademyPassManagementView: View {
             AcademyPassSubscriptionSheet(pilotId: pilotId)
         }
         .task {
-            // Load products and update subscription status
+            // Load products
             if storeKitManager.products.isEmpty {
                 await storeKitManager.loadProducts()
             }
-            await storeKitManager.updatePurchasedProducts()
+            
+            // Check ALL subscription sources (Apple + Stripe backend)
+            isCheckingSubscription = true
+            _ = await storeKitManager.checkAllSubscriptions(pilotId: pilotId)
+            isCheckingSubscription = false
         }
     }
     
-    private func openSubscriptionManagement() {
-        // Open iOS Settings to manage subscription
+    private func openAppleSubscriptionManagement() {
+        // Open iOS Settings to manage Apple subscription
         if let url = URL(string: "https://apps.apple.com/account/subscriptions") {
+            UIApplication.shared.open(url)
+        }
+    }
+    
+    private func openStripeSubscriptionManagement() {
+        // Open website to manage Stripe subscription
+        if let url = URL(string: "https://academy.buzzbuzzin.com/account") {
             UIApplication.shared.open(url)
         }
     }
@@ -309,13 +374,21 @@ struct AcademyPassSubscriptionSheet: View {
     @Environment(\.dismiss) var dismiss
     @StateObject private var storeKitManager = StoreKitManager()
     @StateObject private var courseSubscriptionService = CourseSubscriptionService()
+    @ObservedObject private var entitlementManager = EntitlementManager.shared
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var showSuccessAlert = false
     @State private var hasAgreedToPolicies = false
+    @State private var showExistingSubscriptionAlert = false
+    @State private var isCheckingSubscription = true
     
     private var isPurchaseDisabled: Bool {
-        isLoading || !hasAgreedToPolicies
+        isLoading || !hasAgreedToPolicies || isCheckingSubscription
+    }
+    
+    /// Check if user already has a Stripe subscription
+    private var hasStripeSubscription: Bool {
+        entitlementManager.hasAcademyPass && entitlementManager.subscriptionSource == .stripe
     }
     
     var body: some View {
@@ -323,10 +396,57 @@ struct AcademyPassSubscriptionSheet: View {
             ScrollView {
                 VStack(spacing: 20) {
                     
-                    // Products
-                    ForEach(storeKitManager.products.filter { 
-                        ProductIdentifiers.academyPassProductIDs.contains($0.id) 
-                    }) { product in
+                    // Show warning if user already has Stripe subscription
+                    if hasStripeSubscription {
+                        VStack(spacing: 12) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .font(.system(size: 40))
+                                .foregroundColor(.orange)
+                            
+                            Text("You Already Have a Subscription")
+                                .font(.headline)
+                                .fontWeight(.bold)
+                            
+                            Text("You have an active subscription through our website. Purchasing here would result in double billing.")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                                .multilineTextAlignment(.center)
+                            
+                            Button(action: {
+                                if let url = URL(string: "https://academy.buzzbuzzin.com/account") {
+                                    UIApplication.shared.open(url)
+                                }
+                            }) {
+                                Text("Manage on Website")
+                                    .font(.subheadline)
+                                    .foregroundColor(.blue)
+                            }
+                        }
+                        .padding()
+                        .background(Color.orange.opacity(0.1))
+                        .cornerRadius(12)
+                        .padding(.horizontal)
+                    }
+                    
+                    // Loading state
+                    if isCheckingSubscription {
+                        HStack {
+                            Spacer()
+                            ProgressView()
+                                .padding(.trailing, 8)
+                            Text("Checking subscription status...")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                            Spacer()
+                        }
+                        .padding()
+                    }
+                    
+                    // Products (only show if no existing Stripe subscription)
+                    if !hasStripeSubscription && !isCheckingSubscription {
+                        ForEach(storeKitManager.products.filter { 
+                            ProductIdentifiers.academyPassProductIDs.contains($0.id) 
+                        }) { product in
                         VStack(alignment: .leading, spacing: 16) {
                             HStack(alignment: .top) {
                                 VStack(alignment: .leading, spacing: 4) {
@@ -405,10 +525,11 @@ struct AcademyPassSubscriptionSheet: View {
                             }
                             .disabled(isPurchaseDisabled)
                         }
-                        .padding()
-                        .background(Color(.systemGray6))
-                        .cornerRadius(12)
-                        .padding(.horizontal)
+                            .padding()
+                            .background(Color(.systemGray6))
+                            .cornerRadius(12)
+                            .padding(.horizontal)
+                        }
                     }
                     
                     if let errorMessage = errorMessage {
@@ -452,6 +573,11 @@ struct AcademyPassSubscriptionSheet: View {
             if storeKitManager.products.isEmpty {
                 await storeKitManager.loadProducts()
             }
+            
+            // Check ALL subscription sources (Apple + Stripe backend)
+            isCheckingSubscription = true
+            _ = await storeKitManager.checkAllSubscriptions(pilotId: pilotId)
+            isCheckingSubscription = false
         }
     }
     
@@ -467,14 +593,24 @@ struct AcademyPassSubscriptionSheet: View {
         isLoading = true
         errorMessage = nil
         
+        // Double-check for existing Stripe subscription before purchase
+        if hasStripeSubscription {
+            errorMessage = "You already have a subscription through our website."
+            isLoading = false
+            return
+        }
+        
         do {
             let transaction = try await storeKitManager.purchase(product)
             
             if transaction != nil {
                 showSuccessAlert = true
                 
-                // Record in database
+                // Record in database with Apple as source
                 await recordSubscriptionInDatabase(transaction: transaction!)
+                
+                // Update entitlement manager
+                _ = await storeKitManager.checkAllSubscriptions(pilotId: pilotId)
             }
             
             isLoading = false
@@ -495,8 +631,10 @@ struct AcademyPassSubscriptionSheet: View {
                 stripePriceId: transaction.productID,
                 status: "active",
                 currentPeriodStart: startDate,
-                currentPeriodEnd: endDate
+                currentPeriodEnd: endDate,
+                source: .apple  // Mark as Apple subscription
             )
+            print("✅ Recorded Apple subscription in database")
         } catch {
             print("⚠️ Failed to record subscription: \(error)")
         }
