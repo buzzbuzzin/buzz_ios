@@ -8,6 +8,10 @@
 import Foundation
 import UserNotifications
 import Combine
+import UIKit
+import Supabase
+import Auth
+import PostgREST
 
 @MainActor
 class NotificationManager: NSObject, ObservableObject {
@@ -15,8 +19,10 @@ class NotificationManager: NSObject, ObservableObject {
     
     @Published var authorizationStatus: UNAuthorizationStatus = .notDetermined
     @Published var hasRequestedPermission = false
+    @Published var deviceToken: String?
     
     private let notificationCenter = UNUserNotificationCenter.current()
+    private let supabase = SupabaseClient.shared.client
     
     // Notification category identifiers
     enum NotificationCategory: String {
@@ -29,6 +35,7 @@ class NotificationManager: NSObject, ObservableObject {
         case receivedReview = "RECEIVED_REVIEW"
         case crewBookingAccepted = "CREW_BOOKING_ACCEPTED"
         case crewBookingCompleted = "CREW_BOOKING_COMPLETED"
+        case videoUploadReminder = "VIDEO_UPLOAD_REMINDER"
     }
     
     private override init() {
@@ -48,6 +55,74 @@ class NotificationManager: NSObject, ObservableObject {
             print("Error requesting notification authorization: \(error)")
             hasRequestedPermission = true
             return false
+        }
+    }
+    
+    // MARK: - Remote Notification Registration
+    
+    /// Register for remote notifications (APNs)
+    func registerForRemoteNotifications() {
+        UIApplication.shared.registerForRemoteNotifications()
+    }
+    
+    /// Handle successful device token registration
+    /// Called from AppDelegate when APNs returns a device token
+    func didRegisterForRemoteNotifications(deviceToken: Data) {
+        let tokenString = deviceToken.map { String(format: "%02.2hhx", $0) }.joined()
+        self.deviceToken = tokenString
+        print("APNs Device Token: \(tokenString)")
+        
+        // Save token to database
+        Task {
+            await saveDeviceTokenToDatabase(token: tokenString)
+        }
+    }
+    
+    /// Handle failed device token registration
+    func didFailToRegisterForRemoteNotifications(error: Error) {
+        print("Failed to register for remote notifications: \(error.localizedDescription)")
+    }
+    
+    /// Save the device token to Supabase database
+    private func saveDeviceTokenToDatabase(token: String) async {
+        do {
+            let session = try await supabase.auth.session
+            let userId = session.user.id
+            
+            // Use the upsert_device_token function
+            try await supabase
+                .rpc("upsert_device_token", params: [
+                    "p_user_id": userId.uuidString,
+                    "p_token": token,
+                    "p_platform": "ios"
+                ])
+                .execute()
+            
+            print("Device token saved successfully for user: \(userId)")
+        } catch {
+            print("Error saving device token: \(error.localizedDescription)")
+        }
+    }
+    
+    /// Remove the current device token from database (e.g., on logout)
+    func removeDeviceToken() async {
+        guard let token = deviceToken else { return }
+        
+        do {
+            let session = try await supabase.auth.session
+            let userId = session.user.id
+            
+            try await supabase
+                .from("device_tokens")
+                .delete()
+                .eq("user_id", value: userId.uuidString)
+                .eq("token", value: token)
+                .execute()
+            
+            self.deviceToken = nil
+            print("Device token removed successfully")
+        } catch {
+            print("Error removing device token: \(error.localizedDescription)")
         }
     }
     
@@ -333,6 +408,8 @@ class NotificationManager: NSObject, ObservableObject {
         case .receivedReview:
             return preferences.receivedReviews.system
         case .crewBookingAccepted, .crewBookingCompleted:
+            return preferences.bookingReminders.system
+        case .videoUploadReminder:
             return preferences.bookingReminders.system
         }
     }

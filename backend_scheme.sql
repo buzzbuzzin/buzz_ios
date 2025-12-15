@@ -463,3 +463,26 @@ CREATE TABLE public.unit_completions (
   CONSTRAINT unit_completions_unit_id_fkey FOREIGN KEY (unit_id) REFERENCES public.course_units(id),
   CONSTRAINT unit_completions_course_id_fkey FOREIGN KEY (course_id) REFERENCES public.training_courses(id)
 );
+CREATE TABLE public.device_tokens (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  user_id uuid NOT NULL,
+  token text NOT NULL,
+  platform text NOT NULL DEFAULT 'ios'::text CHECK (platform = ANY (ARRAY['ios'::text, 'android'::text])),
+  is_active boolean NOT NULL DEFAULT true,
+  created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  updated_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  CONSTRAINT device_tokens_pkey PRIMARY KEY (id),
+  CONSTRAINT device_tokens_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id) ON DELETE CASCADE,
+  CONSTRAINT device_tokens_user_token_unique UNIQUE (user_id, token)
+);
+CREATE TABLE public.video_upload_reminders (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  booking_id uuid NOT NULL,
+  pilot_id uuid NOT NULL,
+  sent_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  reminder_type text NOT NULL DEFAULT '24h'::text CHECK (reminder_type = ANY (ARRAY['24h'::text, '48h'::text, '72h'::text])),
+  CONSTRAINT video_upload_reminders_pkey PRIMARY KEY (id),
+  CONSTRAINT video_upload_reminders_booking_id_fkey FOREIGN KEY (booking_id) REFERENCES public.bookings(id) ON DELETE CASCADE,
+  CONSTRAINT video_upload_reminders_pilot_id_fkey FOREIGN KEY (pilot_id) REFERENCES public.profiles(id) ON DELETE CASCADE,
+  CONSTRAINT video_upload_reminders_booking_type_unique UNIQUE (booking_id, reminder_type)
+);

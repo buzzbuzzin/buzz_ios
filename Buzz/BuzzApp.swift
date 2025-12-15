@@ -10,8 +10,55 @@ import GoogleSignIn
 import StripePaymentSheet
 import UserNotifications
 
+// MARK: - AppDelegate for Remote Notifications
+
+class AppDelegate: NSObject, UIApplicationDelegate {
+    func application(
+        _ application: UIApplication,
+        didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
+    ) -> Bool {
+        return true
+    }
+    
+    /// Called when APNs successfully registers the device
+    func application(
+        _ application: UIApplication,
+        didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
+    ) {
+        Task { @MainActor in
+            NotificationManager.shared.didRegisterForRemoteNotifications(deviceToken: deviceToken)
+        }
+    }
+    
+    /// Called when APNs registration fails
+    func application(
+        _ application: UIApplication,
+        didFailToRegisterForRemoteNotificationsWithError error: Error
+    ) {
+        Task { @MainActor in
+            NotificationManager.shared.didFailToRegisterForRemoteNotifications(error: error)
+        }
+    }
+    
+    /// Handle remote notification received while app is in foreground or background
+    func application(
+        _ application: UIApplication,
+        didReceiveRemoteNotification userInfo: [AnyHashable: Any],
+        fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void
+    ) {
+        // Post notification for the app to handle
+        NotificationCenter.default.post(
+            name: NSNotification.Name("HandleRemoteNotification"),
+            object: nil,
+            userInfo: userInfo
+        )
+        completionHandler(.newData)
+    }
+}
+
 @main
 struct BuzzApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @StateObject private var authService = AuthService()
     @StateObject private var notificationManager = NotificationManager.shared
     @AppStorage("appearanceMode") private var appearanceModeString: String = "system"
@@ -60,13 +107,20 @@ struct BuzzApp: App {
                     // The AuthService will check authentication status separately
                 }
                 
-                // Request notification permissions
+                // Request notification permissions and register for remote notifications
                 Task {
                     await notificationManager.updateAuthorizationStatus()
                     
                     // Request permission if not yet determined
                     if notificationManager.authorizationStatus == .notDetermined {
-                        _ = await notificationManager.requestAuthorization()
+                        let granted = await notificationManager.requestAuthorization()
+                        if granted {
+                            // Register for APNs push notifications
+                            notificationManager.registerForRemoteNotifications()
+                        }
+                    } else if notificationManager.authorizationStatus == .authorized {
+                        // Already authorized, register for remote notifications
+                        notificationManager.registerForRemoteNotifications()
                     }
                 }
             }
