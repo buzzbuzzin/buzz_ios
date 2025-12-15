@@ -417,6 +417,74 @@ class AcademyService: ObservableObject {
             return []
         }
     }
+    
+    // MARK: - Fetch Completed Units for Pilot
+    
+    func fetchCompletedUnits(pilotId: UUID) async throws -> [CompletedUnit] {
+        do {
+            // Fetch unit completions with unit details for this pilot
+            // Filter for unit_number >= 4
+            let response = try await supabase
+                .from("unit_completions")
+                .select("*, course_units!inner(unit_number, title)")
+                .eq("pilot_id", value: pilotId.uuidString)
+                .gte("course_units.unit_number", value: 4)
+                .order("completed_at", ascending: false)
+                .execute()
+            
+            // Parse the response
+            let data = response.data
+            guard let jsonArray = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+                print("❌ [AcademyService] Failed to parse completed units response")
+                return []
+            }
+            
+            var completedUnits: [CompletedUnit] = []
+            
+            for unitJson in jsonArray {
+                guard let idString = unitJson["id"] as? String,
+                      let id = UUID(uuidString: idString),
+                      let pilotIdString = unitJson["pilot_id"] as? String,
+                      let pilotId = UUID(uuidString: pilotIdString),
+                      let unitIdString = unitJson["unit_id"] as? String,
+                      let unitId = UUID(uuidString: unitIdString),
+                      let courseIdString = unitJson["course_id"] as? String,
+                      let courseId = UUID(uuidString: courseIdString),
+                      let completedAtString = unitJson["completed_at"] as? String,
+                      let courseUnitsJson = unitJson["course_units"] as? [String: Any],
+                      let unitNumber = courseUnitsJson["unit_number"] as? Int,
+                      let unitTitle = courseUnitsJson["title"] as? String else {
+                    continue
+                }
+                
+                // Parse the completedAt date
+                let formatter = ISO8601DateFormatter()
+                formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+                guard let completedAt = formatter.date(from: completedAtString) else {
+                    print("⚠️ [AcademyService] Failed to parse date: \(completedAtString)")
+                    continue
+                }
+                
+                let completedUnit = CompletedUnit(
+                    id: id,
+                    pilotId: pilotId,
+                    unitId: unitId,
+                    courseId: courseId,
+                    unitNumber: unitNumber,
+                    unitTitle: unitTitle,
+                    completedAt: completedAt
+                )
+                
+                completedUnits.append(completedUnit)
+            }
+            
+            print("✅ [AcademyService] Loaded \(completedUnits.count) completed units")
+            return completedUnits
+        } catch {
+            print("❌ [AcademyService] Error loading completed units: \(error)")
+            throw error
+        }
+    }
 }
 
 // MARK: - Response Models

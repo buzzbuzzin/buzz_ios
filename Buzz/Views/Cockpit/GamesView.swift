@@ -54,7 +54,7 @@ struct GamesView: View {
                         .font(.system(size: 40))
                         .foregroundColor(.blue)
                     
-                    Text("Coming Soon")
+                    Text("Launching March 2026")
                         .font(.title2)
                         .fontWeight(.bold)
                     

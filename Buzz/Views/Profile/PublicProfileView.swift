@@ -23,6 +23,7 @@ struct PublicProfileView: View {
     @State private var pilotStats: PilotStats?
     @State private var ratingSummary: UserRatingSummary?
     @State private var completedCourses: [TrainingCourse] = []
+    @State private var completedUnits: [CompletedUnit] = []
     @State private var isLoading = true
     @State private var errorMessage = ""
     @State private var showError = false
@@ -246,14 +247,20 @@ struct PublicProfileView: View {
                 
                 // Completed Courses Section
                 Section {
-                    if completedCourses.isEmpty {
+                    if completedCourses.isEmpty && completedUnits.isEmpty {
                         Text("No completed courses yet")
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                             .padding(.vertical, 4)
                     } else {
+                        // Display completed courses
                         ForEach(completedCourses) { course in
                             CompletedCourseRow(course: course)
+                        }
+                        
+                        // Display completed units
+                        ForEach(completedUnits) { unit in
+                            CompletedUnitRow(unit: unit)
                         }
                     }
                 } header: {
@@ -305,6 +312,14 @@ struct PublicProfileView: View {
             } catch {
                 print("Error loading completed courses: \(error)")
                 completedCourses = []
+            }
+            
+            // Load completed units
+            do {
+                completedUnits = try await academyService.fetchCompletedUnits(pilotId: pilotId)
+            } catch {
+                print("Error loading completed units: \(error)")
+                completedUnits = []
             }
             
             isLoading = false
@@ -372,6 +387,44 @@ struct CompletedCourseRow: View {
                         .font(.caption)
                         .foregroundColor(course.provider.color)
                 }
+            }
+            
+            Spacer()
+            
+            Image(systemName: "checkmark.circle.fill")
+                .foregroundColor(.green)
+                .font(.title3)
+        }
+        .padding(.vertical, 4)
+    }
+}
+
+// MARK: - Completed Unit Row
+
+struct CompletedUnitRow: View {
+    let unit: CompletedUnit
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            // Unit Icon
+            ZStack {
+                Circle()
+                    .fill(Color.blue.opacity(0.2))
+                    .frame(width: 50, height: 50)
+                
+                Image(systemName: "book.fill")
+                    .font(.system(size: 24))
+                    .foregroundColor(.blue)
+            }
+            
+            VStack(alignment: .leading, spacing: 4) {
+                Text(unit.displayName)
+                    .font(.headline)
+                    .lineLimit(2)
+                
+                Text("Unit \(unit.unitNumber)")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
             }
             
             Spacer()

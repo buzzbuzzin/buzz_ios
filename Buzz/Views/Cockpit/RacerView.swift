@@ -11,6 +11,7 @@ import Auth
 struct RacerView: View {
     @EnvironmentObject var authService: AuthService
     @State private var isLoading: Bool = true
+    @State private var showNotificationAlert: Bool = false
     
     var body: some View {
         ScrollView {
@@ -108,7 +109,7 @@ struct RacerView: View {
                                 .padding(.horizontal)
                             
                             Button(action: {
-                                // TODO: Implement sign up functionality
+                                showNotificationAlert = true
                             }) {
                                 HStack {
                                     Image(systemName: "bell.fill")
@@ -140,6 +141,11 @@ struct RacerView: View {
         }
         .navigationTitle("Racer")
         .navigationBarTitleDisplayMode(.inline)
+        .alert("You'll Get Notified!", isPresented: $showNotificationAlert) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("We'll notify you when racing competitions open. Get ready to showcase your piloting skills!")
+        }
         .task {
             await loadData()
         }
