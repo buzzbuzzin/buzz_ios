@@ -15,8 +15,8 @@ enum PropertySize: String, CaseIterable {
     
     var displayName: String {
         switch self {
-        case .under5000: return "Under 5,000 sq ft"
-        case .above5000: return "5,000 sq ft or above"
+        case .under5000: return "< 5,000 sq ft"
+        case .above5000: return "≥ 5,000 sq ft"
         }
     }
 }
