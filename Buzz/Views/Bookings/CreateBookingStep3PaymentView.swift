@@ -18,6 +18,9 @@ struct CreateBookingStep3PaymentView: View {
     let automotiveSubscriptionPrices: [AutomotiveBookingPrice]
     let automotiveFirstTimePrices: [AutomotiveBookingPrice]
     let automotiveNonSubscriptionPrices: [AutomotiveBookingPrice]
+    let propertySize: PropertySize
+    let realEstateUnder5000Prices: [RealEstateBookingPrice]
+    let realEstateAbove5000Prices: [RealEstateBookingPrice]
     
     let onBack: () -> Void
     let onCreate: () -> Void
@@ -35,6 +38,16 @@ struct CreateBookingStep3PaymentView: View {
     
     // Automotive product ID from Stripe (for subscription plans)
     private let automotiveProductId = "prod_TOW3rxsrI5xCs3"
+    
+    // Real Estate pricing
+    private var realEstatePrice: Decimal {
+        let prices = propertySize == .under5000 ? realEstateUnder5000Prices : realEstateAbove5000Prices
+        if let priceInfo = prices.first(where: { $0.rankTier == requiredMinimumRank }) {
+            return priceInfo.amountInDollars
+        }
+        // Fallback if prices not loaded
+        return Decimal(500)
+    }
     
     // Automotive pricing
     private var automotivePrice: Decimal {
@@ -240,6 +253,65 @@ struct CreateBookingStep3PaymentView: View {
                                 .cornerRadius(8)
                             }
                         }
+                    } else if selectedSpecialization == .realEstate {
+                        // Real Estate fixed pricing based on property size
+                        VStack(alignment: .leading, spacing: 16) {
+                            // Selected Rank
+                            HStack {
+                                Text("Selected Rank:")
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                                Spacer()
+                                Text(rankName)
+                                    .font(.subheadline)
+                                    .fontWeight(.semibold)
+                            }
+                            .padding()
+                            .background(Color(.systemGray6))
+                            .cornerRadius(12)
+                            
+                            // Property Size
+                            HStack {
+                                Text("Property Size:")
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                                Spacer()
+                                Text(propertySize.displayName)
+                                    .font(.subheadline)
+                                    .fontWeight(.semibold)
+                            }
+                            .padding()
+                            .background(Color(.systemGray6))
+                            .cornerRadius(12)
+                            
+                            // Payment Amount
+                            HStack {
+                                Text("Payment Amount:")
+                                    .font(.headline)
+                                Spacer()
+                                Text("$\(String(format: "%.2f", NSDecimalNumber(decimal: realEstatePrice).doubleValue))")
+                                    .font(.title2)
+                                    .fontWeight(.bold)
+                                    .foregroundColor(.green)
+                            }
+                            .padding()
+                            .background(Color(.systemGray6))
+                            .cornerRadius(12)
+                            
+                            HStack(spacing: 6) {
+                                Image(systemName: "info.circle.fill")
+                                    .foregroundColor(.blue)
+                                    .font(.subheadline)
+                                Text("Pricing based on rank and property size")
+                                    .font(.subheadline)
+                                    .foregroundColor(.blue)
+                                Spacer()
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 10)
+                            .background(Color.blue.opacity(0.1))
+                            .cornerRadius(8)
+                        }
                     } else {
                         // Other industries - payment input
                         VStack(alignment: .leading, spacing: 16) {
@@ -418,11 +490,17 @@ struct CreateBookingStep3PaymentView: View {
             if selectedSpecialization == .automotive {
                 paymentAmount = String(format: "%.2f", NSDecimalNumber(decimal: automotivePrice).doubleValue)
             }
+            // For Real Estate, set payment amount based on rank and property size
+            else if selectedSpecialization == .realEstate {
+                paymentAmount = String(format: "%.2f", NSDecimalNumber(decimal: realEstatePrice).doubleValue)
+            }
         }
         .onChange(of: requiredMinimumRank) { _, _ in
-            // Update payment amount when rank changes for Automotive
+            // Update payment amount when rank changes
             if selectedSpecialization == .automotive {
                 paymentAmount = String(format: "%.2f", NSDecimalNumber(decimal: automotivePrice).doubleValue)
+            } else if selectedSpecialization == .realEstate {
+                paymentAmount = String(format: "%.2f", NSDecimalNumber(decimal: realEstatePrice).doubleValue)
             }
         }
         .sheet(isPresented: $showSubscription) {

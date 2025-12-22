@@ -355,6 +355,9 @@ struct CreateBookingView: View {
     @State private var automotiveSubscriptionPrices: [AutomotiveBookingPrice] = []
     @State private var automotiveFirstTimePrices: [AutomotiveBookingPrice] = []
     @State private var automotiveNonSubscriptionPrices: [AutomotiveBookingPrice] = []
+    @State private var propertySize: PropertySize = .under5000
+    @State private var realEstateUnder5000Prices: [RealEstateBookingPrice] = []
+    @State private var realEstateAbove5000Prices: [RealEstateBookingPrice] = []
     
     var body: some View {
         NavigationView {
@@ -382,6 +385,7 @@ struct CreateBookingView: View {
                             endTime: $endTime,
                             selectedSpecialization: $selectedSpecialization,
                             requiredMinimumRank: $requiredMinimumRank,
+                            propertySize: $propertySize,
                             onBack: {
                                 currentStep = 1
                             },
@@ -403,6 +407,9 @@ struct CreateBookingView: View {
                             automotiveSubscriptionPrices: automotiveSubscriptionPrices,
                             automotiveFirstTimePrices: automotiveFirstTimePrices,
                             automotiveNonSubscriptionPrices: automotiveNonSubscriptionPrices,
+                            propertySize: propertySize,
+                            realEstateUnder5000Prices: realEstateUnder5000Prices,
+                            realEstateAbove5000Prices: realEstateAbove5000Prices,
                             onBack: {
                                 currentStep = 2
                             },
@@ -563,8 +570,7 @@ struct CreateBookingView: View {
     }
     
     private func checkSubscriptionAndBookingHistory() async {
-        guard let currentUser = authService.currentUser,
-              selectedSpecialization == .automotive else {
+        guard let currentUser = authService.currentUser else {
             hasAutomotiveSubscription = false
             isFirstAutomotiveBooking = true
             return
@@ -572,47 +578,60 @@ struct CreateBookingView: View {
         
         isLoadingSubscription = true
         
-        // Check subscription
-        do {
-            if let subscription = try await subscriptionService.fetchCurrentSubscription(customerId: currentUser.id) {
-                hasAutomotiveSubscription = subscription.isActive
-            } else {
+        // Handle Automotive bookings
+        if selectedSpecialization == .automotive {
+            // Check subscription
+            do {
+                if let subscription = try await subscriptionService.fetchCurrentSubscription(customerId: currentUser.id) {
+                    hasAutomotiveSubscription = subscription.isActive
+                } else {
+                    hasAutomotiveSubscription = false
+                }
+            } catch {
+                print("Error checking subscription: \(error)")
                 hasAutomotiveSubscription = false
             }
-        } catch {
-            print("Error checking subscription: \(error)")
-            hasAutomotiveSubscription = false
-        }
-        
-        // Check if this is first Automotive booking by querying database directly
-        do {
-            let supabase = SupabaseClient.shared.client
-            let bookings: [Booking] = try await supabase
-                .from("bookings")
-                .select()
-                .eq("customer_id", value: currentUser.id.uuidString)
-                .eq("specialization", value: BookingSpecialization.automotive.rawValue)
-                .execute()
-                .value
             
-            isFirstAutomotiveBooking = bookings.isEmpty
-        } catch {
-            print("Error checking booking history: \(error)")
-            // Assume first booking if we can't check
-            isFirstAutomotiveBooking = true
+            // Check if this is first Automotive booking by querying database directly
+            do {
+                let supabase = SupabaseClient.shared.client
+                let bookings: [Booking] = try await supabase
+                    .from("bookings")
+                    .select()
+                    .eq("customer_id", value: currentUser.id.uuidString)
+                    .eq("specialization", value: BookingSpecialization.automotive.rawValue)
+                    .execute()
+                    .value
+                
+                isFirstAutomotiveBooking = bookings.isEmpty
+            } catch {
+                print("Error checking booking history: \(error)")
+                // Assume first booking if we can't check
+                isFirstAutomotiveBooking = true
+            }
+            
+            // Fetch automotive booking prices from Stripe
+            let pricesResult = await subscriptionService.fetchAutomotiveBookingPrices()
+            automotiveSubscriptionPrices = pricesResult.subscriptionPrices
+            automotiveFirstTimePrices = pricesResult.firstTimePrices
+            automotiveNonSubscriptionPrices = pricesResult.nonSubscriptionPrices
         }
-        
-        // Fetch automotive booking prices from Stripe
-        let pricesResult = await subscriptionService.fetchAutomotiveBookingPrices()
-        automotiveSubscriptionPrices = pricesResult.subscriptionPrices
-        automotiveFirstTimePrices = pricesResult.firstTimePrices
-        automotiveNonSubscriptionPrices = pricesResult.nonSubscriptionPrices
+        // Handle Real Estate bookings
+        else if selectedSpecialization == .realEstate {
+            // Fetch real estate booking prices from Stripe
+            let pricesResult = await subscriptionService.fetchRealEstateBookingPrices()
+            realEstateUnder5000Prices = pricesResult.under5000Prices
+            realEstateAbove5000Prices = pricesResult.above5000Prices
+        }
         
         isLoadingSubscription = false
     }
     
     private func getEstimatedHours() -> Double {
-        // Use default 2 hours for estimated flight hours
+        // Use 5 hours for automotive bookings, 2 hours for other industries
+        if selectedSpecialization == .automotive {
+            return 5.0
+        }
         return 2.0
     }
     
@@ -624,6 +643,9 @@ struct CreateBookingView: View {
         if specialization == .automotive {
             // For Automotive, use fixed pricing based on rank
             return getAutomotivePrice(for: requiredMinimumRank)
+        } else if specialization == .realEstate {
+            // For Real Estate, use fixed pricing based on rank and property size
+            return getRealEstatePrice(for: requiredMinimumRank, propertySize: propertySize)
         } else {
             // For other industries, use user-entered payment
             if let paymentValue = Double(paymentAmount) {
@@ -631,6 +653,18 @@ struct CreateBookingView: View {
             }
             return Decimal(0)
         }
+    }
+    
+    private func getRealEstatePrice(for rank: Int, propertySize: PropertySize) -> Decimal {
+        let prices = propertySize == .under5000 ? realEstateUnder5000Prices : realEstateAbove5000Prices
+        
+        if let priceInfo = prices.first(where: { $0.rankTier == rank }) {
+            return priceInfo.amountInDollars
+        }
+        
+        // Fallback prices if Stripe prices not loaded (shouldn't happen in normal flow)
+        // These are placeholder values - actual prices come from Stripe
+        return Decimal(500)
     }
     
     private func createBooking() {

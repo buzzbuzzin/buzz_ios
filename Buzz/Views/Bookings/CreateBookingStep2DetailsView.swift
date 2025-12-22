@@ -8,6 +8,19 @@
 import SwiftUI
 import MapKit
 
+/// Property size options for real estate bookings
+enum PropertySize: String, CaseIterable {
+    case under5000 = "under5000"
+    case above5000 = "above5000"
+    
+    var displayName: String {
+        switch self {
+        case .under5000: return "Under 5,000 sq ft"
+        case .above5000: return "5,000 sq ft or above"
+        }
+    }
+}
+
 struct CreateBookingStep2DetailsView: View {
     @Binding var selectedLocation: CLLocationCoordinate2D?
     @Binding var locationName: String
@@ -16,6 +29,7 @@ struct CreateBookingStep2DetailsView: View {
     @Binding var endTime: Date?
     @Binding var selectedSpecialization: BookingSpecialization?
     @Binding var requiredMinimumRank: Int
+    @Binding var propertySize: PropertySize
     
     @State private var showLocationSearch = false
     @State private var showRankInfo = false
@@ -171,6 +185,37 @@ struct CreateBookingStep2DetailsView: View {
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                             .frame(maxWidth: .infinity, alignment: .center)
+                    }
+                }
+                
+                // Property Size Section (Real Estate only)
+                if selectedSpecialization == .realEstate {
+                    SectionCard2(number: 4, title: "Property Size") {
+                        VStack(spacing: 12) {
+                            HStack {
+                                Text("🏠")
+                                    .font(.system(size: 20))
+                                
+                                Picker("Property Size", selection: $propertySize) {
+                                    ForEach(PropertySize.allCases, id: \.self) { size in
+                                        Text(size.displayName)
+                                            .tag(size)
+                                    }
+                                }
+                                .pickerStyle(.menu)
+                                .labelsHidden()
+                                
+                                Spacer()
+                            }
+                            .padding()
+                            .background(Color(.systemGray6))
+                            .cornerRadius(12)
+                            
+                            Text("Pricing varies by property size")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                                .frame(maxWidth: .infinity, alignment: .center)
+                        }
                     }
                 }
                 

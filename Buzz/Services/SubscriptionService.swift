@@ -302,6 +302,63 @@ class SubscriptionService: ObservableObject {
     func getAutomotiveNonSubscriptionPrice(forRankTier tier: Int) -> AutomotiveBookingPrice? {
         return automotiveNonSubscriptionPrices.first { $0.rankTier == tier }
     }
+    
+    // MARK: - Fetch Real Estate Booking Prices
+    
+    /// Real estate booking prices from Stripe based on property size
+    @Published var realEstateUnder5000Prices: [RealEstateBookingPrice] = []
+    @Published var realEstateAbove5000Prices: [RealEstateBookingPrice] = []
+    
+    func fetchRealEstateBookingPrices() async -> RealEstateBookingPricesResult {
+        isLoading = true
+        errorMessage = nil
+        
+        do {
+            let response: RealEstateBookingPricesResponse = try await supabase.functions
+                .invoke("get-real-estate-booking-prices", options: FunctionInvokeOptions(
+                    body: [:] as [String: String]
+                ))
+            
+            isLoading = false
+            
+            if let error = response.error {
+                errorMessage = error
+                realEstateUnder5000Prices = []
+                realEstateAbove5000Prices = []
+                return RealEstateBookingPricesResult(under5000Prices: [], above5000Prices: [])
+            }
+            
+            realEstateUnder5000Prices = response.under5000Prices ?? []
+            realEstateAbove5000Prices = response.above5000Prices ?? []
+            
+            return RealEstateBookingPricesResult(
+                under5000Prices: realEstateUnder5000Prices,
+                above5000Prices: realEstateAbove5000Prices
+            )
+        } catch {
+            isLoading = false
+            errorMessage = error.localizedDescription
+            
+            // Ignore cancellation errors
+            if let nsError = error as NSError?, nsError.code == NSURLErrorCancelled {
+                return RealEstateBookingPricesResult(under5000Prices: [], above5000Prices: [])
+            }
+            
+            realEstateUnder5000Prices = []
+            realEstateAbove5000Prices = []
+            return RealEstateBookingPricesResult(under5000Prices: [], above5000Prices: [])
+        }
+    }
+    
+    /// Get the price for under 5,000 sq ft property
+    func getRealEstateUnder5000Price(forRankTier tier: Int) -> RealEstateBookingPrice? {
+        return realEstateUnder5000Prices.first { $0.rankTier == tier }
+    }
+    
+    /// Get the price for above 5,000 sq ft property
+    func getRealEstateAbove5000Price(forRankTier tier: Int) -> RealEstateBookingPrice? {
+        return realEstateAbove5000Prices.first { $0.rankTier == tier }
+    }
 }
 
 // MARK: - Automotive Booking Price Models
@@ -354,6 +411,55 @@ struct AutomotiveBookingPricesResult {
     let subscriptionPrices: [AutomotiveBookingPrice]
     let firstTimePrices: [AutomotiveBookingPrice]
     let nonSubscriptionPrices: [AutomotiveBookingPrice]
+}
+
+// MARK: - Real Estate Booking Price Models
+
+struct RealEstateBookingPrice: Codable, Identifiable {
+    let rank: String
+    let rankTier: Int
+    let priceId: String
+    let amount: Int // Amount in cents
+    let currency: String
+    
+    var id: String { priceId }
+    
+    enum CodingKeys: String, CodingKey {
+        case rank
+        case rankTier
+        case priceId
+        case amount
+        case currency
+    }
+    
+    /// Amount in dollars (converts from cents)
+    var amountInDollars: Decimal {
+        Decimal(amount) / 100
+    }
+    
+    /// Formatted display price (e.g., "$500.00")
+    var displayPrice: String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .currency
+        formatter.currencyCode = currency.uppercased()
+        formatter.maximumFractionDigits = 2
+        formatter.minimumFractionDigits = 2
+        return formatter.string(from: NSDecimalNumber(decimal: amountInDollars)) ?? "$0"
+    }
+}
+
+struct RealEstateBookingPricesResponse: Codable {
+    let under5000ProductId: String?
+    let under5000Prices: [RealEstateBookingPrice]?
+    let above5000ProductId: String?
+    let above5000Prices: [RealEstateBookingPrice]?
+    let error: String?
+}
+
+/// Result struct for fetching real estate booking prices
+struct RealEstateBookingPricesResult {
+    let under5000Prices: [RealEstateBookingPrice]
+    let above5000Prices: [RealEstateBookingPrice]
 }
 
 // MARK: - Response Models
