@@ -41,6 +41,40 @@ struct ChecklistView: View {
                             title: "Pilot has a verified email address",
                             subtitle: "Verify email in Profile > Personal Info"
                         )
+                        
+                        // Manual checklist items
+                        Button(action: {
+                            checklistService.hasInsurance.toggle()
+                        }) {
+                            ChecklistItemRow(
+                                isComplete: checklistService.hasInsurance,
+                                title: "Insurance",
+                                subtitle: nil
+                            )
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                        
+                        Button(action: {
+                            checklistService.hasFlightPlan.toggle()
+                        }) {
+                            ChecklistItemRow(
+                                isComplete: checklistService.hasFlightPlan,
+                                title: "Flight Plan",
+                                subtitle: nil
+                            )
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                        
+                        Button(action: {
+                            checklistService.hasFAAWaiver.toggle()
+                        }) {
+                            ChecklistItemRow(
+                                isComplete: checklistService.hasFAAWaiver,
+                                title: "FAA Waiver",
+                                subtitle: nil
+                            )
+                        }
+                        .buttonStyle(PlainButtonStyle())
                     }
                     .padding(.horizontal)
                 }

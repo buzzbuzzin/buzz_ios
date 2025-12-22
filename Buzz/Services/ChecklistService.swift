@@ -14,6 +14,9 @@ class ChecklistService: ObservableObject {
     @Published var hasDroneRegistration: Bool = false
     @Published var hasDronePilotLicense: Bool = false
     @Published var isEmailVerified: Bool = false
+    @Published var hasInsurance: Bool = false
+    @Published var hasFlightPlan: Bool = false
+    @Published var hasFAAWaiver: Bool = false
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
     
