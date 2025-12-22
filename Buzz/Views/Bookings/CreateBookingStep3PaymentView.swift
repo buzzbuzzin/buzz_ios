@@ -15,6 +15,9 @@ struct CreateBookingStep3PaymentView: View {
     @Binding var requiredMinimumRank: Int
     @Binding var hasAutomotiveSubscription: Bool
     @Binding var isFirstAutomotiveBooking: Bool
+    let automotiveSubscriptionPrices: [AutomotiveBookingPrice]
+    let automotiveFirstTimePrices: [AutomotiveBookingPrice]
+    let automotiveNonSubscriptionPrices: [AutomotiveBookingPrice]
     
     let onBack: () -> Void
     let onCreate: () -> Void
@@ -30,13 +33,30 @@ struct CreateBookingStep3PaymentView: View {
     
     private let minimumHourlyRate: Double = 25.0
     
-    // Automotive product ID from Stripe
+    // Automotive product ID from Stripe (for subscription plans)
     private let automotiveProductId = "prod_TOW3rxsrI5xCs3"
     
     // Automotive pricing
     private var automotivePrice: Decimal {
-        if hasAutomotiveSubscription || isFirstAutomotiveBooking {
-            // First-time user or has subscription: lower prices
+        if hasAutomotiveSubscription {
+            // Client has active subscription: use subscription-tier Stripe prices
+            if let priceInfo = automotiveSubscriptionPrices.first(where: { $0.rankTier == requiredMinimumRank }) {
+                return priceInfo.amountInDollars
+            }
+            // Fallback prices if Stripe prices not loaded
+            switch requiredMinimumRank {
+            case 4: return Decimal(4000) // Captain
+            case 3: return Decimal(3800) // Commander
+            case 2: return Decimal(3600) // Lieutenant
+            case 1: return Decimal(3400) // Sub Lieutenant
+            default: return Decimal(3400) // Ensign
+            }
+        } else if isFirstAutomotiveBooking {
+            // First-time booking without subscription: use first-time Stripe prices
+            if let priceInfo = automotiveFirstTimePrices.first(where: { $0.rankTier == requiredMinimumRank }) {
+                return priceInfo.amountInDollars
+            }
+            // Fallback prices if Stripe prices not loaded
             switch requiredMinimumRank {
             case 4: return Decimal(4000) // Captain
             case 3: return Decimal(3800) // Commander
@@ -45,7 +65,11 @@ struct CreateBookingStep3PaymentView: View {
             default: return Decimal(3400) // Ensign
             }
         } else {
-            // Returning user without subscription: higher prices
+            // Returning user without subscription: use non-subscription Stripe prices
+            if let priceInfo = automotiveNonSubscriptionPrices.first(where: { $0.rankTier == requiredMinimumRank }) {
+                return priceInfo.amountInDollars
+            }
+            // Fallback prices if Stripe prices not loaded
             switch requiredMinimumRank {
             case 4: return Decimal(7000) // Captain
             case 3: return Decimal(6800) // Commander
@@ -144,10 +168,9 @@ struct CreateBookingStep3PaymentView: View {
                                             .foregroundColor(.secondary)
                                         
                                         VStack(alignment: .leading, spacing: 4) {
-                                            Text("• Captain: $5,000")
-                                            Text("• Commander: $4,750")
-                                            Text("• Lieutenant: $4,500")
-                                            Text("• Sub Lieutenant: $4,250")
+                                            ForEach(automotiveNonSubscriptionPrices.sorted(by: { $0.rankTier > $1.rankTier })) { price in
+                                                Text("• \(price.rank.capitalized): \(price.displayPrice)")
+                                            }
                                         }
                                         .font(.caption)
                                         .foregroundColor(.secondary)

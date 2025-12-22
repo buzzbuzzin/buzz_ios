@@ -352,6 +352,9 @@ struct CreateBookingView: View {
     @State private var hasAutomotiveSubscription = false
     @State private var isFirstAutomotiveBooking = true
     @State private var isLoadingSubscription = false
+    @State private var automotiveSubscriptionPrices: [AutomotiveBookingPrice] = []
+    @State private var automotiveFirstTimePrices: [AutomotiveBookingPrice] = []
+    @State private var automotiveNonSubscriptionPrices: [AutomotiveBookingPrice] = []
     
     var body: some View {
         NavigationView {
@@ -397,6 +400,9 @@ struct CreateBookingView: View {
                             requiredMinimumRank: $requiredMinimumRank,
                             hasAutomotiveSubscription: $hasAutomotiveSubscription,
                             isFirstAutomotiveBooking: $isFirstAutomotiveBooking,
+                            automotiveSubscriptionPrices: automotiveSubscriptionPrices,
+                            automotiveFirstTimePrices: automotiveFirstTimePrices,
+                            automotiveNonSubscriptionPrices: automotiveNonSubscriptionPrices,
                             onBack: {
                                 currentStep = 2
                             },
@@ -596,6 +602,12 @@ struct CreateBookingView: View {
             isFirstAutomotiveBooking = true
         }
         
+        // Fetch automotive booking prices from Stripe
+        let pricesResult = await subscriptionService.fetchAutomotiveBookingPrices()
+        automotiveSubscriptionPrices = pricesResult.subscriptionPrices
+        automotiveFirstTimePrices = pricesResult.firstTimePrices
+        automotiveNonSubscriptionPrices = pricesResult.nonSubscriptionPrices
+        
         isLoadingSubscription = false
     }
     
@@ -685,8 +697,25 @@ struct CreateBookingView: View {
     }
     
     private func getAutomotivePrice(for rank: Int) -> Decimal {
-        if hasAutomotiveSubscription || isFirstAutomotiveBooking {
-            // First-time user or has subscription: lower prices
+        if hasAutomotiveSubscription {
+            // Client has active subscription: use subscription-tier Stripe prices
+            if let priceInfo = automotiveSubscriptionPrices.first(where: { $0.rankTier == rank }) {
+                return priceInfo.amountInDollars
+            }
+            // Fallback prices if Stripe prices not loaded
+            switch rank {
+            case 4: return Decimal(4000) // Captain
+            case 3: return Decimal(3800) // Commander
+            case 2: return Decimal(3600) // Lieutenant
+            case 1: return Decimal(3400) // Sub Lieutenant
+            default: return Decimal(3400) // Ensign (default to Sub Lieutenant price)
+            }
+        } else if isFirstAutomotiveBooking {
+            // First-time booking without subscription: use first-time Stripe prices
+            if let priceInfo = automotiveFirstTimePrices.first(where: { $0.rankTier == rank }) {
+                return priceInfo.amountInDollars
+            }
+            // Fallback prices if Stripe prices not loaded
             switch rank {
             case 4: return Decimal(4000) // Captain
             case 3: return Decimal(3800) // Commander
@@ -695,7 +724,11 @@ struct CreateBookingView: View {
             default: return Decimal(3400) // Ensign (default to Sub Lieutenant price)
             }
         } else {
-            // Returning user without subscription: higher prices
+            // Returning user without subscription: use non-subscription Stripe prices
+            if let priceInfo = automotiveNonSubscriptionPrices.first(where: { $0.rankTier == rank }) {
+                return priceInfo.amountInDollars
+            }
+            // Fallback prices if Stripe prices not loaded
             switch rank {
             case 4: return Decimal(7000) // Captain
             case 3: return Decimal(6800) // Commander

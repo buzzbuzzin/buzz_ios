@@ -232,6 +232,128 @@ class SubscriptionService: ObservableObject {
             throw error
         }
     }
+    
+    // MARK: - Fetch Automotive Booking Prices
+    
+    /// Automotive booking prices from Stripe
+    /// Subscription prices: for clients with active subscription
+    /// First-time prices: for clients without subscription, first booking
+    /// Non-subscription prices: for returning clients without subscription
+    @Published var automotiveSubscriptionPrices: [AutomotiveBookingPrice] = []
+    @Published var automotiveFirstTimePrices: [AutomotiveBookingPrice] = []
+    @Published var automotiveNonSubscriptionPrices: [AutomotiveBookingPrice] = []
+    
+    func fetchAutomotiveBookingPrices() async -> AutomotiveBookingPricesResult {
+        isLoading = true
+        errorMessage = nil
+        
+        do {
+            let response: AutomotiveBookingPricesResponse = try await supabase.functions
+                .invoke("get-automotive-booking-prices", options: FunctionInvokeOptions(
+                    body: [:] as [String: String]
+                ))
+            
+            isLoading = false
+            
+            if let error = response.error {
+                errorMessage = error
+                automotiveSubscriptionPrices = []
+                automotiveFirstTimePrices = []
+                automotiveNonSubscriptionPrices = []
+                return AutomotiveBookingPricesResult(subscriptionPrices: [], firstTimePrices: [], nonSubscriptionPrices: [])
+            }
+            
+            automotiveSubscriptionPrices = response.subscriptionPrices ?? []
+            automotiveFirstTimePrices = response.firstTimePrices ?? []
+            automotiveNonSubscriptionPrices = response.nonSubscriptionPrices ?? []
+            
+            return AutomotiveBookingPricesResult(
+                subscriptionPrices: automotiveSubscriptionPrices,
+                firstTimePrices: automotiveFirstTimePrices,
+                nonSubscriptionPrices: automotiveNonSubscriptionPrices
+            )
+        } catch {
+            isLoading = false
+            errorMessage = error.localizedDescription
+            
+            // Ignore cancellation errors
+            if let nsError = error as NSError?, nsError.code == NSURLErrorCancelled {
+                return AutomotiveBookingPricesResult(subscriptionPrices: [], firstTimePrices: [], nonSubscriptionPrices: [])
+            }
+            
+            automotiveSubscriptionPrices = []
+            automotiveFirstTimePrices = []
+            automotiveNonSubscriptionPrices = []
+            return AutomotiveBookingPricesResult(subscriptionPrices: [], firstTimePrices: [], nonSubscriptionPrices: [])
+        }
+    }
+    
+    /// Get the subscription-tier price for a specific rank tier
+    func getAutomotiveSubscriptionPrice(forRankTier tier: Int) -> AutomotiveBookingPrice? {
+        return automotiveSubscriptionPrices.first { $0.rankTier == tier }
+    }
+    
+    /// Get the first-time booking price for a specific rank tier
+    func getAutomotiveFirstTimePrice(forRankTier tier: Int) -> AutomotiveBookingPrice? {
+        return automotiveFirstTimePrices.first { $0.rankTier == tier }
+    }
+    
+    /// Get the non-subscription price for a specific rank tier
+    func getAutomotiveNonSubscriptionPrice(forRankTier tier: Int) -> AutomotiveBookingPrice? {
+        return automotiveNonSubscriptionPrices.first { $0.rankTier == tier }
+    }
+}
+
+// MARK: - Automotive Booking Price Models
+
+struct AutomotiveBookingPrice: Codable, Identifiable {
+    let rank: String
+    let rankTier: Int
+    let priceId: String
+    let amount: Int // Amount in cents
+    let currency: String
+    
+    var id: String { priceId }
+    
+    enum CodingKeys: String, CodingKey {
+        case rank
+        case rankTier
+        case priceId
+        case amount
+        case currency
+    }
+    
+    /// Amount in dollars (converts from cents)
+    var amountInDollars: Decimal {
+        Decimal(amount) / 100
+    }
+    
+    /// Formatted display price (e.g., "$7,000.00")
+    var displayPrice: String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .currency
+        formatter.currencyCode = currency.uppercased()
+        formatter.maximumFractionDigits = 2
+        formatter.minimumFractionDigits = 2
+        return formatter.string(from: NSDecimalNumber(decimal: amountInDollars)) ?? "$0"
+    }
+}
+
+struct AutomotiveBookingPricesResponse: Codable {
+    let subscriptionProductId: String?
+    let subscriptionPrices: [AutomotiveBookingPrice]?
+    let firstTimeProductId: String?
+    let firstTimePrices: [AutomotiveBookingPrice]?
+    let nonSubscriptionProductId: String?
+    let nonSubscriptionPrices: [AutomotiveBookingPrice]?
+    let error: String?
+}
+
+/// Result struct for fetching automotive booking prices
+struct AutomotiveBookingPricesResult {
+    let subscriptionPrices: [AutomotiveBookingPrice]
+    let firstTimePrices: [AutomotiveBookingPrice]
+    let nonSubscriptionPrices: [AutomotiveBookingPrice]
 }
 
 // MARK: - Response Models
