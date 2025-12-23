@@ -87,7 +87,7 @@ struct CockpitView: View {
                                 .buttonStyle(PlainButtonStyle())
                                 
                                 // Checklist Card
-                                NavigationLink(destination: ChecklistView().environmentObject(authService)) {
+                                NavigationLink(destination: BookingChecklistSelectionView().environmentObject(authService)) {
                                     CockpitGridCard(
                                         title: "Checklist",
                                         icon: "checklist",

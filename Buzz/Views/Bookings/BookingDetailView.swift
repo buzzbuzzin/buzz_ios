@@ -312,6 +312,41 @@ struct BookingDetailView: View {
                 }
                 .padding(.horizontal)
                 
+                // Checklist Section (for pilots with accepted bookings)
+                if authService.userProfile?.userType == .pilot &&
+                   (currentBooking.status == .accepted ||
+                    (currentBooking.isAutomotiveCrewBooking && currentBooking.status == .available)) {
+                    Divider()
+                        .padding(.horizontal)
+                    
+                    VStack(alignment: .leading, spacing: 12) {
+                        Label("Checklist", systemImage: "checklist")
+                            .font(.headline)
+                            .foregroundColor(.orange)
+                        
+                        NavigationLink(destination: BookingSpecificChecklistView(booking: currentBooking).environmentObject(authService)) {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("View Flight Checklist")
+                                        .font(.body)
+                                        .foregroundColor(.primary)
+                                    Text("Review pre-flight and post-flight requirements")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .foregroundColor(.secondary)
+                            }
+                            .padding()
+                            .background(Color(.secondarySystemBackground))
+                            .cornerRadius(12)
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                    }
+                    .padding(.horizontal)
+                }
+                
                 // Crew Status Section (for automotive bookings)
                 if currentBooking.isAutomotiveCrewBooking {
                     Divider()
