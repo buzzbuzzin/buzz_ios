@@ -111,29 +111,30 @@ struct TransponderView: View {
         .navigationTitle("Transponder")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showingAddDevice) {
-            AddTransponderSheet(
-                deviceName: $deviceName,
-                remoteId: $remoteId,
-                isLocationTrackingEnabled: $isLocationTrackingEnabled,
-                locationManager: locationManager,
-                onSave: {
+            SelectDroneForTransponderSheet(
+                onDroneSelected: { registration in
                     Task {
                         if let pilotId = authService.currentUser?.id {
+                            // Use drone registration info
+                            let droneName = [registration.manufacturer, registration.model]
+                                .compactMap { $0 }
+                                .filter { !$0.isEmpty }
+                                .joined(separator: " ")
+                            
+                            let remoteIdToUse = registration.serialNumber ?? registration.registrationNumber ?? ""
+                            
                             try? await transponderService.createTransponder(
                                 pilotId: pilotId,
-                                deviceName: deviceName,
-                                remoteId: remoteId,
-                                isLocationTrackingEnabled: isLocationTrackingEnabled
+                                deviceName: droneName.isEmpty ? "Drone" : droneName,
+                                remoteId: remoteIdToUse,
+                                isLocationTrackingEnabled: true
                             )
-                            // Reset form
-                            deviceName = ""
-                            remoteId = ""
-                            isLocationTrackingEnabled = true
                             showingAddDevice = false
                         }
                     }
                 }
             )
+            .environmentObject(authService)
         }
         .task {
             await loadTransponders()
@@ -548,6 +549,153 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         if locationHelper.isRunningInSimulator && currentLocation == nil {
             currentLocation = locationHelper.defaultSimulatorLocation
         }
+    }
+}
+
+// MARK: - Select Drone for Transponder Sheet
+
+struct SelectDroneForTransponderSheet: View {
+    @EnvironmentObject var authService: AuthService
+    @StateObject private var registrationService = DroneRegistrationService()
+    @Environment(\.dismiss) var dismiss
+    
+    let onDroneSelected: (DroneRegistration) -> Void
+    
+    var body: some View {
+        NavigationView {
+            Group {
+                if registrationService.isLoading {
+                    ProgressView("Loading your drones...")
+                } else if registrationService.registrations.isEmpty {
+                    VStack(spacing: 24) {
+                        Image(systemName: "airplane.circle")
+                            .font(.system(size: 80))
+                            .foregroundColor(.secondary)
+                        
+                        VStack(spacing: 12) {
+                            Text("No Drone Registrations")
+                                .font(.title2)
+                                .fontWeight(.semibold)
+                            
+                            Text("You need to add your drone registration first before adding it to the transponder.")
+                                .font(.body)
+                                .foregroundColor(.secondary)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal, 40)
+                        }
+                        
+                        NavigationLink(destination: DroneRegistrationView().environmentObject(authService)) {
+                            HStack {
+                                Image(systemName: "plus.circle.fill")
+                                Text("Go to Drone Registration")
+                            }
+                            .font(.headline)
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 24)
+                            .padding(.vertical, 14)
+                            .background(Color.blue)
+                            .cornerRadius(12)
+                        }
+                    }
+                    .padding()
+                } else {
+                    List {
+                        Section {
+                            ForEach(registrationService.registrations) { registration in
+                                Button(action: {
+                                    onDroneSelected(registration)
+                                    dismiss()
+                                }) {
+                                    DroneRegistrationRowForTransponder(registration: registration)
+                                }
+                                .buttonStyle(PlainButtonStyle())
+                            }
+                        } header: {
+                            Text("Select a drone from your registrations")
+                                .font(.subheadline)
+                        } footer: {
+                            NavigationLink(destination: DroneRegistrationView().environmentObject(authService)) {
+                                HStack {
+                                    Image(systemName: "plus.circle.fill")
+                                        .foregroundColor(.blue)
+                                    Text("Don't see your drone? Add registration first")
+                                        .font(.caption)
+                                        .foregroundColor(.blue)
+                                }
+                                .padding(.vertical, 8)
+                            }
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Select Drone")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+        .task {
+            await loadRegistrations()
+        }
+    }
+    
+    private func loadRegistrations() async {
+        guard let pilotId = authService.currentUser?.id else { return }
+        try? await registrationService.fetchRegistrations(pilotId: pilotId)
+    }
+}
+
+// MARK: - Drone Registration Row for Transponder Selection
+
+private struct DroneRegistrationRowForTransponder: View {
+    let registration: DroneRegistration
+    
+    var droneName: String {
+        let parts = [registration.manufacturer, registration.model]
+            .compactMap { $0 }
+            .filter { !$0.isEmpty }
+        return parts.isEmpty ? "Drone" : parts.joined(separator: " ")
+    }
+    
+    var remoteId: String {
+        registration.serialNumber ?? registration.registrationNumber ?? "N/A"
+    }
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "airplane.circle.fill")
+                .font(.title2)
+                .foregroundColor(.blue)
+            
+            VStack(alignment: .leading, spacing: 4) {
+                Text(droneName)
+                    .font(.headline)
+                
+                HStack(spacing: 8) {
+                    if let regNumber = registration.registrationNumber, !regNumber.isEmpty {
+                        Label(regNumber, systemImage: "number")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    if let serial = registration.serialNumber, !serial.isEmpty {
+                        Label(serial, systemImage: "barcode")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+            }
+            
+            Spacer()
+            
+            Image(systemName: "chevron.right")
+                .foregroundColor(.secondary)
+        }
+        .padding(.vertical, 4)
     }
 }
 
