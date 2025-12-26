@@ -45,6 +45,17 @@ CREATE TABLE public.badges_catalog (
   CONSTRAINT badges_catalog_pkey PRIMARY KEY (id),
   CONSTRAINT badges_catalog_course_id_fkey FOREIGN KEY (course_id) REFERENCES public.training_courses(id)
 );
+CREATE TABLE public.booking_checklists (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  booking_id uuid NOT NULL UNIQUE,
+  has_insurance boolean DEFAULT false,
+  has_flight_plan boolean DEFAULT false,
+  has_faa_waiver boolean DEFAULT false,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT booking_checklists_pkey PRIMARY KEY (id),
+  CONSTRAINT booking_checklists_booking_id_fkey FOREIGN KEY (booking_id) REFERENCES public.bookings(id)
+);
 CREATE TABLE public.booking_crew (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
   booking_id uuid NOT NULL,
@@ -191,6 +202,17 @@ CREATE TABLE public.course_units (
   CONSTRAINT course_units_pkey PRIMARY KEY (id),
   CONSTRAINT course_units_course_id_fkey FOREIGN KEY (course_id) REFERENCES public.training_courses(id),
   CONSTRAINT course_units_section_id_fkey FOREIGN KEY (section_id) REFERENCES public.course_sections(id)
+);
+CREATE TABLE public.device_tokens (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  user_id uuid NOT NULL,
+  token text NOT NULL,
+  platform text NOT NULL DEFAULT 'ios'::text CHECK (platform = ANY (ARRAY['ios'::text, 'android'::text])),
+  is_active boolean NOT NULL DEFAULT true,
+  created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  updated_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  CONSTRAINT device_tokens_pkey PRIMARY KEY (id),
+  CONSTRAINT device_tokens_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id)
 );
 CREATE TABLE public.direct_messages (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
@@ -382,6 +404,9 @@ CREATE TABLE public.profiles (
   veteran_service_country text,
   veteran_military_branch text,
   veteran_service_number text,
+  last_location_lat double precision,
+  last_location_lng double precision,
+  last_location_update timestamp with time zone,
   CONSTRAINT profiles_pkey PRIMARY KEY (id),
   CONSTRAINT profiles_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id)
 );
@@ -463,18 +488,6 @@ CREATE TABLE public.unit_completions (
   CONSTRAINT unit_completions_unit_id_fkey FOREIGN KEY (unit_id) REFERENCES public.course_units(id),
   CONSTRAINT unit_completions_course_id_fkey FOREIGN KEY (course_id) REFERENCES public.training_courses(id)
 );
-CREATE TABLE public.device_tokens (
-  id uuid NOT NULL DEFAULT uuid_generate_v4(),
-  user_id uuid NOT NULL,
-  token text NOT NULL,
-  platform text NOT NULL DEFAULT 'ios'::text CHECK (platform = ANY (ARRAY['ios'::text, 'android'::text])),
-  is_active boolean NOT NULL DEFAULT true,
-  created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
-  updated_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
-  CONSTRAINT device_tokens_pkey PRIMARY KEY (id),
-  CONSTRAINT device_tokens_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id) ON DELETE CASCADE,
-  CONSTRAINT device_tokens_user_token_unique UNIQUE (user_id, token)
-);
 CREATE TABLE public.video_upload_reminders (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
   booking_id uuid NOT NULL,
@@ -482,7 +495,6 @@ CREATE TABLE public.video_upload_reminders (
   sent_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
   reminder_type text NOT NULL DEFAULT '24h'::text CHECK (reminder_type = ANY (ARRAY['24h'::text, '48h'::text, '72h'::text])),
   CONSTRAINT video_upload_reminders_pkey PRIMARY KEY (id),
-  CONSTRAINT video_upload_reminders_booking_id_fkey FOREIGN KEY (booking_id) REFERENCES public.bookings(id) ON DELETE CASCADE,
-  CONSTRAINT video_upload_reminders_pilot_id_fkey FOREIGN KEY (pilot_id) REFERENCES public.profiles(id) ON DELETE CASCADE,
-  CONSTRAINT video_upload_reminders_booking_type_unique UNIQUE (booking_id, reminder_type)
+  CONSTRAINT video_upload_reminders_booking_id_fkey FOREIGN KEY (booking_id) REFERENCES public.bookings(id),
+  CONSTRAINT video_upload_reminders_pilot_id_fkey FOREIGN KEY (pilot_id) REFERENCES public.profiles(id)
 );

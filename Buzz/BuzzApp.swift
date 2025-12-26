@@ -61,6 +61,7 @@ struct BuzzApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @StateObject private var authService = AuthService()
     @StateObject private var notificationManager = NotificationManager.shared
+    @StateObject private var locationTrackingService = LocationTrackingService.shared
     @AppStorage("appearanceMode") private var appearanceModeString: String = "system"
     private let isUITestMode = ProcessInfo.processInfo.arguments.contains("UI_TESTING") || ProcessInfo.processInfo.environment["UITEST_MODE"] == "1"
 
@@ -98,6 +99,18 @@ struct BuzzApp: App {
             }
             .animation(.easeInOut(duration: 0.3), value: authService.isAuthenticated)
             .preferredColorScheme(colorScheme)
+            .onChange(of: authService.isAuthenticated) { _, isAuthenticated in
+                // Update location whenever authentication status changes
+                if isAuthenticated, let userId = authService.activeUserId {
+                    Task {
+                        do {
+                            try await locationTrackingService.updateUserLocation(userId: userId)
+                        } catch {
+                            print("Failed to update user location on auth change: \(error.localizedDescription)")
+                        }
+                    }
+                }
+            }
             .onAppear {
                 // Attempt to restore the user's sign-in state
                 // Reference: https://developers.google.com/identity/sign-in/ios/sign-in#swift
@@ -121,6 +134,15 @@ struct BuzzApp: App {
                     } else if notificationManager.authorizationStatus == .authorized {
                         // Already authorized, register for remote notifications
                         notificationManager.registerForRemoteNotifications()
+                    }
+                    
+                    // Update user location if authenticated
+                    if authService.isAuthenticated, let userId = authService.activeUserId {
+                        do {
+                            try await locationTrackingService.updateUserLocation(userId: userId)
+                        } catch {
+                            print("Failed to update user location: \(error.localizedDescription)")
+                        }
                     }
                 }
             }

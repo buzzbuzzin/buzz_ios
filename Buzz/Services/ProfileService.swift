@@ -167,7 +167,10 @@ class ProfileService: ObservableObject {
                 veteranServiceName: nil,
                 veteranServiceCountry: nil,
                 veteranMilitaryBranch: nil,
-                veteranServiceNumber: nil
+                veteranServiceNumber: nil,
+                lastLocationLat: nil,
+                lastLocationLng: nil,
+                lastLocationUpdate: nil
             )
         }
         
@@ -226,7 +229,10 @@ class ProfileService: ObservableObject {
                 veteranServiceName: nil,
                 veteranServiceCountry: nil,
                 veteranMilitaryBranch: nil,
-                veteranServiceNumber: nil
+                veteranServiceNumber: nil,
+                lastLocationLat: nil,
+                lastLocationLng: nil,
+                lastLocationUpdate: nil
             )
         }
         

@@ -91,6 +91,9 @@ struct UserProfile: Codable, Identifiable {
     let veteranServiceCountry: String? // Service country
     let veteranMilitaryBranch: String? // Military branch (Army, Navy, Air Force, etc.)
     let veteranServiceNumber: String? // Service number
+    let lastLocationLat: Double? // Last known latitude
+    let lastLocationLng: Double? // Last known longitude
+    let lastLocationUpdate: Date? // Last location update timestamp
     
     enum CodingKeys: String, CodingKey {
         case id
@@ -116,6 +119,9 @@ struct UserProfile: Codable, Identifiable {
         case veteranServiceCountry = "veteran_service_country"
         case veteranMilitaryBranch = "veteran_military_branch"
         case veteranServiceNumber = "veteran_service_number"
+        case lastLocationLat = "last_location_lat"
+        case lastLocationLng = "last_location_lng"
+        case lastLocationUpdate = "last_location_update"
     }
     
     var fullName: String {

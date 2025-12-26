@@ -201,7 +201,10 @@ class RatingService: ObservableObject {
                 veteranServiceName: nil,
                 veteranServiceCountry: nil,
                 veteranMilitaryBranch: nil,
-                veteranServiceNumber: nil
+                veteranServiceNumber: nil,
+                lastLocationLat: nil,
+                lastLocationLng: nil,
+                lastLocationUpdate: nil
             ),
             UserProfile(
                 id: UUID(),
@@ -226,7 +229,10 @@ class RatingService: ObservableObject {
                 veteranServiceName: nil,
                 veteranServiceCountry: nil,
                 veteranMilitaryBranch: nil,
-                veteranServiceNumber: nil
+                veteranServiceNumber: nil,
+                lastLocationLat: nil,
+                lastLocationLng: nil,
+                lastLocationUpdate: nil
             ),
             UserProfile(
                 id: UUID(),
@@ -251,7 +257,10 @@ class RatingService: ObservableObject {
                 veteranServiceName: nil,
                 veteranServiceCountry: nil,
                 veteranMilitaryBranch: nil,
-                veteranServiceNumber: nil
+                veteranServiceNumber: nil,
+                lastLocationLat: nil,
+                lastLocationLng: nil,
+                lastLocationUpdate: nil
             ),
             UserProfile(
                 id: UUID(),
@@ -276,7 +285,10 @@ class RatingService: ObservableObject {
                 veteranServiceName: nil,
                 veteranServiceCountry: nil,
                 veteranMilitaryBranch: nil,
-                veteranServiceNumber: nil
+                veteranServiceNumber: nil,
+                lastLocationLat: nil,
+                lastLocationLng: nil,
+                lastLocationUpdate: nil
             ),
             UserProfile(
                 id: UUID(),
@@ -301,7 +313,10 @@ class RatingService: ObservableObject {
                 veteranServiceName: nil,
                 veteranServiceCountry: nil,
                 veteranMilitaryBranch: nil,
-                veteranServiceNumber: nil
+                veteranServiceNumber: nil,
+                lastLocationLat: nil,
+                lastLocationLng: nil,
+                lastLocationUpdate: nil
             ),
             UserProfile(
                 id: UUID(),
@@ -326,7 +341,10 @@ class RatingService: ObservableObject {
                 veteranServiceName: nil,
                 veteranServiceCountry: nil,
                 veteranMilitaryBranch: nil,
-                veteranServiceNumber: nil
+                veteranServiceNumber: nil,
+                lastLocationLat: nil,
+                lastLocationLng: nil,
+                lastLocationUpdate: nil
             )
         ]
         
@@ -425,7 +443,10 @@ class RatingService: ObservableObject {
                 veteranServiceName: nil,
                 veteranServiceCountry: nil,
                 veteranMilitaryBranch: nil,
-                veteranServiceNumber: nil
+                veteranServiceNumber: nil,
+                lastLocationLat: nil,
+                lastLocationLng: nil,
+                lastLocationUpdate: nil
             ),
             UserProfile(
                 id: UUID(),
@@ -450,7 +471,10 @@ class RatingService: ObservableObject {
                 veteranServiceName: nil,
                 veteranServiceCountry: nil,
                 veteranMilitaryBranch: nil,
-                veteranServiceNumber: nil
+                veteranServiceNumber: nil,
+                lastLocationLat: nil,
+                lastLocationLng: nil,
+                lastLocationUpdate: nil
             ),
             UserProfile(
                 id: UUID(),
@@ -475,7 +499,10 @@ class RatingService: ObservableObject {
                 veteranServiceName: nil,
                 veteranServiceCountry: nil,
                 veteranMilitaryBranch: nil,
-                veteranServiceNumber: nil
+                veteranServiceNumber: nil,
+                lastLocationLat: nil,
+                lastLocationLng: nil,
+                lastLocationUpdate: nil
             ),
             UserProfile(
                 id: UUID(),
@@ -500,7 +527,10 @@ class RatingService: ObservableObject {
                 veteranServiceName: nil,
                 veteranServiceCountry: nil,
                 veteranMilitaryBranch: nil,
-                veteranServiceNumber: nil
+                veteranServiceNumber: nil,
+                lastLocationLat: nil,
+                lastLocationLng: nil,
+                lastLocationUpdate: nil
             ),
             UserProfile(
                 id: UUID(),
@@ -525,7 +555,10 @@ class RatingService: ObservableObject {
                 veteranServiceName: nil,
                 veteranServiceCountry: nil,
                 veteranMilitaryBranch: nil,
-                veteranServiceNumber: nil
+                veteranServiceNumber: nil,
+                lastLocationLat: nil,
+                lastLocationLng: nil,
+                lastLocationUpdate: nil
             ),
             UserProfile(
                 id: UUID(),
@@ -550,7 +583,10 @@ class RatingService: ObservableObject {
                 veteranServiceName: nil,
                 veteranServiceCountry: nil,
                 veteranMilitaryBranch: nil,
-                veteranServiceNumber: nil
+                veteranServiceNumber: nil,
+                lastLocationLat: nil,
+                lastLocationLng: nil,
+                lastLocationUpdate: nil
             )
         ]
         
