@@ -26,12 +26,22 @@ struct PreFlightChecklistView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                // Section Title
-                Text("Pre-Flight Checklist")
-                    .font(.title2)
-                    .fontWeight(.bold)
-                    .padding(.horizontal)
-                    .padding(.top)
+                // Section Title with Collapse All Button
+                HStack {
+                    Text("Pre-Flight Checklist")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                    
+                    Spacer()
+                    
+                    Button(action: collapseAllSections) {
+                        Image(systemName: "rectangle.compress.vertical")
+                            .font(.system(size: 18, weight: .medium))
+                            .foregroundColor(.blue)
+                    }
+                }
+                .padding(.horizontal)
+                .padding(.top)
                 
                 // Aviation Restrictions and Hazards Section
                 CollapsibleSection(
@@ -472,6 +482,21 @@ struct PreFlightChecklistView: View {
                 
                 Spacer(minLength: 20)
             }
+        }
+    }
+    
+    private func collapseAllSections() {
+        withAnimation(.easeInOut(duration: 0.25)) {
+            isAviationRestrictionsExpanded = false
+            isGroundBasedRestrictionsExpanded = false
+            isAircraftCheckExpanded = false
+            isCrewReadinessExpanded = false
+            isVisualObserverResponsibilitiesExpanded = false
+            isPotentialHazardsExpanded = false
+            isGeneralRequirementsExpanded = false
+            isTakeoffProcedureExpanded = false
+            isLandingProcedureExpanded = false
+            isSFOCRequiredExpanded = false
         }
     }
 }
