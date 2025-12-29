@@ -7,28 +7,76 @@
 
 import SwiftUI
 
+enum ShopCategory: String, CaseIterable {
+    case leisure = "Leisure"
+    case work = "Work"
+}
+
 struct ShopView: View {
     @StateObject private var shopifyService = ShopifyService()
     @State private var selectedProduct: ShopifyProduct? = nil
+    @State private var selectedCategory: ShopCategory = .leisure
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Shop")
+                    .font(.system(size: 34, weight: .bold))
+                    .foregroundColor(.primary)
+                
+                Text("Browse our collection of drone equipment and accessories")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal)
+            .padding(.top, 8)
+            .padding(.bottom, 16)
+            
+            // Category Tabs
+            Picker("Shop Category", selection: $selectedCategory) {
+                ForEach(ShopCategory.allCases, id: \.self) { category in
+                    Text(category.rawValue).tag(category)
+                }
+            }
+            .pickerStyle(.segmented)
+            .padding(.horizontal)
+            .padding(.bottom, 16)
+            
+            // Content based on selected category
+            if selectedCategory == .leisure {
+                LeisureShopContent(
+                    shopifyService: shopifyService,
+                    selectedProduct: $selectedProduct
+                )
+            } else {
+                WorkShopComingSoonView()
+            }
+        }
+        .background(Color(.systemBackground))
+        .navigationTitle("Shop")
+        .navigationBarTitleDisplayMode(.inline)
+        .task {
+            if shopifyService.products.isEmpty {
+                try? await shopifyService.fetchProducts()
+            }
+        }
+        .sheet(item: $selectedProduct) { product in
+            ProductDetailView(product: product)
+        }
+    }
+}
+
+// MARK: - Leisure Shop Content
+
+struct LeisureShopContent: View {
+    @ObservedObject var shopifyService: ShopifyService
+    @Binding var selectedProduct: ShopifyProduct?
     
     var body: some View {
         ScrollView {
             VStack(spacing: 0) {
-                // Header
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Shop")
-                        .font(.system(size: 34, weight: .bold))
-                        .foregroundColor(.primary)
-                    
-                    Text("Browse our collection of drone equipment and accessories")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal)
-                .padding(.top, 8)
-                .padding(.bottom, 16)
-                
                 if shopifyService.isLoading && shopifyService.products.isEmpty {
                     // Loading state
                     VStack(spacing: 16) {
@@ -76,20 +124,20 @@ struct ShopView: View {
                 } else if shopifyService.products.isEmpty {
                     // Empty state
                     VStack(spacing: 16) {
-            Image(systemName: "bag.fill")
-                .font(.system(size: 80))
-                .foregroundColor(.pink.opacity(0.6))
-            
+                        Image(systemName: "bag.fill")
+                            .font(.system(size: 80))
+                            .foregroundColor(.pink.opacity(0.6))
+                        
                         Text("No Products Available")
                             .font(.title2)
-                .fontWeight(.bold)
-                .foregroundColor(.primary)
-            
+                            .fontWeight(.bold)
+                            .foregroundColor(.primary)
+                        
                         Text("Check back soon for new products!")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 40)
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 40)
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.top, 100)
@@ -118,20 +166,136 @@ struct ShopView: View {
                 }
             }
         }
-        .background(Color(.systemBackground))
-        .navigationTitle("Shop")
-        .navigationBarTitleDisplayMode(.inline)
-        .task {
-            if shopifyService.products.isEmpty {
-                try? await shopifyService.fetchProducts()
-            }
-        }
         .refreshable {
             try? await shopifyService.fetchProducts()
         }
-        .sheet(item: $selectedProduct) { product in
-            ProductDetailView(product: product)
+    }
+}
+
+// MARK: - Work Shop Coming Soon View
+
+struct WorkShopComingSoonView: View {
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 32) {
+                Spacer()
+                    .frame(height: 40)
+                
+                // Coming Soon Badge
+                VStack(spacing: 24) {
+                    // Icon with background
+                    ZStack {
+                        Circle()
+                            .fill(
+                                LinearGradient(
+                                    colors: [Color.blue.opacity(0.2), Color.indigo.opacity(0.2)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .frame(width: 120, height: 120)
+                        
+                        Image(systemName: "briefcase.fill")
+                            .font(.system(size: 50))
+                            .foregroundStyle(
+                                LinearGradient(
+                                    colors: [.blue, .indigo],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                    }
+                    
+                    VStack(spacing: 12) {
+                        Text("Coming Soon in 2026")
+                            .font(.system(size: 28, weight: .bold))
+                            .foregroundColor(.primary)
+                        
+                        Text("Work Shop")
+                            .font(.title3)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                
+                // Description
+                Text("We're working on bringing you professional pilot gear and equipment for your work flights.")
+                    .font(.body)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 32)
+                
+                // Product Categories Preview
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("What to expect:")
+                        .font(.headline)
+                        .foregroundColor(.primary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    
+                    WorkShopProductPreviewCard(
+                        icon: "person.fill",
+                        title: "Flight Suits",
+                        description: "Professional flight suits designed for drone pilots"
+                    )
+                    
+                    WorkShopProductPreviewCard(
+                        icon: "star.circle.fill",
+                        title: "Badges",
+                        description: "Official Buzz pilot badges and identification"
+                    )
+                    
+                    WorkShopProductPreviewCard(
+                        icon: "airplane",
+                        title: "Drones",
+                        description: "High-quality drones for professional operations"
+                    )
+                }
+                .padding(.horizontal)
+                .padding(.top, 16)
+                
+                Spacer()
+                    .frame(height: 40)
+            }
         }
+    }
+}
+
+// MARK: - Work Shop Product Preview Card
+
+struct WorkShopProductPreviewCard: View {
+    let icon: String
+    let title: String
+    let description: String
+    
+    var body: some View {
+        HStack(spacing: 16) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color.blue.opacity(0.1))
+                    .frame(width: 50, height: 50)
+                
+                Image(systemName: icon)
+                    .font(.system(size: 22))
+                    .foregroundColor(.blue)
+            }
+            
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.primary)
+                
+                Text(description)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .lineLimit(2)
+            }
+            
+            Spacer()
+        }
+        .padding()
+        .background(Color(.secondarySystemBackground))
+        .cornerRadius(12)
     }
 }
 
