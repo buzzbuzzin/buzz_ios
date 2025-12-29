@@ -2,7 +2,7 @@
 //  ChecklistService.swift
 //  Buzz
 //
-//  Created by GPT on 12/11/25.
+//  Created by Xinyu Fang on 12/11/25.
 //
 
 import Foundation

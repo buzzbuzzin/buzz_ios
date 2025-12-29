@@ -2,7 +2,7 @@
 //  BookingSpecificChecklistView.swift
 //  Buzz
 //
-//  Created by GPT on 12/22/25.
+//  Created by Xinyu Fang on 12/22/25.
 //
 
 import SwiftUI

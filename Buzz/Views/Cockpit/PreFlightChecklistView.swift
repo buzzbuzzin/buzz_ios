@@ -2,7 +2,7 @@
 //  PreFlightChecklistView.swift
 //  Buzz
 //
-//  Created by GPT on 12/29/25.
+//  Created by Xinyu Fang on 12/29/25.
 //
 
 import SwiftUI
@@ -27,39 +27,7 @@ struct PreFlightChecklistView: View {
                         .padding(.top, 40)
                 } else {
                     VStack(spacing: 12) {
-                        // Automatic checklist items
-                        ChecklistRow(
-                            isComplete: checklistService.hasDroneRegistration,
-                            title: "Pilot has uploaded at least one drone registration",
-                            subtitle: "Add registrations in License > Drone Registration"
-                        )
-                        
-                        ChecklistRow(
-                            isComplete: checklistService.hasDronePilotLicense,
-                            title: "Pilot has uploaded a drone pilot license",
-                            subtitle: "Upload at least one document in License > Drone Pilot License"
-                        )
-                        
-                        ChecklistRow(
-                            isComplete: checklistService.isEmailVerified,
-                            title: "Pilot has a verified email address",
-                            subtitle: "Verify email in Profile > Personal Info"
-                        )
-                        
-                        // Manual checklist items
-                        Button(action: {
-                            Task {
-                                await checklistService.toggleInsurance()
-                            }
-                        }) {
-                            ChecklistRow(
-                                isComplete: checklistService.hasInsurance,
-                                title: "Insurance",
-                                subtitle: nil
-                            )
-                        }
-                        .buttonStyle(PlainButtonStyle())
-                        
+                        // Flight Plan
                         Button(action: {
                             Task {
                                 await checklistService.toggleFlightPlan()
@@ -73,6 +41,7 @@ struct PreFlightChecklistView: View {
                         }
                         .buttonStyle(PlainButtonStyle())
                         
+                        // FAA Waiver
                         Button(action: {
                             Task {
                                 await checklistService.toggleFAAWaiver()

@@ -2,18 +2,21 @@
 //  ChecklistTabView.swift
 //  Buzz
 //
-//  Created by GPT on 12/29/25.
+//  Created by Xinyu Fang on 12/29/25.
 //
 
 import SwiftUI
 import Auth
 
 enum ChecklistTab: String, CaseIterable {
+    case operation = "Operation"
     case preFlight = "Pre-Flight"
     case postFlight = "Post-Flight"
     
     var icon: String {
         switch self {
+        case .operation:
+            return "gearshape.fill"
         case .preFlight:
             return "airplane.departure"
         case .postFlight:
@@ -25,7 +28,7 @@ enum ChecklistTab: String, CaseIterable {
 struct ChecklistTabView: View {
     @EnvironmentObject var authService: AuthService
     @StateObject private var checklistService: ChecklistService
-    @State private var selectedTab: ChecklistTab = .preFlight
+    @State private var selectedTab: ChecklistTab = .operation
     
     let booking: Booking
     
@@ -61,6 +64,12 @@ struct ChecklistTabView: View {
             
             // Tab Content
             TabView(selection: $selectedTab) {
+                OperationChecklistView(
+                    checklistService: checklistService,
+                    booking: booking
+                )
+                .tag(ChecklistTab.operation)
+                
                 PreFlightChecklistView(
                     checklistService: checklistService,
                     booking: booking
