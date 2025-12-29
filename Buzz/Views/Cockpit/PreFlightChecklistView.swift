@@ -11,6 +11,9 @@ struct PreFlightChecklistView: View {
     @ObservedObject var checklistService: ChecklistService
     let booking: Booking
     
+    // Section expansion states
+    @State private var isAviationRestrictionsExpanded = true
+    
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
@@ -21,42 +24,42 @@ struct PreFlightChecklistView: View {
                     .padding(.horizontal)
                     .padding(.top)
                 
-                if checklistService.isLoading {
-                    ProgressView("Checking your status…")
-                        .frame(maxWidth: .infinity)
-                        .padding(.top, 40)
-                } else {
+                // Aviation Restrictions and Hazards Section
+                CollapsibleSection(
+                    title: "AVIATION RESTRICTIONS AND HAZARDS",
+                    isExpanded: $isAviationRestrictionsExpanded
+                ) {
                     VStack(spacing: 12) {
-                        // Flight Plan
-                        Button(action: {
-                            Task {
-                                await checklistService.toggleFlightPlan()
-                            }
-                        }) {
-                            ChecklistRow(
-                                isComplete: checklistService.hasFlightPlan,
-                                title: "Flight Plan",
-                                subtitle: nil
-                            )
-                        }
-                        .buttonStyle(PlainButtonStyle())
+                        PreFlightChecklistItem(
+                            text: "If flight will be nearer than 5.6 km (3 NM) away from airports, or 1.9 km (1 NM) away from helicopters, call airport operator in advance to understand established UAS procedures at that aerodrome and to secure permission. Check apps for safe flying zones. Check LAANC and IACRA web pages. Check FAA Flight Supplements and Water Aerodrome Supplements."
+                        )
                         
-                        // FAA Waiver
-                        Button(action: {
-                            Task {
-                                await checklistService.toggleFAAWaiver()
-                            }
-                        }) {
-                            ChecklistRow(
-                                isComplete: checklistService.hasFAAWaiver,
-                                title: "FAA Waiver",
-                                subtitle: nil
-                            )
-                        }
-                        .buttonStyle(PlainButtonStyle())
+                        PreFlightChecklistItem(
+                            text: "If flight will be in Controlled Airspace or Restricted Airspace, confirm that drone is accepted for Controlled Airspace operation. Secure permission from airspace authority and understand procedures. Check apps for safe flying zones. Check LAANC and IACRA web pages. Check Designated Airspace Handbook."
+                        )
+                        
+                        PreFlightChecklistItem(
+                            text: "If flight will be nearer than 5.6 km (3 NM) from a military aerodrome, ensure an SFOC has been approved. Secure permission from airspace authority and understand procedures. Check apps for safe flying zones. Check LAANC and IACRA web pages. Check Designated Airspace Handbook."
+                        )
+                        
+                        PreFlightChecklistItem(
+                            text: "Locate other aerodromes in flight area and ensure flight stays out of established flight patterns of those aerodromes. Check app for safe flying zones. Check LAANC and IACRA web pages. Check FAA Flight Supplements and Water Aerodrome Supplements."
+                        )
+                        
+                        PreFlightChecklistItem(
+                            text: "Ensure no impacting temporary aviation restrictions are in effect. Check LAANC and the FAA NOTAM site."
+                        )
+                        
+                        PreFlightChecklistItem(
+                            text: "Check visually and audibly for nearby low altitude air operations such as helicopters, seaplanes, hot air balloons, and ultra-light aircraft."
+                        )
+                        
+                        PreFlightChecklistItem(
+                            text: "Check suitability of current weather and weather forecast for the duration of the operation (wind, rain, snow, fog, temperature)."
+                        )
                     }
-                    .padding(.horizontal)
                 }
+                .padding(.horizontal)
                 
                 if let error = checklistService.errorMessage {
                     Text(error)
@@ -68,6 +71,82 @@ struct PreFlightChecklistView: View {
                 Spacer(minLength: 20)
             }
         }
+    }
+}
+
+// MARK: - Collapsible Section
+
+struct CollapsibleSection<Content: View>: View {
+    let title: String
+    @Binding var isExpanded: Bool
+    @ViewBuilder let content: () -> Content
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Section Header (Tappable)
+            Button(action: {
+                withAnimation(.easeInOut(duration: 0.25)) {
+                    isExpanded.toggle()
+                }
+            }) {
+                HStack {
+                    Text(title)
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.primary)
+                        .multilineTextAlignment(.leading)
+                    
+                    Spacer()
+                    
+                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.secondary)
+                }
+                .padding()
+                .background(Color(.tertiarySystemBackground))
+                .cornerRadius(isExpanded ? 12 : 12)
+            }
+            .buttonStyle(PlainButtonStyle())
+            
+            // Content (Collapsible)
+            if isExpanded {
+                VStack(spacing: 12) {
+                    content()
+                }
+                .padding(.top, 12)
+            }
+        }
+    }
+}
+
+// MARK: - Pre-Flight Checklist Item
+
+struct PreFlightChecklistItem: View {
+    let text: String
+    @State private var isChecked: Bool = false
+    
+    var body: some View {
+        Button(action: {
+            isChecked.toggle()
+        }) {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: isChecked ? "checkmark.circle.fill" : "circle")
+                    .foregroundColor(isChecked ? .green : .secondary)
+                    .font(.system(size: 22, weight: .semibold))
+                    .padding(.top, 2)
+                
+                Text(text)
+                    .font(.subheadline)
+                    .foregroundColor(.primary)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding()
+            .background(Color(.secondarySystemBackground))
+            .cornerRadius(12)
+        }
+        .buttonStyle(PlainButtonStyle())
     }
 }
 
@@ -138,4 +217,3 @@ struct ChecklistRow: View {
         .cornerRadius(12)
     }
 }
-
