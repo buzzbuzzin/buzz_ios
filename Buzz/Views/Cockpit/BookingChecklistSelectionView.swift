@@ -26,7 +26,7 @@ struct BookingChecklistSelectionView: View {
                 ScrollView {
                     VStack(spacing: 16) {
                         ForEach(acceptedBookings) { booking in
-                            NavigationLink(destination: BookingSpecificChecklistView(booking: booking).environmentObject(authService)) {
+                            NavigationLink(destination: ChecklistTabView(booking: booking).environmentObject(authService)) {
                                 BookingChecklistCard(booking: booking)
                             }
                             .buttonStyle(PlainButtonStyle())

@@ -324,7 +324,7 @@ struct BookingDetailView: View {
                             .font(.headline)
                             .foregroundColor(.orange)
                         
-                        NavigationLink(destination: BookingSpecificChecklistView(booking: currentBooking).environmentObject(authService)) {
+                        NavigationLink(destination: ChecklistTabView(booking: currentBooking).environmentObject(authService)) {
                             HStack {
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text("View Flight Checklist")
