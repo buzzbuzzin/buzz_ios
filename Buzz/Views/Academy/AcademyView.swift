@@ -535,15 +535,15 @@ struct CourseCard: View {
                 
                 Spacer()
                 
-                // Students Count
-                HStack(spacing: 4) {
-                    Image(systemName: "person.2.fill")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    Text("\(course.studentsCount)")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
+                // Students Count - temporarily hidden
+                // HStack(spacing: 4) {
+                //     Image(systemName: "person.2.fill")
+                //         .font(.caption)
+                //         .foregroundColor(.secondary)
+                //     Text("\(course.studentsCount)")
+                //         .font(.caption)
+                //         .foregroundColor(.secondary)
+                // }
             }
             
             HStack(spacing: 4) {
@@ -755,7 +755,8 @@ struct CourseDetailView: View {
                         .cornerRadius(10)
                         
                         InfoRow(icon: "star.fill", label: "Rating", value: String(format: "%.1f / 5.0", course.rating))
-                        InfoRow(icon: "person.2.fill", label: "Students", value: "\(course.studentsCount)")
+                        // Students count - temporarily hidden
+                        // InfoRow(icon: "person.2.fill", label: "Students", value: "\(course.studentsCount)")
                     }
                     .padding(.horizontal)
                     
