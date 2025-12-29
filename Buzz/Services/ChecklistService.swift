@@ -106,10 +106,10 @@ class ChecklistService: ObservableObject {
                 "updated_at": .string(ISO8601DateFormatter().string(from: Date()))
             ]
             
-            // Use upsert to insert or update
+            // Use upsert to insert or update, specifying booking_id as the conflict column
             try await supabase
                 .from("booking_checklists")
-                .upsert(checklistData)
+                .upsert(checklistData, onConflict: "booking_id")
                 .execute()
         } catch {
             print("Error saving booking checklist: \(error)")
