@@ -27,6 +27,7 @@ struct CustomerProfileView: View {
     @State private var showError = false
     @State private var navigateToReviews = false
     @State private var navigateToFlightPackages = false
+    @State private var navigateToShop = false
     
     var yearsOnBuzz: Int {
         guard let createdAt = authService.userProfile?.createdAt else { return 0 }
@@ -178,6 +179,14 @@ struct CustomerProfileView: View {
                         EmptyView()
                     }
                     .hidden()
+                    
+                    NavigationLink(
+                        destination: ClientShopView(),
+                        isActive: $navigateToShop
+                    ) {
+                        EmptyView()
+                    }
+                    .hidden()
                 }
                 
                 List {
@@ -186,33 +195,53 @@ struct CustomerProfileView: View {
                         profileHeaderContent
                     }
                     
-                    // Reviews and Flight Packages Cards
+                    // Reviews, Flight Packages, and Shop Cards
                     if let currentUser = authService.currentUser {
                         Section {
-                            HStack(spacing: 8) {
-                                Button(action: {
-                                    navigateToReviews = true
-                                }) {
-                                    ProfileCard(
-                                        icon: "star.fill",
-                                        iconColor: .yellow,
-                                        title: "Reviews"
-                                    )
+                            VStack(spacing: 8) {
+                                HStack(spacing: 8) {
+                                    Button(action: {
+                                        navigateToReviews = true
+                                    }) {
+                                        ProfileCard(
+                                            icon: "star.fill",
+                                            iconColor: .yellow,
+                                            title: "Reviews"
+                                        )
+                                    }
+                                    .buttonStyle(PlainButtonStyle())
+                                    .frame(maxWidth: .infinity)
+                                    
+                                    Button(action: {
+                                        navigateToFlightPackages = true
+                                    }) {
+                                        ProfileCard(
+                                            icon: "gift.fill",
+                                            iconColor: .blue,
+                                            title: "Flight Packages"
+                                        )
+                                    }
+                                    .buttonStyle(PlainButtonStyle())
+                                    .frame(maxWidth: .infinity)
                                 }
-                                .buttonStyle(PlainButtonStyle())
-                                .frame(maxWidth: .infinity)
                                 
-                                Button(action: {
-                                    navigateToFlightPackages = true
-                                }) {
-                                    ProfileCard(
-                                        icon: "gift.fill",
-                                        iconColor: .blue,
-                                        title: "Flight Packages"
-                                    )
+                                HStack(spacing: 8) {
+                                    Button(action: {
+                                        navigateToShop = true
+                                    }) {
+                                        ProfileCard(
+                                            icon: "bag.fill",
+                                            iconColor: .pink,
+                                            title: "Shop"
+                                        )
+                                    }
+                                    .buttonStyle(PlainButtonStyle())
+                                    .frame(maxWidth: .infinity)
+                                    
+                                    // Empty spacer to balance the layout
+                                    Color.clear
+                                        .frame(maxWidth: .infinity)
                                 }
-                                .buttonStyle(PlainButtonStyle())
-                                .frame(maxWidth: .infinity)
                             }
                             .listRowInsets(EdgeInsets())
                             .listRowBackground(Color.clear)
