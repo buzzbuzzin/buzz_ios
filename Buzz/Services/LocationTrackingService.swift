@@ -73,14 +73,16 @@ class LocationTrackingService: NSObject, ObservableObject {
         
         // Request location update
         return await withCheckedContinuation { continuation in
+            // Store continuation for delegate callback FIRST (before starting timeout)
+            self.locationContinuation = continuation
+            
             // Set a timeout to prevent hanging indefinitely
-            let timeoutTask = Task {
+            let timeoutTask = Task { @MainActor in
                 try? await Task.sleep(nanoseconds: 5_000_000_000) // 5 seconds
-                continuation.resume(returning: nil)
+                // Use the safe resume method that checks for nil to prevent double-resume
+                self.resumeLocationContinuation(with: nil)
             }
             
-            // Store continuation for delegate callback
-            self.locationContinuation = continuation
             self.locationTimeoutTask = timeoutTask
             
             // Request single location update
