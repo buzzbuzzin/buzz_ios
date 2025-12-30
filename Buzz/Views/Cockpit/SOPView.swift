@@ -116,9 +116,9 @@ struct SOPView: View {
                 .buttonStyle(PlainButtonStyle())
                 .padding(.horizontal)
                 
-                // Reference Documents Section
+                // Radio Operations Section
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("Reference Documents")
+                    Text("Radio Operations")
                         .font(.headline)
                         .fontWeight(.semibold)
                         .padding(.horizontal, 16)
@@ -207,7 +207,7 @@ struct SOPView: View {
                 
                 // Logs Section
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("Logs & Documentation")
+                    Text("Logs")
                         .font(.headline)
                         .fontWeight(.semibold)
                         .padding(.horizontal, 16)
