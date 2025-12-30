@@ -20,9 +20,16 @@ struct CreateBookingStep4ConfirmView: View {
     let paymentAmount: Decimal
     let estimatedHours: Double
     
+    // Credits support
+    let availableCredits: Decimal
+    @Binding var creditsToUse: Decimal
+    let onCreditsChanged: (Decimal) -> Void
+    
     let onBack: () -> Void
     let onPay: () -> Void
     let isLoading: Bool
+    
+    @State private var useCredits = false
     
     private var rankName: String {
         PilotStats(pilotId: UUID(), totalFlightHours: 0, completedBookings: 0, tier: requiredMinimumRank).tierName
@@ -32,6 +39,23 @@ struct CreateBookingStep4ConfirmView: View {
         let timeFormatter = DateFormatter()
         timeFormatter.dateFormat = "h:mm a"
         return timeFormatter.string(from: startTime)
+    }
+    
+    /// Maximum credits that can be applied (cannot exceed payment amount or available credits)
+    private var maxApplicableCredits: Decimal {
+        // Can't apply more credits than the payment amount minus minimum Stripe charge ($0.50)
+        let maxFromPayment = max(0, paymentAmount - Decimal(0.50))
+        return min(availableCredits, maxFromPayment)
+    }
+    
+    /// Final amount after credits applied
+    private var finalAmount: Decimal {
+        max(paymentAmount - creditsToUse, Decimal(0.50)) // Stripe minimum is $0.50
+    }
+    
+    /// Discount amount
+    private var discountAmount: Decimal {
+        creditsToUse
     }
     
     private var formattedDateRange: String {
@@ -174,23 +198,130 @@ struct CreateBookingStep4ConfirmView: View {
                     
                     Divider()
                     
-                    // Total Price
-                    HStack {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Total price")
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
-                            HStack(spacing: 4) {
-                                Text("$\(String(format: "%.2f", NSDecimalNumber(decimal: paymentAmount).doubleValue)) including taxes")
-                                    .font(.body)
-                                    .fontWeight(.semibold)
-                                Text("USD")
-                                    .font(.body)
-                                    .fontWeight(.semibold)
-                                    .underline()
+                    // Credits Section (only show if user has credits)
+                    if availableCredits > 0 {
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack {
+                                Image(systemName: "gift.fill")
+                                    .foregroundColor(.green)
+                                Text("Referral Credits")
+                                    .font(.headline)
+                                Spacer()
+                                Text("$\(String(format: "%.2f", NSDecimalNumber(decimal: availableCredits).doubleValue)) available")
+                                    .font(.subheadline)
+                                    .foregroundColor(.green)
+                            }
+                            
+                            Toggle(isOn: $useCredits) {
+                                Text("Apply credits to this booking")
+                                    .font(.subheadline)
+                            }
+                            .tint(.green)
+                            .onChange(of: useCredits) { newValue in
+                                if newValue {
+                                    // Apply maximum possible credits
+                                    creditsToUse = maxApplicableCredits
+                                } else {
+                                    creditsToUse = 0
+                                }
+                                onCreditsChanged(creditsToUse)
+                            }
+                            
+                            if useCredits && maxApplicableCredits > 0 {
+                                VStack(spacing: 8) {
+                                    HStack {
+                                        Text("Credits to apply:")
+                                            .font(.subheadline)
+                                            .foregroundColor(.secondary)
+                                        Spacer()
+                                        Text("-$\(String(format: "%.2f", NSDecimalNumber(decimal: creditsToUse).doubleValue))")
+                                            .font(.subheadline)
+                                            .fontWeight(.medium)
+                                            .foregroundColor(.green)
+                                    }
+                                    
+                                    // Slider for credit amount if available credits > paymentAmount
+                                    if availableCredits > maxApplicableCredits {
+                                        Slider(
+                                            value: Binding(
+                                                get: { NSDecimalNumber(decimal: creditsToUse).doubleValue },
+                                                set: { 
+                                                    creditsToUse = Decimal($0)
+                                                    onCreditsChanged(creditsToUse)
+                                                }
+                                            ),
+                                            in: 0...NSDecimalNumber(decimal: maxApplicableCredits).doubleValue,
+                                            step: 1.0
+                                        )
+                                        .tint(.green)
+                                    }
+                                }
                             }
                         }
-                        Spacer()
+                        .padding()
+                        .background(Color.green.opacity(0.1))
+                        .cornerRadius(12)
+                        
+                        Divider()
+                    }
+                    
+                    // Price Breakdown
+                    VStack(spacing: 8) {
+                        // Original Price
+                        HStack {
+                            Text("Subtotal")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                            Spacer()
+                            Text("$\(String(format: "%.2f", NSDecimalNumber(decimal: paymentAmount).doubleValue))")
+                                .font(.subheadline)
+                        }
+                        
+                        // Credits discount (if applied)
+                        if creditsToUse > 0 {
+                            HStack {
+                                Text("Referral credit")
+                                    .font(.subheadline)
+                                    .foregroundColor(.green)
+                                Spacer()
+                                Text("-$\(String(format: "%.2f", NSDecimalNumber(decimal: creditsToUse).doubleValue))")
+                                    .font(.subheadline)
+                                    .foregroundColor(.green)
+                            }
+                        }
+                        
+                        Divider()
+                        
+                        // Total Price
+                        HStack {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Total price")
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                                HStack(spacing: 4) {
+                                    Text("$\(String(format: "%.2f", NSDecimalNumber(decimal: finalAmount).doubleValue)) including taxes")
+                                        .font(.body)
+                                        .fontWeight(.semibold)
+                                    Text("USD")
+                                        .font(.body)
+                                        .fontWeight(.semibold)
+                                        .underline()
+                                }
+                            }
+                            Spacer()
+                        }
+                        
+                        // Savings message
+                        if creditsToUse > 0 {
+                            HStack {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundColor(.green)
+                                Text("You're saving $\(String(format: "%.2f", NSDecimalNumber(decimal: creditsToUse).doubleValue)) with referral credits!")
+                                    .font(.caption)
+                                    .foregroundColor(.green)
+                            }
+                            .padding(.top, 4)
+                        }
                     }
                 }
                 .padding()
@@ -264,4 +395,3 @@ struct CreateBookingStep4ConfirmView: View {
         .navigationBarTitleDisplayMode(.inline)
     }
 }
-

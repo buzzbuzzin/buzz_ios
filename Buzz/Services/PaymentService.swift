@@ -60,6 +60,94 @@ class PaymentService: ObservableObject {
         }
     }
     
+    // MARK: - Create Payment Intent with Credits
+    
+    /// Creates a PaymentIntent with optional referral credits applied
+    func createPaymentIntentWithCredits(
+        amount: Decimal,
+        creditsToUse: Decimal = 0,
+        currency: String = "usd",
+        customerId: UUID,
+        transferGroup: String
+    ) async throws -> PaymentIntentResponse {
+        isLoading = true
+        errorMessage = nil
+        
+        do {
+            struct PaymentIntentWithCreditsRequest: Codable {
+                let amount: Int
+                let credits_to_use: Double
+                let currency: String
+                let customer_id: String
+                let transfer_group: String
+            }
+            
+            let request = PaymentIntentWithCreditsRequest(
+                amount: Int(NSDecimalNumber(decimal: amount * 100).intValue),
+                credits_to_use: NSDecimalNumber(decimal: creditsToUse).doubleValue,
+                currency: currency,
+                customer_id: customerId.uuidString,
+                transfer_group: transferGroup
+            )
+            
+            let response: PaymentIntentResponse = try await supabase.functions
+                .invoke("create-payment-intent", options: FunctionInvokeOptions(
+                    body: request
+                ))
+            
+            isLoading = false
+            return response
+        } catch {
+            isLoading = false
+            errorMessage = error.localizedDescription
+            throw error
+        }
+    }
+    
+    // MARK: - Apply Booking Credits
+    
+    /// Applies referral credits to a booking after successful payment
+    func applyBookingCredits(
+        bookingId: UUID,
+        customerId: UUID,
+        creditsUsed: Decimal,
+        originalAmount: Int,
+        finalAmount: Int
+    ) async throws -> ApplyBookingCreditsResponse {
+        isLoading = true
+        errorMessage = nil
+        
+        do {
+            struct ApplyCreditsRequest: Codable {
+                let booking_id: String
+                let customer_id: String
+                let credits_used: Double
+                let original_amount: Int
+                let final_amount: Int
+            }
+            
+            let request = ApplyCreditsRequest(
+                booking_id: bookingId.uuidString,
+                customer_id: customerId.uuidString,
+                credits_used: NSDecimalNumber(decimal: creditsUsed).doubleValue,
+                original_amount: originalAmount,
+                final_amount: finalAmount
+            )
+            
+            let response: ApplyBookingCreditsResponse = try await supabase.functions
+                .invoke("apply-booking-credits", options: FunctionInvokeOptions(
+                    body: request
+                ))
+            
+            isLoading = false
+            return response
+        } catch {
+            isLoading = false
+            errorMessage = error.localizedDescription
+            throw error
+        }
+    }
+    
     // MARK: - Present Payment Sheet
     
     /// Presents the Stripe PaymentSheet for payment
@@ -259,12 +347,19 @@ struct PaymentIntentResponse: Codable {
     let paymentIntentId: String
     let customerId: String?
     let ephemeralKeySecret: String?
+    // Credit-related fields (returned when credits are applied)
+    let originalAmount: Int?
+    let creditsApplied: Int?
+    let finalAmount: Int?
     
     enum CodingKeys: String, CodingKey {
         case clientSecret = "client_secret"
         case paymentIntentId = "payment_intent_id"
         case customerId = "customer_id"
         case ephemeralKeySecret = "ephemeral_key_secret"
+        case originalAmount = "original_amount"
+        case creditsApplied = "credits_applied"
+        case finalAmount = "final_amount"
     }
 }
 
@@ -277,6 +372,20 @@ struct TransferResponse: Codable {
         case transferId = "transfer_id"
         case amount
         case currency
+    }
+}
+
+struct ApplyBookingCreditsResponse: Codable {
+    let success: Bool
+    let creditsUsed: Double?
+    let newBalance: Double?
+    let bookingUpdated: Bool?
+    
+    enum CodingKeys: String, CodingKey {
+        case success
+        case creditsUsed = "credits_used"
+        case newBalance = "new_balance"
+        case bookingUpdated = "booking_updated"
     }
 }
 

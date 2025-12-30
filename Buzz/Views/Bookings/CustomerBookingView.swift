@@ -314,6 +314,7 @@ struct CreateBookingView: View {
     @StateObject private var bookingService = BookingService()
     @StateObject private var paymentService = PaymentService()
     @StateObject private var subscriptionService = SubscriptionService()
+    @StateObject private var referralService = ReferralService()
     @Environment(\.dismiss) var dismiss
     
     let onBookingCreated: ((Booking) -> Void)?
@@ -358,6 +359,10 @@ struct CreateBookingView: View {
     @State private var propertySize: PropertySize = .under5000
     @State private var realEstateUnder5000Prices: [RealEstateBookingPrice] = []
     @State private var realEstateAbove5000Prices: [RealEstateBookingPrice] = []
+    
+    // Credits for booking
+    @State private var availableCredits: Decimal = 0
+    @State private var creditsToUse: Decimal = 0
     
     var body: some View {
         NavigationView {
@@ -435,6 +440,11 @@ struct CreateBookingView: View {
                                 description: description,
                                 paymentAmount: getFinalPaymentAmount(),
                                 estimatedHours: getEstimatedHours(),
+                                availableCredits: availableCredits,
+                                creditsToUse: $creditsToUse,
+                                onCreditsChanged: { newCredits in
+                                    creditsToUse = newCredits
+                                },
                                 onBack: {
                                     currentStep = 3
                                 },
@@ -505,6 +515,24 @@ struct CreateBookingView: View {
                     }
                 }
             }
+            .task {
+                // Fetch available referral credits for the user
+                await fetchAvailableCredits()
+            }
+        }
+    }
+    
+    /// Fetches available referral credits for the current user
+    private func fetchAvailableCredits() async {
+        guard let currentUser = authService.currentUser else { return }
+        do {
+            let credits = try await referralService.getAvailableCredits(userId: currentUser.id)
+            await MainActor.run {
+                availableCredits = credits
+            }
+        } catch {
+            print("Error fetching referral credits: \(error)")
+            // Don't show error to user, just proceed without credits
         }
     }
     
@@ -787,9 +815,10 @@ struct CreateBookingView: View {
             let bookingId = UUID()
             let transferGroup = "booking_\(bookingId.uuidString)"
             
-            // Create PaymentIntent
-            let paymentIntentResponse = try await paymentService.createPaymentIntent(
+            // Create PaymentIntent with credits if applicable
+            let paymentIntentResponse = try await paymentService.createPaymentIntentWithCredits(
                 amount: paymentAmount,
+                creditsToUse: creditsToUse,
                 currency: "usd",
                 customerId: customerId,
                 transferGroup: transferGroup
@@ -858,6 +887,20 @@ struct CreateBookingView: View {
                     paymentIntentId: paymentIntentResponse.paymentIntentId,
                     chargeId: chargeId
                 )
+                
+                // Apply booking credits if used (deduct from user's balance and update booking)
+                if creditsToUse > 0 {
+                    let originalAmountCents = paymentIntentResponse.originalAmount ?? Int(NSDecimalNumber(decimal: paymentAmount * 100).intValue)
+                    let finalAmountCents = paymentIntentResponse.finalAmount ?? Int(NSDecimalNumber(decimal: (paymentAmount - creditsToUse) * 100).intValue)
+                    
+                    let _ = try await paymentService.applyBookingCredits(
+                        bookingId: newBooking.id,
+                        customerId: customerId,
+                        creditsUsed: creditsToUse,
+                        originalAmount: originalAmountCents,
+                        finalAmount: finalAmountCents
+                    )
+                }
                 
                 isProcessingPayment = false
                 // Store the created booking for navigation

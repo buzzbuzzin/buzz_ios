@@ -1,6 +1,7 @@
 // Supabase Edge Function to create Stripe PaymentIntent with transfer_group
 // This function creates a PaymentIntent on the platform account with a transfer_group
 // that will be used later to transfer funds to connected accounts (pilots)
+// Supports applying referral credits to reduce the payment amount
 
 // Usage:
 // 1. Deploy this function: supabase functions deploy create-payment-intent
@@ -13,15 +14,21 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import Stripe from "https://esm.sh/stripe@14.21.0?target=deno"
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 
 const stripeSecretKey = Deno.env.get("STRIPE_SECRET_KEY")
 if (!stripeSecretKey) {
   throw new Error("STRIPE_SECRET_KEY environment variable is not set")
 }
 
+const supabaseUrl = Deno.env.get("SUPABASE_URL")!
+const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+
 const stripe = new Stripe(stripeSecretKey, {
   httpClient: Stripe.createFetchHttpClient(),
 })
+
+const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -35,7 +42,13 @@ serve(async (req) => {
   }
 
   try {
-    const { amount, currency = "usd", customer_id, transfer_group } = await req.json()
+    const { 
+      amount, 
+      currency = "usd", 
+      customer_id, 
+      transfer_group,
+      credits_to_use = 0  // Amount of referral credits to apply (in dollars)
+    } = await req.json()
 
     // Validate required fields
     if (!amount || !transfer_group) {
@@ -46,6 +59,54 @@ serve(async (req) => {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         }
       )
+    }
+
+    // Original amount in cents
+    const originalAmountCents = amount
+
+    // Calculate credits to apply
+    let creditsAppliedCents = 0
+    let finalAmountCents = originalAmountCents
+
+    if (credits_to_use > 0 && customer_id) {
+      // Validate user has sufficient credits
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("referral_credits")
+        .eq("id", customer_id)
+        .single()
+
+      if (profileError || !profile) {
+        return new Response(
+          JSON.stringify({ error: "User profile not found" }),
+          {
+            status: 404,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        )
+      }
+
+      const availableCredits = profile.referral_credits || 0
+      const creditsToUseDollars = Math.min(credits_to_use, availableCredits)
+      creditsAppliedCents = Math.floor(creditsToUseDollars * 100)
+
+      // Validate sufficient credits
+      if (credits_to_use > availableCredits) {
+        return new Response(
+          JSON.stringify({ 
+            error: "Insufficient credits",
+            available_credits: availableCredits,
+            requested_credits: credits_to_use
+          }),
+          {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        )
+      }
+
+      // Calculate final amount (minimum $0.50 for Stripe)
+      finalAmountCents = Math.max(originalAmountCents - creditsAppliedCents, 50)
     }
 
     // Create or retrieve customer
@@ -86,14 +147,18 @@ serve(async (req) => {
       // Continue without ephemeral key (guest checkout)
     }
 
-    // Create PaymentIntent with transfer_group
-    // Note: We don't set setup_future_usage here to allow users to opt-in via checkbox
-    // PaymentSheet will show "Save payment details" checkbox when customer + ephemeral key are provided
+    // Create PaymentIntent with the final amount (after credits)
+    // Store original amount and credits in metadata for record keeping
     const paymentIntent = await stripe.paymentIntents.create({
-      amount: amount,
+      amount: finalAmountCents,
       currency: currency,
       customer: customerId,
       transfer_group: transfer_group,
+      metadata: {
+        original_amount_cents: originalAmountCents.toString(),
+        credits_applied_cents: creditsAppliedCents.toString(),
+        user_id: customer_id || "",
+      },
       automatic_payment_methods: {
         enabled: true,
       },
@@ -105,6 +170,10 @@ serve(async (req) => {
         payment_intent_id: paymentIntent.id,
         customer_id: customerId,
         ephemeral_key_secret: ephemeralKeySecret,
+        // Include credit information in response
+        original_amount: originalAmountCents,
+        credits_applied: creditsAppliedCents,
+        final_amount: finalAmountCents,
       }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -122,4 +191,3 @@ serve(async (req) => {
     )
   }
 })
-

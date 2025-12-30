@@ -129,9 +129,18 @@ CREATE TRIGGER trigger_credit_referrer_on_verification
   FOR EACH ROW
   EXECUTE FUNCTION public.credit_referrer_on_verification();
 
+-- Add booking credit tracking columns to bookings table
+ALTER TABLE public.bookings
+ADD COLUMN IF NOT EXISTS original_amount numeric,
+ADD COLUMN IF NOT EXISTS credits_applied numeric DEFAULT 0,
+ADD COLUMN IF NOT EXISTS final_amount numeric;
+
 -- Comments for documentation
 COMMENT ON TABLE public.referral_codes IS 'Stores unique referral codes for each user in the loyalty program';
 COMMENT ON TABLE public.referrals IS 'Tracks referral relationships and credit status';
 COMMENT ON COLUMN public.profiles.referral_credits IS 'Available credits earned through referrals, can be applied to bookings';
 COMMENT ON COLUMN public.profiles.referred_by IS 'UUID of the user who referred this user';
+COMMENT ON COLUMN public.bookings.original_amount IS 'Original booking price before referral credits applied';
+COMMENT ON COLUMN public.bookings.credits_applied IS 'Amount of referral credits applied to this booking';
+COMMENT ON COLUMN public.bookings.final_amount IS 'Final amount charged after credits (original_amount - credits_applied)';
 

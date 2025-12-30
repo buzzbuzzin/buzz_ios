@@ -120,6 +120,9 @@ CREATE TABLE public.bookings (
   customer_completed boolean DEFAULT false,
   pilot_completed boolean DEFAULT false,
   completed_at timestamp with time zone,
+  original_amount numeric,
+  credits_applied numeric DEFAULT 0,
+  final_amount numeric,
   CONSTRAINT bookings_pkey PRIMARY KEY (id),
   CONSTRAINT bookings_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES public.profiles(id),
   CONSTRAINT bookings_pilot_id_fkey FOREIGN KEY (pilot_id) REFERENCES public.profiles(id)
