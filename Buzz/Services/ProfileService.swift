@@ -170,7 +170,9 @@ class ProfileService: ObservableObject {
                 veteranServiceNumber: nil,
                 lastLocationLat: nil,
                 lastLocationLng: nil,
-                lastLocationUpdate: nil
+                lastLocationUpdate: nil,
+                referralCredits: nil,
+                referredBy: nil
             )
         }
         
@@ -232,7 +234,9 @@ class ProfileService: ObservableObject {
                 veteranServiceNumber: nil,
                 lastLocationLat: nil,
                 lastLocationLng: nil,
-                lastLocationUpdate: nil
+                lastLocationUpdate: nil,
+                referralCredits: nil,
+                referredBy: nil
             )
         }
         

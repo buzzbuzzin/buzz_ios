@@ -27,6 +27,7 @@ struct CustomerProfileView: View {
     @State private var showError = false
     @State private var navigateToReviews = false
     @State private var navigateToFlightPackages = false
+    @State private var navigateToConnections = false
     @State private var navigateToShop = false
     
     var yearsOnBuzz: Int {
@@ -181,6 +182,14 @@ struct CustomerProfileView: View {
                     .hidden()
                     
                     NavigationLink(
+                        destination: ConnectionsView(),
+                        isActive: $navigateToConnections
+                    ) {
+                        EmptyView()
+                    }
+                    .hidden()
+                    
+                    NavigationLink(
                         destination: ClientShopView(),
                         isActive: $navigateToShop
                     ) {
@@ -227,6 +236,18 @@ struct CustomerProfileView: View {
                                 
                                 HStack(spacing: 8) {
                                     Button(action: {
+                                        navigateToConnections = true
+                                    }) {
+                                        ProfileCard(
+                                            icon: "person.2.fill",
+                                            iconColor: .green,
+                                            title: "Connections"
+                                        )
+                                    }
+                                    .buttonStyle(PlainButtonStyle())
+                                    .frame(maxWidth: .infinity)
+                                    
+                                    Button(action: {
                                         navigateToShop = true
                                     }) {
                                         ProfileCard(
@@ -237,10 +258,6 @@ struct CustomerProfileView: View {
                                     }
                                     .buttonStyle(PlainButtonStyle())
                                     .frame(maxWidth: .infinity)
-                                    
-                                    // Empty spacer to balance the layout
-                                    Color.clear
-                                        .frame(maxWidth: .infinity)
                                 }
                             }
                             .listRowInsets(EdgeInsets())

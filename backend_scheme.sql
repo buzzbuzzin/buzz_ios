@@ -394,6 +394,8 @@ CREATE TABLE public.profiles (
   communication_preference text DEFAULT 'email'::text CHECK (communication_preference = ANY (ARRAY['email'::text, 'text'::text, 'both'::text])),
   stripe_account_id text,
   balance numeric DEFAULT 0.0,
+  referral_credits numeric DEFAULT 0.0,
+  referred_by uuid,
   role text CHECK (role IS NULL OR (role = ANY (ARRAY['individual'::text, 'company'::text, 'government'::text, 'non_profit'::text]))),
   specialization text CHECK (specialization IS NULL OR (specialization = ANY (ARRAY['automotive'::text, 'motion_picture'::text, 'real_estate'::text, 'agriculture'::text, 'inspections'::text, 'search_rescue'::text, 'logistics'::text, 'drone_art'::text, 'surveillance_security'::text, 'mapping_surveying'::text]))),
   is_ex_military boolean DEFAULT false,
@@ -497,4 +499,26 @@ CREATE TABLE public.video_upload_reminders (
   CONSTRAINT video_upload_reminders_pkey PRIMARY KEY (id),
   CONSTRAINT video_upload_reminders_booking_id_fkey FOREIGN KEY (booking_id) REFERENCES public.bookings(id),
   CONSTRAINT video_upload_reminders_pilot_id_fkey FOREIGN KEY (pilot_id) REFERENCES public.profiles(id)
+);
+CREATE TABLE public.referral_codes (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  user_id uuid NOT NULL UNIQUE,
+  code text NOT NULL UNIQUE,
+  created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  CONSTRAINT referral_codes_pkey PRIMARY KEY (id),
+  CONSTRAINT referral_codes_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id) ON DELETE CASCADE,
+  CONSTRAINT referral_codes_code_check CHECK (code ~ '^[A-Z0-9]{8}$')
+);
+CREATE TABLE public.referrals (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  referrer_id uuid NOT NULL,
+  referee_id uuid NOT NULL UNIQUE,
+  referral_code text NOT NULL,
+  status text NOT NULL DEFAULT 'pending'::text CHECK (status = ANY (ARRAY['pending'::text, 'completed'::text, 'expired'::text])),
+  credit_amount numeric NOT NULL DEFAULT 25.0,
+  credited_at timestamp with time zone,
+  created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  CONSTRAINT referrals_pkey PRIMARY KEY (id),
+  CONSTRAINT referrals_referrer_id_fkey FOREIGN KEY (referrer_id) REFERENCES public.profiles(id) ON DELETE CASCADE,
+  CONSTRAINT referrals_referee_id_fkey FOREIGN KEY (referee_id) REFERENCES public.profiles(id) ON DELETE CASCADE
 );

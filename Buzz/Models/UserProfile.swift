@@ -94,6 +94,8 @@ struct UserProfile: Codable, Identifiable {
     let lastLocationLat: Double? // Last known latitude
     let lastLocationLng: Double? // Last known longitude
     let lastLocationUpdate: Date? // Last location update timestamp
+    let referralCredits: Decimal? // Available referral credits (for customers)
+    let referredBy: UUID? // UUID of user who referred this user
     
     enum CodingKeys: String, CodingKey {
         case id
@@ -122,6 +124,8 @@ struct UserProfile: Codable, Identifiable {
         case lastLocationLat = "last_location_lat"
         case lastLocationLng = "last_location_lng"
         case lastLocationUpdate = "last_location_update"
+        case referralCredits = "referral_credits"
+        case referredBy = "referred_by"
     }
     
     var fullName: String {

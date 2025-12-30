@@ -204,7 +204,9 @@ class RatingService: ObservableObject {
                 veteranServiceNumber: nil,
                 lastLocationLat: nil,
                 lastLocationLng: nil,
-                lastLocationUpdate: nil
+                lastLocationUpdate: nil,
+                referralCredits: nil,
+                referredBy: nil
             ),
             UserProfile(
                 id: UUID(),
@@ -232,7 +234,9 @@ class RatingService: ObservableObject {
                 veteranServiceNumber: nil,
                 lastLocationLat: nil,
                 lastLocationLng: nil,
-                lastLocationUpdate: nil
+                lastLocationUpdate: nil,
+                referralCredits: nil,
+                referredBy: nil
             ),
             UserProfile(
                 id: UUID(),
@@ -260,7 +264,9 @@ class RatingService: ObservableObject {
                 veteranServiceNumber: nil,
                 lastLocationLat: nil,
                 lastLocationLng: nil,
-                lastLocationUpdate: nil
+                lastLocationUpdate: nil,
+                referralCredits: nil,
+                referredBy: nil
             ),
             UserProfile(
                 id: UUID(),
@@ -288,7 +294,9 @@ class RatingService: ObservableObject {
                 veteranServiceNumber: nil,
                 lastLocationLat: nil,
                 lastLocationLng: nil,
-                lastLocationUpdate: nil
+                lastLocationUpdate: nil,
+                referralCredits: nil,
+                referredBy: nil
             ),
             UserProfile(
                 id: UUID(),
@@ -316,7 +324,9 @@ class RatingService: ObservableObject {
                 veteranServiceNumber: nil,
                 lastLocationLat: nil,
                 lastLocationLng: nil,
-                lastLocationUpdate: nil
+                lastLocationUpdate: nil,
+                referralCredits: nil,
+                referredBy: nil
             ),
             UserProfile(
                 id: UUID(),
@@ -344,7 +354,9 @@ class RatingService: ObservableObject {
                 veteranServiceNumber: nil,
                 lastLocationLat: nil,
                 lastLocationLng: nil,
-                lastLocationUpdate: nil
+                lastLocationUpdate: nil,
+                referralCredits: nil,
+                referredBy: nil
             )
         ]
         
@@ -446,7 +458,9 @@ class RatingService: ObservableObject {
                 veteranServiceNumber: nil,
                 lastLocationLat: nil,
                 lastLocationLng: nil,
-                lastLocationUpdate: nil
+                lastLocationUpdate: nil,
+                referralCredits: nil,
+                referredBy: nil
             ),
             UserProfile(
                 id: UUID(),
@@ -474,7 +488,9 @@ class RatingService: ObservableObject {
                 veteranServiceNumber: nil,
                 lastLocationLat: nil,
                 lastLocationLng: nil,
-                lastLocationUpdate: nil
+                lastLocationUpdate: nil,
+                referralCredits: nil,
+                referredBy: nil
             ),
             UserProfile(
                 id: UUID(),
@@ -502,7 +518,9 @@ class RatingService: ObservableObject {
                 veteranServiceNumber: nil,
                 lastLocationLat: nil,
                 lastLocationLng: nil,
-                lastLocationUpdate: nil
+                lastLocationUpdate: nil,
+                referralCredits: nil,
+                referredBy: nil
             ),
             UserProfile(
                 id: UUID(),
@@ -530,7 +548,9 @@ class RatingService: ObservableObject {
                 veteranServiceNumber: nil,
                 lastLocationLat: nil,
                 lastLocationLng: nil,
-                lastLocationUpdate: nil
+                lastLocationUpdate: nil,
+                referralCredits: nil,
+                referredBy: nil
             ),
             UserProfile(
                 id: UUID(),
@@ -558,7 +578,9 @@ class RatingService: ObservableObject {
                 veteranServiceNumber: nil,
                 lastLocationLat: nil,
                 lastLocationLng: nil,
-                lastLocationUpdate: nil
+                lastLocationUpdate: nil,
+                referralCredits: nil,
+                referredBy: nil
             ),
             UserProfile(
                 id: UUID(),
@@ -586,7 +608,9 @@ class RatingService: ObservableObject {
                 veteranServiceNumber: nil,
                 lastLocationLat: nil,
                 lastLocationLng: nil,
-                lastLocationUpdate: nil
+                lastLocationUpdate: nil,
+                referralCredits: nil,
+                referredBy: nil
             )
         ]
         

@@ -32,6 +32,10 @@ struct SignUpView: View {
     @State private var promotionType: PromotionType? = nil
     @State private var showPremiumIntro = false
     @State private var queuedPromotionType: PromotionType? = nil
+    @State private var referralCode = ""
+    @State private var isValidatingReferralCode = false
+    @State private var referralCodeValidationMessage: String? = nil
+    @State private var isReferralCodeValid: Bool? = nil
     
     enum PromotionType {
         case automotive
@@ -576,6 +580,106 @@ struct SignUpView: View {
                         .foregroundColor(.red)
                 }
             }
+            
+            // Referral Code (Optional)
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("Referral Code")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .foregroundColor(.primary)
+                    
+                    Text("(Optional)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                
+                TextField("Enter referral code", text: $referralCode)
+                    .autocapitalization(.allCharacters)
+                    .autocorrectionDisabled()
+                    .onChange(of: referralCode) { _, newValue in
+                        // Uppercase and filter to alphanumeric
+                        let filtered = newValue.uppercased().filter { $0.isLetter || $0.isNumber }
+                        if filtered != newValue {
+                            referralCode = filtered
+                        } else {
+                            referralCode = newValue.uppercased()
+                        }
+                        
+                        // Validate referral code if it's 8 characters
+                        if referralCode.count == 8 {
+                            validateReferralCode()
+                        } else {
+                            isReferralCodeValid = nil
+                            referralCodeValidationMessage = nil
+                        }
+                    }
+                    .padding()
+                    .background(Color(.systemGray6))
+                    .cornerRadius(10)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(referralCodeBorderColor, lineWidth: 1)
+                    )
+                
+                // Validation message
+                if isValidatingReferralCode {
+                    HStack(spacing: 4) {
+                        ProgressView()
+                            .scaleEffect(0.7)
+                        Text("Validating code...")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                } else if let message = referralCodeValidationMessage {
+                    HStack(spacing: 4) {
+                        Image(systemName: isReferralCodeValid == true ? "checkmark.circle.fill" : "xmark.circle.fill")
+                            .font(.caption)
+                        Text(message)
+                            .font(.caption)
+                    }
+                    .foregroundColor(isReferralCodeValid == true ? .green : .red)
+                } else if referralCode.isEmpty {
+                    Text("Have a friend's code? Enter it to earn credits after ID verification.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+        }
+    }
+    
+    private var referralCodeBorderColor: Color {
+        if let valid = isReferralCodeValid {
+            return valid ? Color.green : Color.red
+        }
+        return Color.clear
+    }
+    
+    private func validateReferralCode() {
+        let normalizedCode = referralCode.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        guard normalizedCode.count == 8 else {
+            isReferralCodeValid = nil
+            referralCodeValidationMessage = nil
+            return
+        }
+        
+        isValidatingReferralCode = true
+        
+        Task {
+            let referralService = ReferralService()
+            let isValid = try? await referralService.validateReferralCode(normalizedCode)
+            
+            await MainActor.run {
+                isValidatingReferralCode = false
+                isReferralCodeValid = isValid
+                
+                if isValid == true {
+                    referralCodeValidationMessage = "Valid referral code!"
+                } else {
+                    referralCodeValidationMessage = "Invalid referral code"
+                }
+            }
         }
     }
     
@@ -752,6 +856,44 @@ struct SignUpView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .background(Color(.systemGray6))
                         .cornerRadius(10)
+                }
+            }
+            
+            // Referral Code Section (if provided)
+            if !referralCode.isEmpty {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        Text("Referral Code")
+                            .font(.headline)
+                            .fontWeight(.semibold)
+                        Spacer()
+                        Button(action: {
+                            customerSignUpPage = 1
+                        }) {
+                            Text("Edit")
+                                .font(.subheadline)
+                                .foregroundColor(.blue)
+                        }
+                    }
+                    
+                    HStack {
+                        Image(systemName: "person.2.fill")
+                            .font(.system(size: 20))
+                            .foregroundColor(.green)
+                            .frame(width: 30)
+                        Text(referralCode)
+                            .font(.body)
+                            .fontWeight(.medium)
+                            .foregroundColor(.primary)
+                        Spacer()
+                        if isReferralCodeValid == true {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundColor(.green)
+                        }
+                    }
+                    .padding()
+                    .background(Color(.systemGray6))
+                    .cornerRadius(10)
                 }
             }
         }
@@ -974,6 +1116,23 @@ struct SignUpView: View {
                     role: userType == .customer ? role : nil,
                     specialization: userType == .customer ? selectedSpecialization : nil
                 )
+                
+                // Apply referral code if provided and valid (customers only)
+                if userType == .customer && !referralCode.isEmpty && isReferralCodeValid == true {
+                    if let userId = authService.currentUser?.id {
+                        let referralService = ReferralService()
+                        do {
+                            _ = try await referralService.applyReferralCode(
+                                refereeId: userId,
+                                referralCode: referralCode.trimmingCharacters(in: .whitespacesAndNewlines)
+                            )
+                            print("Referral code applied successfully")
+                        } catch {
+                            // Non-critical error - don't block signup
+                            print("Failed to apply referral code: \(error.localizedDescription)")
+                        }
+                    }
+                }
                 
                 // Success! The app will automatically navigate to main view
                 // because authService.isAuthenticated is now true

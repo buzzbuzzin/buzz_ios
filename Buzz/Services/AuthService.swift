@@ -101,7 +101,9 @@ class AuthService: ObservableObject {
             veteranServiceNumber: nil,
             lastLocationLat: nil,
             lastLocationLng: nil,
-            lastLocationUpdate: nil
+            lastLocationUpdate: nil,
+            referralCredits: nil,
+            referredBy: nil
         )
         self.userProfile = profile
         self.isAuthenticated = true
