@@ -95,6 +95,16 @@ struct CockpitView: View {
                                     )
                                 }
                                 .buttonStyle(PlainButtonStyle())
+                                
+                                // Logs Card
+                                NavigationLink(destination: LogsView()) {
+                                    CockpitGridCard(
+                                        title: "Logs",
+                                        icon: "note.text",
+                                        color: .purple
+                                    )
+                                }
+                                .buttonStyle(PlainButtonStyle())
                             }
                             .padding(.horizontal, 16)
                         }
