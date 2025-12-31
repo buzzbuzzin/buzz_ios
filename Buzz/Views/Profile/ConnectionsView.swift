@@ -98,7 +98,7 @@ struct ConnectionsView: View {
                 .font(.title2)
                 .fontWeight(.bold)
             
-            Text("Share your referral code with friends. When new pilots or customers sign up and verify their ID, you'll earn 1 credit ($25) for each referral to use towards a drone service or in our Buzz shop.")
+            Text("Share your referral code with friends. When new pilots or customers sign up and verify their ID, you'll earn credits for each referral to use towards a drone service or in our Buzz shop.")
                 .font(.subheadline)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)

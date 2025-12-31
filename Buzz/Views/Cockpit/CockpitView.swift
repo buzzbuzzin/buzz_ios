@@ -188,6 +188,16 @@ struct CockpitView: View {
                                 .padding(.horizontal, 16)
                             
                             LazyVGrid(columns: columns, spacing: 12) {
+                                // Beacon Card
+                                NavigationLink(destination: BeaconView().environmentObject(authService)) {
+                                    CockpitGridCard(
+                                        title: "Beacon",
+                                        icon: "antenna.radiowaves.left.and.right",
+                                        color: .yellow
+                                    )
+                                }
+                                .buttonStyle(PlainButtonStyle())
+                                
                                 // TopGun Card
                                 NavigationLink(destination: TopGunView().environmentObject(authService)) {
                                     CockpitGridCard(
@@ -214,16 +224,6 @@ struct CockpitView: View {
                                         title: "Games",
                                         icon: "gamecontroller.fill",
                                         color: .blue
-                                    )
-                                }
-                                .buttonStyle(PlainButtonStyle())
-                                
-                                // Beacon Card
-                                NavigationLink(destination: BeaconView().environmentObject(authService)) {
-                                    CockpitGridCard(
-                                        title: "Beacon",
-                                        icon: "antenna.radiowaves.left.and.right",
-                                        color: .yellow
                                     )
                                 }
                                 .buttonStyle(PlainButtonStyle())

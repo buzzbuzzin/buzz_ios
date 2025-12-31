@@ -172,7 +172,8 @@ class ProfileService: ObservableObject {
                 lastLocationLng: nil,
                 lastLocationUpdate: nil,
                 referralCredits: nil,
-                referredBy: nil
+                referredBy: nil,
+                isBeaconVolunteer: nil
             )
         }
         
@@ -236,7 +237,8 @@ class ProfileService: ObservableObject {
                 lastLocationLng: nil,
                 lastLocationUpdate: nil,
                 referralCredits: nil,
-                referredBy: nil
+                referredBy: nil,
+                isBeaconVolunteer: nil
             )
         }
         

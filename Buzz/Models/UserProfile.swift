@@ -96,6 +96,7 @@ struct UserProfile: Codable, Identifiable {
     let lastLocationUpdate: Date? // Last location update timestamp
     let referralCredits: Decimal? // Available referral credits (for customers)
     let referredBy: UUID? // UUID of user who referred this user
+    let isBeaconVolunteer: Bool? // Beacon emergency response volunteer status
     
     enum CodingKeys: String, CodingKey {
         case id
@@ -126,6 +127,7 @@ struct UserProfile: Codable, Identifiable {
         case lastLocationUpdate = "last_location_update"
         case referralCredits = "referral_credits"
         case referredBy = "referred_by"
+        case isBeaconVolunteer = "is_beacon_volunteer"
     }
     
     var fullName: String {

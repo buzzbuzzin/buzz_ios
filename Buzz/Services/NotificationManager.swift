@@ -36,7 +36,13 @@ class NotificationManager: NSObject, ObservableObject {
         case crewBookingAccepted = "CREW_BOOKING_ACCEPTED"
         case crewBookingCompleted = "CREW_BOOKING_COMPLETED"
         case videoUploadReminder = "VIDEO_UPLOAD_REMINDER"
+        case emergencyBeacon = "EMERGENCY_BEACON"
+        case emergencyBeaconUrgent = "EMERGENCY_BEACON_URGENT"
     }
+    
+    // Published property for emergency flash effect
+    @Published var showEmergencyFlash: Bool = false
+    @Published var emergencyBookingId: UUID?
     
     private override init() {
         super.init()
@@ -369,6 +375,96 @@ class NotificationManager: NSObject, ObservableObject {
         try? await notificationCenter.add(request)
     }
     
+    // MARK: - Beacon Emergency Notifications
+    
+    /// Notify beacon volunteer about a nearby emergency booking (standard priority)
+    func notifyEmergencyBooking(
+        bookingId: UUID,
+        location: String,
+        distanceMiles: Double,
+        missionType: String
+    ) async {
+        let content = UNMutableNotificationContent()
+        content.title = "🚨 Emergency Response Needed"
+        let distanceText = String(format: "%.1f miles", distanceMiles)
+        content.body = "\(missionType) mission \(distanceText) away near \(location)"
+        content.sound = .default
+        content.categoryIdentifier = NotificationCategory.emergencyBeacon.rawValue
+        content.userInfo = [
+            "bookingId": bookingId.uuidString,
+            "type": "emergency_beacon",
+            "location": location,
+            "distanceMiles": distanceMiles,
+            "missionType": missionType
+        ]
+        
+        let request = UNNotificationRequest(
+            identifier: "emergency-\(bookingId.uuidString)",
+            content: content,
+            trigger: nil
+        )
+        
+        try? await notificationCenter.add(request)
+    }
+    
+    /// Notify beacon volunteer about an urgent emergency - bypasses DND with critical alert
+    func notifyUrgentEmergency(
+        bookingId: UUID,
+        location: String,
+        distanceMiles: Double,
+        missionType: String
+    ) async {
+        let content = UNMutableNotificationContent()
+        content.title = "🆘 URGENT: Emergency Response"
+        let distanceText = String(format: "%.1f miles", distanceMiles)
+        content.body = "CRITICAL \(missionType) mission \(distanceText) away near \(location). Immediate response needed!"
+        
+        // Use critical alert sound - bypasses Do Not Disturb
+        content.sound = .defaultCritical
+        content.categoryIdentifier = NotificationCategory.emergencyBeaconUrgent.rawValue
+        content.interruptionLevel = .critical
+        content.userInfo = [
+            "bookingId": bookingId.uuidString,
+            "type": "emergency_beacon_urgent",
+            "location": location,
+            "distanceMiles": distanceMiles,
+            "missionType": missionType,
+            "isUrgent": true
+        ]
+        
+        let request = UNNotificationRequest(
+            identifier: "urgent-emergency-\(bookingId.uuidString)",
+            content: content,
+            trigger: nil
+        )
+        
+        try? await notificationCenter.add(request)
+        
+        // Trigger flash effect for urgent emergencies
+        await triggerEmergencyFlash(bookingId: bookingId)
+    }
+    
+    /// Trigger a flashing screen effect for urgent emergencies
+    private func triggerEmergencyFlash(bookingId: UUID) async {
+        await MainActor.run {
+            self.emergencyBookingId = bookingId
+            self.showEmergencyFlash = true
+        }
+        
+        // Flash for 3 seconds
+        try? await Task.sleep(nanoseconds: 3_000_000_000)
+        
+        await MainActor.run {
+            self.showEmergencyFlash = false
+        }
+    }
+    
+    /// Stop the emergency flash effect
+    func stopEmergencyFlash() {
+        showEmergencyFlash = false
+        emergencyBookingId = nil
+    }
+    
     // MARK: - Message Notifications (Both Client & Pilot)
     
     /// Notify user about a new message
@@ -411,6 +507,9 @@ class NotificationManager: NSObject, ObservableObject {
             return preferences.bookingReminders.system
         case .videoUploadReminder:
             return preferences.bookingReminders.system
+        case .emergencyBeacon, .emergencyBeaconUrgent:
+            // Emergency notifications are always enabled for volunteers
+            return true
         }
     }
     

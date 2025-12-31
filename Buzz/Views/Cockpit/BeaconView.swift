@@ -12,6 +12,9 @@ struct BeaconView: View {
     @EnvironmentObject var authService: AuthService
     @State private var isLoading: Bool = true
     @State private var activeMissions: [BeaconMission] = []
+    @State private var showOnboarding: Bool = false
+    @State private var isBeaconVolunteer: Bool = false
+    @State private var trainingProgress: [BeaconTrainingProgress] = []
     
     var body: some View {
         ScrollView {
@@ -79,27 +82,6 @@ struct BeaconView: View {
                 }
                 .padding()
                 .background(Color(.secondarySystemBackground))
-                .cornerRadius(16)
-                .padding(.horizontal)
-                
-                // Coming Soon Notice
-                VStack(spacing: 12) {
-                    Image(systemName: "wrench.and.screwdriver.fill")
-                        .font(.system(size: 40))
-                        .foregroundColor(.orange)
-                    
-                    Text("Coming Soon")
-                        .font(.title2)
-                        .fontWeight(.bold)
-                    
-                    Text("We're building a community-driven emergency response system for drone pilots. Stay tuned for more updates!")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal)
-                }
-                .padding()
-                .background(Color.orange.opacity(0.1))
                 .cornerRadius(16)
                 .padding(.horizontal)
                 
@@ -177,44 +159,84 @@ struct BeaconView: View {
                     .padding(.horizontal)
                 }
                 
-                // Sign Up Prompt
-                VStack(spacing: 16) {
-                    Text("Join the Beacon Community")
-                        .font(.title3)
-                        .fontWeight(.bold)
-                    
-                    Text("Be part of an elite group of pilots making a difference in your community")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
-                    
-                    Button(action: {
-                        // TODO: Implement enrollment when backend is ready
-                    }) {
-                        HStack {
-                            Image(systemName: "checkmark.circle.fill")
-                            Text("Enroll in Beacon Program")
-                                .fontWeight(.semibold)
-                        }
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(
-                            LinearGradient(
-                                colors: [.yellow, .orange],
-                                startPoint: .leading,
-                                endPoint: .trailing
+                // Sign Up Prompt (only show if not already a volunteer)
+                if !isBeaconVolunteer {
+                    VStack(spacing: 16) {
+                        Text("Join the Emergency Response Program")
+                            .font(.title3)
+                            .fontWeight(.bold)
+                        
+                        Text("Be part of an elite group of pilots making a difference in your community")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                        
+                        Button(action: {
+                            showOnboarding = true
+                        }) {
+                            HStack {
+                                Image(systemName: "checkmark.circle.fill")
+                                Text("Start Onboarding")
+                                    .fontWeight(.semibold)
+                            }
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(
+                                LinearGradient(
+                                    colors: [.yellow, .orange],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
                             )
-                        )
-                        .cornerRadius(12)
+                            .cornerRadius(12)
+                        }
                     }
-                    .disabled(true)
-                    .opacity(0.6)
+                    .padding()
+                    .background(Color(.secondarySystemBackground))
+                    .cornerRadius(16)
+                    .padding(.horizontal)
+                } else {
+                    // Volunteer Status Card
+                    VStack(spacing: 16) {
+                        HStack {
+                            Image(systemName: "checkmark.seal.fill")
+                                .font(.system(size: 40))
+                                .foregroundColor(.green)
+                            
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Active Beacon Volunteer")
+                                    .font(.headline)
+                                    .foregroundColor(.primary)
+                                
+                                Text("You're ready to respond to emergencies")
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                            }
+                            
+                            Spacer()
+                        }
+                        
+                        // Volunteer dashboard link could go here
+                        NavigationLink(destination: BeaconVolunteerDashboardView().environmentObject(authService)) {
+                            HStack {
+                                Image(systemName: "square.grid.2x2")
+                                Text("View Dashboard")
+                                    .fontWeight(.semibold)
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                            }
+                            .foregroundColor(.primary)
+                            .padding()
+                            .background(Color(.tertiarySystemBackground))
+                            .cornerRadius(12)
+                        }
+                    }
+                    .padding()
+                    .background(Color(.secondarySystemBackground))
+                    .cornerRadius(16)
+                    .padding(.horizontal)
                 }
-                .padding()
-                .background(Color(.secondarySystemBackground))
-                .cornerRadius(16)
-                .padding(.horizontal)
             }
             .padding(.vertical)
         }
@@ -226,11 +248,34 @@ struct BeaconView: View {
         .refreshable {
             await loadData()
         }
+        .sheet(isPresented: $showOnboarding) {
+            NavigationView {
+                BeaconOnboardingView(
+                    onComplete: {
+                        showOnboarding = false
+                        Task {
+                            await loadData()
+                        }
+                    }
+                )
+                .environmentObject(authService)
+            }
+        }
     }
     
     private func loadData() async {
-        // TODO: Load active missions from backend when implemented
-        try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+        isLoading = true
+        
+        // Check if user is a beacon volunteer
+        if let userId = authService.currentUser?.id {
+            do {
+                let beaconService = BeaconService()
+                isBeaconVolunteer = try await beaconService.isUserBeaconVolunteer(userId: userId)
+                trainingProgress = try await beaconService.getTrainingProgress(userId: userId)
+            } catch {
+                print("Error loading beacon status: \(error)")
+            }
+        }
         
         // Demo data - will be replaced with actual beacon missions
         activeMissions = []
@@ -378,6 +423,194 @@ struct MissionTypeCard: View {
         .padding()
         .background(Color(.secondarySystemBackground))
         .cornerRadius(12)
+    }
+}
+
+// MARK: - Beacon Volunteer Dashboard View
+
+struct BeaconVolunteerDashboardView: View {
+    @EnvironmentObject var authService: AuthService
+    @State private var isAvailable: Bool = true
+    
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 24) {
+                // Availability Toggle
+                VStack(spacing: 16) {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Availability Status")
+                                .font(.headline)
+                            
+                            Text(isAvailable ? "Ready to respond" : "Not available")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        }
+                        
+                        Spacer()
+                        
+                        Toggle("", isOn: $isAvailable)
+                            .labelsHidden()
+                            .tint(.green)
+                    }
+                }
+                .padding()
+                .background(Color(.secondarySystemBackground))
+                .cornerRadius(16)
+                .padding(.horizontal)
+                
+                // Stats Section
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("Your Impact")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                        .padding(.horizontal)
+                    
+                    HStack(spacing: 16) {
+                        StatCard(title: "Missions", value: "0", icon: "flag.fill", color: .blue)
+                        StatCard(title: "Hours", value: "0", icon: "clock.fill", color: .orange)
+                        StatCard(title: "People Helped", value: "0", icon: "person.2.fill", color: .green)
+                    }
+                    .padding(.horizontal)
+                }
+                
+                // Active Missions Section
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("Active Missions")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                        .padding(.horizontal)
+                    
+                    VStack(spacing: 12) {
+                        Text("No active missions")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(Color(.secondarySystemBackground))
+                            .cornerRadius(12)
+                    }
+                    .padding(.horizontal)
+                }
+                
+                Spacer()
+            }
+            .padding(.vertical)
+        }
+        .navigationTitle("Volunteer Dashboard")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+// MARK: - Stat Card
+
+struct StatCard: View {
+    let title: String
+    let value: String
+    let icon: String
+    let color: Color
+    
+    var body: some View {
+        VStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.system(size: 24))
+                .foregroundColor(color)
+            
+            Text(value)
+                .font(.title2)
+                .fontWeight(.bold)
+            
+            Text(title)
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding()
+        .background(Color(.secondarySystemBackground))
+        .cornerRadius(12)
+    }
+}
+
+// MARK: - Emergency Flash Overlay
+
+/// A full-screen flashing overlay that appears during urgent emergencies
+/// Add this to your root view and observe NotificationManager.shared.showEmergencyFlash
+struct EmergencyFlashOverlay: View {
+    @ObservedObject var notificationManager = NotificationManager.shared
+    @State private var isFlashing: Bool = false
+    @State private var flashCount: Int = 0
+    
+    var body: some View {
+        ZStack {
+            if notificationManager.showEmergencyFlash {
+                Color.red
+                    .opacity(isFlashing ? 0.6 : 0.0)
+                    .ignoresSafeArea()
+                    .animation(.easeInOut(duration: 0.3), value: isFlashing)
+                    .allowsHitTesting(false)
+                
+                VStack(spacing: 20) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 80))
+                        .foregroundColor(.white)
+                        .shadow(color: .black.opacity(0.3), radius: 10)
+                    
+                    Text("EMERGENCY")
+                        .font(.largeTitle)
+                        .fontWeight(.bold)
+                        .foregroundColor(.white)
+                        .shadow(color: .black.opacity(0.3), radius: 10)
+                    
+                    Text("Tap to respond")
+                        .font(.headline)
+                        .foregroundColor(.white.opacity(0.9))
+                        .shadow(color: .black.opacity(0.3), radius: 5)
+                }
+                .opacity(isFlashing ? 1.0 : 0.0)
+                .animation(.easeInOut(duration: 0.3), value: isFlashing)
+            }
+        }
+        .onChange(of: notificationManager.showEmergencyFlash) { shouldFlash in
+            if shouldFlash {
+                startFlashing()
+            } else {
+                isFlashing = false
+                flashCount = 0
+            }
+        }
+        .onTapGesture {
+            if notificationManager.showEmergencyFlash {
+                notificationManager.stopEmergencyFlash()
+                // Navigate to the emergency booking if ID is available
+                if let bookingId = notificationManager.emergencyBookingId {
+                    NotificationCenter.default.post(
+                        name: NSNotification.Name("NavigateToEmergencyBooking"),
+                        object: nil,
+                        userInfo: ["bookingId": bookingId.uuidString]
+                    )
+                }
+            }
+        }
+    }
+    
+    private func startFlashing() {
+        flashCount = 0
+        performFlash()
+    }
+    
+    private func performFlash() {
+        guard flashCount < 10 else { // Flash 5 times (on/off = 10 changes)
+            return
+        }
+        
+        isFlashing.toggle()
+        flashCount += 1
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            if notificationManager.showEmergencyFlash {
+                performFlash()
+            }
+        }
     }
 }
 
