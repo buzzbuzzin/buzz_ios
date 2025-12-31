@@ -32,10 +32,8 @@ struct LogsView: View {
                 .padding(.horizontal)
                 .padding(.top)
                 
-                // Incident Log Card
-                Button(action: {
-                    selectedPDF = PDFSelection(url: incidentLogURL)
-                }) {
+                // Incident Log Card - Navigate to electronic form
+                NavigationLink(destination: IncidentLogBookingSelectionView()) {
                     HStack(spacing: 16) {
                         ZStack {
                             Circle()

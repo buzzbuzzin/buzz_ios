@@ -45,6 +45,11 @@ ALTER TABLE public.exam_appointments ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies
 
+-- Drop existing policies if they exist
+DROP POLICY IF EXISTS "Pilots can view own exam appointments" ON public.exam_appointments;
+DROP POLICY IF EXISTS "Pilots can create own exam appointments" ON public.exam_appointments;
+DROP POLICY IF EXISTS "Pilots can update own pending exam appointments" ON public.exam_appointments;
+
 -- Pilots can view their own exam appointments
 CREATE POLICY "Pilots can view own exam appointments"
   ON public.exam_appointments
