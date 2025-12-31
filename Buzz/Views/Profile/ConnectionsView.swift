@@ -17,6 +17,7 @@ struct ConnectionsView: View {
     @State private var showCopiedToast = false
     @State private var errorMessage: String?
     @State private var showError = false
+    @State private var navigateToHistory = false
     
     private var referralLink: String {
         if let code = referralService.referralCode {
@@ -97,7 +98,7 @@ struct ConnectionsView: View {
                 .font(.title2)
                 .fontWeight(.bold)
             
-            Text("Share your referral code with friends. When they sign up and verify their ID, you'll earn $25 in credits!")
+            Text("Share your referral code with friends. When new pilots or customers sign up and verify their ID, you'll earn 1 credit ($25) for each referral to use towards a drone service or in our Buzz shop.")
                 .font(.subheadline)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
@@ -109,33 +110,48 @@ struct ConnectionsView: View {
     
     private var creditsSection: some View {
         VStack(spacing: 16) {
-            // Available Credits Card
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Available Credits")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
+            // Available Credits Card (Clickable)
+            NavigationLink(destination: ReferralHistoryView()) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Available Credits")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                        
+                        if isLoading {
+                            ProgressView()
+                        } else {
+                            Text("$\(formattedCredits)")
+                                .font(.system(size: 32, weight: .bold))
+                                .foregroundColor(.green)
+                        }
+                    }
                     
-                    if isLoading {
-                        ProgressView()
-                    } else {
-                        Text("$\(formattedCredits)")
-                            .font(.system(size: 32, weight: .bold))
-                            .foregroundColor(.green)
+                    Spacer()
+                    
+                    VStack {
+                        Image(systemName: "dollarsign.circle.fill")
+                            .font(.system(size: 40))
+                            .foregroundColor(.green.opacity(0.3))
+                        
+                        // Chevron indicator to show it's tappable
+                        HStack(spacing: 2) {
+                            Text("View History")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                            Image(systemName: "chevron.right")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
                     }
                 }
-                
-                Spacer()
-                
-                Image(systemName: "dollarsign.circle.fill")
-                    .font(.system(size: 40))
-                    .foregroundColor(.green.opacity(0.3))
+                .padding()
+                .background(
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(Color.green.opacity(0.1))
+                )
             }
-            .padding()
-            .background(
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(Color.green.opacity(0.1))
-            )
+            .buttonStyle(PlainButtonStyle())
             
             // Stats Row
             if let stats = referralService.stats {
