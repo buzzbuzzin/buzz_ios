@@ -217,6 +217,16 @@ struct CockpitView: View {
                                     )
                                 }
                                 .buttonStyle(PlainButtonStyle())
+                                
+                                // Beacon Card
+                                NavigationLink(destination: BeaconView().environmentObject(authService)) {
+                                    CockpitGridCard(
+                                        title: "Beacon",
+                                        icon: "antenna.radiowaves.left.and.right",
+                                        color: .yellow
+                                    )
+                                }
+                                .buttonStyle(PlainButtonStyle())
                             }
                             .padding(.horizontal, 16)
                         }
