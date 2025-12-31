@@ -277,17 +277,15 @@ struct CreateBookingStep4ConfirmView: View {
                                 .font(.subheadline)
                         }
                         
-                        // Credits discount (if applied)
-                        if creditsToUse > 0 {
-                            HStack {
-                                Text("Referral credit")
-                                    .font(.subheadline)
-                                    .foregroundColor(.green)
-                                Spacer()
-                                Text("-$\(String(format: "%.2f", NSDecimalNumber(decimal: creditsToUse).doubleValue))")
-                                    .font(.subheadline)
-                                    .foregroundColor(.green)
-                            }
+                        // Referral credit (always shown)
+                        HStack {
+                            Text("Referral credit")
+                                .font(.subheadline)
+                                .foregroundColor(creditsToUse > 0 ? .green : .secondary)
+                            Spacer()
+                            Text(creditsToUse > 0 ? "-$\(String(format: "%.2f", NSDecimalNumber(decimal: creditsToUse).doubleValue))" : "$0.00")
+                                .font(.subheadline)
+                                .foregroundColor(creditsToUse > 0 ? .green : .secondary)
                         }
                         
                         Divider()
