@@ -70,10 +70,8 @@ struct LogsView: View {
                 .buttonStyle(PlainButtonStyle())
                 .padding(.horizontal)
                 
-                // Maintenance Log Card
-                Button(action: {
-                    selectedPDF = PDFSelection(url: maintenanceLogURL)
-                }) {
+                // Maintenance Log Card - Navigate to electronic form
+                NavigationLink(destination: MaintenanceLogFormView()) {
                     HStack(spacing: 16) {
                         ZStack {
                             Circle()
@@ -110,10 +108,8 @@ struct LogsView: View {
                 .buttonStyle(PlainButtonStyle())
                 .padding(.horizontal)
                 
-                // Flight Log Card
-                Button(action: {
-                    selectedPDF = PDFSelection(url: flightLogURL)
-                }) {
+                // Flight Log Card - Navigate to electronic form
+                NavigationLink(destination: FlightLogFormView()) {
                     HStack(spacing: 16) {
                         ZStack {
                             Circle()
