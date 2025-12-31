@@ -500,17 +500,20 @@ private struct FormTextEditor: View {
             ZStack(alignment: .topLeading) {
                 if text.isEmpty {
                     Text(placeholder)
-                        .foregroundColor(.secondary)
-                        .padding(.horizontal, 8)
+                        .foregroundColor(Color(.placeholderText))
+                        .padding(.horizontal, 12)
                         .padding(.vertical, 12)
                 }
                 
                 TextEditor(text: $text)
                     .frame(minHeight: 120)
                     .padding(4)
+                    .scrollContentBackground(.hidden)
                     .background(Color(.secondarySystemBackground))
                     .cornerRadius(8)
             }
+            .background(Color(.secondarySystemBackground))
+            .cornerRadius(8)
         }
     }
 }
