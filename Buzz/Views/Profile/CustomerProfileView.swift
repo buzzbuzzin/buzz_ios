@@ -29,6 +29,7 @@ struct CustomerProfileView: View {
     @State private var navigateToFlightPackages = false
     @State private var navigateToConnections = false
     @State private var navigateToShop = false
+    @State private var navigateToBecomePilot = false
     
     var yearsOnBuzz: Int {
         guard let createdAt = authService.userProfile?.createdAt else { return 0 }
@@ -196,6 +197,14 @@ struct CustomerProfileView: View {
                         EmptyView()
                     }
                     .hidden()
+                    
+                    NavigationLink(
+                        destination: BecomePilotView(),
+                        isActive: $navigateToBecomePilot
+                    ) {
+                        EmptyView()
+                    }
+                    .hidden()
                 }
                 
                 List {
@@ -259,6 +268,42 @@ struct CustomerProfileView: View {
                                     .buttonStyle(PlainButtonStyle())
                                     .frame(maxWidth: .infinity)
                                 }
+                                
+                                // Become a Pilot Button
+                                Button(action: {
+                                    navigateToBecomePilot = true
+                                }) {
+                                    HStack(spacing: 12) {
+                                        Image(systemName: "person.badge.plus")
+                                            .font(.system(size: 24))
+                                            .foregroundColor(.blue)
+                                            .frame(width: 40, height: 40)
+                                            .background(Color.blue.opacity(0.1))
+                                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                                        
+                                        Text("Become a Pilot")
+                                            .font(.headline)
+                                            .fontWeight(.semibold)
+                                            .foregroundColor(.primary)
+                                        
+                                        Spacer()
+                                        
+                                        Image(systemName: "chevron.right")
+                                            .font(.system(size: 14))
+                                            .foregroundColor(.secondary)
+                                    }
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 12)
+                                    .frame(maxWidth: .infinity)
+                                    .frame(height: 100)
+                                    .background(Color(.secondarySystemGroupedBackground))
+                                    .cornerRadius(12)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 12)
+                                            .stroke(Color(.separator).opacity(0.2), lineWidth: 0.5)
+                                    )
+                                }
+                                .buttonStyle(PlainButtonStyle())
                             }
                             .listRowInsets(EdgeInsets())
                             .listRowBackground(Color.clear)
