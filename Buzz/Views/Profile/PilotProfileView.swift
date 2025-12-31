@@ -28,6 +28,7 @@ struct PilotProfileView: View {
     @State private var showError = false
     @State private var navigateToReviews = false
     @State private var navigateToBalance = false
+    @State private var navigateToConnections = false
     
     var yearsOnBuzz: Int {
         guard let createdAt = authService.userProfile?.createdAt else { return 0 }
@@ -197,6 +198,14 @@ struct PilotProfileView: View {
                         EmptyView()
                     }
                     .hidden()
+                    
+                    NavigationLink(
+                        destination: ConnectionsView(),
+                        isActive: $navigateToConnections
+                    ) {
+                        EmptyView()
+                    }
+                    .hidden()
                 }
                 
                 List {
@@ -262,30 +271,68 @@ struct PilotProfileView: View {
                     // Reviews and Balance Cards
                     if let currentUser = authService.currentUser {
                         Section {
-                            HStack(spacing: 8) {
-                                Button(action: {
-                                    navigateToReviews = true
-                                }) {
-                                    ProfileCard(
-                                        icon: "star.fill",
-                                        iconColor: .yellow,
-                                        title: "Reviews"
-                                    )
+                            VStack(spacing: 8) {
+                                HStack(spacing: 8) {
+                                    Button(action: {
+                                        navigateToReviews = true
+                                    }) {
+                                        ProfileCard(
+                                            icon: "star.fill",
+                                            iconColor: .yellow,
+                                            title: "Reviews"
+                                        )
+                                    }
+                                    .buttonStyle(PlainButtonStyle())
+                                    .frame(maxWidth: .infinity)
+                                    
+                                    Button(action: {
+                                        navigateToBalance = true
+                                    }) {
+                                        ProfileCard(
+                                            icon: "dollarsign.circle.fill",
+                                            iconColor: .green,
+                                            title: "Balance"
+                                        )
+                                    }
+                                    .buttonStyle(PlainButtonStyle())
+                                    .frame(maxWidth: .infinity)
                                 }
-                                .buttonStyle(PlainButtonStyle())
-                                .frame(maxWidth: .infinity)
                                 
+                                // Connections Button
                                 Button(action: {
-                                    navigateToBalance = true
+                                    navigateToConnections = true
                                 }) {
-                                    ProfileCard(
-                                        icon: "dollarsign.circle.fill",
-                                        iconColor: .green,
-                                        title: "Balance"
+                                    HStack(spacing: 12) {
+                                        Image(systemName: "person.2.fill")
+                                            .font(.system(size: 24))
+                                            .foregroundColor(.green)
+                                            .frame(width: 40, height: 40)
+                                            .background(Color.green.opacity(0.1))
+                                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                                        
+                                        Text("Connections")
+                                            .font(.headline)
+                                            .fontWeight(.semibold)
+                                            .foregroundColor(.primary)
+                                        
+                                        Spacer()
+                                        
+                                        Image(systemName: "chevron.right")
+                                            .font(.system(size: 14))
+                                            .foregroundColor(.secondary)
+                                    }
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 12)
+                                    .frame(maxWidth: .infinity)
+                                    .frame(height: 100)
+                                    .background(Color(.secondarySystemGroupedBackground))
+                                    .cornerRadius(12)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 12)
+                                            .stroke(Color(.separator).opacity(0.2), lineWidth: 0.5)
                                     )
                                 }
                                 .buttonStyle(PlainButtonStyle())
-                                .frame(maxWidth: .infinity)
                             }
                             .listRowInsets(EdgeInsets())
                             .listRowBackground(Color.clear)
