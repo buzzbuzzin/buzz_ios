@@ -7,8 +7,8 @@
 
 import Foundation
 import Supabase
-import UIKit
 import Combine
+import UIKit
 
 @MainActor
 class BeaconService: ObservableObject {
