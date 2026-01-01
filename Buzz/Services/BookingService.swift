@@ -134,6 +134,73 @@ class BookingService: ObservableObject {
         }
     }
     
+    // MARK: - Create Search & Rescue Booking (Customer)
+    
+    /// Creates a Search & Rescue booking without upfront payment.
+    /// Payment is calculated after mission completion based on hours worked and pilots involved.
+    func createSearchRescueBooking(
+        customerId: UUID,
+        location: CLLocationCoordinate2D,
+        locationName: String,
+        scheduledDate: Date?,
+        endDate: Date? = nil,
+        description: String?,
+        isVoluntary: Bool,
+        hourlyRate: Decimal,
+        estimatedFlightHours: Double
+    ) async throws -> Booking {
+        isLoading = true
+        errorMessage = nil
+        
+        do {
+            let bookingId = UUID()
+            var booking: [String: AnyJSON] = [
+                "id": .string(bookingId.uuidString),
+                "customer_id": .string(customerId.uuidString),
+                "location_lat": .double(location.latitude),
+                "location_lng": .double(location.longitude),
+                "location_name": .string(locationName),
+                "specialization": .string(BookingSpecialization.searchRescue.rawValue),
+                "payment_amount": .double(0), // Payment calculated post-completion
+                "status": .string(BookingStatus.available.rawValue),
+                "created_at": .string(ISO8601DateFormatter().string(from: Date())),
+                "estimated_flight_hours": .double(estimatedFlightHours),
+                "required_minimum_rank": .integer(0), // Any rank can join S&R
+                "is_voluntary": .bool(isVoluntary),
+                "hourly_rate": .double(NSDecimalNumber(decimal: hourlyRate).doubleValue)
+            ]
+            
+            if let description = description, !description.isEmpty {
+                booking["description"] = .string(description)
+            }
+            
+            if let scheduledDate = scheduledDate {
+                booking["scheduled_date"] = .string(ISO8601DateFormatter().string(from: scheduledDate))
+            }
+            
+            if let endDate = endDate {
+                booking["end_date"] = .string(ISO8601DateFormatter().string(from: endDate))
+            }
+            
+            // Insert + fetch via backend
+            let createdBooking = try await backend.createBooking(payload: booking, bookingId: bookingId)
+            
+            // Notify nearby pilots about the new booking
+            if !skipNetworkCalls {
+                Task {
+                    await notifyNearbyPilotsAboutNewBooking(booking: createdBooking)
+                }
+            }
+            
+            isLoading = false
+            return createdBooking
+        } catch {
+            isLoading = false
+            errorMessage = error.localizedDescription
+            throw error
+        }
+    }
+    
     // MARK: - Update Booking (Customer)
     
     func updateBooking(
@@ -1003,6 +1070,50 @@ class BookingService: ObservableObject {
         }
     }
     
+    // MARK: - Join Search & Rescue Booking (Pilot)
+    
+    /// Join a Search & Rescue mission. Multiple pilots can join.
+    /// Payment is calculated after mission completion based on hours worked.
+    func joinSearchRescueBooking(bookingId: UUID, pilotId: UUID) async throws -> JoinCrewResponse {
+        isLoading = true
+        errorMessage = nil
+        
+        do {
+            // Call the database function to join S&R booking
+            struct JoinResult: Codable {
+                let success: Bool
+                let error: String?
+                let message: String?
+            }
+            
+            let result: JoinResult = try await supabase
+                .rpc("join_search_rescue_booking", params: [
+                    "p_booking_id": bookingId.uuidString,
+                    "p_pilot_id": pilotId.uuidString
+                ])
+                .execute()
+                .value
+            
+            isLoading = false
+            
+            if !result.success {
+                throw NSError(domain: "BookingService", code: -1, userInfo: [NSLocalizedDescriptionKey: result.error ?? "Failed to join mission"])
+            }
+            
+            return JoinCrewResponse(
+                success: result.success,
+                message: result.message,
+                crewMember: nil,
+                crewStatus: nil,
+                error: result.error
+            )
+        } catch {
+            isLoading = false
+            errorMessage = error.localizedDescription
+            throw error
+        }
+    }
+    
     // MARK: - Fetch Booking Crew
     
     /// Fetch crew members for a booking. For automotive bookings, returns crew details.
@@ -1265,6 +1376,176 @@ class BookingService: ObservableObject {
             errorMessage = error.localizedDescription
             throw error
         }
+    }
+    
+    // MARK: - Search & Rescue Completion Methods
+    
+    /// Update the final hours worked for a Search & Rescue booking
+    func updateSearchRescueHours(bookingId: UUID, hoursWorked: Double) async throws {
+        let updateData: [String: AnyJSON] = [
+            "final_hours_worked": .double(hoursWorked)
+        ]
+        
+        try await supabase
+            .from("bookings")
+            .update(updateData)
+            .eq("id", value: bookingId.uuidString)
+            .execute()
+    }
+    
+    /// Complete a Search & Rescue mission with payment
+    /// This is called after the customer has paid for the mission
+    func completeSearchRescuePayment(
+        bookingId: UUID,
+        paymentIntentId: String,
+        totalAmount: Decimal,
+        hoursWorked: Double,
+        pilotCount: Int
+    ) async throws {
+        isLoading = true
+        errorMessage = nil
+        
+        do {
+            // Get charge ID from payment intent
+            let chargeId = try await getChargeIdFromPaymentIntent(paymentIntentId: paymentIntentId)
+            
+            // Update booking with payment info and mark as completed
+            let updateData: [String: AnyJSON] = [
+                "status": .string(BookingStatus.completed.rawValue),
+                "completed_at": .string(ISO8601DateFormatter().string(from: Date())),
+                "customer_completed": .bool(true),
+                "pilot_completed": .bool(true),
+                "final_hours_worked": .double(hoursWorked),
+                "payment_amount": .double(NSDecimalNumber(decimal: totalAmount).doubleValue),
+                "payment_intent_id": .string(paymentIntentId),
+                "charge_id": .string(chargeId)
+            ]
+            
+            try await supabase
+                .from("bookings")
+                .update(updateData)
+                .eq("id", value: bookingId.uuidString)
+                .execute()
+            
+            // Trigger transfer to pilots
+            struct TransferRequest: Codable {
+                let booking_id: String
+                let amount: Int
+                let currency: String
+                let charge_id: String
+            }
+            
+            let transferRequest = TransferRequest(
+                booking_id: bookingId.uuidString,
+                amount: Int(NSDecimalNumber(decimal: totalAmount * 100).intValue),
+                currency: "usd",
+                charge_id: chargeId
+            )
+            
+            // Trigger transfer to pilots (we don't need to capture the response)
+            try await supabase.functions
+                .invoke("create-transfer", options: FunctionInvokeOptions(
+                    body: transferRequest
+                ))
+            
+            // Update flight hours for all participating pilots
+            let crewMemberships: [BookingCrewMember] = try await supabase
+                .from("booking_crew")
+                .select()
+                .eq("booking_id", value: bookingId.uuidString)
+                .execute()
+                .value
+            
+            let rankingService = RankingService()
+            for crewMember in crewMemberships {
+                try? await rankingService.updateFlightHours(pilotId: crewMember.pilotId, additionalHours: hoursWorked)
+            }
+            
+            isLoading = false
+        } catch {
+            isLoading = false
+            errorMessage = error.localizedDescription
+            throw error
+        }
+    }
+    
+    /// Complete a voluntary Search & Rescue mission (no payment)
+    func completeVoluntaryMission(bookingId: UUID) async throws {
+        isLoading = true
+        errorMessage = nil
+        
+        do {
+            let updateData: [String: AnyJSON] = [
+                "status": .string(BookingStatus.completed.rawValue),
+                "completed_at": .string(ISO8601DateFormatter().string(from: Date())),
+                "customer_completed": .bool(true),
+                "pilot_completed": .bool(true)
+            ]
+            
+            try await supabase
+                .from("bookings")
+                .update(updateData)
+                .eq("id", value: bookingId.uuidString)
+                .execute()
+            
+            // Update flight hours for all participating pilots
+            let booking: Booking = try await supabase
+                .from("bookings")
+                .select()
+                .eq("id", value: bookingId.uuidString)
+                .single()
+                .execute()
+                .value
+            
+            let crewMemberships: [BookingCrewMember] = try await supabase
+                .from("booking_crew")
+                .select()
+                .eq("booking_id", value: bookingId.uuidString)
+                .execute()
+                .value
+            
+            let hoursWorked = booking.finalHoursWorked ?? booking.estimatedFlightHours ?? 0
+            let rankingService = RankingService()
+            for crewMember in crewMemberships {
+                try? await rankingService.updateFlightHours(pilotId: crewMember.pilotId, additionalHours: hoursWorked)
+            }
+            
+            isLoading = false
+        } catch {
+            isLoading = false
+            errorMessage = error.localizedDescription
+            throw error
+        }
+    }
+    
+    /// Helper to get charge ID from a payment intent
+    private func getChargeIdFromPaymentIntent(paymentIntentId: String) async throws -> String {
+        // The charge ID is typically stored in the payment intent response
+        // For now, we'll use the backend to retrieve it
+        struct ChargeRequest: Codable {
+            let payment_intent_id: String
+        }
+        
+        struct ChargeResponse: Codable {
+            let chargeId: String?
+            
+            enum CodingKeys: String, CodingKey {
+                case chargeId = "charge_id"
+            }
+        }
+        
+        let request = ChargeRequest(payment_intent_id: paymentIntentId)
+        
+        let response: ChargeResponse = try await supabase.functions
+            .invoke("get-charge-id", options: FunctionInvokeOptions(
+                body: request
+            ))
+        
+        guard let chargeId = response.chargeId else {
+            throw NSError(domain: "BookingService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Could not retrieve charge ID"])
+        }
+        
+        return chargeId
     }
     
     // MARK: - Complete Booking (Legacy - kept for backward compatibility)

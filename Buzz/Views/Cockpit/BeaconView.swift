@@ -430,7 +430,13 @@ struct MissionTypeCard: View {
 
 struct BeaconVolunteerDashboardView: View {
     @EnvironmentObject var authService: AuthService
+    @StateObject private var bookingService = BookingService()
+    @StateObject private var beaconService = BeaconService()
     @State private var isAvailable: Bool = true
+    @State private var isLoading: Bool = true
+    @State private var searchRescueBookings: [Booking] = []
+    @State private var myActiveMissions: [Booking] = []
+    @State private var volunteerStats: BeaconVolunteer?
     
     var body: some View {
         ScrollView {
@@ -452,6 +458,13 @@ struct BeaconVolunteerDashboardView: View {
                         Toggle("", isOn: $isAvailable)
                             .labelsHidden()
                             .tint(.green)
+                            .onChange(of: isAvailable) { _, newValue in
+                                Task {
+                                    if let userId = authService.activeUserId {
+                                        try? await beaconService.updateAvailability(userId: userId, isAvailable: newValue)
+                                    }
+                                }
+                            }
                     }
                 }
                 .padding()
@@ -467,21 +480,73 @@ struct BeaconVolunteerDashboardView: View {
                         .padding(.horizontal)
                     
                     HStack(spacing: 16) {
-                        StatCard(title: "Missions", value: "0", icon: "flag.fill", color: .blue)
-                        StatCard(title: "Hours", value: "0", icon: "clock.fill", color: .orange)
-                        StatCard(title: "People Helped", value: "0", icon: "person.2.fill", color: .green)
+                        StatCard(
+                            title: "Missions",
+                            value: "\(volunteerStats?.totalMissionsCompleted ?? 0)",
+                            icon: "flag.fill",
+                            color: .blue
+                        )
+                        StatCard(
+                            title: "Hours",
+                            value: String(format: "%.0f", volunteerStats?.totalHoursVolunteered ?? 0),
+                            icon: "clock.fill",
+                            color: .orange
+                        )
+                        StatCard(
+                            title: "People Helped",
+                            value: "\(volunteerStats?.peopleHelped ?? 0)",
+                            icon: "person.2.fill",
+                            color: .green
+                        )
                     }
                     .padding(.horizontal)
                 }
                 
-                // Active Missions Section
+                // Available Missions Section (S&R bookings needing help)
                 VStack(alignment: .leading, spacing: 16) {
-                    Text("Active Missions")
+                    HStack {
+                        Text("Available Missions")
+                            .font(.title2)
+                            .fontWeight(.bold)
+                        
+                        Spacer()
+                        
+                        if isLoading {
+                            ProgressView()
+                                .scaleEffect(0.8)
+                        }
+                    }
+                    .padding(.horizontal)
+                    
+                    if searchRescueBookings.isEmpty && !isLoading {
+                        Text("No missions available")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(Color(.secondarySystemBackground))
+                            .cornerRadius(12)
+                            .padding(.horizontal)
+                    } else {
+                        ForEach(searchRescueBookings) { booking in
+                            SearchRescueMissionCard(booking: booking) {
+                                Task {
+                                    await joinMission(booking: booking)
+                                }
+                            }
+                            .padding(.horizontal)
+                        }
+                    }
+                }
+                
+                // My Active Missions Section
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("My Active Missions")
                         .font(.title2)
                         .fontWeight(.bold)
                         .padding(.horizontal)
                     
-                    VStack(spacing: 12) {
+                    if myActiveMissions.isEmpty {
                         Text("No active missions")
                             .font(.subheadline)
                             .foregroundColor(.secondary)
@@ -489,8 +554,16 @@ struct BeaconVolunteerDashboardView: View {
                             .padding()
                             .background(Color(.secondarySystemBackground))
                             .cornerRadius(12)
+                            .padding(.horizontal)
+                    } else {
+                        ForEach(myActiveMissions) { booking in
+                            NavigationLink(destination: BookingDetailView(booking: booking)) {
+                                ActiveMissionCard(booking: booking)
+                            }
+                            .buttonStyle(PlainButtonStyle())
+                            .padding(.horizontal)
+                        }
                     }
-                    .padding(.horizontal)
                 }
                 
                 Spacer()
@@ -499,6 +572,200 @@ struct BeaconVolunteerDashboardView: View {
         }
         .navigationTitle("Volunteer Dashboard")
         .navigationBarTitleDisplayMode(.inline)
+        .task {
+            await loadData()
+        }
+        .refreshable {
+            await loadData()
+        }
+    }
+    
+    private func loadData() async {
+        isLoading = true
+        
+        guard let userId = authService.activeUserId else {
+            isLoading = false
+            return
+        }
+        
+        // Load volunteer stats
+        do {
+            volunteerStats = try await beaconService.getVolunteerStatus(userId: userId)
+            isAvailable = volunteerStats?.isAvailable ?? true
+        } catch {
+            print("Error loading volunteer stats: \(error)")
+        }
+        
+        // Load available S&R bookings (available status, not yet joined)
+        do {
+            try await bookingService.fetchAvailableBookings(forPilotId: userId)
+            searchRescueBookings = bookingService.availableBookings.filter { booking in
+                booking.specialization == .searchRescue &&
+                (booking.status == .available || booking.status == .accepted)
+            }
+        } catch {
+            print("Error loading S&R bookings: \(error)")
+        }
+        
+        // Load my active S&R missions (ones I've joined)
+        do {
+            try await bookingService.fetchMyBookings(userId: userId, isPilot: true)
+            myActiveMissions = bookingService.myBookings.filter { booking in
+                booking.specialization == .searchRescue &&
+                (booking.status == .accepted)
+            }
+        } catch {
+            print("Error loading my missions: \(error)")
+        }
+        
+        isLoading = false
+    }
+    
+    private func joinMission(booking: Booking) async {
+        guard let userId = authService.activeUserId else { return }
+        
+        do {
+            // Use the search rescue join function
+            _ = try await bookingService.joinSearchRescueBooking(bookingId: booking.id, pilotId: userId)
+            // Reload data after joining
+            await loadData()
+        } catch {
+            print("Error joining mission: \(error)")
+        }
+    }
+}
+
+// MARK: - Search Rescue Mission Card
+
+struct SearchRescueMissionCard: View {
+    let booking: Booking
+    let onJoin: () -> Void
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            // Header
+            HStack {
+                Image(systemName: "cross.fill")
+                    .font(.title2)
+                    .foregroundColor(.red)
+                
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Search & Rescue Mission")
+                        .font(.headline)
+                    
+                    Text(booking.locationName)
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+                
+                Spacer()
+                
+                // Payment Badge
+                if booking.isVoluntary == true {
+                    Text("Voluntary")
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.green)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.green.opacity(0.2))
+                        .cornerRadius(6)
+                } else {
+                    Text("$25/hr")
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.blue)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.blue.opacity(0.2))
+                        .cornerRadius(6)
+                }
+            }
+            
+            // Description if available
+            if let description = booking.description, !description.isEmpty {
+                Text(description)
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .lineLimit(2)
+            }
+            
+            // Date & Time
+            if let scheduledDate = booking.scheduledDate {
+                HStack(spacing: 12) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "calendar")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Text(scheduledDate, style: .date)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    HStack(spacing: 4) {
+                        Image(systemName: "clock")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Text(scheduledDate, style: .time)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+            }
+            
+            // Join Button
+            Button(action: onJoin) {
+                HStack {
+                    Image(systemName: "hand.raised.fill")
+                    Text("Join Mission")
+                        .fontWeight(.semibold)
+                }
+                .foregroundColor(.white)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+                .background(Color.red)
+                .cornerRadius(10)
+            }
+        }
+        .padding()
+        .background(Color(.secondarySystemBackground))
+        .cornerRadius(16)
+    }
+}
+
+// MARK: - Active Mission Card
+
+struct ActiveMissionCard: View {
+    let booking: Booking
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "cross.fill")
+                .font(.title2)
+                .foregroundColor(.red)
+                .frame(width: 44, height: 44)
+                .background(Color.red.opacity(0.2))
+                .cornerRadius(10)
+            
+            VStack(alignment: .leading, spacing: 4) {
+                Text(booking.locationName)
+                    .font(.headline)
+                
+                if let scheduledDate = booking.scheduledDate {
+                    Text(scheduledDate, style: .date)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+            
+            Spacer()
+            
+            Image(systemName: "chevron.right")
+                .foregroundColor(.secondary)
+        }
+        .padding()
+        .background(Color(.secondarySystemBackground))
+        .cornerRadius(12)
     }
 }
 

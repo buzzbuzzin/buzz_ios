@@ -360,6 +360,10 @@ struct CreateBookingView: View {
     @State private var realEstateUnder5000Prices: [RealEstateBookingPrice] = []
     @State private var realEstateAbove5000Prices: [RealEstateBookingPrice] = []
     
+    // Search & Rescue specific state
+    @State private var isVoluntaryMission: Bool = true
+    @State private var searchRescueHourlyRate: Decimal = 25.0 // Fixed $25/hour per pilot
+    
     // Credits for booking
     @State private var availableCredits: Decimal = 0
     @State private var creditsToUse: Decimal = 0
@@ -415,6 +419,7 @@ struct CreateBookingView: View {
                             propertySize: propertySize,
                             realEstateUnder5000Prices: realEstateUnder5000Prices,
                             realEstateAbove5000Prices: realEstateAbove5000Prices,
+                            isVoluntaryMission: $isVoluntaryMission,
                             onBack: {
                                 currentStep = 2
                             },
@@ -576,6 +581,11 @@ struct CreateBookingView: View {
             return true // Payment is set automatically
         }
         
+        // For Search & Rescue, payment is either voluntary ($0) or $25/hour (decided at completion)
+        if selectedSpecialization == .searchRescue {
+            return true // Always valid - either voluntary or fixed hourly rate
+        }
+        
         // For other industries, validate payment input
         // Use default 2 hours for validation
         let defaultHours: Double = 2.0
@@ -674,6 +684,10 @@ struct CreateBookingView: View {
         } else if specialization == .realEstate {
             // For Real Estate, use fixed pricing based on rank and property size
             return getRealEstatePrice(for: requiredMinimumRank, propertySize: propertySize)
+        } else if specialization == .searchRescue {
+            // For Search & Rescue, payment is calculated after completion
+            // Return 0 for now - actual payment happens post-completion
+            return Decimal(0)
         } else {
             // For other industries, use user-entered payment
             if let paymentValue = Double(paymentAmount) {
@@ -740,9 +754,22 @@ struct CreateBookingView: View {
         // Calculate payment amount
         let payment: Decimal = getFinalPaymentAmount()
         
-        if payment == 0 {
+        // For Search & Rescue, payment is handled post-completion, so $0 is valid
+        if payment == 0 && specialization != .searchRescue {
             errorMessage = "Please enter a valid payment amount"
             showError = true
+            return
+        }
+        
+        // For Search & Rescue, create booking without upfront payment
+        if specialization == .searchRescue {
+            Task {
+                await createSearchRescueBooking(
+                    customerId: currentUser.id,
+                    location: location,
+                    hours: hours
+                )
+            }
             return
         }
         
@@ -797,6 +824,74 @@ struct CreateBookingView: View {
             case 2: return Decimal(6600) // Lieutenant
             case 1: return Decimal(6400) // Sub Lieutenant
             default: return Decimal(6400) // Ensign (default to Sub Lieutenant price)
+            }
+        }
+    }
+    
+    /// Create a Search & Rescue booking without upfront payment
+    /// Payment is calculated and collected after mission completion based on hours worked and pilots involved
+    private func createSearchRescueBooking(
+        customerId: UUID,
+        location: CLLocationCoordinate2D,
+        hours: Double
+    ) async {
+        isProcessingPayment = true
+        
+        do {
+            // Combine date with start time
+            let calendar = Calendar.current
+            let dateComponents = calendar.dateComponents([.year, .month, .day], from: selectedDate)
+            let startTimeComponents = calendar.dateComponents([.hour, .minute], from: startTime)
+            
+            var startDateTimeComponents = DateComponents()
+            startDateTimeComponents.year = dateComponents.year
+            startDateTimeComponents.month = dateComponents.month
+            startDateTimeComponents.day = dateComponents.day
+            startDateTimeComponents.hour = startTimeComponents.hour
+            startDateTimeComponents.minute = startTimeComponents.minute
+            
+            let startDateTime = calendar.date(from: startDateTimeComponents) ?? selectedDate
+            
+            // Use provided end time if available, otherwise calculate from start time + estimated hours
+            var endDateTime: Date
+            if let providedEndTime = endTime {
+                let endTimeComponents = calendar.dateComponents([.hour, .minute], from: providedEndTime)
+                var endDateTimeComponents = DateComponents()
+                endDateTimeComponents.year = dateComponents.year
+                endDateTimeComponents.month = dateComponents.month
+                endDateTimeComponents.day = dateComponents.day
+                endDateTimeComponents.hour = endTimeComponents.hour
+                endDateTimeComponents.minute = endTimeComponents.minute
+                endDateTime = calendar.date(from: endDateTimeComponents) ?? startDateTime
+            } else {
+                // Calculate end time from start time + estimated hours
+                endDateTime = calendar.date(byAdding: .hour, value: Int(hours), to: startDateTime) ?? startDateTime
+            }
+            
+            // Create Search & Rescue booking without payment (payment happens after completion)
+            let newBooking = try await bookingService.createSearchRescueBooking(
+                customerId: customerId,
+                location: location,
+                locationName: locationName.isEmpty ? "Selected Location" : locationName,
+                scheduledDate: startDateTime,
+                endDate: endDateTime,
+                description: description.isEmpty ? nil : description,
+                isVoluntary: isVoluntaryMission,
+                hourlyRate: isVoluntaryMission ? Decimal(0) : searchRescueHourlyRate,
+                estimatedFlightHours: hours
+            )
+            
+            await MainActor.run {
+                createdBooking = newBooking
+                onBookingCreated?(newBooking)
+                showSuccessAnimation = true
+                isProcessingPayment = false
+            }
+        } catch {
+            await MainActor.run {
+                errorMessage = error.localizedDescription
+                showError = true
+                isProcessingPayment = false
             }
         }
     }
@@ -968,6 +1063,7 @@ struct CustomerBookingDetailView: View {
     @State private var showFinishBookingAlert = false
     @State private var showCompletionConfirmation = false
     @State private var showCompletionSuccess = false
+    @State private var showSearchRescueCompletion = false
     @Environment(\.dismiss) var dismiss
     
     // Check if pilot info should be visible (always show if pilot is assigned)
@@ -1280,9 +1376,39 @@ struct CustomerBookingDetailView: View {
                             .background(Color.blue.opacity(0.1))
                             .cornerRadius(8)
                         
+                        // For S&R bookings, show completion sheet with hours entry
+                        if currentBooking.isSearchRescueCrewBooking {
+                            CustomButton(
+                                title: "Complete Mission",
+                                action: { showSearchRescueCompletion = true },
+                                style: .primary,
+                                isLoading: bookingService.isLoading
+                            )
+                        } else {
+                            CustomButton(
+                                title: "Confirm Completion",
+                                action: { showCompletionConfirmation = true },
+                                style: .primary,
+                                isLoading: bookingService.isLoading
+                            )
+                        }
+                    }
+                    .padding(.horizontal)
+                }
+                
+                // For Search & Rescue - allow customer to complete at any time when pilots have joined
+                if currentBooking.isSearchRescueCrewBooking &&
+                   currentBooking.status == .accepted &&
+                   currentBooking.customerCompleted != true {
+                    VStack(spacing: 12) {
+                        Text("When your mission is complete, enter the hours worked to calculate payment")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                        
                         CustomButton(
-                            title: "Confirm Completion",
-                            action: { showCompletionConfirmation = true },
+                            title: "Complete Mission",
+                            action: { showSearchRescueCompletion = true },
                             style: .primary,
                             isLoading: bookingService.isLoading
                         )
@@ -1389,6 +1515,13 @@ struct CustomerBookingDetailView: View {
         }
         .sheet(isPresented: $showEditSheet) {
             EditBookingView(booking: currentBooking)
+        }
+        .sheet(isPresented: $showSearchRescueCompletion) {
+            SearchRescueCompletionView(booking: currentBooking) {
+                Task {
+                    await refreshBooking()
+                }
+            }
         }
         .task {
             // Load pilot profile and refresh booking

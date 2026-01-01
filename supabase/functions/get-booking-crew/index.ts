@@ -61,11 +61,17 @@ serve(async (req) => {
       )
     }
 
-    // For non-automotive bookings, return empty crew
-    if (booking.specialization !== "automotive") {
+    // Check if this is a crew-based booking (automotive or search_rescue)
+    const isAutomotive = booking.specialization === "automotive"
+    const isSearchRescue = booking.specialization === "search_rescue"
+    const isCrewBooking = isAutomotive || isSearchRescue
+
+    // For non-crew bookings, return empty crew
+    if (!isCrewBooking) {
       return new Response(
         JSON.stringify({
           is_automotive: false,
+          is_search_rescue: false,
           crew: [],
           crew_count: 0,
           max_crew: 1,
@@ -150,15 +156,16 @@ serve(async (req) => {
       (requester_id && requester_id === booking.customer_id)
     const isPilotInCrew = requester_id && crewWithProfiles.some(m => m.pilot_id === requester_id)
 
-    // For customers, only show lead pilot info
+    // For customers, only show lead pilot info (or crew count for S&R)
     if (isCustomer && !isPilotInCrew) {
       return new Response(
         JSON.stringify({
-          is_automotive: true,
+          is_automotive: isAutomotive,
+          is_search_rescue: isSearchRescue,
           crew_count: crewWithProfiles.length,
-          max_crew: 4,
+          max_crew: isSearchRescue ? 999 : 4, // S&R has no limit
           status: booking.status,
-          has_qualified_lead: hasQualifiedLead,
+          has_qualified_lead: isSearchRescue ? true : hasQualifiedLead, // S&R doesn't need a lead
           lead_pilot: leadPilot ? {
             pilot_id: leadPilot.pilot_id,
             pilot_name: leadPilot.pilot_name,
@@ -181,19 +188,20 @@ serve(async (req) => {
     // For pilots (in crew or viewing available booking), return full details
     return new Response(
       JSON.stringify({
-        is_automotive: true,
+        is_automotive: isAutomotive,
+        is_search_rescue: isSearchRescue,
         crew: crewWithProfiles,
         crew_count: crewWithProfiles.length,
-        max_crew: 4,
+        max_crew: isSearchRescue ? 999 : 4, // S&R has no limit
         status: booking.status,
-        has_qualified_lead: hasQualifiedLead,
-        is_crew_full: crewWithProfiles.length >= 4,
-        is_ready: crewWithProfiles.length >= 4 && hasQualifiedLead,
+        has_qualified_lead: isSearchRescue ? true : hasQualifiedLead, // S&R doesn't need a lead
+        is_crew_full: isSearchRescue ? false : crewWithProfiles.length >= 4, // S&R never full
+        is_ready: isSearchRescue ? crewWithProfiles.length > 0 : (crewWithProfiles.length >= 4 && hasQualifiedLead),
         lead_pilot: leadPilot,
         total_payout: crewWithProfiles.reduce((sum, m) => sum + Number(m.payout_amount), 0),
-        min_lead_rank: minLeadRank,
-        min_lead_rank_name: RANK_NAMES[minLeadRank],
-        is_last_seat_reserved: isLastSeatReserved,
+        min_lead_rank: isSearchRescue ? 0 : minLeadRank, // S&R has no rank requirement
+        min_lead_rank_name: isSearchRescue ? "Any" : RANK_NAMES[minLeadRank],
+        is_last_seat_reserved: isSearchRescue ? false : isLastSeatReserved, // S&R doesn't reserve seats
       }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },

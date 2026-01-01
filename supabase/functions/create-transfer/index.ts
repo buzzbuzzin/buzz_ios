@@ -93,6 +93,12 @@ serve(async (req) => {
       return await handleAutomotiveTransfer(booking_id, sourceChargeId, currency, booking.transfer_id)
     }
 
+    // Check if this is a Search & Rescue booking with crew
+    if (booking.specialization === "search_rescue") {
+      // Handle S&R booking - transfer equal amounts to all crew members
+      return await handleSearchRescueTransfer(booking_id, sourceChargeId, currency, booking.transfer_id, amount)
+    }
+
     // Non-automotive booking - original single pilot transfer logic
     if (!amount) {
       return new Response(
@@ -351,6 +357,226 @@ async function handleAutomotiveTransfer(
     JSON.stringify({
       is_automotive: true,
       crew_count: crewMembers.length,
+      transfers: transferResults,
+      summary: {
+        successful: successfulTransfers.length,
+        failed: failedTransfers.length,
+        total_transferred: totalTransferred,
+        currency,
+      },
+    }),
+    {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: failedTransfers.length === crewMembers.length ? 500 : 200,
+    }
+  )
+}
+
+/**
+ * Handle transfers for Search & Rescue bookings with multiple crew members
+ * All pilots receive equal pay: hours × hourly_rate (typically $25/hour)
+ */
+async function handleSearchRescueTransfer(
+  bookingId: string,
+  chargeId: string | null,
+  currency: string,
+  existingTransferId: string | null,
+  totalAmountInCents: number
+): Promise<Response> {
+  // Get booking details to get hourly rate and hours worked
+  const { data: booking, error: bookingError } = await supabase
+    .from("bookings")
+    .select("hourly_rate, final_hours_worked, estimated_flight_hours, is_voluntary")
+    .eq("id", bookingId)
+    .single()
+
+  if (bookingError || !booking) {
+    return new Response(
+      JSON.stringify({ error: `Error fetching booking: ${bookingError?.message}` }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      }
+    )
+  }
+
+  // For voluntary missions, no payment needed
+  if (booking.is_voluntary) {
+    return new Response(
+      JSON.stringify({
+        is_search_rescue: true,
+        is_voluntary: true,
+        message: "No payment needed for voluntary mission",
+      }),
+      {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200,
+      }
+    )
+  }
+
+  // Get all crew members for this booking
+  const { data: crewMembers, error: crewError } = await supabase
+    .from("booking_crew")
+    .select("id, pilot_id, transfer_id")
+    .eq("booking_id", bookingId)
+
+  if (crewError) {
+    return new Response(
+      JSON.stringify({ error: `Error fetching crew: ${crewError.message}` }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      }
+    )
+  }
+
+  if (!crewMembers || crewMembers.length === 0) {
+    return new Response(
+      JSON.stringify({ error: "No crew members found for this Search & Rescue booking" }),
+      {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      }
+    )
+  }
+
+  // Calculate equal payout per pilot
+  const hoursWorked = booking.final_hours_worked || booking.estimated_flight_hours || 0
+  const hourlyRate = booking.hourly_rate || 25
+  const payoutPerPilotDollars = hoursWorked * hourlyRate
+  const payoutPerPilotCents = Math.round(payoutPerPilotDollars * 100)
+
+  // Get Stripe account IDs for all crew members
+  const pilotIds = crewMembers.map(m => m.pilot_id)
+  const { data: pilots, error: pilotsError } = await supabase
+    .from("profiles")
+    .select("id, stripe_account_id")
+    .in("id", pilotIds)
+
+  if (pilotsError || !pilots) {
+    return new Response(
+      JSON.stringify({ error: "Error fetching pilot profiles" }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      }
+    )
+  }
+
+  // Create a map of pilot_id to stripe_account_id
+  const pilotStripeAccounts: Record<string, string> = {}
+  pilots.forEach(p => {
+    if (p.stripe_account_id) {
+      pilotStripeAccounts[p.id] = p.stripe_account_id
+    }
+  })
+
+  // Process transfers for each crew member
+  const transferResults: TransferResult[] = []
+  let firstTransferId: string | null = null
+
+  for (const member of crewMembers) {
+    // Skip if already paid
+    if (member.transfer_id) {
+      transferResults.push({
+        pilot_id: member.pilot_id,
+        transfer_id: member.transfer_id,
+        amount: payoutPerPilotCents,
+        currency,
+        success: true,
+      })
+      continue
+    }
+
+    const stripeAccountId = pilotStripeAccounts[member.pilot_id]
+    if (!stripeAccountId) {
+      transferResults.push({
+        pilot_id: member.pilot_id,
+        transfer_id: "",
+        amount: payoutPerPilotCents,
+        currency,
+        success: false,
+        error: "Pilot does not have a Stripe connected account",
+      })
+      continue
+    }
+
+    try {
+      const transferParams: any = {
+        amount: payoutPerPilotCents,
+        currency,
+        destination: stripeAccountId,
+        metadata: {
+          booking_id: bookingId,
+          crew_member_id: member.id,
+          booking_type: "search_rescue",
+          hours_worked: hoursWorked,
+          hourly_rate: hourlyRate,
+        },
+      }
+
+      // Link to source charge if available
+      if (chargeId) {
+        transferParams.source_transaction = chargeId
+      }
+
+      const transfer = await stripe.transfers.create(transferParams)
+
+      // Update booking_crew with transfer_id and payout_amount
+      await supabase
+        .from("booking_crew")
+        .update({ 
+          transfer_id: transfer.id,
+          payout_amount: payoutPerPilotDollars
+        })
+        .eq("id", member.id)
+
+      // Track first transfer for booking record
+      if (!firstTransferId) {
+        firstTransferId = transfer.id
+      }
+
+      transferResults.push({
+        pilot_id: member.pilot_id,
+        transfer_id: transfer.id,
+        amount: transfer.amount,
+        currency: transfer.currency,
+        success: true,
+      })
+    } catch (error: any) {
+      console.error(`Error creating transfer for S&R pilot ${member.pilot_id}:`, error)
+      transferResults.push({
+        pilot_id: member.pilot_id,
+        transfer_id: "",
+        amount: payoutPerPilotCents,
+        currency,
+        success: false,
+        error: error.message,
+      })
+    }
+  }
+
+  // Update booking with first transfer ID if not already set
+  if (!existingTransferId && firstTransferId) {
+    await supabase
+      .from("bookings")
+      .update({ transfer_id: firstTransferId })
+      .eq("id", bookingId)
+  }
+
+  // Calculate summary
+  const successfulTransfers = transferResults.filter(t => t.success)
+  const failedTransfers = transferResults.filter(t => !t.success)
+  const totalTransferred = successfulTransfers.reduce((sum, t) => sum + t.amount, 0)
+
+  return new Response(
+    JSON.stringify({
+      is_search_rescue: true,
+      crew_count: crewMembers.length,
+      hours_worked: hoursWorked,
+      hourly_rate: hourlyRate,
+      payout_per_pilot: payoutPerPilotDollars,
       transfers: transferResults,
       summary: {
         successful: successfulTransfers.length,

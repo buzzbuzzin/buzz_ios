@@ -22,6 +22,9 @@ struct CreateBookingStep3PaymentView: View {
     let realEstateUnder5000Prices: [RealEstateBookingPrice]
     let realEstateAbove5000Prices: [RealEstateBookingPrice]
     
+    // Search & Rescue specific bindings
+    @Binding var isVoluntaryMission: Bool
+    
     let onBack: () -> Void
     let onCreate: () -> Void
     let isLoading: Bool
@@ -312,6 +315,9 @@ struct CreateBookingStep3PaymentView: View {
                             .background(Color.blue.opacity(0.1))
                             .cornerRadius(8)
                         }
+                    } else if selectedSpecialization == .searchRescue {
+                        // Search & Rescue - voluntary or paid
+                        SearchRescuePaymentSection(isVoluntaryMission: $isVoluntaryMission)
                     } else {
                         // Other industries - payment input
                         VStack(alignment: .leading, spacing: 16) {
@@ -558,6 +564,159 @@ struct CreateBookingStep3PaymentView: View {
                 paymentAmount = ""
                 showMinRateWarning = false
             }
+        }
+    }
+}
+
+// MARK: - Search & Rescue Payment Section
+
+struct SearchRescuePaymentSection: View {
+    @Binding var isVoluntaryMission: Bool
+    
+    private let searchRescueHourlyRate: Decimal = 25.0
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            // Mission Type Selection
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Mission Type")
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.secondary)
+                
+                // Voluntary Mission Option
+                Button(action: {
+                    isVoluntaryMission = true
+                }) {
+                    HStack(spacing: 12) {
+                        Image(systemName: isVoluntaryMission ? "checkmark.circle.fill" : "circle")
+                            .font(.title2)
+                            .foregroundColor(isVoluntaryMission ? .green : .gray)
+                        
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Voluntary Mission")
+                                .font(.headline)
+                                .foregroundColor(.primary)
+                            
+                            Text("No payment to pilots - they volunteer their time")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        
+                        Spacer()
+                        
+                        Text("$0")
+                            .font(.title2)
+                            .fontWeight(.bold)
+                            .foregroundColor(.green)
+                    }
+                    .padding()
+                    .background(isVoluntaryMission ? Color.green.opacity(0.1) : Color(.systemGray6))
+                    .cornerRadius(12)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(isVoluntaryMission ? Color.green : Color.clear, lineWidth: 2)
+                    )
+                }
+                .buttonStyle(PlainButtonStyle())
+                
+                // Paid Mission Option
+                Button(action: {
+                    isVoluntaryMission = false
+                }) {
+                    HStack(spacing: 12) {
+                        Image(systemName: !isVoluntaryMission ? "checkmark.circle.fill" : "circle")
+                            .font(.title2)
+                            .foregroundColor(!isVoluntaryMission ? .blue : .gray)
+                        
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Paid Mission")
+                                .font(.headline)
+                                .foregroundColor(.primary)
+                            
+                            Text("$25/hour per pilot - paid after mission completes")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        
+                        Spacer()
+                        
+                        VStack(alignment: .trailing, spacing: 2) {
+                            Text("$\(String(format: "%.0f", NSDecimalNumber(decimal: searchRescueHourlyRate).doubleValue))")
+                                .font(.title2)
+                                .fontWeight(.bold)
+                                .foregroundColor(.blue)
+                            Text("/hr/pilot")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    .padding()
+                    .background(!isVoluntaryMission ? Color.blue.opacity(0.1) : Color(.systemGray6))
+                    .cornerRadius(12)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(!isVoluntaryMission ? Color.blue : Color.clear, lineWidth: 2)
+                    )
+                }
+                .buttonStyle(PlainButtonStyle())
+            }
+            
+            // Info Box
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 6) {
+                    Image(systemName: "info.circle.fill")
+                        .foregroundColor(.orange)
+                        .font(.subheadline)
+                    Text("How Search & Rescue Works")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.orange)
+                }
+                
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(alignment: .top, spacing: 8) {
+                        Text("1.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Text("Multiple pilots can join your mission")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    HStack(alignment: .top, spacing: 8) {
+                        Text("2.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Text("Beacon volunteers will see your mission and can respond")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    if !isVoluntaryMission {
+                        HStack(alignment: .top, spacing: 8) {
+                            Text("3.")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            Text("After completion, enter hours worked to calculate payment")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        
+                        HStack(alignment: .top, spacing: 8) {
+                            Text("4.")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            Text("Total = hours × $25 × number of pilots")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+            }
+            .padding()
+            .background(Color.orange.opacity(0.1))
+            .cornerRadius(12)
         }
     }
 }

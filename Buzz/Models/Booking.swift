@@ -112,6 +112,11 @@ struct Booking: Codable, Identifiable {
     var pilotCompleted: Bool? // Pilot has marked booking as finished
     var completedAt: Date? // Timestamp when booking was officially completed
     
+    // Search & Rescue specific fields
+    var isVoluntary: Bool? // True if this is a voluntary mission with no payment
+    var hourlyRate: Decimal? // Hourly rate per pilot for S&R missions ($25)
+    var finalHoursWorked: Double? // Actual hours worked, entered by client after completion
+    
     enum CodingKeys: String, CodingKey {
         case id
         case customerId = "customer_id"
@@ -137,6 +142,9 @@ struct Booking: Codable, Identifiable {
         case customerCompleted = "customer_completed"
         case pilotCompleted = "pilot_completed"
         case completedAt = "completed_at"
+        case isVoluntary = "is_voluntary"
+        case hourlyRate = "hourly_rate"
+        case finalHoursWorked = "final_hours_worked"
     }
     
     var rankName: String {
@@ -151,6 +159,16 @@ struct Booking: Codable, Identifiable {
     /// Returns true if this is an automotive booking that uses the crew system
     var isAutomotiveCrewBooking: Bool {
         specialization == .automotive
+    }
+    
+    /// Returns true if this is a Search & Rescue booking that uses the crew system
+    var isSearchRescueCrewBooking: Bool {
+        specialization == .searchRescue
+    }
+    
+    /// Returns true if this booking uses a multi-pilot crew system
+    var isCrewBooking: Bool {
+        isAutomotiveCrewBooking || isSearchRescueCrewBooking
     }
 }
 
@@ -232,6 +250,7 @@ struct BookingCrewMember: Codable, Identifiable {
 /// Response from get-booking-crew edge function
 struct BookingCrewResponse: Codable {
     let isAutomotive: Bool
+    let isSearchRescue: Bool?
     let crewCount: Int
     let maxCrew: Int
     let status: String?
@@ -244,6 +263,7 @@ struct BookingCrewResponse: Codable {
     
     enum CodingKeys: String, CodingKey {
         case isAutomotive = "is_automotive"
+        case isSearchRescue = "is_search_rescue"
         case crewCount = "crew_count"
         case maxCrew = "max_crew"
         case status
@@ -253,6 +273,11 @@ struct BookingCrewResponse: Codable {
         case crew
         case leadPilot = "lead_pilot"
         case totalPayout = "total_payout"
+    }
+    
+    /// Returns true if this is a crew-based booking (automotive or S&R)
+    var isCrewBooking: Bool {
+        isAutomotive || (isSearchRescue ?? false)
     }
 }
 
