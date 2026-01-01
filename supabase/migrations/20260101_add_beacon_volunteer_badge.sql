@@ -102,3 +102,35 @@ AFTER INSERT ON public.beacon_volunteers
 FOR EACH ROW
 EXECUTE FUNCTION award_beacon_volunteer_badge();
 
+-- Award badges to existing Beacon volunteers who don't have the badge yet
+INSERT INTO public.badges (
+  id,
+  pilot_id,
+  course_id,
+  course_title,
+  course_category,
+  provider,
+  badge_type,
+  earned_at,
+  expires_at,
+  is_recurrent
+)
+SELECT 
+  gen_random_uuid(),
+  bv.pilot_id,
+  NULL,
+  NULL,
+  NULL,
+  'Buzz',
+  'beacon_volunteer',
+  bv.enrolled_at,
+  NULL,
+  false
+FROM public.beacon_volunteers bv
+WHERE NOT EXISTS (
+  SELECT 1 
+  FROM public.badges b 
+  WHERE b.pilot_id = bv.pilot_id 
+  AND b.badge_type = 'beacon_volunteer'
+);
+
