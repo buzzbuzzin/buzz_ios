@@ -23,7 +23,7 @@ struct CreateBookingStep1View: View {
     @State private var showLocationWarning = false
     
     // Supported industries
-    private let supportedIndustries: [BookingSpecialization] = [.automotive, .realEstate]
+    private let supportedIndustries: [BookingSpecialization] = [.automotive, .realEstate, .searchRescue]
     
     // Ithaca NY coordinates (center of service area)
     private let ithacaNY = CLLocationCoordinate2D(latitude: 42.4434, longitude: -76.5017)
@@ -194,7 +194,7 @@ struct CreateBookingStep1View: View {
         .alert("Coming Soon", isPresented: $showIndustryWarning) {
             Button("OK", role: .cancel) { }
         } message: {
-            Text("Launching in 2026! We are currently only supporting Automotive and Real Estate.")
+            Text("Launching in 2026! We are currently only supporting:\n\n• Automotive\n• Real Estate\n• Search & Rescue")
         }
         .alert("Location Out of Range", isPresented: $showLocationWarning) {
             Button("OK", role: .cancel) {

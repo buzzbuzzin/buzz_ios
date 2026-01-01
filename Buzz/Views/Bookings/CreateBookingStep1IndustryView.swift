@@ -15,7 +15,7 @@ struct CreateBookingStep1IndustryView: View {
     let onNext: () -> Void
     
     // Supported industries
-    private let supportedIndustries: [BookingSpecialization] = [.automotive, .realEstate]
+    private let supportedIndustries: [BookingSpecialization] = [.automotive, .realEstate, .searchRescue]
     
     var body: some View {
         ScrollView {
@@ -61,7 +61,7 @@ struct CreateBookingStep1IndustryView: View {
         .alert("Coming Soon", isPresented: $showIndustryWarning) {
             Button("OK", role: .cancel) { }
         } message: {
-            Text("Launching in 2026! We are currently only supporting Automotive and Real Estate.")
+            Text("Launching in 2026! We are currently only supporting:\n\n• Automotive\n• Real Estate\n• Search & Rescue")
         }
     }
     
