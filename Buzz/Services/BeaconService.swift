@@ -55,21 +55,27 @@ class BeaconService: ObservableObject {
     func uploadTrainingCertificate(
         userId: UUID,
         trainingType: BeaconTrainingType,
-        imageData: Data
+        data: Data,
+        fileName: String,
+        isPDF: Bool
     ) async throws -> BeaconTrainingProgress {
         isLoading = true
         defer { isLoading = false }
         
-        // Upload image to storage
-        let fileName = "\(userId.uuidString)_\(trainingType.rawValue)_\(Date().timeIntervalSince1970).jpg"
-        let filePath = "beacon-certificates/\(fileName)"
+        // Generate unique file path - user ID must come right after folder for RLS policy
+        let uniqueFileName = "\(trainingType.rawValue)_\(Date().timeIntervalSince1970)_\(fileName)"
+        let filePath = "beacon-certificates/\(userId.uuidString)/\(uniqueFileName)"
         
+        // Determine content type
+        let contentType = isPDF ? "application/pdf" : "image/jpeg"
+        
+        // Upload to storage
         try await supabase.storage
             .from("certificates")
             .upload(
                 path: filePath,
-                file: imageData,
-                options: FileOptions(contentType: "image/jpeg")
+                file: data,
+                options: FileOptions(contentType: contentType)
             )
         
         // Get public URL

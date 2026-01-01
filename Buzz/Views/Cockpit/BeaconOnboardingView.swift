@@ -8,6 +8,7 @@
 import SwiftUI
 import PhotosUI
 import Auth
+import UniformTypeIdentifiers
 
 struct BeaconOnboardingView: View {
     @EnvironmentObject var authService: AuthService
@@ -16,7 +17,10 @@ struct BeaconOnboardingView: View {
     @State private var completedTraining: Set<BeaconTrainingType> = []
     @State private var isLoading: Bool = false
     @State private var showImagePicker: Bool = false
+    @State private var showDocumentPicker: Bool = false
+    @State private var showUploadOptions: Bool = false
     @State private var selectedImage: UIImage?
+    @State private var selectedDocumentURL: URL?
     @State private var currentUploadType: BeaconTrainingType?
     @State private var showError: Bool = false
     @State private var errorMessage: String = ""
@@ -68,7 +72,7 @@ struct BeaconOnboardingView: View {
                             isCompleted: completedTraining.contains(.cpr),
                             onUploadTap: {
                                 currentUploadType = .cpr
-                                showImagePicker = true
+                                showUploadOptions = true
                             },
                             isLoading: isLoading && currentUploadType == .cpr
                         )
@@ -79,7 +83,7 @@ struct BeaconOnboardingView: View {
                             isCompleted: completedTraining.contains(.firefighting),
                             onUploadTap: {
                                 currentUploadType = .firefighting
-                                showImagePicker = true
+                                showUploadOptions = true
                             },
                             isLoading: isLoading && currentUploadType == .firefighting
                         )
@@ -168,13 +172,36 @@ struct BeaconOnboardingView: View {
                 }
             }
         }
+        .confirmationDialog("Upload Certificate", isPresented: $showUploadOptions, titleVisibility: .visible) {
+            Button("Photo Library") {
+                showImagePicker = true
+            }
+            Button("Documents") {
+                showDocumentPicker = true
+            }
+            Button("Cancel", role: .cancel) {
+                currentUploadType = nil
+            }
+        }
         .sheet(isPresented: $showImagePicker) {
             BeaconImagePicker(image: $selectedImage)
+        }
+        .sheet(isPresented: $showDocumentPicker) {
+            BeaconDocumentPicker { url in
+                selectedDocumentURL = url
+            }
         }
         .onChange(of: selectedImage) { newImage in
             if let image = newImage, let uploadType = currentUploadType {
                 Task {
                     await uploadCertificate(image: image, type: uploadType)
+                }
+            }
+        }
+        .onChange(of: selectedDocumentURL) { newURL in
+            if let url = newURL, let uploadType = currentUploadType {
+                Task {
+                    await uploadCertificate(url: url, type: uploadType)
                 }
             }
         }
@@ -271,12 +298,58 @@ struct BeaconOnboardingView: View {
             _ = try await beaconService.uploadTrainingCertificate(
                 userId: userId,
                 trainingType: type,
-                imageData: imageData
+                data: imageData,
+                fileName: "\(type.rawValue)_\(Date().timeIntervalSince1970).jpg",
+                isPDF: false
             )
             
             await MainActor.run {
                 completedTraining.insert(type)
                 selectedImage = nil
+                currentUploadType = nil
+                isLoading = false
+            }
+        } catch {
+            await MainActor.run {
+                errorMessage = error.localizedDescription
+                showError = true
+                isLoading = false
+            }
+        }
+    }
+    
+    private func uploadCertificate(url: URL, type: BeaconTrainingType) async {
+        guard let userId = authService.currentUser?.id else { return }
+        
+        isLoading = true
+        
+        do {
+            // Request access to security-scoped resource
+            guard url.startAccessingSecurityScopedResource() else {
+                throw NSError(domain: "FileAccessError", code: -1,
+                            userInfo: [NSLocalizedDescriptionKey: "Unable to access the selected file"])
+            }
+            
+            // Ensure we stop accessing the resource when done
+            defer {
+                url.stopAccessingSecurityScopedResource()
+            }
+            
+            let data = try Data(contentsOf: url)
+            let fileName = url.lastPathComponent
+            let isPDF = fileName.lowercased().hasSuffix(".pdf")
+            
+            _ = try await beaconService.uploadTrainingCertificate(
+                userId: userId,
+                trainingType: type,
+                data: data,
+                fileName: fileName,
+                isPDF: isPDF
+            )
+            
+            await MainActor.run {
+                completedTraining.insert(type)
+                selectedDocumentURL = nil
                 currentUploadType = nil
                 isLoading = false
             }
@@ -609,6 +682,44 @@ struct BeaconImagePicker: UIViewControllerRepresentable {
                     self.parent.image = image as? UIImage
                 }
             }
+        }
+    }
+}
+
+// MARK: - Beacon Document Picker
+
+struct BeaconDocumentPicker: UIViewControllerRepresentable {
+    let onDocumentPicked: (URL) -> Void
+    @Environment(\.dismiss) var dismiss
+    
+    func makeUIViewController(context: Context) -> UIDocumentPickerViewController {
+        let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.pdf, .image])
+        picker.delegate = context.coordinator
+        return picker
+    }
+    
+    func updateUIViewController(_ uiViewController: UIDocumentPickerViewController, context: Context) {}
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+    
+    class Coordinator: NSObject, UIDocumentPickerDelegate {
+        let parent: BeaconDocumentPicker
+        
+        init(_ parent: BeaconDocumentPicker) {
+            self.parent = parent
+        }
+        
+        func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
+            if let url = urls.first {
+                parent.onDocumentPicked(url)
+            }
+            parent.dismiss()
+        }
+        
+        func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
+            parent.dismiss()
         }
     }
 }
