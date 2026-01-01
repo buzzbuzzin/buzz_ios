@@ -151,6 +151,7 @@ CREATE TABLE public.bookings (
   original_amount numeric,
   credits_applied numeric DEFAULT 0,
   final_amount numeric,
+  is_internal_test boolean DEFAULT false,
   CONSTRAINT bookings_pkey PRIMARY KEY (id),
   CONSTRAINT bookings_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES public.profiles(id),
   CONSTRAINT bookings_pilot_id_fkey FOREIGN KEY (pilot_id) REFERENCES public.profiles(id)

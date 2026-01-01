@@ -117,6 +117,9 @@ struct Booking: Codable, Identifiable {
     var hourlyRate: Decimal? // Hourly rate per pilot for S&R missions ($25)
     var finalHoursWorked: Double? // Actual hours worked, entered by client after completion
     
+    // Internal testing field
+    var isInternalTest: Bool? // True if this is an internal test booking (hidden from non-Buzz pilots)
+    
     enum CodingKeys: String, CodingKey {
         case id
         case customerId = "customer_id"
@@ -145,6 +148,7 @@ struct Booking: Codable, Identifiable {
         case isVoluntary = "is_voluntary"
         case hourlyRate = "hourly_rate"
         case finalHoursWorked = "final_hours_worked"
+        case isInternalTest = "is_internal_test"
     }
     
     var rankName: String {

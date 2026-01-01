@@ -314,8 +314,9 @@ class BookingService: ObservableObject {
     /// Filter bookings based on pilot's rank eligibility
     /// - Ensigns (rank 0) cannot see automotive bookings
     /// - If automotive booking has 3/4 crew with no qualified lead, only show to pilots who can be lead
+    /// - Filter out internal test bookings for pilots without @buzzbuzzin.com email
     private func filterBookingsForPilot(bookings: [Booking], pilotId: UUID) async throws -> [Booking] {
-        // Get pilot's rank
+        // Get pilot's rank and email
         let pilotStats: PilotStats? = try? await supabase
             .from("pilot_stats")
             .select()
@@ -324,11 +325,26 @@ class BookingService: ObservableObject {
             .execute()
             .value
         
+        let pilotProfile: UserProfile? = try? await supabase
+            .from("profiles")
+            .select()
+            .eq("id", value: pilotId.uuidString)
+            .single()
+            .execute()
+            .value
+        
         let pilotRank = pilotStats?.tier ?? 0
+        let pilotEmail = pilotProfile?.email ?? ""
+        let isBuzzEmployee = pilotEmail.hasSuffix("@buzzbuzzin.com")
         
         var filteredBookings: [Booking] = []
         
         for booking in bookings {
+            // Filter out internal test bookings for non-Buzz employees
+            if booking.isInternalTest == true && !isBuzzEmployee {
+                continue // Skip this internal test booking
+            }
+            
             // For automotive bookings, apply rank-based filtering
             if booking.isAutomotiveCrewBooking {
                 // Ensigns (rank 0) cannot participate in automotive bookings
@@ -566,6 +582,25 @@ class BookingService: ObservableObject {
                 for crewBooking in crewBookings {
                     if !allBookings.contains(where: { $0.id == crewBooking.id }) {
                         allBookings.append(crewBooking)
+                    }
+                }
+                
+                // Filter out internal test bookings for non-Buzz pilots
+                let pilotProfile: UserProfile? = try? await supabase
+                    .from("profiles")
+                    .select()
+                    .eq("id", value: userId.uuidString)
+                    .single()
+                    .execute()
+                    .value
+                
+                let pilotEmail = pilotProfile?.email ?? ""
+                let isBuzzEmployee = pilotEmail.hasSuffix("@buzzbuzzin.com")
+                
+                // Filter out internal test bookings if pilot is not a Buzz employee
+                if !isBuzzEmployee {
+                    allBookings = allBookings.filter { booking in
+                        booking.isInternalTest != true
                     }
                 }
                 
