@@ -85,6 +85,7 @@ struct Badge: Identifiable, Codable {
         case faa = "faa"
         case flightReviewer = "flight_reviewer"
         case rocaExaminer = "roc_a_examiner"
+        case beaconVolunteer = "beacon_volunteer"
         
         var displayName: String {
             switch self {
@@ -95,6 +96,7 @@ struct Badge: Identifiable, Codable {
             case .faa: return "FAA"
             case .flightReviewer: return "Flight Reviewer"
             case .rocaExaminer: return "ROC-A Examiner"
+            case .beaconVolunteer: return "Beacon Volunteer"
             }
         }
         
@@ -107,6 +109,7 @@ struct Badge: Identifiable, Codable {
             case .faa: return "checkmark.seal.fill"
             case .flightReviewer: return "person.text.rectangle.fill"
             case .rocaExaminer: return "antenna.radiowaves.left.and.right"
+            case .beaconVolunteer: return "antenna.radiowaves.left.and.right"
             }
         }
         
@@ -126,6 +129,7 @@ struct Badge: Identifiable, Codable {
             case .faa: return .red
             case .flightReviewer: return .teal
             case .rocaExaminer: return .indigo
+            case .beaconVolunteer: return .orange
             }
         }
     }

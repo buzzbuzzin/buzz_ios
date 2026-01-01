@@ -51,6 +51,85 @@ struct BeaconView: View {
                 }
                 .padding(.horizontal)
                 
+                // Sign Up Prompt (only show if not already a volunteer)
+                if !isBeaconVolunteer {
+                    VStack(spacing: 16) {
+                        Text("Join the Emergency Response Program")
+                            .font(.title3)
+                            .fontWeight(.bold)
+                        
+                        Text("Be part of an elite group of pilots making a difference in your community")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                        
+                        Button(action: {
+                            showOnboarding = true
+                        }) {
+                            HStack {
+                                Image(systemName: "checkmark.circle.fill")
+                                Text("Start Onboarding")
+                                    .fontWeight(.semibold)
+                            }
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(
+                                LinearGradient(
+                                    colors: [.yellow, .orange],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            )
+                            .cornerRadius(12)
+                        }
+                    }
+                    .padding()
+                    .background(Color(.secondarySystemBackground))
+                    .cornerRadius(16)
+                    .padding(.horizontal)
+                } else {
+                    // Volunteer Status Card
+                    VStack(spacing: 16) {
+                        HStack {
+                            Image(systemName: "checkmark.seal.fill")
+                                .font(.system(size: 40))
+                                .foregroundColor(.green)
+                            
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Active Beacon Volunteer")
+                                    .font(.headline)
+                                    .foregroundColor(.primary)
+                                
+                                Text("You're ready to respond to emergencies")
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                            }
+                            
+                            Spacer()
+                        }
+                        
+                        // Volunteer dashboard link could go here
+                        NavigationLink(destination: BeaconVolunteerDashboardView().environmentObject(authService)) {
+                            HStack {
+                                Image(systemName: "square.grid.2x2")
+                                Text("View Dashboard")
+                                    .fontWeight(.semibold)
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                            }
+                            .foregroundColor(.primary)
+                            .padding()
+                            .background(Color(.tertiarySystemBackground))
+                            .cornerRadius(12)
+                        }
+                    }
+                    .padding()
+                    .background(Color(.secondarySystemBackground))
+                    .cornerRadius(16)
+                    .padding(.horizontal)
+                }
+                
                 // Program Description
                 VStack(alignment: .leading, spacing: 16) {
                     Text("About Beacon Program")
@@ -156,85 +235,6 @@ struct BeaconView: View {
                             color: .orange
                         )
                     }
-                    .padding(.horizontal)
-                }
-                
-                // Sign Up Prompt (only show if not already a volunteer)
-                if !isBeaconVolunteer {
-                    VStack(spacing: 16) {
-                        Text("Join the Emergency Response Program")
-                            .font(.title3)
-                            .fontWeight(.bold)
-                        
-                        Text("Be part of an elite group of pilots making a difference in your community")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                            .multilineTextAlignment(.center)
-                        
-                        Button(action: {
-                            showOnboarding = true
-                        }) {
-                            HStack {
-                                Image(systemName: "checkmark.circle.fill")
-                                Text("Start Onboarding")
-                                    .fontWeight(.semibold)
-                            }
-                            .foregroundColor(.white)
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(
-                                LinearGradient(
-                                    colors: [.yellow, .orange],
-                                    startPoint: .leading,
-                                    endPoint: .trailing
-                                )
-                            )
-                            .cornerRadius(12)
-                        }
-                    }
-                    .padding()
-                    .background(Color(.secondarySystemBackground))
-                    .cornerRadius(16)
-                    .padding(.horizontal)
-                } else {
-                    // Volunteer Status Card
-                    VStack(spacing: 16) {
-                        HStack {
-                            Image(systemName: "checkmark.seal.fill")
-                                .font(.system(size: 40))
-                                .foregroundColor(.green)
-                            
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("Active Beacon Volunteer")
-                                    .font(.headline)
-                                    .foregroundColor(.primary)
-                                
-                                Text("You're ready to respond to emergencies")
-                                    .font(.subheadline)
-                                    .foregroundColor(.secondary)
-                            }
-                            
-                            Spacer()
-                        }
-                        
-                        // Volunteer dashboard link could go here
-                        NavigationLink(destination: BeaconVolunteerDashboardView().environmentObject(authService)) {
-                            HStack {
-                                Image(systemName: "square.grid.2x2")
-                                Text("View Dashboard")
-                                    .fontWeight(.semibold)
-                                Spacer()
-                                Image(systemName: "chevron.right")
-                            }
-                            .foregroundColor(.primary)
-                            .padding()
-                            .background(Color(.tertiarySystemBackground))
-                            .cornerRadius(12)
-                        }
-                    }
-                    .padding()
-                    .background(Color(.secondarySystemBackground))
-                    .cornerRadius(16)
                     .padding(.horizontal)
                 }
             }

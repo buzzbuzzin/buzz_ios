@@ -45,6 +45,34 @@ CREATE TABLE public.badges_catalog (
   CONSTRAINT badges_catalog_pkey PRIMARY KEY (id),
   CONSTRAINT badges_catalog_course_id_fkey FOREIGN KEY (course_id) REFERENCES public.training_courses(id)
 );
+CREATE TABLE public.beacon_training_progress (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  pilot_id uuid NOT NULL,
+  training_type text NOT NULL CHECK (training_type = ANY (ARRAY['cpr'::text, 'firefighting'::text])),
+  certificate_url text NOT NULL,
+  uploaded_at timestamp with time zone DEFAULT now(),
+  verified boolean DEFAULT false,
+  verified_at timestamp with time zone,
+  verified_by uuid,
+  CONSTRAINT beacon_training_progress_pkey PRIMARY KEY (id),
+  CONSTRAINT beacon_training_progress_pilot_id_fkey FOREIGN KEY (pilot_id) REFERENCES public.profiles(id),
+  CONSTRAINT beacon_training_progress_verified_by_fkey FOREIGN KEY (verified_by) REFERENCES public.profiles(id)
+);
+CREATE TABLE public.beacon_volunteers (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  pilot_id uuid NOT NULL UNIQUE,
+  enrolled_at timestamp with time zone DEFAULT now(),
+  is_available boolean DEFAULT true,
+  last_location_lat double precision,
+  last_location_lng double precision,
+  last_location_update timestamp with time zone,
+  notification_radius_miles integer DEFAULT 25,
+  total_missions_completed integer DEFAULT 0,
+  total_hours_volunteered double precision DEFAULT 0,
+  people_helped integer DEFAULT 0,
+  CONSTRAINT beacon_volunteers_pkey PRIMARY KEY (id),
+  CONSTRAINT beacon_volunteers_pilot_id_fkey FOREIGN KEY (pilot_id) REFERENCES public.profiles(id)
+);
 CREATE TABLE public.booking_checklists (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
   booking_id uuid NOT NULL UNIQUE,
@@ -323,6 +351,23 @@ CREATE TABLE public.express_promotion_applications (
   CONSTRAINT express_promotion_applications_pilot_id_fkey FOREIGN KEY (pilot_id) REFERENCES public.profiles(id),
   CONSTRAINT express_promotion_applications_reviewed_by_fkey FOREIGN KEY (reviewed_by) REFERENCES public.profiles(id)
 );
+CREATE TABLE public.flight_logs (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  pilot_id uuid NOT NULL,
+  aircraft_number text NOT NULL,
+  sheet_number integer NOT NULL DEFAULT 1,
+  description_of_flight text NOT NULL,
+  date timestamp with time zone NOT NULL,
+  time_out timestamp with time zone NOT NULL,
+  time_in timestamp with time zone NOT NULL,
+  total_airtime_minutes integer NOT NULL,
+  comments text,
+  signature_data text NOT NULL,
+  created_at timestamp with time zone DEFAULT now(),
+  is_locked boolean DEFAULT true,
+  CONSTRAINT flight_logs_pkey PRIMARY KEY (id),
+  CONSTRAINT flight_logs_pilot_id_fkey FOREIGN KEY (pilot_id) REFERENCES public.profiles(id)
+);
 CREATE TABLE public.government_ids (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
   user_id uuid NOT NULL UNIQUE,
@@ -345,6 +390,48 @@ CREATE TABLE public.ground_school_test_results (
   CONSTRAINT ground_school_test_results_pkey PRIMARY KEY (id),
   CONSTRAINT ground_school_test_results_pilot_id_fkey FOREIGN KEY (pilot_id) REFERENCES public.profiles(id),
   CONSTRAINT ground_school_test_results_course_id_fkey FOREIGN KEY (course_id) REFERENCES public.training_courses(id)
+);
+CREATE TABLE public.incident_logs (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  booking_id uuid NOT NULL,
+  pilot_id uuid NOT NULL,
+  name text NOT NULL,
+  phone_number text NOT NULL,
+  date_of_incident timestamp with time zone NOT NULL,
+  date_of_report timestamp with time zone NOT NULL,
+  job_title text,
+  operation_name text,
+  organization text,
+  pic text,
+  region text,
+  airspace_class text,
+  reported_to_police boolean DEFAULT false,
+  reported_to_atc boolean DEFAULT false,
+  location_of_incident text NOT NULL,
+  description_of_incident text NOT NULL,
+  name_of_witness text,
+  signature_data text NOT NULL,
+  signature_date timestamp with time zone NOT NULL DEFAULT now(),
+  created_at timestamp with time zone DEFAULT now(),
+  is_locked boolean DEFAULT true,
+  CONSTRAINT incident_logs_pkey PRIMARY KEY (id),
+  CONSTRAINT incident_logs_booking_id_fkey FOREIGN KEY (booking_id) REFERENCES public.bookings(id),
+  CONSTRAINT incident_logs_pilot_id_fkey FOREIGN KEY (pilot_id) REFERENCES public.profiles(id)
+);
+CREATE TABLE public.maintenance_logs (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  pilot_id uuid NOT NULL,
+  aircraft_number text NOT NULL,
+  sheet_number integer NOT NULL DEFAULT 1,
+  date timestamp with time zone NOT NULL,
+  repairs text NOT NULL,
+  replacement_parts text,
+  comments text,
+  initials_data text NOT NULL,
+  created_at timestamp with time zone DEFAULT now(),
+  is_locked boolean DEFAULT true,
+  CONSTRAINT maintenance_logs_pkey PRIMARY KEY (id),
+  CONSTRAINT maintenance_logs_pilot_id_fkey FOREIGN KEY (pilot_id) REFERENCES public.profiles(id)
 );
 CREATE TABLE public.messages (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
@@ -397,8 +484,6 @@ CREATE TABLE public.profiles (
   communication_preference text DEFAULT 'email'::text CHECK (communication_preference = ANY (ARRAY['email'::text, 'text'::text, 'both'::text])),
   stripe_account_id text,
   balance numeric DEFAULT 0.0,
-  referral_credits numeric DEFAULT 0.0,
-  referred_by uuid,
   role text CHECK (role IS NULL OR (role = ANY (ARRAY['individual'::text, 'company'::text, 'government'::text, 'non_profit'::text]))),
   specialization text CHECK (specialization IS NULL OR (specialization = ANY (ARRAY['automotive'::text, 'motion_picture'::text, 'real_estate'::text, 'agriculture'::text, 'inspections'::text, 'search_rescue'::text, 'logistics'::text, 'drone_art'::text, 'surveillance_security'::text, 'mapping_surveying'::text]))),
   is_ex_military boolean DEFAULT false,
@@ -412,8 +497,12 @@ CREATE TABLE public.profiles (
   last_location_lat double precision,
   last_location_lng double precision,
   last_location_update timestamp with time zone,
+  referral_credits numeric DEFAULT 0.0,
+  referred_by uuid,
+  is_beacon_volunteer boolean DEFAULT false,
   CONSTRAINT profiles_pkey PRIMARY KEY (id),
-  CONSTRAINT profiles_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id)
+  CONSTRAINT profiles_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id),
+  CONSTRAINT profiles_referred_by_fkey FOREIGN KEY (referred_by) REFERENCES public.profiles(id)
 );
 CREATE TABLE public.ratings (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
@@ -427,6 +516,27 @@ CREATE TABLE public.ratings (
   CONSTRAINT ratings_booking_id_fkey FOREIGN KEY (booking_id) REFERENCES public.bookings(id),
   CONSTRAINT ratings_from_user_id_fkey FOREIGN KEY (from_user_id) REFERENCES public.profiles(id),
   CONSTRAINT ratings_to_user_id_fkey FOREIGN KEY (to_user_id) REFERENCES public.profiles(id)
+);
+CREATE TABLE public.referral_codes (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  user_id uuid NOT NULL UNIQUE,
+  code text NOT NULL UNIQUE CHECK (code ~ '^[A-Z0-9]{8}$'::text),
+  created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  CONSTRAINT referral_codes_pkey PRIMARY KEY (id),
+  CONSTRAINT referral_codes_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id)
+);
+CREATE TABLE public.referrals (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  referrer_id uuid NOT NULL,
+  referee_id uuid NOT NULL UNIQUE,
+  referral_code text NOT NULL,
+  status text NOT NULL DEFAULT 'pending'::text CHECK (status = ANY (ARRAY['pending'::text, 'completed'::text, 'expired'::text])),
+  credit_amount numeric NOT NULL DEFAULT 25.0,
+  credited_at timestamp with time zone,
+  created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  CONSTRAINT referrals_pkey PRIMARY KEY (id),
+  CONSTRAINT referrals_referrer_id_fkey FOREIGN KEY (referrer_id) REFERENCES public.profiles(id),
+  CONSTRAINT referrals_referee_id_fkey FOREIGN KEY (referee_id) REFERENCES public.profiles(id)
 );
 CREATE TABLE public.test_results (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
@@ -502,26 +612,4 @@ CREATE TABLE public.video_upload_reminders (
   CONSTRAINT video_upload_reminders_pkey PRIMARY KEY (id),
   CONSTRAINT video_upload_reminders_booking_id_fkey FOREIGN KEY (booking_id) REFERENCES public.bookings(id),
   CONSTRAINT video_upload_reminders_pilot_id_fkey FOREIGN KEY (pilot_id) REFERENCES public.profiles(id)
-);
-CREATE TABLE public.referral_codes (
-  id uuid NOT NULL DEFAULT uuid_generate_v4(),
-  user_id uuid NOT NULL UNIQUE,
-  code text NOT NULL UNIQUE,
-  created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
-  CONSTRAINT referral_codes_pkey PRIMARY KEY (id),
-  CONSTRAINT referral_codes_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id) ON DELETE CASCADE,
-  CONSTRAINT referral_codes_code_check CHECK (code ~ '^[A-Z0-9]{8}$')
-);
-CREATE TABLE public.referrals (
-  id uuid NOT NULL DEFAULT uuid_generate_v4(),
-  referrer_id uuid NOT NULL,
-  referee_id uuid NOT NULL UNIQUE,
-  referral_code text NOT NULL,
-  status text NOT NULL DEFAULT 'pending'::text CHECK (status = ANY (ARRAY['pending'::text, 'completed'::text, 'expired'::text])),
-  credit_amount numeric NOT NULL DEFAULT 25.0,
-  credited_at timestamp with time zone,
-  created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
-  CONSTRAINT referrals_pkey PRIMARY KEY (id),
-  CONSTRAINT referrals_referrer_id_fkey FOREIGN KEY (referrer_id) REFERENCES public.profiles(id) ON DELETE CASCADE,
-  CONSTRAINT referrals_referee_id_fkey FOREIGN KEY (referee_id) REFERENCES public.profiles(id) ON DELETE CASCADE
 );

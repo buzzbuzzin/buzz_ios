@@ -166,6 +166,9 @@ class BeaconService: ObservableObject {
         
         // Refresh volunteer status
         _ = try await getVolunteerStatus(userId: userId)
+        
+        // Note: Badge is automatically awarded via database trigger
+        // See migration: 20260101_add_beacon_volunteer_badge.sql
     }
     
     /// Update volunteer availability
