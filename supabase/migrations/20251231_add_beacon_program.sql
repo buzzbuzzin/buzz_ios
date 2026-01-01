@@ -186,3 +186,51 @@ GRANT EXECUTE ON FUNCTION public.check_beacon_training_complete(uuid) TO authent
 GRANT EXECUTE ON FUNCTION public.enroll_beacon_volunteer(uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.find_nearby_beacon_volunteers(double precision, double precision, integer) TO authenticated;
 
+-- Create storage bucket for certificates if it doesn't exist
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES (
+    'certificates',
+    'certificates',
+    true,
+    5242880, -- 5MB limit
+    ARRAY['image/jpeg', 'image/jpg', 'image/png', 'application/pdf']
+)
+ON CONFLICT (id) DO NOTHING;
+
+-- Storage RLS Policies for certificates bucket
+-- Users can upload their own certificates (file name must contain their user ID)
+CREATE POLICY "Users can upload own certificates"
+    ON storage.objects
+    FOR INSERT
+    WITH CHECK (
+        bucket_id = 'certificates' AND
+        name LIKE '%' || auth.uid()::text || '%'
+    );
+
+-- Users can view their own certificates
+CREATE POLICY "Users can view own certificates"
+    ON storage.objects
+    FOR SELECT
+    USING (
+        bucket_id = 'certificates' AND
+        name LIKE '%' || auth.uid()::text || '%'
+    );
+
+-- Users can update their own certificates
+CREATE POLICY "Users can update own certificates"
+    ON storage.objects
+    FOR UPDATE
+    USING (
+        bucket_id = 'certificates' AND
+        name LIKE '%' || auth.uid()::text || '%'
+    );
+
+-- Users can delete their own certificates
+CREATE POLICY "Users can delete own certificates"
+    ON storage.objects
+    FOR DELETE
+    USING (
+        bucket_id = 'certificates' AND
+        name LIKE '%' || auth.uid()::text || '%'
+    );
+
