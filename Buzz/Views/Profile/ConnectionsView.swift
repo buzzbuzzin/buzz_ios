@@ -114,9 +114,14 @@ struct ConnectionsView: View {
             NavigationLink(destination: ReferralHistoryView()) {
                 HStack {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Available Credits")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
+                        HStack(spacing: 4) {
+                            Text("Available Credits")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                            Text("(1 referral credit = $25)")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
                         
                         if isLoading {
                             ProgressView()
@@ -289,8 +294,8 @@ struct ConnectionsView: View {
                 HowItWorksStep(
                     number: 4,
                     icon: "dollarsign.circle.fill",
-                    title: "Earn $25 Credit",
-                    description: "You receive $25 to use on future bookings!"
+                    title: "Earn Credits",
+                    description: "You receive credits to use on future bookings or in our Buzz shop!"
                 )
             }
         }
