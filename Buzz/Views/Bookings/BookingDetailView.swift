@@ -209,6 +209,31 @@ struct BookingDetailView: View {
                         .padding(.horizontal)
                 }
                 
+                // Description
+                VStack(alignment: .leading, spacing: 8) {
+                    Label("Description", systemImage: "text.alignleft")
+                        .font(.headline)
+                    
+                    if let description = booking.description, !description.isEmpty {
+                        Text(description)
+                            .font(.body)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.leading)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    } else {
+                        Text("No description provided")
+                            .font(.body)
+                            .foregroundColor(.secondary)
+                            .italic()
+                            .multilineTextAlignment(.leading)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+                .padding(.horizontal)
+                
+                Divider()
+                    .padding(.horizontal)
+                
                 // Assignment Type (S&R only)
                 if booking.specialization == .searchRescue, let assignmentType = booking.assignmentType {
                     VStack(alignment: .leading, spacing: 8) {
@@ -296,31 +321,6 @@ struct BookingDetailView: View {
                     Divider()
                         .padding(.horizontal)
                 }
-                
-                // Description
-                VStack(alignment: .leading, spacing: 8) {
-                    Label("Description", systemImage: "text.alignleft")
-                        .font(.headline)
-                    
-                    if let description = booking.description, !description.isEmpty {
-                        Text(description)
-                            .font(.body)
-                            .foregroundColor(.secondary)
-                            .multilineTextAlignment(.leading)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    } else {
-                        Text("No description provided")
-                            .font(.body)
-                            .foregroundColor(.secondary)
-                            .italic()
-                            .multilineTextAlignment(.leading)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                }
-                .padding(.horizontal)
-                
-                Divider()
-                .padding(.horizontal)
                 
                 // Payment, Hourly Rate & Hours (Grid Layout)
                 VStack(spacing: 20) {
