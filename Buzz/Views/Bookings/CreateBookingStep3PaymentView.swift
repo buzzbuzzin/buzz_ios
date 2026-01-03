@@ -24,6 +24,10 @@ struct CreateBookingStep3PaymentView: View {
     
     // Search & Rescue specific bindings
     @Binding var isVoluntaryMission: Bool
+    @Binding var sarAssignmentType: SARAssignmentType?
+    @Binding var sarGovernmentAgency: GovernmentAgency?
+    @Binding var usesBeaconProgram: Bool
+    let customerRole: CustomerRole?
     
     let onBack: () -> Void
     let onCreate: () -> Void
@@ -116,11 +120,14 @@ struct CreateBookingStep3PaymentView: View {
             VStack(spacing: 16) {
                 // Booking Details Section
                 SectionCard3(number: 1, title: "Booking Details", subtitle: "Optional") {
+                    VStack(alignment: .leading, spacing: 16) {
+                        // Description field
                     TextField("Enter details about this booking. This could be something that you want pilots to be aware of before or during the flight.", text: $description, axis: .vertical)
                         .lineLimit(3...6)
                         .padding()
                         .background(Color(.systemGray6))
                         .cornerRadius(12)
+                    }
                 }
                 
                 // Payment Section
@@ -316,8 +323,15 @@ struct CreateBookingStep3PaymentView: View {
                             .cornerRadius(8)
                         }
                     } else if selectedSpecialization == .searchRescue {
-                        // Search & Rescue - voluntary or paid
-                        SearchRescuePaymentSection(isVoluntaryMission: $isVoluntaryMission)
+                        // Search & Rescue - assignment type, agency, beacon, and pricing
+                        SearchRescuePaymentSection(
+                            isVoluntaryMission: $isVoluntaryMission,
+                            sarAssignmentType: $sarAssignmentType,
+                            sarGovernmentAgency: $sarGovernmentAgency,
+                            usesBeaconProgram: $usesBeaconProgram,
+                            requiredMinimumRank: $requiredMinimumRank,
+                            customerRole: customerRole
+                        )
                     } else {
                         // Other industries - payment input
                         VStack(alignment: .leading, spacing: 16) {
@@ -572,14 +586,167 @@ struct CreateBookingStep3PaymentView: View {
 
 struct SearchRescuePaymentSection: View {
     @Binding var isVoluntaryMission: Bool
+    @Binding var sarAssignmentType: SARAssignmentType?
+    @Binding var sarGovernmentAgency: GovernmentAgency?
+    @Binding var usesBeaconProgram: Bool
+    @Binding var requiredMinimumRank: Int
+    let customerRole: CustomerRole?
     
-    private let searchRescueHourlyRate: Decimal = 25.0
+    private let beaconHourlyRate: Decimal = 25.0
+    
+    /// Whether the customer is a government client
+    private var isGovernmentClient: Bool {
+        customerRole == .government
+    }
+    
+    /// Get hourly rate based on rank for non-Beacon pricing
+    private func getRankBasedHourlyRate(for rank: Int) -> Decimal {
+        switch rank {
+        case 4: return Decimal(65) // Captain
+        case 3: return Decimal(55) // Commander
+        case 2: return Decimal(45) // Lieutenant
+        case 1: return Decimal(35) // Sub Lieutenant
+        default: return Decimal(25) // Ensign
+        }
+    }
+    
+    private var rankName: String {
+        PilotStats(pilotId: UUID(), totalFlightHours: 0, completedBookings: 0, tier: requiredMinimumRank).tierName
+    }
+    
+    /// Current hourly rate based on Beacon selection
+    private var currentHourlyRate: Decimal {
+        if isGovernmentClient && usesBeaconProgram {
+            return beaconHourlyRate
+        } else {
+            return getRankBasedHourlyRate(for: requiredMinimumRank)
+        }
+    }
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            // Mission Type Selection
+        VStack(alignment: .leading, spacing: 20) {
+            // Beacon Program Toggle (only for government clients)
+            if isGovernmentClient {
             VStack(alignment: .leading, spacing: 12) {
-                Text("Mission Type")
+                    HStack {
+                        Text("Use Beacon Program")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.secondary)
+                        
+                        Spacer()
+                        
+                        Toggle("", isOn: $usesBeaconProgram)
+                            .labelsHidden()
+                            .tint(.orange)
+                    }
+                    
+                    HStack(spacing: 8) {
+                        Image(systemName: "antenna.radiowaves.left.and.right")
+                            .foregroundColor(.orange)
+                            .font(.subheadline)
+                        Text("Beacon connects you with certified volunteer pilots for emergency response")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                    .background(Color.orange.opacity(0.1))
+                    .cornerRadius(8)
+                }
+                
+                Divider()
+            }
+            
+            // Pricing Section - depends on Beacon selection
+            if isGovernmentClient && usesBeaconProgram {
+                // Beacon pricing: $25/hour or Voluntary
+                BeaconPricingSection(
+                    isVoluntaryMission: $isVoluntaryMission,
+                    beaconHourlyRate: beaconHourlyRate
+                )
+            } else {
+                // Non-Beacon pricing: Rank-based or Voluntary
+                RankBasedPricingSection(
+                    isVoluntaryMission: $isVoluntaryMission,
+                    requiredMinimumRank: $requiredMinimumRank,
+                    getRankBasedHourlyRate: getRankBasedHourlyRate
+                )
+            }
+            
+            // Info Box
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 6) {
+                    Image(systemName: "info.circle.fill")
+                        .foregroundColor(.orange)
+                        .font(.subheadline)
+                    Text("How Search & Rescue Works")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.orange)
+                    Spacer()
+                }
+                
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(alignment: .top, spacing: 8) {
+                        Text("1.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Text("Multiple pilots can join your mission")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    HStack(alignment: .top, spacing: 8) {
+                        Text("2.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Text(isGovernmentClient && usesBeaconProgram 
+                            ? "Beacon volunteers will see your mission and can respond"
+                            : "Pilots matching your rank requirement will see and can respond")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    if !isVoluntaryMission {
+                        HStack(alignment: .top, spacing: 8) {
+                            Text("3.")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            Text("After completion, enter hours worked to calculate payment")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        
+                        HStack(alignment: .top, spacing: 8) {
+                            Text("4.")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            Text("Total = hours × $\(NSDecimalNumber(decimal: currentHourlyRate).intValue) × number of pilots")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+                .padding(.top, 4)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(Color.orange.opacity(0.1))
+            .cornerRadius(12)
+        }
+    }
+}
+
+// MARK: - Beacon Pricing Section (Government + Beacon = $25/hr or Voluntary)
+
+struct BeaconPricingSection: View {
+    @Binding var isVoluntaryMission: Bool
+    let beaconHourlyRate: Decimal
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Payment Type")
                     .font(.subheadline)
                     .fontWeight(.semibold)
                     .foregroundColor(.secondary)
@@ -620,7 +787,7 @@ struct SearchRescuePaymentSection: View {
                 }
                 .buttonStyle(PlainButtonStyle())
                 
-                // Paid Mission Option
+            // Paid Mission Option (Fixed $25/hour)
                 Button(action: {
                     isVoluntaryMission = false
                 }) {
@@ -630,11 +797,16 @@ struct SearchRescuePaymentSection: View {
                             .foregroundColor(!isVoluntaryMission ? .blue : .gray)
                         
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("Paid Mission")
+                        HStack(spacing: 6) {
+                            Text("Beacon Rate")
                                 .font(.headline)
                                 .foregroundColor(.primary)
+                            Image(systemName: "antenna.radiowaves.left.and.right")
+                                .font(.caption)
+                                .foregroundColor(.orange)
+                        }
                             
-                            Text("$25/hour per pilot - paid after mission completes")
+                        Text("Fixed $25/hour per pilot - paid after mission completes")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
@@ -642,7 +814,7 @@ struct SearchRescuePaymentSection: View {
                         Spacer()
                         
                         VStack(alignment: .trailing, spacing: 2) {
-                            Text("$\(String(format: "%.0f", NSDecimalNumber(decimal: searchRescueHourlyRate).doubleValue))")
+                        Text("$\(String(format: "%.0f", NSDecimalNumber(decimal: beaconHourlyRate).doubleValue))")
                                 .font(.title2)
                                 .fontWeight(.bold)
                                 .foregroundColor(.blue)
@@ -660,66 +832,183 @@ struct SearchRescuePaymentSection: View {
                     )
                 }
                 .buttonStyle(PlainButtonStyle())
-            }
-            
-            // Info Box
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 6) {
-                    Image(systemName: "info.circle.fill")
-                        .foregroundColor(.orange)
-                        .font(.subheadline)
-                    Text("How Search & Rescue Works")
+        }
+    }
+}
+
+// MARK: - Rank-Based Pricing Section (Non-Beacon = Variable pricing or Voluntary)
+
+struct RankBasedPricingSection: View {
+    @Binding var isVoluntaryMission: Bool
+    @Binding var requiredMinimumRank: Int
+    let getRankBasedHourlyRate: (Int) -> Decimal
+    
+    private var rankName: String {
+        PilotStats(pilotId: UUID(), totalFlightHours: 0, completedBookings: 0, tier: requiredMinimumRank).tierName
+    }
+    
+    private var currentHourlyRate: Decimal {
+        getRankBasedHourlyRate(requiredMinimumRank)
+    }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Payment Type")
                         .font(.subheadline)
                         .fontWeight(.semibold)
-                        .foregroundColor(.orange)
-                    Spacer()
-                }
-                
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack(alignment: .top, spacing: 8) {
-                        Text("1.")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        Text("Multiple pilots can join your mission")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
+                .foregroundColor(.secondary)
+            
+            // Voluntary Mission Option
+            Button(action: {
+                isVoluntaryMission = true
+            }) {
+                HStack(spacing: 12) {
+                    Image(systemName: isVoluntaryMission ? "checkmark.circle.fill" : "circle")
+                        .font(.title2)
+                        .foregroundColor(isVoluntaryMission ? .green : .gray)
                     
-                    HStack(alignment: .top, spacing: 8) {
-                        Text("2.")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        Text("Beacon volunteers will see your mission and can respond")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                    
-                    if !isVoluntaryMission {
-                        HStack(alignment: .top, spacing: 8) {
-                            Text("3.")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                            Text("After completion, enter hours worked to calculate payment")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Voluntary Mission")
+                            .font(.headline)
+                            .foregroundColor(.primary)
                         
-                        HStack(alignment: .top, spacing: 8) {
-                            Text("4.")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                            Text("Total = hours × $25 × number of pilots")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
+                        Text("No payment to pilots - they volunteer their time")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    Spacer()
+                    
+                    Text("$0")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                        .foregroundColor(.green)
+                }
+                .padding()
+                .background(isVoluntaryMission ? Color.green.opacity(0.1) : Color(.systemGray6))
+                .cornerRadius(12)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(isVoluntaryMission ? Color.green : Color.clear, lineWidth: 2)
+                )
+            }
+            .buttonStyle(PlainButtonStyle())
+            
+            // Paid Mission Option (Rank-based pricing)
+            Button(action: {
+                isVoluntaryMission = false
+            }) {
+                VStack(spacing: 12) {
+                    HStack(spacing: 12) {
+                        Image(systemName: !isVoluntaryMission ? "checkmark.circle.fill" : "circle")
+                            .font(.title2)
+                            .foregroundColor(!isVoluntaryMission ? .blue : .gray)
+                        
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Paid Mission")
+                                .font(.headline)
+                                .foregroundColor(.primary)
+                            
+                            Text("Rate based on pilot rank - paid after mission completes")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    
+                        Spacer()
+                        
+                        VStack(alignment: .trailing, spacing: 2) {
+                            Text("$\(String(format: "%.0f", NSDecimalNumber(decimal: currentHourlyRate).doubleValue))")
+                                .font(.title2)
+                                .fontWeight(.bold)
+                                .foregroundColor(.blue)
+                            Text("/hr/pilot")
+                                .font(.caption2)
+                            .foregroundColor(.secondary)
                         }
                     }
+                    
+                    // Rank selector when paid is selected
+                    if !isVoluntaryMission {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Select Pilot Rank")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            
+                            // Create 2-column grid: 3 ranks in first row, 2 ranks in second row
+                            VStack(spacing: 8) {
+                                // First row: Ensign, Sub Lieutenant, Lieutenant
+                                HStack(spacing: 8) {
+                                    ForEach([0, 1, 2], id: \.self) { rank in
+                                        let rankStats = PilotStats(pilotId: UUID(), totalFlightHours: 0, completedBookings: 0, tier: rank)
+                                        let rate = getRankBasedHourlyRate(rank)
+                                        
+                                        Button(action: {
+                                            requiredMinimumRank = rank
+                                        }) {
+                                            VStack(spacing: 6) {
+                                                Text(rankStats.tierName)
+                                                    .font(.subheadline)
+                                                    .fontWeight(requiredMinimumRank == rank ? .bold : .semibold)
+                                                    .lineLimit(1)
+                                                    .minimumScaleFactor(0.8)
+                                                Text("$\(NSDecimalNumber(decimal: rate).intValue)")
+                                                    .font(.title3)
+                                            }
+                                            .frame(maxWidth: .infinity)
+                                            .frame(height: 70)
+                                            .background(requiredMinimumRank == rank ? Color.blue : Color(.systemGray5))
+                                            .foregroundColor(requiredMinimumRank == rank ? .white : .primary)
+                                            .cornerRadius(10)
+                                        }
+                                        .buttonStyle(PlainButtonStyle())
+                                    }
+                                }
+                                
+                                // Second row: Commander, Captain
+                                HStack(spacing: 8) {
+                                    ForEach([3, 4], id: \.self) { rank in
+                                        let rankStats = PilotStats(pilotId: UUID(), totalFlightHours: 0, completedBookings: 0, tier: rank)
+                                        let rate = getRankBasedHourlyRate(rank)
+                                        
+                                        Button(action: {
+                                            requiredMinimumRank = rank
+                                        }) {
+                                            VStack(spacing: 6) {
+                                                Text(rankStats.tierName)
+                                                    .font(.subheadline)
+                                                    .fontWeight(requiredMinimumRank == rank ? .bold : .semibold)
+                                                    .lineLimit(1)
+                                                    .minimumScaleFactor(0.8)
+                                                Text("$\(NSDecimalNumber(decimal: rate).intValue)")
+                                                    .font(.title3)
+                                            }
+                                            .frame(maxWidth: .infinity)
+                                            .frame(height: 70)
+                                            .background(requiredMinimumRank == rank ? Color.blue : Color(.systemGray5))
+                                            .foregroundColor(requiredMinimumRank == rank ? .white : .primary)
+                                            .cornerRadius(10)
+                                        }
+                                        .buttonStyle(PlainButtonStyle())
+                                    }
+                                    
+                                    // Empty spacer to maintain 2-column appearance
+                                    Spacer()
+                                        .frame(maxWidth: .infinity)
+                                }
+                            }
                 }
                 .padding(.top, 4)
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .background(Color.orange.opacity(0.1))
+                }
+                .padding()
+                .background(!isVoluntaryMission ? Color.blue.opacity(0.1) : Color(.systemGray6))
             .cornerRadius(12)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(!isVoluntaryMission ? Color.blue : Color.clear, lineWidth: 2)
+                )
+            }
+            .buttonStyle(PlainButtonStyle())
         }
     }
 }

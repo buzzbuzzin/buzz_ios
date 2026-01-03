@@ -155,6 +155,10 @@ CREATE TABLE public.bookings (
   is_voluntary boolean DEFAULT false,
   hourly_rate numeric DEFAULT 0,
   final_hours_worked double precision,
+  assignment_type text CHECK (assignment_type IS NULL OR assignment_type IN ('ground_search', 'air_search', 'water_rescue', 'medical_emergency', 'fire_emergency', 'disaster_response', 'missing_person')),
+  government_agency text CHECK (government_agency IS NULL OR government_agency IN ('police_department', 'fire_department', 'sheriff_office', 'state_emergency_management')),
+  uses_beacon_program boolean DEFAULT false,
+  number_of_pilots integer DEFAULT 1,
   CONSTRAINT bookings_pkey PRIMARY KEY (id),
   CONSTRAINT bookings_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES public.profiles(id),
   CONSTRAINT bookings_pilot_id_fkey FOREIGN KEY (pilot_id) REFERENCES public.profiles(id)

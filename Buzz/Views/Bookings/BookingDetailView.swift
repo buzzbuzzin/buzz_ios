@@ -207,6 +207,79 @@ struct BookingDetailView: View {
                         .padding(.horizontal)
                 }
                 
+                // Assignment Type (S&R only)
+                if booking.specialization == .searchRescue, let assignmentType = booking.assignmentType {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Label("Assignment Type", systemImage: "list.bullet.clipboard")
+                            .font(.headline)
+                        
+                        HStack(spacing: 8) {
+                            Image(systemName: assignmentType.icon)
+                                .foregroundColor(.blue)
+                                .font(.body)
+                            Text(assignmentType.displayName)
+                                .font(.body)
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(Color.blue.opacity(0.1))
+                        .cornerRadius(8)
+                    }
+                    .padding(.horizontal)
+                    
+                    Divider()
+                        .padding(.horizontal)
+                }
+                
+                // Government Agency (S&R only)
+                if booking.specialization == .searchRescue, let agency = booking.governmentAgency {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Label("Agency", systemImage: "building.columns")
+                            .font(.headline)
+                        
+                        HStack(spacing: 8) {
+                            Image(systemName: agency.icon)
+                                .foregroundColor(.purple)
+                                .font(.body)
+                            Text(agency.displayName)
+                                .font(.body)
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(Color.purple.opacity(0.1))
+                        .cornerRadius(8)
+                    }
+                    .padding(.horizontal)
+                    
+                    Divider()
+                        .padding(.horizontal)
+                }
+                
+                // Beacon Program (S&R only)
+                if booking.specialization == .searchRescue && booking.usesBeaconProgram == true {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Label("Program", systemImage: "antenna.radiowaves.left.and.right")
+                            .font(.headline)
+                            .foregroundColor(.orange)
+                        
+                        HStack(spacing: 8) {
+                            Image(systemName: "antenna.radiowaves.left.and.right")
+                                .foregroundColor(.orange)
+                                .font(.body)
+                            Text("Beacon Volunteer Program")
+                                .font(.body)
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(Color.orange.opacity(0.1))
+                        .cornerRadius(8)
+                    }
+                    .padding(.horizontal)
+                    
+                    Divider()
+                        .padding(.horizontal)
+                }
+                
                 // Description
                 VStack(alignment: .leading, spacing: 8) {
                     Label("Description", systemImage: "text.alignleft")

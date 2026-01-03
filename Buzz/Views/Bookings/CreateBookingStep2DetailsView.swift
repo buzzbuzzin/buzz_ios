@@ -31,6 +31,13 @@ struct CreateBookingStep2DetailsView: View {
     @Binding var requiredMinimumRank: Int
     @Binding var propertySize: PropertySize
     
+    // Search & Rescue specific bindings
+    @Binding var sarAssignmentType: SARAssignmentType?
+    @Binding var sarGovernmentAgency: GovernmentAgency?
+    @Binding var estimatedHours: String
+    @Binding var numberOfPilots: Int
+    let customerRole: CustomerRole?
+    
     @State private var showLocationSearch = false
     @State private var showRankInfo = false
     
@@ -141,50 +148,225 @@ struct CreateBookingStep2DetailsView: View {
                     }
                 }
                 
-                // Pilot Rank Section
-                SectionCard2(number: 3, title: "Pilot Rank") {
-                    VStack(spacing: 12) {
-                        HStack {
-                            Text("⭐")
-                                .font(.system(size: 20))
-                            
-                            Picker("Minimum Rank", selection: $requiredMinimumRank) {
-                                // For Automotive, exclude Ensign (rank 0), start from Sub Lieutenant (rank 1)
-                                // Display ranks in descending order: Captain (4) -> Ensign (0)
-                                let rankRange = selectedSpecialization == .automotive ? (1...4) : (0...4)
-                                ForEach(Array(rankRange.reversed()), id: \.self) { rank in
-                                    Text(PilotStats(pilotId: UUID(), totalFlightHours: 0, completedBookings: 0, tier: rank).tierName)
-                                        .tag(rank)
+                // Pilot Rank Section (Not for Search & Rescue)
+                if selectedSpecialization != .searchRescue {
+                    SectionCard2(number: 3, title: "Pilot Rank") {
+                        VStack(spacing: 12) {
+                            HStack {
+                                Text("⭐")
+                                    .font(.system(size: 20))
+                                
+                                Picker("Minimum Rank", selection: $requiredMinimumRank) {
+                                    // For Automotive, exclude Ensign (rank 0), start from Sub Lieutenant (rank 1)
+                                    // Display ranks in descending order: Captain (4) -> Ensign (0)
+                                    let rankRange = selectedSpecialization == .automotive ? (1...4) : (0...4)
+                                    ForEach(Array(rankRange.reversed()), id: \.self) { rank in
+                                        Text(PilotStats(pilotId: UUID(), totalFlightHours: 0, completedBookings: 0, tier: rank).tierName)
+                                            .tag(rank)
+                                    }
+                                }
+                                .pickerStyle(.menu)
+                                .labelsHidden()
+                                
+                                Spacer()
+                            }
+                            .padding()
+                            .background(Color(.systemGray6))
+                            .cornerRadius(12)
+                            .onAppear {
+                                // Ensure rank is valid for Automotive (must be at least 1)
+                                // Default to Captain (4) if not set or invalid
+                                if selectedSpecialization == .automotive && requiredMinimumRank < 1 {
+                                    requiredMinimumRank = 4 // Default to Captain for Automotive
+                                } else if requiredMinimumRank < 0 || requiredMinimumRank > 4 {
+                                    requiredMinimumRank = 4 // Default to Captain
                                 }
                             }
-                            .pickerStyle(.menu)
-                            .labelsHidden()
+                            .onChange(of: selectedSpecialization) { _, newSpecialization in
+                                // Reset rank if switching to Automotive and current rank is Ensign
+                                if newSpecialization == .automotive && requiredMinimumRank < 1 {
+                                    requiredMinimumRank = 4 // Default to Captain for Automotive
+                                }
+                            }
                             
-                            Spacer()
+                            Text("Pricing varies by rank")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                                .frame(maxWidth: .infinity, alignment: .center)
                         }
-                        .padding()
-                        .background(Color(.systemGray6))
-                        .cornerRadius(12)
-                        .onAppear {
-                            // Ensure rank is valid for Automotive (must be at least 1)
-                            // Default to Captain (4) if not set or invalid
-                            if selectedSpecialization == .automotive && requiredMinimumRank < 1 {
-                                requiredMinimumRank = 4 // Default to Captain for Automotive
-                            } else if requiredMinimumRank < 0 || requiredMinimumRank > 4 {
-                                requiredMinimumRank = 4 // Default to Captain
+                    }
+                }
+                
+                // Search & Rescue Assignment Details Section
+                if selectedSpecialization == .searchRescue {
+                    SectionCard2(number: 3, title: "Assignment Details") {
+                        VStack(alignment: .leading, spacing: 16) {
+                            // Assignment Type
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text("Assignment Type")
+                                    .font(.subheadline)
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(.secondary)
+                                
+                                Menu {
+                                    ForEach(SARAssignmentType.allCases, id: \.self) { type in
+                                        Button(action: {
+                                            sarAssignmentType = type
+                                        }) {
+                                            Label(type.displayName, systemImage: type.icon)
+                                        }
+                                    }
+                                } label: {
+                                    HStack {
+                                        if let assignmentType = sarAssignmentType {
+                                            Image(systemName: assignmentType.icon)
+                                                .foregroundColor(.blue)
+                                            Text(assignmentType.displayName)
+                                                .foregroundColor(.primary)
+                                        } else {
+                                            Image(systemName: "list.bullet")
+                                                .foregroundColor(.gray)
+                                            Text("Select Assignment Type")
+                                                .foregroundColor(.secondary)
+                                        }
+                                        Spacer()
+                                        Image(systemName: "chevron.down")
+                                            .foregroundColor(.secondary)
+                                            .font(.caption)
+                                    }
+                                    .padding()
+                                    .background(Color(.systemGray6))
+                                    .cornerRadius(12)
+                                }
+                            }
+                            
+                            // Agency Selection (only for government clients)
+                            if customerRole == .government {
+                                VStack(alignment: .leading, spacing: 12) {
+                                    Text("Agency")
+                                        .font(.subheadline)
+                                        .fontWeight(.semibold)
+                                        .foregroundColor(.secondary)
+                                    
+                                    Menu {
+                                        ForEach(GovernmentAgency.allCases, id: \.self) { agency in
+                                            Button(action: {
+                                                sarGovernmentAgency = agency
+                                            }) {
+                                                Label(agency.displayName, systemImage: agency.icon)
+                                            }
+                                        }
+                                    } label: {
+                                        HStack {
+                                            if let agency = sarGovernmentAgency {
+                                                Image(systemName: agency.icon)
+                                                    .foregroundColor(.purple)
+                                                Text(agency.displayName)
+                                                    .foregroundColor(.primary)
+                                            } else {
+                                                Image(systemName: "building.columns")
+                                                    .foregroundColor(.gray)
+                                                Text("Select Agency")
+                                                    .foregroundColor(.secondary)
+                                            }
+                                            Spacer()
+                                            Image(systemName: "chevron.down")
+                                                .foregroundColor(.secondary)
+                                                .font(.caption)
+                                        }
+                                        .padding()
+                                        .background(Color(.systemGray6))
+                                        .cornerRadius(12)
+                                    }
+                                }
+                            }
+                            
+                            // Estimated Hours Selector
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text("Estimated Hours")
+                                    .font(.subheadline)
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(.secondary)
+                                
+                                HStack(spacing: 12) {
+                                    ForEach([1.0, 2.0, 3.0, 4.0, 5.0], id: \.self) { hours in
+                                        Button(action: {
+                                            estimatedHours = String(format: "%.0f", hours)
+                                        }) {
+                                            VStack(spacing: 4) {
+                                                Text("\(Int(hours))")
+                                                    .font(.title3)
+                                                    .fontWeight(.bold)
+                                                Text(hours == 1 ? "hour" : "hours")
+                                                    .font(.caption2)
+                                            }
+                                            .frame(maxWidth: .infinity)
+                                            .frame(height: 60)
+                                            .background((estimatedHours == String(format: "%.0f", hours)) ? Color.blue : Color(.systemGray5))
+                                            .foregroundColor((estimatedHours == String(format: "%.0f", hours)) ? .white : .primary)
+                                            .cornerRadius(10)
+                                        }
+                                        .buttonStyle(PlainButtonStyle())
+                                    }
+                                }
+                                
+                                HStack(spacing: 8) {
+                                    Image(systemName: "clock")
+                                        .foregroundColor(.blue)
+                                        .font(.caption)
+                                    Text("This is an estimate. Actual hours will be logged after the mission completes.")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 8)
+                                .background(Color.blue.opacity(0.1))
+                                .cornerRadius(8)
+                            }
+                            
+                            // Number of Pilots Selector
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text("Number of Pilots")
+                                    .font(.subheadline)
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(.secondary)
+                                
+                                HStack(spacing: 12) {
+                                    ForEach(1...5, id: \.self) { count in
+                                        Button(action: {
+                                            numberOfPilots = count
+                                        }) {
+                                            VStack(spacing: 4) {
+                                                Text("\(count)")
+                                                    .font(.title3)
+                                                    .fontWeight(.bold)
+                                                Text(count == 1 ? "pilot" : "pilots")
+                                                    .font(.caption2)
+                                            }
+                                            .frame(maxWidth: .infinity)
+                                            .frame(height: 60)
+                                            .background(numberOfPilots == count ? Color.blue : Color(.systemGray5))
+                                            .foregroundColor(numberOfPilots == count ? .white : .primary)
+                                            .cornerRadius(10)
+                                        }
+                                        .buttonStyle(PlainButtonStyle())
+                                    }
+                                }
+                                
+                                HStack(spacing: 8) {
+                                    Image(systemName: "person.2.fill")
+                                        .foregroundColor(.blue)
+                                        .font(.caption)
+                                    Text("Select how many pilots you need for this mission.")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 8)
+                                .background(Color.blue.opacity(0.1))
+                                .cornerRadius(8)
                             }
                         }
-                        .onChange(of: selectedSpecialization) { _, newSpecialization in
-                            // Reset rank if switching to Automotive and current rank is Ensign
-                            if newSpecialization == .automotive && requiredMinimumRank < 1 {
-                                requiredMinimumRank = 4 // Default to Captain for Automotive
-                            }
-                        }
-                        
-                        Text("Pricing varies by rank")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                            .frame(maxWidth: .infinity, alignment: .center)
                     }
                 }
                 
@@ -233,7 +415,27 @@ struct CreateBookingStep2DetailsView: View {
                     CustomButton(
                         title: "Next",
                         action: onNext,
-                        isDisabled: selectedLocation == nil || locationName.isEmpty
+                        isDisabled: {
+                            // Basic validation
+                            if selectedLocation == nil || locationName.isEmpty {
+                                return true
+                            }
+                            
+                            // S&R specific validation
+                            if selectedSpecialization == .searchRescue {
+                                // Assignment type is required
+                                if sarAssignmentType == nil {
+                                    return true
+                                }
+                                
+                                // Agency is required for government clients
+                                if customerRole == .government && sarGovernmentAgency == nil {
+                                    return true
+                                }
+                            }
+                            
+                            return false
+                        }()
                     )
                     .frame(maxWidth: .infinity)
                 }

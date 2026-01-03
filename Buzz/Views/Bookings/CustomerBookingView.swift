@@ -341,7 +341,7 @@ struct CreateBookingView: View {
     @State private var requiredMinimumRank: Int = 4 // Default to highest rank (Captain)
     @State private var description = ""
     @State private var paymentAmount = ""
-    @State private var estimatedHours = ""
+    @State private var estimatedHours = "2"
     @State private var paymentInputType: PaymentInputType = .totalPayment
     @State private var showError = false
     @State private var errorMessage = ""
@@ -363,6 +363,10 @@ struct CreateBookingView: View {
     // Search & Rescue specific state
     @State private var isVoluntaryMission: Bool = true
     @State private var searchRescueHourlyRate: Decimal = 25.0 // Fixed $25/hour per pilot
+    @State private var sarAssignmentType: SARAssignmentType? = nil
+    @State private var sarGovernmentAgency: GovernmentAgency? = nil
+    @State private var usesBeaconProgram: Bool = false
+    @State private var numberOfPilots: Int = 1
     
     // Credits for booking
     @State private var availableCredits: Decimal = 0
@@ -395,6 +399,11 @@ struct CreateBookingView: View {
                             selectedSpecialization: $selectedSpecialization,
                             requiredMinimumRank: $requiredMinimumRank,
                             propertySize: $propertySize,
+                            sarAssignmentType: $sarAssignmentType,
+                            sarGovernmentAgency: $sarGovernmentAgency,
+                            estimatedHours: $estimatedHours,
+                            numberOfPilots: $numberOfPilots,
+                            customerRole: authService.userProfile?.role,
                             onBack: {
                                 currentStep = 1
                             },
@@ -420,6 +429,10 @@ struct CreateBookingView: View {
                             realEstateUnder5000Prices: realEstateUnder5000Prices,
                             realEstateAbove5000Prices: realEstateAbove5000Prices,
                             isVoluntaryMission: $isVoluntaryMission,
+                            sarAssignmentType: $sarAssignmentType,
+                            sarGovernmentAgency: $sarGovernmentAgency,
+                            usesBeaconProgram: $usesBeaconProgram,
+                            customerRole: authService.userProfile?.role,
                             onBack: {
                                 currentStep = 2
                             },
@@ -446,6 +459,10 @@ struct CreateBookingView: View {
                                 paymentAmount: getFinalPaymentAmount(),
                                 estimatedHours: getEstimatedHours(),
                                 isVoluntary: specialization == .searchRescue && isVoluntaryMission,
+                                sarAssignmentType: sarAssignmentType,
+                                sarGovernmentAgency: sarGovernmentAgency,
+                                usesBeaconProgram: usesBeaconProgram,
+                                numberOfPilots: numberOfPilots,
                                 availableCredits: availableCredits,
                                 creditsToUse: $creditsToUse,
                                 onCreditsChanged: { newCredits in
@@ -571,6 +588,20 @@ struct CreateBookingView: View {
             }
         }
         
+        // For Search & Rescue, validate assignment type is selected
+        if selectedSpecialization == .searchRescue {
+            guard sarAssignmentType != nil else {
+                return false
+            }
+            
+            // For government clients, agency is also required
+            if authService.userProfile?.role == .government {
+                guard sarGovernmentAgency != nil else {
+                    return false
+                }
+            }
+        }
+        
         return true
     }
     
@@ -582,9 +613,9 @@ struct CreateBookingView: View {
             return true // Payment is set automatically
         }
         
-        // For Search & Rescue, payment is either voluntary ($0) or $25/hour (decided at completion)
+        // For Search & Rescue, all validation is done in Step 2
         if selectedSpecialization == .searchRescue {
-            return true // Always valid - either voluntary or fixed hourly rate
+            return true
         }
         
         // For other industries, validate payment input
@@ -686,15 +717,31 @@ struct CreateBookingView: View {
             // For Real Estate, use fixed pricing based on rank and property size
             return getRealEstatePrice(for: requiredMinimumRank, propertySize: propertySize)
         } else if specialization == .searchRescue {
-            // For Search & Rescue, payment is calculated after completion
-            // Return 0 for now - actual payment happens post-completion
-            return Decimal(0)
+            // For Search & Rescue, calculate: hourlyRate × hours × numberOfPilots
+            if isVoluntaryMission {
+                return Decimal(0)
+            }
+            let hourlyRate = getSARHourlyRate(for: requiredMinimumRank)
+            let hours = Double(estimatedHours) ?? 2.0
+            let totalAmount = hourlyRate * Decimal(hours) * Decimal(numberOfPilots)
+            return totalAmount
         } else {
             // For other industries, use user-entered payment
             if let paymentValue = Double(paymentAmount) {
                 return Decimal(paymentValue)
             }
             return Decimal(0)
+        }
+    }
+    
+    /// Get S&R hourly rate based on rank: 25, 35, 45, 55, 65
+    private func getSARHourlyRate(for rank: Int) -> Decimal {
+        switch rank {
+        case 4: return Decimal(65) // Captain
+        case 3: return Decimal(55) // Commander
+        case 2: return Decimal(45) // Lieutenant
+        case 1: return Decimal(35) // Sub Lieutenant
+        default: return Decimal(25) // Ensign
         }
     }
     
@@ -829,6 +876,19 @@ struct CreateBookingView: View {
         }
     }
     
+    /// Get the hourly rate for S&R missions based on Beacon selection and rank
+    private func getSearchRescueHourlyRate() -> Decimal {
+        let isGovernment = authService.userProfile?.role == .government
+        
+        if isGovernment && usesBeaconProgram {
+            // Government + Beacon = fixed $25/hour
+            return Decimal(25)
+        } else {
+            // Non-Beacon = rank-based pricing: 25, 35, 45, 55, 65
+            return getSARHourlyRate(for: requiredMinimumRank)
+        }
+    }
+    
     /// Create a Search & Rescue booking without upfront payment
     /// Payment is calculated and collected after mission completion based on hours worked and pilots involved
     private func createSearchRescueBooking(
@@ -869,6 +929,9 @@ struct CreateBookingView: View {
                 endDateTime = calendar.date(byAdding: .hour, value: Int(hours), to: startDateTime) ?? startDateTime
             }
             
+            // Get the appropriate hourly rate based on Beacon selection
+            let hourlyRate = isVoluntaryMission ? Decimal(0) : getSearchRescueHourlyRate()
+            
             // Create Search & Rescue booking without payment (payment happens after completion)
             let newBooking = try await bookingService.createSearchRescueBooking(
                 customerId: customerId,
@@ -878,8 +941,13 @@ struct CreateBookingView: View {
                 endDate: endDateTime,
                 description: description.isEmpty ? nil : description,
                 isVoluntary: isVoluntaryMission,
-                hourlyRate: isVoluntaryMission ? Decimal(0) : searchRescueHourlyRate,
-                estimatedFlightHours: hours
+                hourlyRate: hourlyRate,
+                estimatedFlightHours: hours,
+                assignmentType: sarAssignmentType,
+                governmentAgency: sarGovernmentAgency,
+                usesBeaconProgram: usesBeaconProgram,
+                requiredMinimumRank: requiredMinimumRank,
+                numberOfPilots: numberOfPilots
             )
             
             await MainActor.run {

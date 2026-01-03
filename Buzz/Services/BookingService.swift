@@ -147,7 +147,12 @@ class BookingService: ObservableObject {
         description: String?,
         isVoluntary: Bool,
         hourlyRate: Decimal,
-        estimatedFlightHours: Double
+        estimatedFlightHours: Double,
+        assignmentType: SARAssignmentType? = nil,
+        governmentAgency: GovernmentAgency? = nil,
+        usesBeaconProgram: Bool = false,
+        requiredMinimumRank: Int = 0,
+        numberOfPilots: Int = 1
     ) async throws -> Booking {
         isLoading = true
         errorMessage = nil
@@ -162,13 +167,15 @@ class BookingService: ObservableObject {
                 "location_name": .string(locationName),
                 "specialization": .string(BookingSpecialization.searchRescue.rawValue),
                 "description": .string(description ?? ""), // Always include description (required by NOT NULL constraint)
-                "payment_amount": .double(0), // Payment calculated post-completion
+                "payment_amount": .double(NSDecimalNumber(decimal: hourlyRate * Decimal(estimatedFlightHours) * Decimal(numberOfPilots)).doubleValue), // Calculate total payment
                 "status": .string(BookingStatus.available.rawValue),
                 "created_at": .string(ISO8601DateFormatter().string(from: Date())),
                 "estimated_flight_hours": .double(estimatedFlightHours),
-                "required_minimum_rank": .integer(0), // Any rank can join S&R
+                "required_minimum_rank": .integer(requiredMinimumRank),
                 "is_voluntary": .bool(isVoluntary),
-                "hourly_rate": .double(NSDecimalNumber(decimal: hourlyRate).doubleValue)
+                "hourly_rate": .double(NSDecimalNumber(decimal: hourlyRate).doubleValue),
+                "uses_beacon_program": .bool(usesBeaconProgram),
+                "number_of_pilots": .integer(numberOfPilots)
             ]
             
             if let scheduledDate = scheduledDate {
@@ -177,6 +184,14 @@ class BookingService: ObservableObject {
             
             if let endDate = endDate {
                 booking["end_date"] = .string(ISO8601DateFormatter().string(from: endDate))
+            }
+            
+            if let assignmentType = assignmentType {
+                booking["assignment_type"] = .string(assignmentType.rawValue)
+            }
+            
+            if let governmentAgency = governmentAgency {
+                booking["government_agency"] = .string(governmentAgency.rawValue)
             }
             
             // Insert + fetch via backend

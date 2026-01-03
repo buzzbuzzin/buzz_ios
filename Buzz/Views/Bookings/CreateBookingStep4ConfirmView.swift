@@ -20,8 +20,12 @@ struct CreateBookingStep4ConfirmView: View {
     let paymentAmount: Decimal
     let estimatedHours: Double
     
-    // Search & Rescue voluntary flag
+    // Search & Rescue specific fields
     let isVoluntary: Bool
+    let sarAssignmentType: SARAssignmentType?
+    let sarGovernmentAgency: GovernmentAgency?
+    let usesBeaconProgram: Bool
+    let numberOfPilots: Int
     
     // Credits support
     let availableCredits: Decimal
@@ -173,6 +177,66 @@ struct CreateBookingStep4ConfirmView: View {
                             Spacer()
                         }
                         
+                        // Assignment Type (S&R only)
+                        if selectedSpecialization == .searchRescue, let assignmentType = sarAssignmentType {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("Assignment Type")
+                                        .font(.subheadline)
+                                        .foregroundColor(.secondary)
+                                    HStack(spacing: 6) {
+                                        Image(systemName: assignmentType.icon)
+                                            .foregroundColor(.blue)
+                                            .font(.caption)
+                                        Text(assignmentType.displayName)
+                                            .font(.body)
+                                            .fontWeight(.medium)
+                                    }
+                                }
+                                Spacer()
+                            }
+                        }
+                        
+                        // Government Agency (S&R only)
+                        if selectedSpecialization == .searchRescue, let agency = sarGovernmentAgency {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("Agency")
+                                        .font(.subheadline)
+                                        .foregroundColor(.secondary)
+                                    HStack(spacing: 6) {
+                                        Image(systemName: agency.icon)
+                                            .foregroundColor(.purple)
+                                            .font(.caption)
+                                        Text(agency.displayName)
+                                            .font(.body)
+                                            .fontWeight(.medium)
+                                    }
+                                }
+                                Spacer()
+                            }
+                        }
+                        
+                        // Beacon Program (S&R only)
+                        if selectedSpecialization == .searchRescue && usesBeaconProgram {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("Program")
+                                        .font(.subheadline)
+                                        .foregroundColor(.secondary)
+                                    HStack(spacing: 6) {
+                                        Image(systemName: "antenna.radiowaves.left.and.right")
+                                            .foregroundColor(.orange)
+                                            .font(.caption)
+                                        Text("Beacon Volunteer Program")
+                                            .font(.body)
+                                            .fontWeight(.medium)
+                                    }
+                                }
+                                Spacer()
+                            }
+                        }
+                        
                         // Description
                         if !description.isEmpty {
                             HStack {
@@ -199,6 +263,26 @@ struct CreateBookingStep4ConfirmView: View {
                                     .fontWeight(.medium)
                             }
                             Spacer()
+                        }
+                        
+                        // Number of Pilots (S&R only)
+                        if selectedSpecialization == .searchRescue {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("Number of Pilots")
+                                        .font(.subheadline)
+                                        .foregroundColor(.secondary)
+                                    HStack(spacing: 6) {
+                                        Image(systemName: "person.2.fill")
+                                            .foregroundColor(.blue)
+                                            .font(.caption)
+                                        Text("\(numberOfPilots) \(numberOfPilots == 1 ? "pilot" : "pilots")")
+                                            .font(.body)
+                                            .fontWeight(.medium)
+                                    }
+                                }
+                                Spacer()
+                            }
                         }
                     }
                     

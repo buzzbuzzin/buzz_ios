@@ -86,6 +86,67 @@ enum BookingSpecialization: String, Codable, CaseIterable {
     }
 }
 
+/// Search & Rescue assignment type
+enum SARAssignmentType: String, Codable, CaseIterable {
+    case groundSearch = "ground_search"
+    case airSearch = "air_search"
+    case waterRescue = "water_rescue"
+    case medicalEmergency = "medical_emergency"
+    case fireEmergency = "fire_emergency"
+    case disasterResponse = "disaster_response"
+    case missingPerson = "missing_person"
+    
+    var displayName: String {
+        switch self {
+        case .groundSearch: return "Ground Search"
+        case .airSearch: return "Air Search"
+        case .waterRescue: return "Water Rescue"
+        case .medicalEmergency: return "Medical Emergency"
+        case .fireEmergency: return "Fire Emergency"
+        case .disasterResponse: return "Disaster Response"
+        case .missingPerson: return "Missing Person"
+        }
+    }
+    
+    var icon: String {
+        switch self {
+        case .groundSearch: return "figure.walk"
+        case .airSearch: return "airplane"
+        case .waterRescue: return "drop.fill"
+        case .medicalEmergency: return "cross.case.fill"
+        case .fireEmergency: return "flame.fill"
+        case .disasterResponse: return "exclamationmark.triangle.fill"
+        case .missingPerson: return "person.fill.questionmark"
+        }
+    }
+}
+
+/// Government agency for S&R missions
+enum GovernmentAgency: String, Codable, CaseIterable {
+    case policeDepartment = "police_department"
+    case fireDepartment = "fire_department"
+    case sheriffOffice = "sheriff_office"
+    case stateEmergencyManagement = "state_emergency_management"
+    
+    var displayName: String {
+        switch self {
+        case .policeDepartment: return "Police Department"
+        case .fireDepartment: return "Fire Department"
+        case .sheriffOffice: return "Sheriff's Office"
+        case .stateEmergencyManagement: return "State Emergency Management"
+        }
+    }
+    
+    var icon: String {
+        switch self {
+        case .policeDepartment: return "shield.fill"
+        case .fireDepartment: return "flame.fill"
+        case .sheriffOffice: return "star.circle.fill"
+        case .stateEmergencyManagement: return "building.columns.fill"
+        }
+    }
+}
+
 struct Booking: Codable, Identifiable {
     let id: UUID
     let customerId: UUID
@@ -116,6 +177,10 @@ struct Booking: Codable, Identifiable {
     var isVoluntary: Bool? // True if this is a voluntary mission with no payment
     var hourlyRate: Decimal? // Hourly rate per pilot for S&R missions ($25)
     var finalHoursWorked: Double? // Actual hours worked, entered by client after completion
+    var assignmentType: SARAssignmentType? // Type of S&R assignment
+    var governmentAgency: GovernmentAgency? // Government agency (for government clients)
+    var usesBeaconProgram: Bool? // True if using Beacon volunteer pilots (government clients only)
+    var numberOfPilots: Int? // Number of pilots requested for S&R mission
     
     // Internal testing field
     var isInternalTest: Bool? // True if this is an internal test booking (hidden from non-Buzz pilots)
@@ -148,6 +213,10 @@ struct Booking: Codable, Identifiable {
         case isVoluntary = "is_voluntary"
         case hourlyRate = "hourly_rate"
         case finalHoursWorked = "final_hours_worked"
+        case assignmentType = "assignment_type"
+        case governmentAgency = "government_agency"
+        case usesBeaconProgram = "uses_beacon_program"
+        case numberOfPilots = "number_of_pilots"
         case isInternalTest = "is_internal_test"
     }
     
