@@ -36,6 +36,7 @@ struct CreateBookingStep2DetailsView: View {
     @Binding var sarGovernmentAgency: GovernmentAgency?
     @Binding var estimatedHours: String
     @Binding var numberOfPilots: Int
+    @Binding var usesBeaconProgram: Bool
     let customerRole: CustomerRole?
     
     @State private var showLocationSearch = false
@@ -361,10 +362,46 @@ struct CreateBookingStep2DetailsView: View {
                                         .font(.caption)
                                         .foregroundColor(.secondary)
                                 }
+                                .frame(maxWidth: .infinity, alignment: .leading)
                                 .padding(.horizontal, 12)
                                 .padding(.vertical, 8)
                                 .background(Color.blue.opacity(0.1))
                                 .cornerRadius(8)
+                            }
+                            
+                            // Beacon Mission Checkbox (only for government clients)
+                            if customerRole == .government {
+                                VStack(alignment: .leading, spacing: 12) {
+                                    HStack(spacing: 12) {
+                                        Button(action: {
+                                            usesBeaconProgram.toggle()
+                                        }) {
+                                            HStack(spacing: 8) {
+                                                Image(systemName: usesBeaconProgram ? "checkmark.square.fill" : "square")
+                                                    .foregroundColor(usesBeaconProgram ? .blue : .secondary)
+                                                    .font(.system(size: 20))
+                                                
+                                                VStack(alignment: .leading, spacing: 4) {
+                                                    Text("Beacon Mission")
+                                                        .font(.subheadline)
+                                                        .fontWeight(.semibold)
+                                                        .foregroundColor(.primary)
+                                                    
+                                                    Text("This booking will appear in the Beacon dashboard for pilots for emergency response missions")
+                                                        .font(.caption)
+                                                        .foregroundColor(.secondary)
+                                                        .fixedSize(horizontal: false, vertical: true)
+                                                }
+                                                
+                                                Spacer()
+                                            }
+                                            .padding()
+                                            .background(Color(.systemGray6))
+                                            .cornerRadius(12)
+                                        }
+                                        .buttonStyle(PlainButtonStyle())
+                                    }
+                                }
                             }
                         }
                     }
