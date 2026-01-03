@@ -592,6 +592,8 @@ struct SearchRescuePaymentSection: View {
     @Binding var requiredMinimumRank: Int
     let customerRole: CustomerRole?
     
+    @State private var hasSelectedPaymentType = false
+    
     private let beaconHourlyRate: Decimal = 25.0
     
     /// Whether the customer is a government client
@@ -625,37 +627,41 @@ struct SearchRescuePaymentSection: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
-            // Beacon Program Toggle (only for government clients)
+            // Beacon Mission Checkbox (only for government clients) - at the top
             if isGovernmentClient {
-            VStack(alignment: .leading, spacing: 12) {
-                    HStack {
-                        Text("Use Beacon Program")
-                            .font(.subheadline)
-                            .fontWeight(.semibold)
-                            .foregroundColor(.secondary)
-                        
-                        Spacer()
-                        
-                        Toggle("", isOn: $usesBeaconProgram)
-                            .labelsHidden()
-                            .tint(.orange)
+                VStack(alignment: .leading, spacing: 12) {
+                    Button(action: {
+                        usesBeaconProgram.toggle()
+                    }) {
+                        HStack(spacing: 8) {
+                            Image(systemName: usesBeaconProgram ? "checkmark.square.fill" : "square")
+                                .foregroundColor(usesBeaconProgram ? .red : .secondary)
+                                .font(.system(size: 20))
+                            
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Beacon Mission")
+                                    .font(.subheadline)
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(usesBeaconProgram ? .red : .primary)
+                                
+                                Text("This booking will appear in the Beacon dashboard for pilots for emergency response missions")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                            
+                            Spacer()
+                        }
+                        .padding()
+                        .background(usesBeaconProgram ? Color.red.opacity(0.1) : Color(.systemGray6))
+                        .cornerRadius(12)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(usesBeaconProgram ? Color.red.opacity(0.3) : Color.clear, lineWidth: 1)
+                        )
                     }
-                    
-                    HStack(spacing: 8) {
-                        Image(systemName: "antenna.radiowaves.left.and.right")
-                            .foregroundColor(.orange)
-                            .font(.subheadline)
-                        Text("Beacon connects you with certified volunteer pilots for emergency response")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 10)
-                    .background(Color.orange.opacity(0.1))
-                    .cornerRadius(8)
+                    .buttonStyle(PlainButtonStyle())
                 }
-                
-                Divider()
             }
             
             // Pricing Section - depends on Beacon selection
@@ -663,6 +669,7 @@ struct SearchRescuePaymentSection: View {
                 // Beacon pricing: $25/hour or Voluntary
                 BeaconPricingSection(
                     isVoluntaryMission: $isVoluntaryMission,
+                    hasSelectedPaymentType: $hasSelectedPaymentType,
                     beaconHourlyRate: beaconHourlyRate
                 )
             } else {
@@ -670,70 +677,73 @@ struct SearchRescuePaymentSection: View {
                 RankBasedPricingSection(
                     isVoluntaryMission: $isVoluntaryMission,
                     requiredMinimumRank: $requiredMinimumRank,
+                    hasSelectedPaymentType: $hasSelectedPaymentType,
                     getRankBasedHourlyRate: getRankBasedHourlyRate
                 )
             }
             
-            // Info Box
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 6) {
-                    Image(systemName: "info.circle.fill")
-                        .foregroundColor(.orange)
-                        .font(.subheadline)
-                    Text("How Search & Rescue Works")
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.orange)
-                    Spacer()
-                }
-                
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack(alignment: .top, spacing: 8) {
-                        Text("1.")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        Text("Multiple pilots can join your mission")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+            // Info Box - only show after payment type is selected
+            if hasSelectedPaymentType {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "info.circle.fill")
+                            .foregroundColor(.orange)
+                            .font(.subheadline)
+                        Text("How Search & Rescue Works")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.orange)
+                        Spacer()
                     }
                     
-                    HStack(alignment: .top, spacing: 8) {
-                        Text("2.")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        Text(isGovernmentClient && usesBeaconProgram 
-                            ? "Beacon volunteers will see your mission and can respond"
-                            : "Pilots matching your rank requirement will see and can respond")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                    
-                    if !isVoluntaryMission {
+                    VStack(alignment: .leading, spacing: 6) {
                         HStack(alignment: .top, spacing: 8) {
-                            Text("3.")
+                            Text("1.")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
-                            Text("After completion, enter hours worked to calculate payment")
+                            Text("Multiple pilots can join your mission")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
                         
                         HStack(alignment: .top, spacing: 8) {
-                            Text("4.")
+                            Text("2.")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
-                            Text("Total = hours × $\(NSDecimalNumber(decimal: currentHourlyRate).intValue) × number of pilots")
+                            Text(isGovernmentClient && usesBeaconProgram 
+                                ? "Beacon volunteers will see your mission and can respond"
+                                : "Pilots matching your rank requirement will see and can respond")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
+                        
+                        if !isVoluntaryMission {
+                            HStack(alignment: .top, spacing: 8) {
+                                Text("3.")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                Text("After completion, enter hours worked to calculate payment")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            
+                            HStack(alignment: .top, spacing: 8) {
+                                Text("4.")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                Text("Total = hours × $\(NSDecimalNumber(decimal: currentHourlyRate).intValue) × number of pilots")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
                     }
+                    .padding(.top, 4)
                 }
-                .padding(.top, 4)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .background(Color.orange.opacity(0.1))
+                .cornerRadius(12)
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .background(Color.orange.opacity(0.1))
-            .cornerRadius(12)
         }
     }
 }
@@ -742,6 +752,7 @@ struct SearchRescuePaymentSection: View {
 
 struct BeaconPricingSection: View {
     @Binding var isVoluntaryMission: Bool
+    @Binding var hasSelectedPaymentType: Bool
     let beaconHourlyRate: Decimal
     
     var body: some View {
@@ -754,6 +765,7 @@ struct BeaconPricingSection: View {
                 // Voluntary Mission Option
                 Button(action: {
                     isVoluntaryMission = true
+                    hasSelectedPaymentType = true
                 }) {
                     HStack(spacing: 12) {
                         Image(systemName: isVoluntaryMission ? "checkmark.circle.fill" : "circle")
@@ -790,6 +802,7 @@ struct BeaconPricingSection: View {
             // Paid Mission Option (Fixed $25/hour)
                 Button(action: {
                     isVoluntaryMission = false
+                    hasSelectedPaymentType = true
                 }) {
                     HStack(spacing: 12) {
                         Image(systemName: !isVoluntaryMission ? "checkmark.circle.fill" : "circle")
@@ -841,6 +854,7 @@ struct BeaconPricingSection: View {
 struct RankBasedPricingSection: View {
     @Binding var isVoluntaryMission: Bool
     @Binding var requiredMinimumRank: Int
+    @Binding var hasSelectedPaymentType: Bool
     let getRankBasedHourlyRate: (Int) -> Decimal
     
     private var rankName: String {
@@ -861,6 +875,7 @@ struct RankBasedPricingSection: View {
             // Voluntary Mission Option
             Button(action: {
                 isVoluntaryMission = true
+                hasSelectedPaymentType = true
             }) {
                 HStack(spacing: 12) {
                     Image(systemName: isVoluntaryMission ? "checkmark.circle.fill" : "circle")
@@ -897,6 +912,7 @@ struct RankBasedPricingSection: View {
             // Paid Mission Option (Rank-based pricing)
             Button(action: {
                 isVoluntaryMission = false
+                hasSelectedPaymentType = true
             }) {
                 VStack(spacing: 12) {
                     HStack(spacing: 12) {

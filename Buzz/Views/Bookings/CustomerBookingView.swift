@@ -403,7 +403,6 @@ struct CreateBookingView: View {
                             sarGovernmentAgency: $sarGovernmentAgency,
                             estimatedHours: $estimatedHours,
                             numberOfPilots: $numberOfPilots,
-                            usesBeaconProgram: $usesBeaconProgram,
                             customerRole: authService.userProfile?.role,
                             onBack: {
                                 currentStep = 1
