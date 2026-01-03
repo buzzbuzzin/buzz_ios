@@ -20,6 +20,9 @@ struct CreateBookingStep4ConfirmView: View {
     let paymentAmount: Decimal
     let estimatedHours: Double
     
+    // Search & Rescue voluntary flag
+    let isVoluntary: Bool
+    
     // Credits support
     let availableCredits: Decimal
     @Binding var creditsToUse: Decimal
@@ -50,7 +53,10 @@ struct CreateBookingStep4ConfirmView: View {
     
     /// Final amount after credits applied
     private var finalAmount: Decimal {
-        max(paymentAmount - creditsToUse, Decimal(0.50)) // Stripe minimum is $0.50
+        if isVoluntary {
+            return Decimal(0) // Voluntary missions are free
+        }
+        return max(paymentAmount - creditsToUse, Decimal(0.50)) // Stripe minimum is $0.50
     }
     
     /// Discount amount
@@ -198,8 +204,8 @@ struct CreateBookingStep4ConfirmView: View {
                     
                     Divider()
                     
-                    // Credits Section (only show if user has credits)
-                    if availableCredits > 0 {
+                    // Credits Section (only show if user has credits and not a voluntary mission)
+                    if availableCredits > 0 && !isVoluntary {
                         VStack(alignment: .leading, spacing: 12) {
                             HStack {
                                 Image(systemName: "gift.fill")
@@ -267,58 +273,80 @@ struct CreateBookingStep4ConfirmView: View {
                     
                     // Price Breakdown
                     VStack(spacing: 8) {
-                        // Original Price
-                        HStack {
-                            Text("Subtotal")
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
-                            Spacer()
-                            Text("$\(String(format: "%.2f", NSDecimalNumber(decimal: paymentAmount).doubleValue))")
-                                .font(.subheadline)
-                        }
-                        
-                        // Referral credit (always shown)
-                        HStack {
-                            Text("Referral credit")
-                                .font(.subheadline)
-                                .foregroundColor(creditsToUse > 0 ? .green : .secondary)
-                            Spacer()
-                            Text(creditsToUse > 0 ? "-$\(String(format: "%.2f", NSDecimalNumber(decimal: creditsToUse).doubleValue))" : "$0.00")
-                                .font(.subheadline)
-                                .foregroundColor(creditsToUse > 0 ? .green : .secondary)
-                        }
-                        
-                        Divider()
-                        
-                        // Total Price
-                        HStack {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("Total price")
+                        if isVoluntary {
+                            // Voluntary mission - show "Free" message
+                            HStack {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    HStack(spacing: 8) {
+                                        Image(systemName: "heart.fill")
+                                            .foregroundColor(.green)
+                                        Text("Voluntary Mission")
+                                            .font(.headline)
+                                            .foregroundColor(.green)
+                                    }
+                                    Text("No payment required.")
+                                        .font(.subheadline)
+                                        .foregroundColor(.secondary)
+                                }
+                                Spacer()
+                            }
+                            .padding()
+                            .background(Color.green.opacity(0.1))
+                            .cornerRadius(12)
+                        } else {
+                            // Original Price
+                            HStack {
+                                Text("Subtotal")
                                     .font(.subheadline)
                                     .foregroundColor(.secondary)
-                                HStack(spacing: 4) {
-                                    Text("$\(String(format: "%.2f", NSDecimalNumber(decimal: finalAmount).doubleValue)) including taxes")
-                                        .font(.body)
-                                        .fontWeight(.semibold)
-                                    Text("USD")
-                                        .font(.body)
-                                        .fontWeight(.semibold)
-                                        .underline()
-                                }
+                                Spacer()
+                                Text("$\(String(format: "%.2f", NSDecimalNumber(decimal: paymentAmount).doubleValue))")
+                                    .font(.subheadline)
                             }
-                            Spacer()
-                        }
-                        
-                        // Savings message
-                        if creditsToUse > 0 {
+                            
+                            // Referral credit (always shown)
                             HStack {
-                                Image(systemName: "checkmark.circle.fill")
-                                    .foregroundColor(.green)
-                                Text("You're saving $\(String(format: "%.2f", NSDecimalNumber(decimal: creditsToUse).doubleValue)) with referral credits!")
-                                    .font(.caption)
-                                    .foregroundColor(.green)
+                                Text("Referral credit")
+                                    .font(.subheadline)
+                                    .foregroundColor(creditsToUse > 0 ? .green : .secondary)
+                                Spacer()
+                                Text(creditsToUse > 0 ? "-$\(String(format: "%.2f", NSDecimalNumber(decimal: creditsToUse).doubleValue))" : "$0.00")
+                                    .font(.subheadline)
+                                    .foregroundColor(creditsToUse > 0 ? .green : .secondary)
                             }
-                            .padding(.top, 4)
+                            
+                            Divider()
+                            
+                            // Total Price
+                            HStack {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("Total price")
+                                        .font(.subheadline)
+                                        .foregroundColor(.secondary)
+                                    HStack(spacing: 4) {
+                                        Text("$\(String(format: "%.2f", NSDecimalNumber(decimal: finalAmount).doubleValue)) including taxes")
+                                            .font(.body)
+                                            .fontWeight(.semibold)
+                                        Text("USD")
+                                            .font(.body)
+                                            .fontWeight(.semibold)
+                                            .underline()
+                                    }
+                                }
+                                Spacer()
+                            }
+                            
+                            // Savings message
+                            if creditsToUse > 0 {
+                                HStack {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .foregroundColor(.green)
+                                    Text("You're saving $\(String(format: "%.2f", NSDecimalNumber(decimal: creditsToUse).doubleValue)) with referral credits!")
+                                        .font(.caption)
+                                        .foregroundColor(.green)
+                                }
+                                .padding(.top, 4)
+                            }
                         }
                     }
                 }
@@ -335,7 +363,7 @@ struct CreateBookingStep4ConfirmView: View {
                         .padding(.top, 24)
                     
                     VStack(spacing: 12) {
-                        // Pay Button
+                        // Pay/Confirm Button
                         Button(action: onPay) {
                             HStack {
                                 Spacer()
@@ -343,14 +371,14 @@ struct CreateBookingStep4ConfirmView: View {
                                     ProgressView()
                                         .progressViewStyle(CircularProgressViewStyle(tint: .white))
                                 } else {
-                                    Text("Confirm and Pay")
+                                    Text(isVoluntary ? "Confirm" : "Confirm and Pay")
                                         .fontWeight(.semibold)
                                 }
                                 Spacer()
                             }
                             .foregroundColor(.white)
                             .padding(.vertical, 16)
-                            .background(Color.pink)
+                            .background(isVoluntary ? Color.green : Color.pink)
                             .cornerRadius(12)
                         }
                         .disabled(isLoading)
@@ -389,7 +417,7 @@ struct CreateBookingStep4ConfirmView: View {
                 }
             }
         }
-        .navigationTitle("Confirm and Pay")
+        .navigationTitle(isVoluntary ? "Confirm Booking" : "Confirm and Pay")
         .navigationBarTitleDisplayMode(.inline)
     }
 }

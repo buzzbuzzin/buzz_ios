@@ -23,14 +23,14 @@ CREATE TABLE public.badges (
   earned_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
   expires_at timestamp with time zone,
   is_recurrent boolean NOT NULL DEFAULT false,
-  badge_type text DEFAULT 'course'::text CHECK (badge_type = ANY (ARRAY['course'::text, 'ex_military'::text, 'buzz'::text, 'government_employee'::text, 'faa'::text, 'flight_reviewer'::text, 'roc_a_examiner'::text])),
+  badge_type text DEFAULT 'course'::text CHECK (badge_type = ANY (ARRAY['course'::text, 'ex_military'::text, 'buzz'::text, 'government_employee'::text, 'faa'::text, 'flight_reviewer'::text, 'roc_a_examiner'::text, 'beacon_volunteer'::text])),
   CONSTRAINT badges_pkey PRIMARY KEY (id),
   CONSTRAINT badges_pilot_id_fkey FOREIGN KEY (pilot_id) REFERENCES public.profiles(id),
   CONSTRAINT badges_course_id_fkey FOREIGN KEY (course_id) REFERENCES public.training_courses(id)
 );
 CREATE TABLE public.badges_catalog (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
-  badge_type text NOT NULL CHECK (badge_type = ANY (ARRAY['course'::text, 'ex_military'::text, 'buzz'::text, 'government_employee'::text, 'faa'::text, 'flight_reviewer'::text, 'roc_a_examiner'::text])),
+  badge_type text NOT NULL CHECK (badge_type = ANY (ARRAY['course'::text, 'ex_military'::text, 'buzz'::text, 'government_employee'::text, 'faa'::text, 'flight_reviewer'::text, 'roc_a_examiner'::text, 'beacon_volunteer'::text])),
   title text NOT NULL,
   category text,
   course_id uuid,
@@ -151,7 +151,10 @@ CREATE TABLE public.bookings (
   original_amount numeric,
   credits_applied numeric DEFAULT 0,
   final_amount numeric,
-  is_internal_test boolean DEFAULT false,
+  is_internal_test boolean NOT NULL DEFAULT false,
+  is_voluntary boolean DEFAULT false,
+  hourly_rate numeric DEFAULT 0,
+  final_hours_worked double precision,
   CONSTRAINT bookings_pkey PRIMARY KEY (id),
   CONSTRAINT bookings_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES public.profiles(id),
   CONSTRAINT bookings_pilot_id_fkey FOREIGN KEY (pilot_id) REFERENCES public.profiles(id)

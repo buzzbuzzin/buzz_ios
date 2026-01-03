@@ -445,6 +445,7 @@ struct CreateBookingView: View {
                                 description: description,
                                 paymentAmount: getFinalPaymentAmount(),
                                 estimatedHours: getEstimatedHours(),
+                                isVoluntary: specialization == .searchRescue && isVoluntaryMission,
                                 availableCredits: availableCredits,
                                 creditsToUse: $creditsToUse,
                                 onCreditsChanged: { newCredits in
