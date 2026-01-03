@@ -76,6 +76,8 @@ struct BookingDetailView: View {
                     Text(booking.locationName)
                         .font(.title3)
                         .fontWeight(.semibold)
+                        .multilineTextAlignment(.leading)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     
                     // Detailed Address with Get directions button
                     HStack {
@@ -321,12 +323,21 @@ struct BookingDetailView: View {
                     // First row: Payment and Hourly rate
                     HStack(spacing: 40) {
                         VStack(alignment: .leading, spacing: 4) {
-                            Label("Payment", systemImage: "dollarsign.circle.fill")
-                                .font(.subheadline)
-                                .foregroundColor(.green)
-                            Text(String(format: "$%.2f", NSDecimalNumber(decimal: booking.paymentAmount).doubleValue))
-                                .font(.title2)
-                                .fontWeight(.bold)
+                            if booking.specialization == .searchRescue && booking.isVoluntary == true {
+                                Label("Payment", systemImage: "hand.raised.fill")
+                                    .font(.subheadline)
+                                    .foregroundColor(.green)
+                                Text("Voluntary")
+                                    .font(.title2)
+                                    .fontWeight(.bold)
+                            } else {
+                                Label("Payment", systemImage: "dollarsign.circle.fill")
+                                    .font(.subheadline)
+                                    .foregroundColor(.green)
+                                Text(String(format: "$%.2f", NSDecimalNumber(decimal: booking.paymentAmount).doubleValue))
+                                    .font(.title2)
+                                    .fontWeight(.bold)
+                            }
                         }
                         
                         if let hours = booking.estimatedFlightHours, hours > 0 {

@@ -7,9 +7,13 @@
 
 import SwiftUI
 import Auth
+import CoreLocation
 
 struct CockpitView: View {
     @EnvironmentObject var authService: AuthService
+    @StateObject private var bookingService = BookingService()
+    @StateObject private var locationManager = BookingMapLocationManager()
+    @State private var hasNearbyBeaconMissions = false
     
     var body: some View {
         NavigationView {
@@ -190,11 +194,24 @@ struct CockpitView: View {
                             LazyVGrid(columns: columns, spacing: 12) {
                                 // Beacon Card
                                 NavigationLink(destination: BeaconView().environmentObject(authService)) {
-                                    CockpitGridCard(
-                                        title: "Beacon",
-                                        icon: "antenna.radiowaves.left.and.right",
-                                        color: .yellow
-                                    )
+                                    ZStack(alignment: .topTrailing) {
+                                        CockpitGridCard(
+                                            title: "Beacon",
+                                            icon: "antenna.radiowaves.left.and.right",
+                                            color: .yellow
+                                        )
+                                        
+                                        if hasNearbyBeaconMissions {
+                                            Circle()
+                                                .fill(Color.red)
+                                                .frame(width: 12, height: 12)
+                                                .overlay(
+                                                    Circle()
+                                                        .stroke(Color.white, lineWidth: 2)
+                                                )
+                                                .offset(x: 4, y: -4)
+                                        }
+                                    }
                                 }
                                 .buttonStyle(PlainButtonStyle())
                                 
@@ -236,6 +253,51 @@ struct CockpitView: View {
             }
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
+        }
+        .task {
+            locationManager.requestPermission()
+            locationManager.startLocationUpdates()
+            await checkForNearbyBeaconMissions()
+        }
+        .onChange(of: bookingService.availableBookings.count) { _ in
+            Task {
+                await checkForNearbyBeaconMissions()
+            }
+        }
+    }
+    
+    private func checkForNearbyBeaconMissions() async {
+        // Load available bookings first
+        if let pilotId = authService.activeUserId {
+            try? await bookingService.fetchAvailableBookings(forPilotId: pilotId)
+        }
+        
+        // Check for beacon missions (S&R bookings with usesBeaconProgram == true)
+        let beaconMissions = bookingService.availableBookings.filter { booking in
+            booking.specialization == .searchRescue &&
+            booking.usesBeaconProgram == true &&
+            booking.status == .available
+        }
+        
+        // Filter by proximity if location is available
+        if let pilotLocation = locationManager.currentLocation {
+            let pilotCLLocation = CLLocation(latitude: pilotLocation.latitude, longitude: pilotLocation.longitude)
+            let radiusMeters = 25.0 * 1609.34 // 25 miles default radius
+            
+            let nearbyBeaconMissions = beaconMissions.filter { booking in
+                let bookingLocation = CLLocation(latitude: booking.locationLat, longitude: booking.locationLng)
+                let distance = pilotCLLocation.distance(from: bookingLocation)
+                return distance <= radiusMeters
+            }
+            
+            await MainActor.run {
+                hasNearbyBeaconMissions = !nearbyBeaconMissions.isEmpty
+            }
+        } else {
+            // If location not available, show badge if any beacon missions exist
+            await MainActor.run {
+                hasNearbyBeaconMissions = !beaconMissions.isEmpty
+            }
         }
     }
 }

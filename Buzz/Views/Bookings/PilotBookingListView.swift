@@ -328,6 +328,8 @@ struct BookingCard: View {
                 Text(booking.locationName)
                     .font(.headline)
                     .foregroundColor(.primary)
+                    .multilineTextAlignment(.leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 
                 // Category badge below title
                 if let specialization = booking.specialization {
@@ -348,12 +350,21 @@ struct BookingCard: View {
                 }
                 
                 HStack {
-                    Label(
-                        String(format: "$%.2f", NSDecimalNumber(decimal: booking.paymentAmount).doubleValue),
-                        systemImage: "dollarsign.circle.fill"
-                    )
-                    .font(.subheadline)
-                    .foregroundColor(.green)
+                    if booking.specialization == .searchRescue && booking.isVoluntary == true {
+                        Label(
+                            "Voluntary",
+                            systemImage: "hand.raised.fill"
+                        )
+                        .font(.subheadline)
+                        .foregroundColor(.green)
+                    } else {
+                        Label(
+                            String(format: "$%.2f", NSDecimalNumber(decimal: booking.paymentAmount).doubleValue),
+                            systemImage: "dollarsign.circle.fill"
+                        )
+                        .font(.subheadline)
+                        .foregroundColor(.green)
+                    }
                     
                     Spacer()
                     
@@ -433,6 +444,8 @@ struct BookingMapCard: View {
                     // Title
                     Text(booking.locationName)
                         .font(.headline)
+                        .multilineTextAlignment(.leading)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     
                     // Category badge below title
                     if let specialization = booking.specialization {
@@ -461,11 +474,19 @@ struct BookingMapCard: View {
             }
             
             HStack {
-                Label(
-                    String(format: "$%.2f", NSDecimalNumber(decimal: booking.paymentAmount).doubleValue),
-                    systemImage: "dollarsign.circle.fill"
-                )
-                .foregroundColor(.green)
+                if booking.specialization == .searchRescue && booking.isVoluntary == true {
+                    Label(
+                        "Voluntary",
+                        systemImage: "hand.raised.fill"
+                    )
+                    .foregroundColor(.green)
+                } else {
+                    Label(
+                        String(format: "$%.2f", NSDecimalNumber(decimal: booking.paymentAmount).doubleValue),
+                        systemImage: "dollarsign.circle.fill"
+                    )
+                    .foregroundColor(.green)
+                }
                 
                 if let hours = booking.estimatedFlightHours {
                     Label(
