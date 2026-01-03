@@ -698,10 +698,15 @@ struct CreateBookingView: View {
     }
     
     private func getEstimatedHours() -> Double {
-        // Use 5 hours for automotive bookings, 2 hours for other industries
+        // Use 5 hours for automotive bookings
         if selectedSpecialization == .automotive {
             return 5.0
         }
+        // For S&R, use the user-selected hours
+        if selectedSpecialization == .searchRescue {
+            return Double(estimatedHours) ?? 2.0
+        }
+        // Default for other industries
         return 2.0
     }
     
@@ -809,14 +814,27 @@ struct CreateBookingView: View {
             return
         }
         
-        // For Search & Rescue, create booking without upfront payment
+        // For Search & Rescue
         if specialization == .searchRescue {
-            Task {
-                await createSearchRescueBooking(
-                    customerId: currentUser.id,
-                    location: location,
-                    hours: hours
-                )
+            // If voluntary mission, create booking without payment
+            if isVoluntaryMission {
+                Task {
+                    await createSearchRescueBooking(
+                        customerId: currentUser.id,
+                        location: location,
+                        hours: hours
+                    )
+                }
+            } else {
+                // For paid S&R missions, process payment via Stripe first
+                Task {
+                    await processPaymentAndCreateSARBooking(
+                        customerId: currentUser.id,
+                        paymentAmount: payment,
+                        location: location,
+                        hours: hours
+                    )
+                }
             }
             return
         }
@@ -955,6 +973,114 @@ struct CreateBookingView: View {
                 onBookingCreated?(newBooking)
                 showSuccessAnimation = true
                 isProcessingPayment = false
+            }
+        } catch {
+            await MainActor.run {
+                errorMessage = error.localizedDescription
+                showError = true
+                isProcessingPayment = false
+            }
+        }
+    }
+    
+    /// Process payment via Stripe and then create a paid S&R booking
+    private func processPaymentAndCreateSARBooking(
+        customerId: UUID,
+        paymentAmount: Decimal,
+        location: CLLocationCoordinate2D,
+        hours: Double
+    ) async {
+        isProcessingPayment = true
+        
+        do {
+            // Generate transfer group (using booking ID that we'll create)
+            let bookingId = UUID()
+            let transferGroup = "booking_\(bookingId.uuidString)"
+            
+            // Create PaymentIntent with credits if applicable
+            let paymentIntentResponse = try await paymentService.createPaymentIntentWithCredits(
+                amount: paymentAmount,
+                creditsToUse: creditsToUse,
+                currency: "usd",
+                customerId: customerId,
+                transferGroup: transferGroup
+            )
+            
+            // Present PaymentSheet
+            let paymentResult = try await paymentService.presentPaymentSheet(
+                paymentIntentClientSecret: paymentIntentResponse.clientSecret,
+                customerId: paymentIntentResponse.customerId,
+                customerEphemeralKeySecret: paymentIntentResponse.ephemeralKeySecret
+            )
+            
+            switch paymentResult {
+            case .completed:
+                // Payment successful, now create the booking
+                let calendar = Calendar.current
+                let dateComponents = calendar.dateComponents([.year, .month, .day], from: selectedDate)
+                let startTimeComponents = calendar.dateComponents([.hour, .minute], from: startTime)
+                
+                var startDateTimeComponents = DateComponents()
+                startDateTimeComponents.year = dateComponents.year
+                startDateTimeComponents.month = dateComponents.month
+                startDateTimeComponents.day = dateComponents.day
+                startDateTimeComponents.hour = startTimeComponents.hour
+                startDateTimeComponents.minute = startTimeComponents.minute
+                
+                let startDateTime = calendar.date(from: startDateTimeComponents) ?? selectedDate
+                
+                var endDateTime: Date
+                if let providedEndTime = endTime {
+                    let endTimeComponents = calendar.dateComponents([.hour, .minute], from: providedEndTime)
+                    var endDateTimeComponents = DateComponents()
+                    endDateTimeComponents.year = dateComponents.year
+                    endDateTimeComponents.month = dateComponents.month
+                    endDateTimeComponents.day = dateComponents.day
+                    endDateTimeComponents.hour = endTimeComponents.hour
+                    endDateTimeComponents.minute = endTimeComponents.minute
+                    endDateTime = calendar.date(from: endDateTimeComponents) ?? startDateTime
+                } else {
+                    endDateTime = calendar.date(byAdding: .hour, value: Int(hours), to: startDateTime) ?? startDateTime
+                }
+                
+                let hourlyRate = getSearchRescueHourlyRate()
+                
+                // Create Search & Rescue booking with payment info
+                let newBooking = try await bookingService.createSearchRescueBooking(
+                    customerId: customerId,
+                    location: location,
+                    locationName: locationName.isEmpty ? "Selected Location" : locationName,
+                    scheduledDate: startDateTime,
+                    endDate: endDateTime,
+                    description: description.isEmpty ? nil : description,
+                    isVoluntary: false,
+                    hourlyRate: hourlyRate,
+                    estimatedFlightHours: hours,
+                    assignmentType: sarAssignmentType,
+                    governmentAgency: sarGovernmentAgency,
+                    usesBeaconProgram: usesBeaconProgram,
+                    requiredMinimumRank: requiredMinimumRank,
+                    numberOfPilots: numberOfPilots
+                )
+                
+                await MainActor.run {
+                    createdBooking = newBooking
+                    onBookingCreated?(newBooking)
+                    showSuccessAnimation = true
+                    isProcessingPayment = false
+                }
+                
+            case .cancelled:
+                await MainActor.run {
+                    isProcessingPayment = false
+                }
+                
+            case .failed(let error):
+                await MainActor.run {
+                    errorMessage = error.localizedDescription
+                    showError = true
+                    isProcessingPayment = false
+                }
             }
         } catch {
             await MainActor.run {

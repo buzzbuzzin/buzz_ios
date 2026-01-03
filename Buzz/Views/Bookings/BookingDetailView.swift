@@ -280,6 +280,21 @@ struct BookingDetailView: View {
                         .padding(.horizontal)
                 }
                 
+                // Number of Pilots (S&R only)
+                if booking.specialization == .searchRescue, let numPilots = booking.numberOfPilots, numPilots > 0 {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Label("Number of Pilots", systemImage: "person.2.fill")
+                            .font(.headline)
+                        
+                        Text("\(numPilots) \(numPilots == 1 ? "pilot" : "pilots")")
+                            .font(.body)
+                    }
+                    .padding(.horizontal)
+                    
+                    Divider()
+                        .padding(.horizontal)
+                }
+                
                 // Description
                 VStack(alignment: .leading, spacing: 8) {
                     Label("Description", systemImage: "text.alignleft")
@@ -319,9 +334,16 @@ struct BookingDetailView: View {
                                 Label("Hourly rate", systemImage: "clock.badge.checkmark")
                                     .font(.subheadline)
                                     .foregroundColor(.purple)
-                                Text(String(format: "$%.2f/hr", NSDecimalNumber(decimal: booking.paymentAmount).doubleValue / hours))
-                                    .font(.title2)
-                                    .fontWeight(.bold)
+                                // For S&R, use the stored hourly rate; for others, calculate from total
+                                if booking.specialization == .searchRescue, let hourlyRate = booking.hourlyRate {
+                                    Text(String(format: "$%.2f/hr", NSDecimalNumber(decimal: hourlyRate).doubleValue))
+                                        .font(.title2)
+                                        .fontWeight(.bold)
+                                } else {
+                                    Text(String(format: "$%.2f/hr", NSDecimalNumber(decimal: booking.paymentAmount).doubleValue / hours))
+                                        .font(.title2)
+                                        .fontWeight(.bold)
+                                }
                             }
                         }
                         
