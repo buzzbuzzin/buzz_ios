@@ -161,6 +161,7 @@ class BookingService: ObservableObject {
                 "location_lng": .double(location.longitude),
                 "location_name": .string(locationName),
                 "specialization": .string(BookingSpecialization.searchRescue.rawValue),
+                "description": .string(description ?? ""), // Always include description (required by NOT NULL constraint)
                 "payment_amount": .double(0), // Payment calculated post-completion
                 "status": .string(BookingStatus.available.rawValue),
                 "created_at": .string(ISO8601DateFormatter().string(from: Date())),
@@ -169,10 +170,6 @@ class BookingService: ObservableObject {
                 "is_voluntary": .bool(isVoluntary),
                 "hourly_rate": .double(NSDecimalNumber(decimal: hourlyRate).doubleValue)
             ]
-            
-            if let description = description, !description.isEmpty {
-                booking["description"] = .string(description)
-            }
             
             if let scheduledDate = scheduledDate {
                 booking["scheduled_date"] = .string(ISO8601DateFormatter().string(from: scheduledDate))
