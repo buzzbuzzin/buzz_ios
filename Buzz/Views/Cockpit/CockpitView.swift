@@ -204,12 +204,12 @@ struct CockpitView: View {
                                         if hasNearbyBeaconMissions {
                                             Circle()
                                                 .fill(Color.red)
-                                                .frame(width: 12, height: 12)
+                                                .frame(width: 18, height: 18)
                                                 .overlay(
                                                     Circle()
-                                                        .stroke(Color.white, lineWidth: 2)
+                                                        .stroke(Color.white, lineWidth: 2.5)
                                                 )
-                                                .offset(x: 4, y: -4)
+                                                .offset(x: 6, y: -6)
                                         }
                                     }
                                 }

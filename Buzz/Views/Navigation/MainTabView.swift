@@ -306,6 +306,8 @@ struct MyFlightsBookingCard: View {
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                         .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 
                 HStack {

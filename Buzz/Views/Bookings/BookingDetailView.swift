@@ -199,7 +199,7 @@ struct BookingDetailView: View {
                                 .padding(.horizontal, 12)
                                 .padding(.vertical, 6)
                                 .background(Color.blue.opacity(0.1))
-                                .foregroundColor(.blue)
+                                .foregroundColor(specialization == .searchRescue ? .black : .blue)
                                 .cornerRadius(8)
                         }
                     }
@@ -262,7 +262,7 @@ struct BookingDetailView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         Label("Program", systemImage: "antenna.radiowaves.left.and.right")
                             .font(.headline)
-                            .foregroundColor(.orange)
+                            .foregroundColor(.black)
                         
                         HStack(spacing: 8) {
                             Image(systemName: "antenna.radiowaves.left.and.right")
@@ -306,11 +306,15 @@ struct BookingDetailView: View {
                         Text(description)
                             .font(.body)
                             .foregroundColor(.secondary)
+                            .multilineTextAlignment(.leading)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     } else {
                         Text("No description provided")
                             .font(.body)
                             .foregroundColor(.secondary)
                             .italic()
+                            .multilineTextAlignment(.leading)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
                 .padding(.horizontal)

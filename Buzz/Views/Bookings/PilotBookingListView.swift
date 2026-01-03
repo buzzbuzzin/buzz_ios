@@ -347,6 +347,8 @@ struct BookingCard: View {
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                         .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 
                 HStack {
@@ -463,6 +465,8 @@ struct BookingMapCard: View {
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                             .lineLimit(2)
+                            .multilineTextAlignment(.leading)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
                 Spacer()
