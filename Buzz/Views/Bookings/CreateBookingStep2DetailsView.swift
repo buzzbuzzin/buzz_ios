@@ -342,28 +342,16 @@ struct CreateBookingStep2DetailsView: View {
                                 
                                 // Custom hours input field
                                 if showCustomHours {
-                                    HStack(spacing: 12) {
-                                        TextField("Enter hours", text: $customHoursText)
-                                            .keyboardType(.numberPad)
-                                            .textFieldStyle(.roundedBorder)
-                                            .onChange(of: customHoursText) { _, newValue in
-                                                if let hoursValue = Double(newValue), hoursValue > 5 {
-                                                    estimatedHours = String(format: "%.0f", hoursValue)
-                                                } else if newValue.isEmpty {
-                                                    estimatedHours = ""
-                                                }
-                                            }
-                                        
-                                        Button("Done") {
-                                            if let hoursValue = Double(customHoursText), hoursValue > 5 {
+                                    TextField("Enter hours", text: $customHoursText)
+                                        .keyboardType(.numberPad)
+                                        .textFieldStyle(.roundedBorder)
+                                        .onChange(of: customHoursText) { _, newValue in
+                                            if let hoursValue = Double(newValue), hoursValue > 0 {
                                                 estimatedHours = String(format: "%.0f", hoursValue)
-                                            } else {
-                                                showCustomHours = false
-                                                customHoursText = ""
+                                            } else if newValue.isEmpty {
+                                                estimatedHours = ""
                                             }
                                         }
-                                        .buttonStyle(.borderedProminent)
-                                    }
                                 }
                                 
                                 HStack(spacing: 8) {
@@ -445,32 +433,19 @@ struct CreateBookingStep2DetailsView: View {
                                 
                                 // Custom pilots input field
                                 if showCustomPilots {
-                                    HStack(spacing: 12) {
-                                        TextField("Enter number", text: $customPilotsText)
-                                            .keyboardType(.numberPad)
-                                            .textFieldStyle(.roundedBorder)
-                                            .onChange(of: customPilotsText) { _, newValue in
-                                                if let pilotsValue = Int(newValue), pilotsValue > 5 {
-                                                    numberOfPilots = pilotsValue
-                                                } else if let pilotsValue = Int(newValue), pilotsValue > 0 {
-                                                    numberOfPilots = pilotsValue
-                                                }
-                                            }
-                                        
-                                        Button("Done") {
-                                            if let pilotsValue = Int(customPilotsText), pilotsValue > 0 {
+                                    TextField("Enter number", text: $customPilotsText)
+                                        .keyboardType(.numberPad)
+                                        .textFieldStyle(.roundedBorder)
+                                        .onChange(of: customPilotsText) { _, newValue in
+                                            if let pilotsValue = Int(newValue), pilotsValue > 0 {
                                                 numberOfPilots = pilotsValue
-                                            } else {
-                                                showCustomPilots = false
-                                                customPilotsText = ""
-                                                // Reset to 1 if invalid
+                                            } else if newValue.isEmpty {
+                                                // Keep current value if empty, but mark as invalid for validation
                                                 if numberOfPilots < 1 {
-                                                    numberOfPilots = 1
+                                                    numberOfPilots = 0
                                                 }
                                             }
                                         }
-                                        .buttonStyle(.borderedProminent)
-                                    }
                                 }
                                 
                                 HStack(spacing: 8) {
@@ -559,6 +534,30 @@ struct CreateBookingStep2DetailsView: View {
                                 // Agency is required for government clients
                                 if customerRole == .government && sarGovernmentAgency == nil {
                                     return true
+                                }
+                                
+                                // If custom hours input is shown, it must have a valid value
+                                if showCustomHours {
+                                    if customHoursText.isEmpty || Double(customHoursText) == nil || Double(customHoursText)! <= 0 {
+                                        return true
+                                    }
+                                } else {
+                                    // If not using custom input, estimatedHours must be set and valid
+                                    if estimatedHours.isEmpty || Double(estimatedHours) == nil || Double(estimatedHours)! <= 0 {
+                                        return true
+                                    }
+                                }
+                                
+                                // If custom pilots input is shown, it must have a valid value
+                                if showCustomPilots {
+                                    if customPilotsText.isEmpty || Int(customPilotsText) == nil || Int(customPilotsText)! < 1 {
+                                        return true
+                                    }
+                                } else {
+                                    // If not using custom input, numberOfPilots must be valid
+                                    if numberOfPilots < 1 {
+                                        return true
+                                    }
                                 }
                             }
                             

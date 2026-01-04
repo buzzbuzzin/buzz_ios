@@ -913,6 +913,8 @@ struct RankBasedPricingSection: View {
             Button(action: {
                 isVoluntaryMission = false
                 hasSelectedPaymentType = true
+                // Set default rank to Ensign (lowest) when paid mission is selected
+                requiredMinimumRank = 0
             }) {
                 VStack(spacing: 12) {
                     HStack(spacing: 12) {
@@ -1025,6 +1027,12 @@ struct RankBasedPricingSection: View {
                 )
             }
             .buttonStyle(PlainButtonStyle())
+        }
+        .onAppear {
+            // Set default rank to Ensign (lowest) when paid mission is selected
+            if !isVoluntaryMission {
+                requiredMinimumRank = 0
+            }
         }
     }
 }
