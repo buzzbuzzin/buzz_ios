@@ -1976,7 +1976,7 @@ class BookingService: ObservableObject {
             
             // Fetch all pilots
             let profiles: [UserProfile] = try await supabase
-                .from("user_profiles")
+                .from("profiles")
                 .select()
                 .eq("user_type", value: "pilot")
                 .execute()
@@ -2130,9 +2130,9 @@ private struct SupabaseBookingBackend: BookingBackend {
     
     func fetchUserProfile(userId: UUID) async throws -> UserProfile {
         try await client
-            .from("user_profiles")
+            .from("profiles")
             .select()
-            .eq("user_id", value: userId.uuidString)
+            .eq("id", value: userId.uuidString)
             .single()
             .execute()
             .value

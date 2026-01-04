@@ -778,9 +778,9 @@ class RatingService: ObservableObject {
             
             // Get reviewer's profile for notification
             let reviewerProfile: UserProfile = try await supabase
-                .from("user_profiles")
+                .from("profiles")
                 .select()
-                .eq("user_id", value: fromUserId.uuidString)
+                .eq("id", value: fromUserId.uuidString)
                 .single()
                 .execute()
                 .value
