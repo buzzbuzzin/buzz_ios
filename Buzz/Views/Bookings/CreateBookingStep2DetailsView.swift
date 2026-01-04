@@ -44,6 +44,7 @@ struct CreateBookingStep2DetailsView: View {
     @State private var showCustomPilots = false
     @State private var customHoursText = ""
     @State private var customPilotsText = ""
+    @State private var isAsapSelected = false
     
     let onBack: () -> Void
     let onNext: () -> Void
@@ -81,6 +82,33 @@ struct CreateBookingStep2DetailsView: View {
                 // Date & Time Section
                 SectionCard2(number: 2, title: "Date & Time") {
                     VStack(alignment: .leading, spacing: 12) {
+                        // ASAP button for urgent bookings
+                        Button(action: {
+                            let now = Date()
+                            selectedDate = now
+                            startTime = now
+                            isAsapSelected = true
+                        }) {
+                            HStack(spacing: 8) {
+                                Image(systemName: "bolt.fill")
+                                    .font(.system(size: 16))
+                                Text("ASAP")
+                                    .font(.subheadline)
+                                    .fontWeight(.semibold)
+                            }
+                            .foregroundColor(isAsapSelected ? .white : .orange)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 10)
+                            .background(isAsapSelected ? Color.orange : Color.clear)
+                            .cornerRadius(20)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 20)
+                                    .stroke(Color.orange, lineWidth: 2)
+                            )
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        
                         // Date picker
                         HStack {
                             Text("📅")

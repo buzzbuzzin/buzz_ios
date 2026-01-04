@@ -865,6 +865,17 @@ struct RankBasedPricingSection: View {
         getRankBasedHourlyRate(requiredMinimumRank)
     }
     
+    /// Display rate for the Paid Mission button (shows Ensign rate when not selected)
+    private var displayHourlyRate: Decimal {
+        if isVoluntaryMission {
+            // Show Ensign (lowest) rate when paid mission is not selected
+            return getRankBasedHourlyRate(0)
+        } else {
+            // Show current rank rate when paid mission is selected
+            return getRankBasedHourlyRate(requiredMinimumRank)
+        }
+    }
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Payment Type")
@@ -935,7 +946,7 @@ struct RankBasedPricingSection: View {
                         Spacer()
                         
                         VStack(alignment: .trailing, spacing: 2) {
-                            Text("$\(String(format: "%.0f", NSDecimalNumber(decimal: currentHourlyRate).doubleValue))")
+                            Text("$\(String(format: "%.0f", NSDecimalNumber(decimal: displayHourlyRate).doubleValue))")
                                 .font(.title2)
                                 .fontWeight(.bold)
                                 .foregroundColor(.blue)
