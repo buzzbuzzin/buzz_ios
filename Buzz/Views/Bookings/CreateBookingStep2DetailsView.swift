@@ -40,6 +40,10 @@ struct CreateBookingStep2DetailsView: View {
     
     @State private var showLocationSearch = false
     @State private var showRankInfo = false
+    @State private var showCustomHours = false
+    @State private var showCustomPilots = false
+    @State private var customHoursText = ""
+    @State private var customPilotsText = ""
     
     let onBack: () -> Void
     let onNext: () -> Void
@@ -292,6 +296,8 @@ struct CreateBookingStep2DetailsView: View {
                                     ForEach([1.0, 2.0, 3.0, 4.0, 5.0], id: \.self) { hours in
                                         Button(action: {
                                             estimatedHours = String(format: "%.0f", hours)
+                                            showCustomHours = false
+                                            customHoursText = ""
                                         }) {
                                             VStack(spacing: 4) {
                                                 Text("\(Int(hours))")
@@ -302,11 +308,61 @@ struct CreateBookingStep2DetailsView: View {
                                             }
                                             .frame(maxWidth: .infinity)
                                             .frame(height: 60)
-                                            .background((estimatedHours == String(format: "%.0f", hours)) ? Color.blue : Color(.systemGray5))
-                                            .foregroundColor((estimatedHours == String(format: "%.0f", hours)) ? .white : .primary)
+                                            .background((estimatedHours == String(format: "%.0f", hours) && !showCustomHours) ? Color.blue : Color(.systemGray5))
+                                            .foregroundColor((estimatedHours == String(format: "%.0f", hours) && !showCustomHours) ? .white : .primary)
                                             .cornerRadius(10)
                                         }
                                         .buttonStyle(PlainButtonStyle())
+                                    }
+                                    
+                                    // "More" button
+                                    Button(action: {
+                                        showCustomHours = true
+                                        if let hoursValue = Double(estimatedHours), hoursValue > 5 {
+                                            customHoursText = String(format: "%.0f", hoursValue)
+                                        } else {
+                                            customHoursText = ""
+                                        }
+                                    }) {
+                                        VStack(spacing: 4) {
+                                            Image(systemName: "plus")
+                                                .font(.title3)
+                                                .fontWeight(.bold)
+                                            Text("More")
+                                                .font(.caption2)
+                                        }
+                                        .frame(maxWidth: .infinity)
+                                        .frame(height: 60)
+                                        .background(showCustomHours ? Color.blue : Color(.systemGray5))
+                                        .foregroundColor(showCustomHours ? .white : .primary)
+                                        .cornerRadius(10)
+                                    }
+                                    .buttonStyle(PlainButtonStyle())
+                                }
+                                
+                                // Custom hours input field
+                                if showCustomHours {
+                                    HStack(spacing: 12) {
+                                        TextField("Enter hours", text: $customHoursText)
+                                            .keyboardType(.numberPad)
+                                            .textFieldStyle(.roundedBorder)
+                                            .onChange(of: customHoursText) { _, newValue in
+                                                if let hoursValue = Double(newValue), hoursValue > 5 {
+                                                    estimatedHours = String(format: "%.0f", hoursValue)
+                                                } else if newValue.isEmpty {
+                                                    estimatedHours = ""
+                                                }
+                                            }
+                                        
+                                        Button("Done") {
+                                            if let hoursValue = Double(customHoursText), hoursValue > 5 {
+                                                estimatedHours = String(format: "%.0f", hoursValue)
+                                            } else {
+                                                showCustomHours = false
+                                                customHoursText = ""
+                                            }
+                                        }
+                                        .buttonStyle(.borderedProminent)
                                     }
                                 }
                                 
@@ -324,6 +380,13 @@ struct CreateBookingStep2DetailsView: View {
                                 .background(Color.blue.opacity(0.1))
                                 .cornerRadius(8)
                             }
+                            .onAppear {
+                                // Check if current value is > 5, if so show custom input
+                                if let hoursValue = Double(estimatedHours), hoursValue > 5 {
+                                    showCustomHours = true
+                                    customHoursText = String(format: "%.0f", hoursValue)
+                                }
+                            }
                             
                             // Number of Pilots Selector
                             VStack(alignment: .leading, spacing: 12) {
@@ -336,6 +399,8 @@ struct CreateBookingStep2DetailsView: View {
                                     ForEach(1...5, id: \.self) { count in
                                         Button(action: {
                                             numberOfPilots = count
+                                            showCustomPilots = false
+                                            customPilotsText = ""
                                         }) {
                                             VStack(spacing: 4) {
                                                 Text("\(count)")
@@ -346,11 +411,65 @@ struct CreateBookingStep2DetailsView: View {
                                             }
                                             .frame(maxWidth: .infinity)
                                             .frame(height: 60)
-                                            .background(numberOfPilots == count ? Color.blue : Color(.systemGray5))
-                                            .foregroundColor(numberOfPilots == count ? .white : .primary)
+                                            .background((numberOfPilots == count && !showCustomPilots) ? Color.blue : Color(.systemGray5))
+                                            .foregroundColor((numberOfPilots == count && !showCustomPilots) ? .white : .primary)
                                             .cornerRadius(10)
                                         }
                                         .buttonStyle(PlainButtonStyle())
+                                    }
+                                    
+                                    // "More" button
+                                    Button(action: {
+                                        showCustomPilots = true
+                                        if numberOfPilots > 5 {
+                                            customPilotsText = "\(numberOfPilots)"
+                                        } else {
+                                            customPilotsText = ""
+                                        }
+                                    }) {
+                                        VStack(spacing: 4) {
+                                            Image(systemName: "plus")
+                                                .font(.title3)
+                                                .fontWeight(.bold)
+                                            Text("More")
+                                                .font(.caption2)
+                                        }
+                                        .frame(maxWidth: .infinity)
+                                        .frame(height: 60)
+                                        .background(showCustomPilots ? Color.blue : Color(.systemGray5))
+                                        .foregroundColor(showCustomPilots ? .white : .primary)
+                                        .cornerRadius(10)
+                                    }
+                                    .buttonStyle(PlainButtonStyle())
+                                }
+                                
+                                // Custom pilots input field
+                                if showCustomPilots {
+                                    HStack(spacing: 12) {
+                                        TextField("Enter number", text: $customPilotsText)
+                                            .keyboardType(.numberPad)
+                                            .textFieldStyle(.roundedBorder)
+                                            .onChange(of: customPilotsText) { _, newValue in
+                                                if let pilotsValue = Int(newValue), pilotsValue > 5 {
+                                                    numberOfPilots = pilotsValue
+                                                } else if let pilotsValue = Int(newValue), pilotsValue > 0 {
+                                                    numberOfPilots = pilotsValue
+                                                }
+                                            }
+                                        
+                                        Button("Done") {
+                                            if let pilotsValue = Int(customPilotsText), pilotsValue > 0 {
+                                                numberOfPilots = pilotsValue
+                                            } else {
+                                                showCustomPilots = false
+                                                customPilotsText = ""
+                                                // Reset to 1 if invalid
+                                                if numberOfPilots < 1 {
+                                                    numberOfPilots = 1
+                                                }
+                                            }
+                                        }
+                                        .buttonStyle(.borderedProminent)
                                     }
                                 }
                                 
@@ -367,6 +486,13 @@ struct CreateBookingStep2DetailsView: View {
                                 .padding(.vertical, 8)
                                 .background(Color.blue.opacity(0.1))
                                 .cornerRadius(8)
+                            }
+                            .onAppear {
+                                // Check if current value is > 5, if so show custom input
+                                if numberOfPilots > 5 {
+                                    showCustomPilots = true
+                                    customPilotsText = "\(numberOfPilots)"
+                                }
                             }
                         }
                     }
