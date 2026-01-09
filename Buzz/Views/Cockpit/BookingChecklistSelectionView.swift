@@ -11,10 +11,11 @@ import Auth
 struct BookingChecklistSelectionView: View {
     @EnvironmentObject var authService: AuthService
     @StateObject private var bookingService = BookingService()
+    @State private var hasLoadedInitialData = false
     
     var body: some View {
         Group {
-            if bookingService.isLoading {
+            if bookingService.isLoading && !hasLoadedInitialData {
                 ProgressView("Loading your bookings...")
             } else if acceptedBookings.isEmpty {
                 EmptyStateView(
@@ -38,8 +39,11 @@ struct BookingChecklistSelectionView: View {
         }
         .navigationTitle("Select Booking")
         .navigationBarTitleDisplayMode(.inline)
-        .task {
+        .task(id: hasLoadedInitialData) {
+            // Only load data once when view first appears
+            guard !hasLoadedInitialData else { return }
             await loadBookings()
+            hasLoadedInitialData = true
         }
     }
     

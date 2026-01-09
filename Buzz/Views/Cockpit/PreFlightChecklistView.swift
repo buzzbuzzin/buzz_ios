@@ -23,6 +23,9 @@ struct PreFlightChecklistView: View {
     @State private var isLandingProcedureExpanded = false
     @State private var isSFOCRequiredExpanded = false
     
+    // Checklist item states - using StateObject to persist across view recreations
+    @StateObject private var checklistState = PreFlightChecklistState()
+    
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
@@ -483,6 +486,7 @@ struct PreFlightChecklistView: View {
                 Spacer(minLength: 20)
             }
         }
+        .environmentObject(checklistState)
     }
     
     private func collapseAllSections() {
@@ -546,15 +550,43 @@ struct CollapsibleSection<Content: View>: View {
     }
 }
 
+// MARK: - Checklist State Manager
+// ObservableObject to persist checked states across view recreations
+
+class PreFlightChecklistState: ObservableObject {
+    @Published var checkedItems: Set<String> = []
+    
+    func isChecked(_ itemId: String) -> Bool {
+        checkedItems.contains(itemId)
+    }
+    
+    func toggle(_ itemId: String) {
+        if checkedItems.contains(itemId) {
+            checkedItems.remove(itemId)
+        } else {
+            checkedItems.insert(itemId)
+        }
+    }
+}
+
 // MARK: - Pre-Flight Checklist Item
 
 struct PreFlightChecklistItem: View {
     let text: String
-    @State private var isChecked: Bool = false
+    @EnvironmentObject var checklistState: PreFlightChecklistState
+    
+    // Generate a stable ID from the text (first 50 chars is enough for uniqueness)
+    private var itemId: String {
+        String(text.prefix(50))
+    }
+    
+    private var isChecked: Bool {
+        checklistState.isChecked(itemId)
+    }
     
     var body: some View {
         Button(action: {
-            isChecked.toggle()
+            checklistState.toggle(itemId)
         }) {
             HStack(alignment: .top, spacing: 12) {
                 Image(systemName: isChecked ? "checkmark.circle.fill" : "circle")

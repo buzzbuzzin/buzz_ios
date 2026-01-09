@@ -29,11 +29,13 @@ struct ChecklistTabView: View {
     @EnvironmentObject var authService: AuthService
     @StateObject private var checklistService: ChecklistService
     @State private var selectedTab: ChecklistTab = .operation
+    @State private var hasLoadedInitialData = false
     
     let booking: Booking
     
     init(booking: Booking) {
         self.booking = booking
+        // Use autoclosure to ensure StateObject is only created once
         _checklistService = StateObject(wrappedValue: ChecklistService(bookingId: booking.id))
     }
     
@@ -62,32 +64,34 @@ struct ChecklistTabView: View {
             
             Divider()
             
-            // Tab Content
-            TabView(selection: $selectedTab) {
-                OperationChecklistView(
-                    checklistService: checklistService,
-                    booking: booking
-                )
-                .tag(ChecklistTab.operation)
-                
-                PreFlightChecklistView(
-                    checklistService: checklistService,
-                    booking: booking
-                )
-                .tag(ChecklistTab.preFlight)
-                
-                PostFlightChecklistView(
-                    checklistService: checklistService,
-                    booking: booking
-                )
-                .tag(ChecklistTab.postFlight)
+            // Tab Content - Use regular views instead of TabView to prevent excessive reloading
+            Group {
+                switch selectedTab {
+                case .operation:
+                    OperationChecklistView(
+                        checklistService: checklistService,
+                        booking: booking
+                    )
+                case .preFlight:
+                    PreFlightChecklistView(
+                        checklistService: checklistService,
+                        booking: booking
+                    )
+                case .postFlight:
+                    PostFlightChecklistView(
+                        checklistService: checklistService,
+                        booking: booking
+                    )
+                }
             }
-            .tabViewStyle(.page(indexDisplayMode: .never))
         }
         .navigationTitle("Flight Checklist")
         .navigationBarTitleDisplayMode(.inline)
-        .task {
+        .task(id: hasLoadedInitialData) {
+            // Only load data once when view first appears
+            guard !hasLoadedInitialData else { return }
             await loadStatus()
+            hasLoadedInitialData = true
         }
     }
     

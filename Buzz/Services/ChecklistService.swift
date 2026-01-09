@@ -34,17 +34,25 @@ class ChecklistService: ObservableObject {
     @Published var hasFAAWaiver: Bool = false
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
+    @Published var hasLoadedData: Bool = false
     
     private let droneRegistrationService = DroneRegistrationService()
     private let licenseService = LicenseUploadService()
     private let supabase = SupabaseClient.shared.client
     private let bookingId: UUID?
+    private var loadTask: Task<Void, Never>?
     
     init(bookingId: UUID? = nil) {
         self.bookingId = bookingId
     }
     
     func loadChecklistStatus(pilotId: UUID, currentUser: User?) async {
+        // Prevent duplicate concurrent loads
+        if isLoading { return }
+        
+        // Skip if already loaded (prevents reload on view re-appearance)
+        if hasLoadedData { return }
+        
         isLoading = true
         errorMessage = nil
         
@@ -71,11 +79,24 @@ class ChecklistService: ObservableObject {
                 await loadBookingChecklist(bookingId: bookingId)
             }
             
+            hasLoadedData = true
             isLoading = false
         } catch {
+            // Check if this is a cancellation error (user navigated away)
+            if (error as NSError).code == NSURLErrorCancelled {
+                // Don't show error for cancellation, just reset loading state
+                isLoading = false
+                return
+            }
             errorMessage = error.localizedDescription
             isLoading = false
         }
+    }
+    
+    /// Force a refresh of the checklist data (e.g., for pull-to-refresh)
+    func refreshChecklistStatus(pilotId: UUID, currentUser: User?) async {
+        hasLoadedData = false
+        await loadChecklistStatus(pilotId: pilotId, currentUser: currentUser)
     }
     
     // MARK: - Booking-Specific Checklist Management
