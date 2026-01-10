@@ -84,7 +84,6 @@ class ChecklistService: ObservableObject {
         } catch {
             // Check if this is a cancellation error (user navigated away)
             if (error as NSError).code == NSURLErrorCancelled {
-                // Don't show error for cancellation, just reset loading state
                 isLoading = false
                 return
             }

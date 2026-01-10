@@ -12,6 +12,7 @@ struct BookingChecklistSelectionView: View {
     @EnvironmentObject var authService: AuthService
     @StateObject private var bookingService = BookingService()
     @State private var hasLoadedInitialData = false
+    @State private var selectedBooking: Booking? = nil
     
     var body: some View {
         Group {
@@ -27,7 +28,9 @@ struct BookingChecklistSelectionView: View {
                 ScrollView {
                     VStack(spacing: 16) {
                         ForEach(acceptedBookings) { booking in
-                            NavigationLink(destination: ChecklistTabView(booking: booking).environmentObject(authService)) {
+                            Button {
+                                selectedBooking = booking
+                            } label: {
                                 BookingChecklistCard(booking: booking)
                             }
                             .buttonStyle(PlainButtonStyle())
@@ -37,10 +40,26 @@ struct BookingChecklistSelectionView: View {
                 }
             }
         }
+        .fullScreenCover(item: $selectedBooking) { booking in
+            NavigationView {
+                ChecklistTabView(booking: booking)
+                    .environmentObject(authService)
+                    .toolbar {
+                        ToolbarItem(placement: .navigationBarLeading) {
+                            Button {
+                                selectedBooking = nil
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.title2)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    }
+            }
+        }
         .navigationTitle("Select Booking")
         .navigationBarTitleDisplayMode(.inline)
-        .task(id: hasLoadedInitialData) {
-            // Only load data once when view first appears
+        .task {
             guard !hasLoadedInitialData else { return }
             await loadBookings()
             hasLoadedInitialData = true
@@ -55,9 +74,7 @@ struct BookingChecklistSelectionView: View {
     }
     
     private func loadBookings() async {
-        guard let pilotId = authService.currentUser?.id else {
-            return
-        }
+        guard let pilotId = authService.currentUser?.id else { return }
         try? await bookingService.fetchMyBookings(userId: pilotId, isPilot: true)
     }
 }

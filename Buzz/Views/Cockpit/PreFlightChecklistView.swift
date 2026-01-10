@@ -556,6 +556,15 @@ struct CollapsibleSection<Content: View>: View {
 
 class PreFlightChecklistState: ObservableObject {
     @Published var checkedItems: Set<String> = []
+    private let instanceId = UUID().uuidString.prefix(8)
+    
+    init() {
+        print("🔍 PREFLIGHT_STATE[\(instanceId)]: PreFlightChecklistState initialized")
+    }
+    
+    deinit {
+        print("🔍 PREFLIGHT_STATE[\(instanceId)]: PreFlightChecklistState deinitialized")
+    }
     
     func isChecked(_ itemId: String) -> Bool {
         checkedItems.contains(itemId)
@@ -564,9 +573,12 @@ class PreFlightChecklistState: ObservableObject {
     func toggle(_ itemId: String) {
         if checkedItems.contains(itemId) {
             checkedItems.remove(itemId)
+            print("🔍 PREFLIGHT_STATE[\(instanceId)]: Unchecked item: \(itemId)")
         } else {
             checkedItems.insert(itemId)
+            print("🔍 PREFLIGHT_STATE[\(instanceId)]: Checked item: \(itemId)")
         }
+        print("🔍 PREFLIGHT_STATE[\(instanceId)]: Total checked items: \(checkedItems.count)")
     }
 }
 

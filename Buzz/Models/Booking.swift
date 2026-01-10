@@ -147,8 +147,17 @@ enum GovernmentAgency: String, Codable, CaseIterable {
     }
 }
 
-struct Booking: Codable, Identifiable {
+struct Booking: Codable, Identifiable, Hashable {
     let id: UUID
+    
+    // Hashable conformance - hash by ID only for navigation purposes
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+    }
+    
+    static func == (lhs: Booking, rhs: Booking) -> Bool {
+        lhs.id == rhs.id
+    }
     let customerId: UUID
     var pilotId: UUID?
     let locationLat: Double

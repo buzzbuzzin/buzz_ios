@@ -16,20 +16,17 @@ struct MainTabView: View {
     @State private var notificationToHandle: [AnyHashable: Any]?
     
     var body: some View {
-        if authService.userProfile?.userType == .pilot {
-            PilotTabView()
-                .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("HandleNotificationTap"))) { notification in
-                    if let userInfo = notification.userInfo {
-                        handleNotificationTap(userInfo: userInfo)
-                    }
-                }
-        } else {
-            CustomerTabView()
-                .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("HandleNotificationTap"))) { notification in
-                    if let userInfo = notification.userInfo {
-                        handleNotificationTap(userInfo: userInfo)
-                    }
-                }
+        Group {
+            if authService.userProfile?.userType == .pilot {
+                PilotTabView()
+            } else {
+                CustomerTabView()
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("HandleNotificationTap"))) { notification in
+            if let userInfo = notification.userInfo {
+                handleNotificationTap(userInfo: userInfo)
+            }
         }
     }
     

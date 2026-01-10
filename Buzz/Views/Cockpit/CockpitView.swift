@@ -14,6 +14,7 @@ struct CockpitView: View {
     @StateObject private var bookingService = BookingService()
     @StateObject private var locationManager = BookingMapLocationManager()
     @State private var hasNearbyBeaconMissions = false
+    @State private var showChecklistSelection = false
     
     var body: some View {
         NavigationView {
@@ -90,8 +91,11 @@ struct CockpitView: View {
                                 }
                                 .buttonStyle(PlainButtonStyle())
                                 
-                                // Checklist Card
-                                NavigationLink(destination: BookingChecklistSelectionView().environmentObject(authService)) {
+                                // Checklist Card - Using fullScreenCover for stable presentation
+                                // NavigationLink(isActive:) has a known bug where it resets on parent body re-evaluation
+                                Button {
+                                    showChecklistSelection = true
+                                } label: {
                                     CockpitGridCard(
                                         title: "Checklist",
                                         icon: "checklist",
@@ -262,6 +266,24 @@ struct CockpitView: View {
         .onChange(of: bookingService.availableBookings.count) { _ in
             Task {
                 await checkForNearbyBeaconMissions()
+            }
+        }
+        // Use fullScreenCover for stable presentation - immune to parent body re-evaluations
+        .fullScreenCover(isPresented: $showChecklistSelection) {
+            NavigationView {
+                BookingChecklistSelectionView()
+                    .environmentObject(authService)
+                    .toolbar {
+                        ToolbarItem(placement: .navigationBarLeading) {
+                            Button {
+                                showChecklistSelection = false
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.title2)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    }
             }
         }
     }

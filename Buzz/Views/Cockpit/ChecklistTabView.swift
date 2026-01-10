@@ -35,7 +35,6 @@ struct ChecklistTabView: View {
     
     init(booking: Booking) {
         self.booking = booking
-        // Use autoclosure to ensure StateObject is only created once
         _checklistService = StateObject(wrappedValue: ChecklistService(bookingId: booking.id))
     }
     
@@ -64,7 +63,7 @@ struct ChecklistTabView: View {
             
             Divider()
             
-            // Tab Content - Use regular views instead of TabView to prevent excessive reloading
+            // Tab Content
             Group {
                 switch selectedTab {
                 case .operation:
@@ -87,8 +86,7 @@ struct ChecklistTabView: View {
         }
         .navigationTitle("Flight Checklist")
         .navigationBarTitleDisplayMode(.inline)
-        .task(id: hasLoadedInitialData) {
-            // Only load data once when view first appears
+        .task {
             guard !hasLoadedInitialData else { return }
             await loadStatus()
             hasLoadedInitialData = true
