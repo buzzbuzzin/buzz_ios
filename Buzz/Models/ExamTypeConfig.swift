@@ -130,6 +130,18 @@ struct ExamTypeConfig: Codable, Identifiable {
         prerequisites: ["Passed Ground School Test", "Completed Unit 4 of UAS Pilot Course"]
     )
     
+    static let defaultGroundSchoolTest = ExamTypeConfig(
+        examType: "ground_school_test",
+        displayName: "Ground School Test",
+        shortDescription: "Essential knowledge assessment for UAS operations",
+        fullDescription: "The Ground School Test evaluates your understanding of fundamental UAS pilot training covering airspace, regulations, weather, and safety protocols. Passing this test is required to unlock advanced training units and certification exams.",
+        icon: "pencil.line",
+        durationMinutes: 60,
+        allowsOnline: true,
+        stripeProductId: "",
+        prerequisites: ["Completed Units 1-3 of UAS Pilot Course"]
+    )
+    
     /// Get default config for an exam type
     static func defaultConfig(for examType: ExamType) -> ExamTypeConfig {
         switch examType {
@@ -137,6 +149,8 @@ struct ExamTypeConfig: Codable, Identifiable {
             return defaultFlightReview
         case .rocA:
             return defaultRocA
+        case .groundSchoolTest:
+            return defaultGroundSchoolTest
         }
     }
 }

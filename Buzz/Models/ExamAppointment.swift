@@ -13,6 +13,7 @@ import SwiftUI
 enum ExamType: String, Codable, CaseIterable, Identifiable {
     case flightReview = "flight_review"
     case rocA = "roc_a"
+    case groundSchoolTest = "ground_school_test"
     
     var id: String { rawValue }
     
@@ -23,6 +24,8 @@ enum ExamType: String, Codable, CaseIterable, Identifiable {
             return "Flight Review"
         case .rocA:
             return "ROC-A Exam"
+        case .groundSchoolTest:
+            return "Ground School Test"
         }
     }
     
@@ -33,6 +36,8 @@ enum ExamType: String, Codable, CaseIterable, Identifiable {
             return "person.text.rectangle.fill"
         case .rocA:
             return "antenna.radiowaves.left.and.right"
+        case .groundSchoolTest:
+            return "pencil.line"
         }
     }
     
@@ -43,6 +48,8 @@ enum ExamType: String, Codable, CaseIterable, Identifiable {
             return .blue
         case .rocA:
             return .blue  // Same blue color as Flight Review for consistency
+        case .groundSchoolTest:
+            return .orange
         }
     }
     

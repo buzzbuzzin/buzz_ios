@@ -53,13 +53,24 @@ struct TestCenterView: View {
                     
                     ForEach(ExamType.allCases) { examType in
                         let config = examService.getConfig(for: examType)
-                        ExamCard(
-                            examType: examType,
-                            config: config,
-                            isEligible: prerequisitesStatus?.isEligible ?? false,
-                            hasExistingAppointment: existingAppointments[examType] ?? false
-                        )
-                        .padding(.horizontal)
+                        
+                        // Ground School Test is free and doesn't require scheduling
+                        if examType == .groundSchoolTest {
+                            GroundSchoolTestCard(
+                                config: config,
+                                hasPassedTest: prerequisitesStatus?.passedGroundSchoolTest ?? false
+                            )
+                            .padding(.horizontal)
+                        } else {
+                            // Regular paid exams (Flight Review, ROC-A)
+                            ExamCard(
+                                examType: examType,
+                                config: config,
+                                isEligible: prerequisitesStatus?.isEligible ?? false,
+                                hasExistingAppointment: existingAppointments[examType] ?? false
+                            )
+                            .padding(.horizontal)
+                        }
                     }
                 }
                 
@@ -1046,3 +1057,311 @@ struct RescheduleExamView: View {
     }
 }
 
+// MARK: - Ground School Test Card
+
+struct GroundSchoolTestCard: View {
+    let config: ExamTypeConfig
+    let hasPassedTest: Bool
+    
+    @EnvironmentObject var authService: AuthService
+    @State private var navigateToTest = false
+    @State private var showIntroSheet = false
+    
+    var body: some View {
+        Button(action: {
+            showIntroSheet = true
+        }) {
+            HStack(spacing: 16) {
+                // Icon
+                ZStack {
+                    Circle()
+                        .fill(hasPassedTest ? Color.green.opacity(0.2) : Color.orange.opacity(0.2))
+                        .frame(width: 56, height: 56)
+                    
+                    Image(systemName: hasPassedTest ? "checkmark.seal.fill" : config.icon)
+                        .font(.system(size: 24))
+                        .foregroundColor(hasPassedTest ? .green : .orange)
+                }
+                
+                // Content
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text(config.displayName)
+                            .font(.headline)
+                            .foregroundColor(.primary)
+                        
+                        if hasPassedTest {
+                            Text("Passed")
+                                .font(.caption)
+                                .fontWeight(.medium)
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 2)
+                                .background(Color.green)
+                                .cornerRadius(4)
+                        }
+                    }
+                    
+                    Text(config.shortDescription)
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .lineLimit(2)
+                    
+                    HStack(spacing: 12) {
+                        Label("\(config.durationMinutes) min", systemImage: "clock")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        
+                        Label("Free", systemImage: "checkmark.circle.fill")
+                            .font(.caption)
+                            .foregroundColor(.green)
+                    }
+                }
+                
+                Spacer()
+                
+                // Arrow indicator
+                Image(systemName: "chevron.right")
+                    .foregroundColor(.secondary)
+                    .font(.subheadline)
+            }
+            .padding()
+            .background(Color(.systemBackground))
+            .cornerRadius(12)
+            .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
+        }
+        .buttonStyle(PlainButtonStyle())
+        .sheet(isPresented: $showIntroSheet) {
+            if let currentUser = authService.currentUser {
+                GroundSchoolTestIntroSheetView(
+                    config: config,
+                    hasPassedTest: hasPassedTest,
+                    onStartTest: {
+                        showIntroSheet = false
+                        navigateToTest = true
+                    }
+                )
+                .environmentObject(authService)
+            }
+        }
+        .background(
+            NavigationLink(
+                destination: authService.currentUser.map { currentUser in
+                    // Need to get the UAS Pilot Course
+                    GroundSchoolTestWrapperView(pilotId: currentUser.id)
+                        .navigationBarBackButtonHidden(true)
+                },
+                isActive: $navigateToTest
+            ) {
+                EmptyView()
+            }
+            .hidden()
+        )
+    }
+}
+
+// MARK: - Ground School Test Intro Sheet
+
+struct GroundSchoolTestIntroSheetView: View {
+    let config: ExamTypeConfig
+    let hasPassedTest: Bool
+    let onStartTest: () -> Void
+    
+    @Environment(\.dismiss) private var dismiss
+    
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 24) {
+                    // Header
+                    VStack(spacing: 12) {
+                        ZStack {
+                            Circle()
+                                .fill(hasPassedTest ? Color.green.opacity(0.15) : Color.orange.opacity(0.15))
+                                .frame(width: 80, height: 80)
+                            
+                            Image(systemName: hasPassedTest ? "checkmark.seal.fill" : config.icon)
+                                .font(.system(size: 36))
+                                .foregroundColor(hasPassedTest ? .green : .orange)
+                        }
+                        
+                        Text(config.displayName)
+                            .font(.title2)
+                            .fontWeight(.bold)
+                        
+                        if hasPassedTest {
+                            Text("Passed")
+                                .font(.headline)
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 6)
+                                .background(Color.green)
+                                .cornerRadius(8)
+                        }
+                    }
+                    .padding(.top, 20)
+                    
+                    // Description
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("About This Test")
+                            .font(.headline)
+                        
+                        Text(config.fullDescription)
+                            .font(.body)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(.horizontal)
+                    
+                    // Test Details
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text("Test Details")
+                            .font(.headline)
+                            .padding(.horizontal)
+                        
+                        VStack(spacing: 12) {
+                            DetailRow(icon: "clock", label: "Duration", value: "\(config.durationMinutes) minutes")
+                            DetailRow(icon: "checklist", label: "Questions", value: "Multiple choice")
+                            DetailRow(icon: "percent", label: "Passing Score", value: "70%")
+                            DetailRow(icon: "dollarsign.circle.fill", label: "Cost", value: "Free")
+                            DetailRow(icon: "arrow.clockwise", label: "Retakes", value: "Unlimited")
+                        }
+                    }
+                    .padding()
+                    .background(Color(.systemGray6))
+                    .cornerRadius(12)
+                    .padding(.horizontal)
+                    
+                    if hasPassedTest {
+                        // Already passed - show option to retake
+                        VStack(spacing: 12) {
+                            Text("You've already passed this test!")
+                                .font(.subheadline)
+                                .foregroundColor(.green)
+                                .multilineTextAlignment(.center)
+                            
+                            Button(action: {
+                                onStartTest()
+                            }) {
+                                Text("Retake Test")
+                                    .fontWeight(.semibold)
+                                    .frame(maxWidth: .infinity)
+                                    .padding()
+                                    .background(Color.orange)
+                                    .foregroundColor(.white)
+                                    .cornerRadius(12)
+                            }
+                        }
+                        .padding(.horizontal)
+                    } else {
+                        // Not passed yet - show start button
+                        Button(action: {
+                            onStartTest()
+                        }) {
+                            HStack {
+                                Image(systemName: "play.fill")
+                                Text("Start Test")
+                            }
+                            .fontWeight(.semibold)
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(Color.orange)
+                            .foregroundColor(.white)
+                            .cornerRadius(12)
+                        }
+                        .padding(.horizontal)
+                    }
+                    
+                    Spacer(minLength: 40)
+                }
+            }
+            .navigationTitle("Test Info")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Close") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Ground School Test Wrapper View
+
+struct GroundSchoolTestWrapperView: View {
+    let pilotId: UUID
+    @StateObject private var academyService = AcademyService()
+    @State private var course: TrainingCourse?
+    @State private var isLoading = true
+    @State private var errorMessage: String?
+    
+    // UAS Pilot Course UUID (fixed)
+    private let uasPilotCourseId = UUID(uuidString: "a1b2c3d4-e5f6-7890-abcd-ef1234567890")!
+    
+    var body: some View {
+        Group {
+            if isLoading {
+                VStack(spacing: 16) {
+                    ProgressView()
+                        .scaleEffect(1.5)
+                    Text("Loading test...")
+                        .font(.headline)
+                        .foregroundColor(.secondary)
+                }
+            } else if let errorMessage = errorMessage {
+                VStack(spacing: 16) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 50))
+                        .foregroundColor(.red)
+                    Text("Error Loading Test")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                    Text(errorMessage)
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+                .padding()
+            } else if let course = course {
+                GroundSchoolTestView(course: course, pilotId: pilotId)
+            } else {
+                VStack(spacing: 16) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 50))
+                        .foregroundColor(.orange)
+                    Text("Course Not Found")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                    Text("Unable to load the UAS Pilot Course.")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+                .padding()
+            }
+        }
+        .task {
+            await loadCourse()
+        }
+    }
+    
+    private func loadCourse() async {
+        isLoading = true
+        errorMessage = nil
+        
+        do {
+            // Fetch the UAS Pilot Course
+            try await academyService.fetchCourses()
+            course = academyService.courses.first { $0.id == uasPilotCourseId }
+            
+            if course == nil {
+                errorMessage = "UAS Pilot Course not found"
+            }
+        } catch {
+            errorMessage = error.localizedDescription
+            print("Error loading course: \(error)")
+        }
+        
+        isLoading = false
+    }
+}

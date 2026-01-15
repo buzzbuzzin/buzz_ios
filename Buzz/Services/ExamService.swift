@@ -58,7 +58,8 @@ class ExamService: ObservableObject {
             // Use default configs as fallback
             examConfigs = [
                 .flightReview: ExamTypeConfig.defaultFlightReview,
-                .rocA: ExamTypeConfig.defaultRocA
+                .rocA: ExamTypeConfig.defaultRocA,
+                .groundSchoolTest: ExamTypeConfig.defaultGroundSchoolTest
             ]
         }
     }
@@ -81,7 +82,8 @@ class ExamService: ObservableObject {
     // MARK: - Check Prerequisites
     
     /// Checks if a pilot meets the prerequisites for taking exams
-    /// Prerequisites: Passed Ground School Test + Completed Unit 4
+    /// Prerequisites for paid exams (Flight Review, ROC-A): Passed Ground School Test + Completed Unit 4
+    /// Prerequisites for Ground School Test: None (always available)
     func checkPrerequisites(pilotId: UUID) async throws -> ExamPrerequisitesStatus {
         isLoading = true
         errorMessage = nil
