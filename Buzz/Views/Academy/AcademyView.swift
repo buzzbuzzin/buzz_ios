@@ -518,7 +518,7 @@ struct CategoryChip: View {
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 8)
-            .background(isSelected ? Color.blue : Color(.systemBackground))
+            .background(isSelected ? Color.orange : Color(.systemBackground))
             .foregroundColor(isSelected ? .white : .primary)
             .cornerRadius(20)
             .overlay(
@@ -597,15 +597,15 @@ struct CourseCard: View {
                         if course.provider == .buzz {
                             HStack(spacing: 4) {
                                 Image(systemName: course.category.icon)
-                                    .foregroundColor(isLocked ? .gray : .blue)
+                                    .foregroundColor(isLocked ? .gray : .orange)
                                     .font(.caption)
                                 Text(course.category.rawValue)
                                     .font(.caption)
-                                    .foregroundColor(isLocked ? .gray : .blue)
+                                    .foregroundColor(isLocked ? .gray : .orange)
                             }
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
-                            .background((isLocked ? Color.gray : Color.blue).opacity(0.1))
+                            .background((isLocked ? Color.gray : Color.orange).opacity(0.1))
                             .cornerRadius(6)
                         }
                     }
