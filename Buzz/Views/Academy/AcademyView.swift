@@ -170,6 +170,7 @@ struct AcademyView: View {
                             isSelected: selectedProvider == nil
                         ) {
                             selectedProvider = nil
+                            selectedCategory = nil // Reset category when changing provider
                         }
                         
                         ForEach(allProviders, id: \.self) { provider in
@@ -180,6 +181,10 @@ struct AcademyView: View {
                                 color: provider.color
                             ) {
                                 selectedProvider = provider
+                                // Reset category when changing to a non-Buzz provider
+                                if provider != .buzz {
+                                    selectedCategory = nil
+                                }
                             }
                         }
                     }
@@ -188,32 +193,34 @@ struct AcademyView: View {
                 }
                 .background(Color(.systemGray6))
                 
-                // Category Filter
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 12) {
-                        // All Categories Button
-                        CategoryChip(
-                            title: "All",
-                            icon: "square.grid.2x2",
-                            isSelected: selectedCategory == nil
-                        ) {
-                            selectedCategory = nil
-                        }
-                        
-                        ForEach(allCategories, id: \.self) { category in
+                // Category Filter - Only show when Buzz is selected as provider
+                if selectedProvider == .buzz {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 12) {
+                            // All Categories Button
                             CategoryChip(
-                                title: category.rawValue,
-                                icon: category.icon,
-                                isSelected: selectedCategory == category
+                                title: "All",
+                                icon: "square.grid.2x2",
+                                isSelected: selectedCategory == nil
                             ) {
-                                selectedCategory = category
+                                selectedCategory = nil
+                            }
+                            
+                            ForEach(allCategories, id: \.self) { category in
+                                CategoryChip(
+                                    title: category.rawValue,
+                                    icon: category.icon,
+                                    isSelected: selectedCategory == category
+                                ) {
+                                    selectedCategory = category
+                                }
                             }
                         }
+                        .padding(.horizontal)
+                        .padding(.vertical, 12)
                     }
-                    .padding(.horizontal)
-                    .padding(.vertical, 12)
+                    .background(Color(.systemGray6))
                 }
-                .background(Color(.systemGray6))
                 
                 // Courses List (always present to keep navigation state stable)
                 ZStack {
