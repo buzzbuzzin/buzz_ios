@@ -92,6 +92,8 @@ struct Badge: Identifiable, Codable {
         case rocaExaminer = "roc_a_examiner"
         case beaconVolunteer = "beacon_volunteer"
         case cert = "cert"
+        case firstAid = "first_aid"
+        case basicFirefighter = "basic_firefighter"
         
         var displayName: String {
             switch self {
@@ -104,6 +106,8 @@ struct Badge: Identifiable, Codable {
             case .rocaExaminer: return "ROC-A Examiner"
             case .beaconVolunteer: return "Beacon Volunteer"
             case .cert: return "CERT"
+            case .firstAid: return "First Aid"
+            case .basicFirefighter: return "Basic Fire Fighter"
             }
         }
         
@@ -118,6 +122,8 @@ struct Badge: Identifiable, Codable {
             case .rocaExaminer: return "antenna.radiowaves.left.and.right"
             case .beaconVolunteer: return "antenna.radiowaves.left.and.right"
             case .cert: return "shield.checkered"
+            case .firstAid: return "cross.case.fill"
+            case .basicFirefighter: return "flame.fill"
             }
         }
         
@@ -139,6 +145,8 @@ struct Badge: Identifiable, Codable {
             case .rocaExaminer: return .indigo
             case .beaconVolunteer: return .orange
             case .cert: return .green
+            case .firstAid: return .red
+            case .basicFirefighter: return .red
             }
         }
     }
@@ -163,7 +171,7 @@ struct Badge: Identifiable, Codable {
                 return "Certification"
             case .flightReviewer, .rocaExaminer:
                 return "Permits"
-            case .beaconVolunteer, .cert:
+            case .beaconVolunteer, .cert, .firstAid, .basicFirefighter:
                 return "Emergency Response"
             default:
                 return "Badge"

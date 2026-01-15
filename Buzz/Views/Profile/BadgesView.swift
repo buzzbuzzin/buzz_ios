@@ -310,7 +310,7 @@ struct BadgeRow: View {
                 Spacer()
                 
                 Image(systemName: badge.isExpired ? "xmark.seal.fill" : "checkmark.seal.fill")
-                    .foregroundColor(badge.isExpired ? .red : badge.provider.color)
+                    .foregroundColor(badge.isExpired ? .red : .blue)
                     .font(.system(size: 24))
             }
             .padding(.vertical, 4)
