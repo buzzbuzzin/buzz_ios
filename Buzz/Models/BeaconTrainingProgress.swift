@@ -156,3 +156,25 @@ enum BeaconOnboardingStep: Int, CaseIterable {
     }
 }
 
+// MARK: - Badge Type to Training Type Mapping
+
+extension Badge.BadgeType {
+    /// Maps badge types to their corresponding beacon training types
+    /// Used for certificate-based badges that can be earned independently
+    var beaconTrainingType: BeaconTrainingType? {
+        switch self {
+        case .firstAid:
+            return .cpr
+        case .basicFirefighter:
+            return .firefighting
+        default:
+            return nil
+        }
+    }
+    
+    /// Whether this badge type requires a certificate upload
+    var requiresCertificateUpload: Bool {
+        return beaconTrainingType != nil
+    }
+}
+

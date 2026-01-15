@@ -354,9 +354,21 @@ struct AvailableBadgeRow: View {
     
     @StateObject private var profileService = ProfileService()
     @State private var showVeteranVerificationSheet = false
+    @State private var showCertificateUploadSheet = false
     
     var isExMilitaryBadge: Bool {
         availableBadge.badgeType == .exMilitary
+    }
+    
+    /// Checks if this badge requires a certificate upload (First Aid or Basic Firefighter)
+    var isCertificateBadge: Bool {
+        guard let badgeType = availableBadge.badgeType else { return false }
+        return badgeType.requiresCertificateUpload
+    }
+    
+    /// Checks if this badge is tappable (has an action associated with it)
+    var isTappable: Bool {
+        isExMilitaryBadge || isCertificateBadge
     }
     
     var body: some View {
@@ -419,9 +431,16 @@ struct AvailableBadgeRow: View {
                 
                 Spacer()
                 
-                Image(systemName: "seal")
-                    .foregroundColor(availableBadge.providerColor.opacity(0.3))
-                    .font(.system(size: 24))
+                // Show chevron for tappable badges, otherwise just the seal icon
+                if isTappable {
+                    Image(systemName: "chevron.right")
+                        .foregroundColor(.secondary)
+                        .font(.system(size: 14))
+                } else {
+                    Image(systemName: "seal")
+                        .foregroundColor(availableBadge.providerColor.opacity(0.3))
+                        .font(.system(size: 24))
+                }
             }
             .padding(.vertical, 4)
         }
@@ -431,6 +450,8 @@ struct AvailableBadgeRow: View {
         .onTapGesture {
             if isExMilitaryBadge {
                 showVeteranVerificationSheet = true
+            } else if isCertificateBadge {
+                showCertificateUploadSheet = true
             }
         }
         .sheet(isPresented: $showVeteranVerificationSheet) {
@@ -439,6 +460,16 @@ struct AvailableBadgeRow: View {
                     profileService: profileService,
                     badgeService: badgeService,
                     userId: currentUser.id
+                )
+            }
+        }
+        .sheet(isPresented: $showCertificateUploadSheet) {
+            if let currentUser = authService.currentUser,
+               let badgeType = availableBadge.badgeType {
+                CertificateBadgeUploadView(
+                    badgeService: badgeService,
+                    userId: currentUser.id,
+                    badgeType: badgeType
                 )
             }
         }
