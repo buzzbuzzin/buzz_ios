@@ -577,18 +577,37 @@ struct CourseCard: View {
                         .padding(.top, 2)
                     }
                     
-                    // Provider badge
-                    HStack(spacing: 4) {
-                        Image(systemName: course.provider.icon)
-                            .foregroundColor(isLocked ? .gray : course.provider.color)
-                            .font(.caption)
-                        Text(course.provider.rawValue)
-                            .font(.caption)
-                            .foregroundColor(isLocked ? .gray : course.provider.color)
+                    // Provider and Category badges
+                    HStack(spacing: 8) {
+                        // Provider badge
+                        HStack(spacing: 4) {
+                            Image(systemName: course.provider.icon)
+                                .foregroundColor(isLocked ? .gray : course.provider.color)
+                                .font(.caption)
+                            Text(course.provider.rawValue)
+                                .font(.caption)
+                                .foregroundColor(isLocked ? .gray : course.provider.color)
+                        }
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background((isLocked ? Color.gray : course.provider.color).opacity(0.1))
+                        .cornerRadius(6)
+                        
+                        // Category badge (only for Buzz provider)
+                        if course.provider == .buzz {
+                            HStack(spacing: 4) {
+                                Image(systemName: course.category.icon)
+                                    .foregroundColor(isLocked ? .gray : .blue)
+                                    .font(.caption)
+                                Text(course.category.rawValue)
+                                    .font(.caption)
+                                    .foregroundColor(isLocked ? .gray : .blue)
+                            }
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
-                            .background((isLocked ? Color.gray : course.provider.color).opacity(0.1))
+                            .background((isLocked ? Color.gray : Color.blue).opacity(0.1))
                             .cornerRadius(6)
+                        }
                     }
                     .padding(.top, 4)
                 }
