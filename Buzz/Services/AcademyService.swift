@@ -39,7 +39,7 @@ class AcademyService: ObservableObject {
                     description: courseResponse.description,
                     duration: courseResponse.duration,
                     level: TrainingCourse.CourseLevel(rawValue: courseResponse.level) ?? .beginner,
-                    category: TrainingCourse.CourseCategory(rawValue: courseResponse.category) ?? .safety,
+                    category: TrainingCourse.CourseCategory(rawValue: courseResponse.category) ?? .mandatory,
                     instructor: courseResponse.instructor,
                     instructorPictureUrl: courseResponse.instructorPictureUrl,
                     rating: courseResponse.rating,
@@ -118,7 +118,7 @@ class AcademyService: ObservableObject {
                     description: courseResponse.description,
                     duration: courseResponse.duration,
                     level: TrainingCourse.CourseLevel(rawValue: courseResponse.level) ?? .beginner,
-                    category: TrainingCourse.CourseCategory(rawValue: courseResponse.category) ?? .safety,
+                    category: TrainingCourse.CourseCategory(rawValue: courseResponse.category) ?? .mandatory,
                     instructor: courseResponse.instructor,
                     instructorPictureUrl: courseResponse.instructorPictureUrl,
                     rating: courseResponse.rating,
@@ -404,7 +404,7 @@ class AcademyService: ObservableObject {
                 let providerString = courseJson["provider"] as? String ?? "Buzz"
                 
                 let level = TrainingCourse.CourseLevel(rawValue: levelString) ?? .beginner
-                let category = TrainingCourse.CourseCategory(rawValue: categoryString) ?? .safety
+                let category = TrainingCourse.CourseCategory(rawValue: categoryString) ?? .mandatory
                 let provider = TrainingCourse.CourseProvider(rawValue: providerString) ?? .buzz
                 
                 let course = TrainingCourse(

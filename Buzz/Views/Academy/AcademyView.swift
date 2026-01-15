@@ -39,7 +39,7 @@ struct AcademyView: View {
     }
     
     private let allCategories: [TrainingCourse.CourseCategory] = [
-        .safety, .operations, .photography, .cinematography, .inspection, .mapping, .cprFirstAid, .basicFirefighter
+        .mandatory, .extensions, .intermediate, .advanced, .specialized
     ]
     
     private let allProviders: [TrainingCourse.CourseProvider] = [
@@ -1145,22 +1145,16 @@ struct CourseDetailView: View {
     private var courseBackgroundImageUrl: String {
         // Return relevant background images based on course category
         switch course.category {
-        case .safety:
+        case .mandatory:
             return "https://images.unsplash.com/photo-1518611012118-696072aa971a?w=800&h=400&fit=crop"
-        case .operations:
+        case .extensions:
             return "https://images.unsplash.com/photo-1473968512647-3e447244af8f?w=800&h=400&fit=crop"
-        case .photography:
+        case .intermediate:
             return "https://images.unsplash.com/photo-1502920917128-1aa500764cbd?w=800&h=400&fit=crop"
-        case .cinematography:
+        case .advanced:
             return "https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?w=800&h=400&fit=crop"
-        case .inspection:
+        case .specialized:
             return "https://images.unsplash.com/photo-1581094794329-c8112a89af12?w=800&h=400&fit=crop"
-        case .mapping:
-            return "https://images.unsplash.com/photo-1559827260-dc66d52bef19?w=800&h=400&fit=crop"
-        case .cprFirstAid:
-            return "https://images.unsplash.com/photo-1559757148-5c350d0d3c56?w=800&h=400&fit=crop"
-        case .basicFirefighter:
-            return "https://images.unsplash.com/photo-1540979388789-6cee28a1cdc9?w=800&h=400&fit=crop"
         }
     }
 }

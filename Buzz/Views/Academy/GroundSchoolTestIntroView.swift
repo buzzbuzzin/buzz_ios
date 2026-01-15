@@ -151,7 +151,7 @@ struct BulletPoint: View {
             description: "Test course",
             duration: "10 hours",
             level: .beginner,
-            category: .operations,
+            category: .mandatory,
             instructor: "Test Instructor",
             instructorPictureUrl: nil,
             rating: 4.5,

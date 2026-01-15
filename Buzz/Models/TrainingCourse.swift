@@ -41,25 +41,19 @@ struct TrainingCourse: Identifiable {
     }
     
     enum CourseCategory: String {
-        case safety = "Safety & Regulations"
-        case operations = "Flight Operations"
-        case photography = "Aerial Photography"
-        case cinematography = "Cinematography"
-        case inspection = "Inspections"
-        case mapping = "Mapping & Surveying"
-        case cprFirstAid = "CPR/First Aid"
-        case basicFirefighter = "Basic Firefighter"
+        case mandatory = "Mandatory"
+        case extensions = "Extension"
+        case intermediate = "Intermediate"
+        case advanced = "Advanced"
+        case specialized = "Specialized"
         
         var icon: String {
             switch self {
-            case .safety: return "shield.fill"
-            case .operations: return "airplane.departure"
-            case .photography: return "camera.fill"
-            case .cinematography: return "video.fill"
-            case .inspection: return "magnifyingglass"
-            case .mapping: return "map.fill"
-            case .cprFirstAid: return "cross.case.fill"
-            case .basicFirefighter: return "flame.fill"
+            case .mandatory: return "star.fill"
+            case .extensions: return "square.grid.2x2.fill"
+            case .intermediate: return "chart.bar.fill"
+            case .advanced: return "trophy.fill"
+            case .specialized: return "sparkles"
             }
         }
     }
