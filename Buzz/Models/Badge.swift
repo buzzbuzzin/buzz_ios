@@ -38,6 +38,7 @@ struct Badge: Identifiable, Codable {
         case buzz = "Buzz"
         case redCross = "Red Cross"
         case usfa = "USFA"
+        case fema = "FEMA"
         case amazon = "Amazon"
         case tmobile = "T-Mobile"
         case other = "Other"
@@ -50,6 +51,8 @@ struct Badge: Identifiable, Codable {
                 return .red
             case .usfa:
                 return .yellow
+            case .fema:
+                return .green
             case .amazon:
                 return .orange
             case .tmobile:
@@ -67,6 +70,8 @@ struct Badge: Identifiable, Codable {
                 return "cross.circle.fill"
             case .usfa:
                 return "flame.circle.fill"
+            case .fema:
+                return "shield.checkered"
             case .amazon:
                 return "a.circle.fill"
             case .tmobile:
@@ -86,6 +91,7 @@ struct Badge: Identifiable, Codable {
         case flightReviewer = "flight_reviewer"
         case rocaExaminer = "roc_a_examiner"
         case beaconVolunteer = "beacon_volunteer"
+        case cert = "cert"
         
         var displayName: String {
             switch self {
@@ -97,6 +103,7 @@ struct Badge: Identifiable, Codable {
             case .flightReviewer: return "Flight Reviewer"
             case .rocaExaminer: return "ROC-A Examiner"
             case .beaconVolunteer: return "Beacon Volunteer"
+            case .cert: return "CERT"
             }
         }
         
@@ -110,6 +117,7 @@ struct Badge: Identifiable, Codable {
             case .flightReviewer: return "person.text.rectangle.fill"
             case .rocaExaminer: return "antenna.radiowaves.left.and.right"
             case .beaconVolunteer: return "antenna.radiowaves.left.and.right"
+            case .cert: return "shield.checkered"
             }
         }
         
@@ -130,6 +138,7 @@ struct Badge: Identifiable, Codable {
             case .flightReviewer: return .teal
             case .rocaExaminer: return .indigo
             case .beaconVolunteer: return .orange
+            case .cert: return .green
             }
         }
     }
@@ -154,6 +163,8 @@ struct Badge: Identifiable, Codable {
                 return "Certification"
             case .flightReviewer, .rocaExaminer:
                 return "Permits"
+            case .beaconVolunteer, .cert:
+                return "Emergency Response"
             default:
                 return "Badge"
             }

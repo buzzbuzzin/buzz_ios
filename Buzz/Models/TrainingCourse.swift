@@ -67,6 +67,7 @@ struct TrainingCourse: Identifiable {
         case buzz = "Buzz"
         case redCross = "Red Cross"
         case usfa = "USFA"
+        case fema = "FEMA"
         case amazon = "Amazon"
         case tmobile = "T-Mobile"
         case other = "Other"
@@ -79,6 +80,8 @@ struct TrainingCourse: Identifiable {
                 return .red
             case .usfa:
                 return .yellow
+            case .fema:
+                return .green
             case .amazon:
                 return .orange
             case .tmobile:
@@ -96,6 +99,8 @@ struct TrainingCourse: Identifiable {
                 return "cross.circle.fill"
             case .usfa:
                 return "flame.circle.fill"
+            case .fema:
+                return "shield.checkered"
             case .amazon:
                 return "a.circle.fill"
             case .tmobile:

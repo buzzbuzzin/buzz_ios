@@ -39,7 +39,7 @@ struct AcademyView: View {
     ]
     
     private let allProviders: [TrainingCourse.CourseProvider] = [
-        .buzz, .redCross, .usfa, .amazon, .tmobile, .other
+        .buzz, .redCross, .usfa, .fema, .amazon, .tmobile, .other
     ]
     
     var filteredCourses: [TrainingCourse] {
