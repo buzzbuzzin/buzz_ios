@@ -57,7 +57,21 @@ struct AcademyView: View {
             filtered = filtered.filter { $0.provider == provider }
         }
         
-        return filtered
+        // Sort courses with UAS Pilot first
+        return filtered.sorted { course1, course2 in
+            let uasPilotId = uasPilotCourseId.uuidString
+            
+            // If course1 is UAS Pilot, it comes first
+            if course1.id.uuidString == uasPilotId {
+                return true
+            }
+            // If course2 is UAS Pilot, it comes first
+            if course2.id.uuidString == uasPilotId {
+                return false
+            }
+            // Otherwise maintain original order
+            return false
+        }
     }
     
     var body: some View {
