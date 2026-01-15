@@ -216,37 +216,41 @@ class AcademyService: ObservableObject {
     // MARK: - Check Ground School Test Status
     
     func checkGroundSchoolTestStatus(pilotId: UUID, courseId: UUID) async throws -> Bool {
-        print("🔍 [AcademyService] Checking test status for pilot: \(pilotId)")
-        print("🔍 [AcademyService] Course ID: \(courseId)")
+        print("🔍 [AcademyService] Checking ground school test status for pilot: \(pilotId)")
+        
+        // Ground School Test Section ID
+        let groundSchoolTestSectionId = UUID(uuidString: "00000002-0000-0000-0000-000000000002")!
         
         do {
+            // Check if pilot has completed any unit in the ground school test section
             let response = try await supabase
-                .from("test_results")
-                .select("passed")
+                .from("unit_completions")
+                .select("""
+                    *,
+                    course_units!inner(
+                        id,
+                        course_id,
+                        section_id
+                    )
+                """)
                 .eq("pilot_id", value: pilotId.uuidString)
-                .eq("course_id", value: courseId.uuidString)
+                .eq("course_units.course_id", value: courseId.uuidString)
+                .eq("course_units.section_id", value: groundSchoolTestSectionId.uuidString)
+                .not("completed_at", operator: .is, value: "null")
                 .execute()
             
             let data = response.data
-            print("📦 [AcademyService] Response data size: \(data.count) bytes")
             
             guard let jsonArray = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
-                print("⚠️ [AcademyService] No test results found (empty array)")
+                print("⚠️ [AcademyService] No ground school test completion found")
                 return false
             }
             
-            print("📊 [AcademyService] Found \(jsonArray.count) test result(s)")
-            
-            guard let firstResult = jsonArray.first,
-                  let passed = firstResult["passed"] as? Bool else {
-                print("⚠️ [AcademyService] No test record found or invalid format")
-                return false
-            }
-            
-            print("✅ [AcademyService] Test status: \(passed ? "PASSED" : "FAILED")")
-            return passed
+            let hasPassed = !jsonArray.isEmpty
+            print("✅ [AcademyService] Ground school test status: \(hasPassed ? "PASSED" : "NOT PASSED")")
+            return hasPassed
         } catch {
-            print("❌ [AcademyService] Error checking test status: \(error)")
+            print("❌ [AcademyService] Error checking ground school test status: \(error)")
             return false
         }
     }
@@ -299,6 +303,27 @@ class AcademyService: ObservableObject {
     // MARK: - Enroll in Course
     
     func enrollInCourse(pilotId: UUID, courseId: UUID) async throws {
+        // First, check if the course requires ground school test
+        if let course = courses.first(where: { $0.id == courseId }),
+           course.requiresUasGroundSchool {
+            // Check if pilot has passed ground school test
+            let uasPilotCourseId = UUID(uuidString: "a1b2c3d4-e5f6-7890-abcd-ef1234567890")!
+            let hasPassedTest = try await checkGroundSchoolTestStatus(
+                pilotId: pilotId,
+                courseId: uasPilotCourseId
+            )
+            
+            if !hasPassedTest {
+                throw NSError(
+                    domain: "AcademyService",
+                    code: 403,
+                    userInfo: [
+                        NSLocalizedDescriptionKey: "You must pass the UAS Pilot Ground School Test before enrolling in this course."
+                    ]
+                )
+            }
+        }
+        
         do {
             let enrollment: [String: AnyJSON] = [
                 "pilot_id": .string(pilotId.uuidString),

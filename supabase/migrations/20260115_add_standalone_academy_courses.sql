@@ -147,7 +147,8 @@ VALUES (
 ON CONFLICT (id) DO NOTHING;
 
 -- ============================================================
--- Step 5: Insert Camera/Payload Operator course (Extension Unit 5)
+-- Step 5: Insert Extension Courses as a standalone course
+-- This will contain Unit 5 (Camera/Payload Operator) and Unit 6 (Drone Business)
 -- ============================================================
 
 INSERT INTO public.training_courses (
@@ -166,44 +167,10 @@ INSERT INTO public.training_courses (
 )
 VALUES (
     'e5f6a7b8-c9d0-1234-efab-567890123456',
-    'Camera/Payload Operator',
-    'Training for camera and payload operators, covering equipment handling, camera settings, gimbal operation, and payload management for professional drone operations.',
-    '6 hours',
+    'Extension Courses',
+    'Advanced training courses including Camera/Payload Operator and Drone Business. Expand your skills beyond basic pilot training with specialized knowledge.',
+    '14 hours',
     'Intermediate',
-    'Aerial Photography',
-    'Buzz',
-    NULL,
-    5.0,
-    0,
-    'Buzz',
-    true  -- Requires UAS Pilot Ground School Test to unlock
-)
-ON CONFLICT (id) DO NOTHING;
-
--- ============================================================
--- Step 6: Insert Drone Business course (Extension Unit 6)
--- ============================================================
-
-INSERT INTO public.training_courses (
-    id,
-    title,
-    description,
-    duration,
-    level,
-    category,
-    instructor,
-    instructor_picture_url,
-    rating,
-    students_count,
-    provider,
-    requires_uas_ground_school
-)
-VALUES (
-    'f6a7b8c9-d0e1-2345-fabc-678901234567',
-    'Drone Business',
-    'Learn how to start and manage a successful drone business. Covers business planning, client acquisition, pricing strategies, insurance, and legal considerations.',
-    '8 hours',
-    'Beginner',
     'Flight Operations',
     'Buzz',
     NULL,
@@ -298,7 +265,7 @@ VALUES (
 )
 ON CONFLICT (id) DO NOTHING;
 
--- Camera/Payload Operator - Main content section
+-- Extension Courses - Main content section that will display existing units
 INSERT INTO public.course_sections (
     id,
     course_id,
@@ -313,34 +280,9 @@ INSERT INTO public.course_sections (
 VALUES (
     'a0000004-0000-0000-0000-000000000004',
     'e5f6a7b8-c9d0-1234-efab-567890123456',
-    'CAMERA/PAYLOAD TRAINING',
+    'EXTENSION COURSES',
     1,
-    'Camera and payload operator training materials',
-    'units',
-    true,  -- Requires subscription
-    false,
-    true
-)
-ON CONFLICT (id) DO NOTHING;
-
--- Drone Business - Main content section
-INSERT INTO public.course_sections (
-    id,
-    course_id,
-    name,
-    display_order,
-    description,
-    section_type,
-    requires_subscription,
-    requires_test_passed,
-    is_active
-)
-VALUES (
-    'a0000005-0000-0000-0000-000000000005',
-    'f6a7b8c9-d0e1-2345-fabc-678901234567',
-    'DRONE BUSINESS TRAINING',
-    1,
-    'Drone business training materials',
+    'Advanced training units including Camera/Payload Operator and Drone Business',
     'units',
     true,  -- Requires subscription
     false,
@@ -349,7 +291,30 @@ VALUES (
 ON CONFLICT (id) DO NOTHING;
 
 -- ============================================================
--- Step 8: Deactivate the moved sections from UAS Pilot course
+-- Step 8: Link existing extension units to the new Extension Courses
+-- Units 5 and 6 from the UAS Pilot course will now be under Extension Courses
+-- ============================================================
+
+-- Update Unit 5 (Camera/Payload Operator) to point to new Extension Courses
+UPDATE public.course_units
+SET course_id = 'e5f6a7b8-c9d0-1234-efab-567890123456',
+    section_id = 'a0000004-0000-0000-0000-000000000004',
+    updated_at = timezone('utc'::text, now())
+WHERE id = '00000000-0000-0000-0000-000000000005'
+  AND course_id = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890'
+  AND section_id = '00000005-0000-0000-0000-000000000005';
+
+-- Update Unit 6 (Drone Business) to point to new Extension Courses
+UPDATE public.course_units
+SET course_id = 'e5f6a7b8-c9d0-1234-efab-567890123456',
+    section_id = 'a0000004-0000-0000-0000-000000000004',
+    updated_at = timezone('utc'::text, now())
+WHERE id = '00000000-0000-0000-0000-000000000006'
+  AND course_id = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890'
+  AND section_id = '00000005-0000-0000-0000-000000000005';
+
+-- ============================================================
+-- Step 9: Deactivate the moved sections from UAS Pilot course
 -- These sections are now standalone courses, so hide them from UAS Pilot
 -- ============================================================
 
@@ -389,17 +354,21 @@ WHERE id = '00000005-0000-0000-0000-000000000005'
 -- 1. Flight Review (b2c3d4e5-f6a7-8901-bcde-f23456789012) - Links to Test Center
 -- 2. ROC-A Exam (c3d4e5f6-a7b8-9012-cdef-345678901234) - Links to Test Center
 -- 3. FAA 107 Recurrent Training (d4e5f6a7-b8c9-0123-defa-456789012345) - Subscription required
--- 4. Camera/Payload Operator (e5f6a7b8-c9d0-1234-efab-567890123456) - Subscription required
--- 5. Drone Business (f6a7b8c9-d0e1-2345-fabc-678901234567) - Subscription required
+-- 4. Extension Courses (e5f6a7b8-c9d0-1234-efab-567890123456) - Contains Unit 5 & 6, Subscription required
 --
 -- Deactivated sections in UAS Pilot course:
 -- - Flight Review (00000007-0000-0000-0000-000000000007)
 -- - Radio Operator (00000008-0000-0000-0000-000000000008)
 -- - Recurrent Training (00000004-0000-0000-0000-000000000004)
 -- - Extension Courses (00000005-0000-0000-0000-000000000005)
+--
+-- Moved units to new Extension Courses course:
+-- - Unit 5: Camera/Payload Operator (00000000-0000-0000-0000-000000000005)
+-- - Unit 6: Drone Business (00000000-0000-0000-0000-000000000006)
 
 -- ============================================================
 -- Verification query (can be run manually):
 -- ============================================================
 -- SELECT id, title, category, provider, requires_uas_ground_school FROM public.training_courses ORDER BY created_at DESC LIMIT 10;
 -- SELECT id, name, is_active FROM public.course_sections WHERE course_id = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
+-- SELECT id, title, course_id, section_id FROM public.course_units WHERE id IN ('00000000-0000-0000-0000-000000000005', '00000000-0000-0000-0000-000000000006');

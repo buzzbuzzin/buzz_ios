@@ -667,6 +667,7 @@ struct CourseDetailView: View {
     @State private var showCompletionConfirmation = false
     @State private var isUnenrolling = false
     @State private var unenrollError: String?
+    @State private var enrollError: String?
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var authService: AuthService
     @StateObject private var badgeService = BadgeService()
@@ -962,7 +963,11 @@ struct CourseDetailView: View {
                         }
                         .padding(.horizontal)
                     } else {
-                        NavigationLink(destination: CourseContentView(course: course)) {
+                        Button(action: {
+                            Task {
+                                await enrollInCourse()
+                            }
+                        }) {
                             Text("Enroll Now")
                                 .font(.headline)
                                 .foregroundColor(.white)
@@ -971,17 +976,6 @@ struct CourseDetailView: View {
                                 .background(Color.blue)
                                 .cornerRadius(12)
                         }
-                        .simultaneousGesture(TapGesture().onEnded {
-                                isEnrolled = true
-                                onEnrollmentChange()
-                            // Enroll in course via backend
-                            Task {
-                                if let currentUser = authService.currentUser {
-                                    let academyService = AcademyService()
-                                    try? await academyService.enrollInCourse(pilotId: currentUser.id, courseId: course.id)
-                                }
-                            }
-                        })
                         .padding(.horizontal)
                     }
                 }
@@ -1005,6 +999,15 @@ struct CourseDetailView: View {
             }
         } message: {
             if let error = unenrollError {
+                Text(error)
+            }
+        }
+        .alert("Enrollment Error", isPresented: .constant(enrollError != nil)) {
+            Button("OK") {
+                enrollError = nil
+            }
+        } message: {
+            if let error = enrollError {
                 Text(error)
             }
         }
@@ -1039,6 +1042,26 @@ struct CourseDetailView: View {
             }
         } catch {
             print("Error awarding badge: \(error)")
+        }
+    }
+    
+    private func enrollInCourse() async {
+        guard let currentUser = authService.currentUser else { return }
+        
+        enrollError = nil
+        
+        do {
+            try await academyService.enrollInCourse(
+                pilotId: currentUser.id,
+                courseId: course.id
+            )
+            
+            // Update local state on success
+            isEnrolled = true
+            onEnrollmentChange()
+        } catch {
+            // Show error alert
+            enrollError = error.localizedDescription
         }
     }
     
