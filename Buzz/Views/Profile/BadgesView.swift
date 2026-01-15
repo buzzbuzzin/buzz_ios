@@ -318,21 +318,17 @@ struct BadgeRow: View {
                 
                 Spacer()
                 
-                // Show chevron for certificate badges, otherwise the seal icon
-                if isCertificateBadge {
-                    HStack(spacing: 8) {
-                        Image(systemName: badge.isExpired ? "xmark.seal.fill" : "checkmark.seal.fill")
-                            .foregroundColor(badge.isExpired ? .red : .blue)
-                            .font(.system(size: 24))
-                        
-                        Image(systemName: "chevron.right")
-                            .foregroundColor(.secondary)
-                            .font(.system(size: 14))
-                    }
-                } else {
+                // Always show both seal and chevron for consistent alignment
+                // Chevron is hidden (opacity 0) for non-certificate badges
+                HStack(spacing: 8) {
                     Image(systemName: badge.isExpired ? "xmark.seal.fill" : "checkmark.seal.fill")
                         .foregroundColor(badge.isExpired ? .red : .blue)
                         .font(.system(size: 24))
+                    
+                    Image(systemName: "chevron.right")
+                        .foregroundColor(.secondary)
+                        .font(.system(size: 14))
+                        .opacity(isCertificateBadge ? 1 : 0)
                 }
             }
             .padding(.vertical, 4)
