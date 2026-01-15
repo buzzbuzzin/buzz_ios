@@ -48,7 +48,8 @@ class AcademyService: ObservableObject {
                     provider: TrainingCourse.CourseProvider(rawValue: courseResponse.provider ?? "Buzz") ?? .buzz,
                     badgeId: nil,
                     isRecurrent: false,
-                    recurrentDueDate: nil
+                    recurrentDueDate: nil,
+                    requiresUasGroundSchool: courseResponse.requiresUasGroundSchool ?? false
                 )
             }
             
@@ -126,7 +127,8 @@ class AcademyService: ObservableObject {
                     provider: TrainingCourse.CourseProvider(rawValue: courseResponse.provider ?? "Buzz") ?? .buzz,
                     badgeId: nil,
                     isRecurrent: false,
-                    recurrentDueDate: nil
+                    recurrentDueDate: nil,
+                    requiresUasGroundSchool: courseResponse.requiresUasGroundSchool ?? false
                 )
             }
             let step3Duration = Date().timeIntervalSince(step3Start)
@@ -402,7 +404,8 @@ class AcademyService: ObservableObject {
                     provider: provider,
                     badgeId: nil,
                     isRecurrent: courseJson["is_recurrent"] as? Bool ?? false,
-                    recurrentDueDate: nil
+                    recurrentDueDate: nil,
+                    requiresUasGroundSchool: courseJson["requires_uas_ground_school"] as? Bool ?? false
                 )
                 
                 completedCourses.append(course)
@@ -501,6 +504,7 @@ struct TrainingCourseResponse: Codable {
     let rating: Double
     let studentsCount: Int
     let provider: String?
+    let requiresUasGroundSchool: Bool?
     
     enum CodingKeys: String, CodingKey {
         case id
@@ -514,6 +518,7 @@ struct TrainingCourseResponse: Codable {
         case rating
         case studentsCount = "students_count"
         case provider
+        case requiresUasGroundSchool = "requires_uas_ground_school"
     }
 }
 

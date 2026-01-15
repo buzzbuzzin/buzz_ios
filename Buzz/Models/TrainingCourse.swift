@@ -24,6 +24,7 @@ struct TrainingCourse: Identifiable {
     var badgeId: UUID? // Badge earned when course is completed
     var isRecurrent: Bool // Whether this is recurrent training
     var recurrentDueDate: Date? // When recurrent training is due
+    var requiresUasGroundSchool: Bool // Whether this course requires passing UAS Pilot Ground School Test
     
     enum CourseLevel: String {
         case beginner = "Beginner"

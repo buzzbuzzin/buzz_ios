@@ -160,7 +160,8 @@ struct BulletPoint: View {
             provider: .buzz,
             badgeId: nil,
             isRecurrent: false,
-            recurrentDueDate: nil
+            recurrentDueDate: nil,
+            requiresUasGroundSchool: false
         ),
         onStartTest: {}
     )

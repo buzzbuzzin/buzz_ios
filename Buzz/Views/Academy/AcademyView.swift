@@ -22,6 +22,10 @@ struct AcademyView: View {
     @State private var fetchTask: Task<Void, Never>? = nil // Store the current fetch task
     @State private var showRecurrentNotices = true
     @State private var isPromotionCardDismissed = false
+    @State private var hasPassedGroundSchoolTest = false
+    
+    // UAS Pilot Course ID constant
+    private let uasPilotCourseId = UUID(uuidString: "a1b2c3d4-e5f6-7890-abcd-ef1234567890")!
     
     /// Check if user has active subscription from any source (Apple or Stripe)
     var hasSubscription: Bool {
@@ -167,17 +171,28 @@ struct AcademyView: View {
                 ZStack {
                     List {
                         ForEach(filteredCourses) { course in
-                            NavigationLink(destination: CourseDetailView(
-                                course: courses.first(where: { $0.id == course.id }) ?? course,
-                                onEnrollmentChange: { 
-                                    toggleEnrollment(for: course.id)
-                                    // Reload courses from backend to ensure sync
-                                    Task {
-                                        await loadCourses()
+                            let isLocked = course.requiresUasGroundSchool && !hasPassedGroundSchoolTest
+                            
+                            if isLocked {
+                                // Show locked course card (not tappable)
+                                CourseCard(
+                                    course: courses.first(where: { $0.id == course.id }) ?? course,
+                                    isLocked: true,
+                                    lockReason: "Complete UAS Pilot Ground School Test to unlock"
+                                )
+                            } else {
+                                NavigationLink(destination: CourseDetailView(
+                                    course: courses.first(where: { $0.id == course.id }) ?? course,
+                                    onEnrollmentChange: { 
+                                        toggleEnrollment(for: course.id)
+                                        // Reload courses from backend to ensure sync
+                                        Task {
+                                            await loadCourses()
+                                        }
                                     }
+                                )) {
+                                    CourseCard(course: courses.first(where: { $0.id == course.id }) ?? course)
                                 }
-                            )) {
-                                CourseCard(course: courses.first(where: { $0.id == course.id }) ?? course)
                             }
                         }
                     }
@@ -212,6 +227,7 @@ struct AcademyView: View {
             }
             .task {
                 await loadCourses()
+                await checkGroundSchoolTestStatus()
                 await loadRecurrentNotices()
                 // Check ALL subscription sources (Apple + Stripe backend)
                 if let currentUser = authService.currentUser {
@@ -225,6 +241,7 @@ struct AcademyView: View {
                 // Refresh courses when view appears (e.g., after returning from course detail)
                 Task {
                     await loadCourses()
+                    await checkGroundSchoolTestStatus()
                     // Check ALL subscription sources (Apple + Stripe backend)
                     if let currentUser = authService.currentUser {
                         _ = await storeKitManager.checkAllSubscriptions(pilotId: currentUser.id)
@@ -304,6 +321,25 @@ struct AcademyView: View {
         
         isLoading = false
         isFetching = false
+    }
+    
+    private func checkGroundSchoolTestStatus() async {
+        guard let currentUser = authService.currentUser else {
+            hasPassedGroundSchoolTest = false
+            return
+        }
+        
+        let academyService = AcademyService()
+        do {
+            hasPassedGroundSchoolTest = try await academyService.checkGroundSchoolTestStatus(
+                pilotId: currentUser.id,
+                courseId: uasPilotCourseId
+            )
+            print("📋 [AcademyView] Ground School Test passed: \(hasPassedGroundSchoolTest)")
+        } catch {
+            print("❌ [AcademyView] Error checking ground school test status: \(error)")
+            hasPassedGroundSchoolTest = false
+        }
     }
     
     private func loadRecurrentNotices() async {
@@ -443,18 +479,27 @@ struct CategoryChip: View {
 
 struct CourseCard: View {
     let course: TrainingCourse
+    var isLocked: Bool = false
+    var lockReason: String = ""
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack(spacing: 8) {
-                        Image(systemName: course.category.icon)
-                            .foregroundColor(.blue)
-                            .font(.system(size: 16))
+                        if isLocked {
+                            Image(systemName: "lock.fill")
+                                .foregroundColor(.gray)
+                                .font(.system(size: 16))
+                        } else {
+                            Image(systemName: course.category.icon)
+                                .foregroundColor(.blue)
+                                .font(.system(size: 16))
+                        }
                         
                         Text(course.title)
                             .font(.headline)
+                            .foregroundColor(isLocked ? .secondary : .primary)
                             .lineLimit(2)
                     }
                     
@@ -463,17 +508,31 @@ struct CourseCard: View {
                         .foregroundColor(.secondary)
                         .lineLimit(2)
                     
+                    // Lock reason if locked
+                    if isLocked && !lockReason.isEmpty {
+                        HStack(spacing: 4) {
+                            Image(systemName: "lock.circle.fill")
+                                .foregroundColor(.orange)
+                                .font(.caption)
+                            Text(lockReason)
+                                .font(.caption)
+                                .foregroundColor(.orange)
+                                .fontWeight(.medium)
+                        }
+                        .padding(.top, 2)
+                    }
+                    
                     // Provider badge
                     HStack(spacing: 4) {
                         Image(systemName: course.provider.icon)
-                            .foregroundColor(course.provider.color)
+                            .foregroundColor(isLocked ? .gray : course.provider.color)
                             .font(.caption)
                         Text(course.provider.rawValue)
                             .font(.caption)
-                            .foregroundColor(course.provider.color)
+                            .foregroundColor(isLocked ? .gray : course.provider.color)
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
-                            .background(course.provider.color.opacity(0.1))
+                            .background((isLocked ? Color.gray : course.provider.color).opacity(0.1))
                             .cornerRadius(6)
                     }
                     .padding(.top, 4)
@@ -481,7 +540,16 @@ struct CourseCard: View {
                 
                 Spacer()
                 
-                if course.isEnrolled {
+                if isLocked {
+                    VStack(spacing: 4) {
+                        Image(systemName: "lock.circle.fill")
+                            .foregroundColor(.gray)
+                            .font(.system(size: 20))
+                        Text("Locked")
+                            .font(.caption2)
+                            .foregroundColor(.gray)
+                    }
+                } else if course.isEnrolled {
                     VStack(spacing: 4) {
                         if course.badgeId != nil {
                             Image(systemName: "checkmark.seal.fill")
@@ -585,6 +653,7 @@ struct CourseCard: View {
             }
         }
         .padding(.vertical, 8)
+        .opacity(isLocked ? 0.7 : 1.0)
     }
 }
 
