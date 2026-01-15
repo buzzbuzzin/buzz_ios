@@ -12,6 +12,7 @@ import Foundation
 enum BeaconTrainingType: String, Codable, CaseIterable {
     case cpr = "cpr"
     case firefighting = "firefighting"
+    case cert = "cert"
     
     var displayName: String {
         switch self {
@@ -19,6 +20,8 @@ enum BeaconTrainingType: String, Codable, CaseIterable {
             return "CPR Training"
         case .firefighting:
             return "Basic Firefighting Training"
+        case .cert:
+            return "CERT Training"
         }
     }
     
@@ -28,6 +31,8 @@ enum BeaconTrainingType: String, Codable, CaseIterable {
             return "heart.fill"
         case .firefighting:
             return "flame.fill"
+        case .cert:
+            return "shield.checkered"
         }
     }
     
@@ -37,6 +42,8 @@ enum BeaconTrainingType: String, Codable, CaseIterable {
             return "Learn life-saving CPR techniques to assist in emergency situations"
         case .firefighting:
             return "Basic firefighting safety and response procedures"
+        case .cert:
+            return "Community Emergency Response Team training for disaster preparedness"
         }
     }
     
@@ -46,6 +53,8 @@ enum BeaconTrainingType: String, Codable, CaseIterable {
             return "red"
         case .firefighting:
             return "orange"
+        case .cert:
+            return "green"
         }
     }
 }
@@ -109,7 +118,8 @@ struct BeaconVolunteer: Codable, Identifiable {
 enum BeaconOnboardingStep: Int, CaseIterable {
     case cprTraining = 0
     case firefightingTraining = 1
-    case badgeAward = 2
+    case certTraining = 2
+    case badgeAward = 3
     
     var title: String {
         switch self {
@@ -117,6 +127,8 @@ enum BeaconOnboardingStep: Int, CaseIterable {
             return "CPR Training"
         case .firefightingTraining:
             return "Firefighting Training"
+        case .certTraining:
+            return "CERT Training"
         case .badgeAward:
             return "Beacon Badge"
         }
@@ -128,6 +140,8 @@ enum BeaconOnboardingStep: Int, CaseIterable {
             return "Upload your CPR certification"
         case .firefightingTraining:
             return "Upload your firefighting certification"
+        case .certTraining:
+            return "Upload your CERT certification"
         case .badgeAward:
             return "Congratulations! You're now a Beacon volunteer"
         }
@@ -139,6 +153,8 @@ enum BeaconOnboardingStep: Int, CaseIterable {
             return "heart.fill"
         case .firefightingTraining:
             return "flame.fill"
+        case .certTraining:
+            return "shield.checkered"
         case .badgeAward:
             return "checkmark.seal.fill"
         }
@@ -150,6 +166,8 @@ enum BeaconOnboardingStep: Int, CaseIterable {
             return .cpr
         case .firefightingTraining:
             return .firefighting
+        case .certTraining:
+            return .cert
         case .badgeAward:
             return nil
         }
@@ -167,6 +185,8 @@ extension Badge.BadgeType {
             return .cpr
         case .basicFirefighter:
             return .firefighting
+        case .cert:
+            return .cert
         default:
             return nil
         }

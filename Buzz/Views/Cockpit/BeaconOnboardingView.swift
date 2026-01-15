@@ -88,6 +88,17 @@ struct BeaconOnboardingView: View {
                             isLoading: isLoading && currentUploadType == .firefighting
                         )
                         
+                    case .certTraining:
+                        TrainingStepView(
+                            trainingType: .cert,
+                            isCompleted: completedTraining.contains(.cert),
+                            onUploadTap: {
+                                currentUploadType = .cert
+                                showUploadOptions = true
+                            },
+                            isLoading: isLoading && currentUploadType == .cert
+                        )
+                        
                     case .badgeAward:
                         BadgeAwardView(showConfetti: $showConfetti)
                     }
@@ -221,6 +232,8 @@ struct BeaconOnboardingView: View {
             return completedTraining.contains(.cpr)
         case .firefightingTraining:
             return completedTraining.contains(.firefighting)
+        case .certTraining:
+            return completedTraining.contains(.cert)
         case .badgeAward:
             return true
         }
@@ -232,6 +245,8 @@ struct BeaconOnboardingView: View {
             return completedTraining.contains(.cpr)
         case .firefightingTraining:
             return completedTraining.contains(.firefighting)
+        case .certTraining:
+            return completedTraining.contains(.cert)
         case .badgeAward:
             return false // Badge is awarded at the end
         }
@@ -243,6 +258,8 @@ struct BeaconOnboardingView: View {
             case .cprTraining:
                 currentStep = .firefightingTraining
             case .firefightingTraining:
+                currentStep = .certTraining
+            case .certTraining:
                 currentStep = .badgeAward
                 showConfetti = true
             case .badgeAward:
@@ -258,8 +275,10 @@ struct BeaconOnboardingView: View {
                 break
             case .firefightingTraining:
                 currentStep = .cprTraining
-            case .badgeAward:
+            case .certTraining:
                 currentStep = .firefightingTraining
+            case .badgeAward:
+                currentStep = .certTraining
             }
         }
     }
@@ -273,8 +292,10 @@ struct BeaconOnboardingView: View {
                 completedTraining = Set(progress.map { $0.trainingType })
                 
                 // Set current step based on progress
-                if completedTraining.contains(.cpr) && completedTraining.contains(.firefighting) {
+                if completedTraining.contains(.cpr) && completedTraining.contains(.firefighting) && completedTraining.contains(.cert) {
                     currentStep = .badgeAward
+                } else if completedTraining.contains(.cpr) && completedTraining.contains(.firefighting) {
+                    currentStep = .certTraining
                 } else if completedTraining.contains(.cpr) {
                     currentStep = .firefightingTraining
                 }

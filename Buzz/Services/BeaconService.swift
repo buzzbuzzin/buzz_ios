@@ -21,8 +21,19 @@ class BeaconService: ObservableObject {
     
     // MARK: - Training Progress
     
+    /// Sync existing badges to training progress records
+    /// This allows pilots who already earned badges to have training requirements fulfilled
+    func syncBadgesToTraining(userId: UUID) async throws {
+        try await supabase
+            .rpc("sync_badges_to_beacon_training", params: ["p_pilot_id": userId.uuidString])
+            .execute()
+    }
+    
     /// Get all training progress for a user
     func getTrainingProgress(userId: UUID) async throws -> [BeaconTrainingProgress] {
+        // First sync any badges to training progress
+        try await syncBadgesToTraining(userId: userId)
+        
         let progress: [BeaconTrainingProgress] = try await supabase
             .from("beacon_training_progress")
             .select()
@@ -258,7 +269,7 @@ enum BeaconError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .trainingIncomplete:
-            return "Please complete all required training before enrolling as a volunteer."
+            return "Please complete all required training (CPR, Firefighting, and CERT) before enrolling as a volunteer."
         case .uploadFailed:
             return "Failed to upload certificate. Please try again."
         case .enrollmentFailed:
