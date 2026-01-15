@@ -13,18 +13,15 @@ SECURITY DEFINER
 AS $$
 DECLARE
     uas_pilot_course_id uuid := 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
-    ground_school_test_section_id uuid := '00000002-0000-0000-0000-000000000002';
     has_passed boolean;
 BEGIN
-    -- Check if pilot has completed any unit in the ground school test section
+    -- Check if pilot has passed the ground school test in test_results table
     SELECT EXISTS (
         SELECT 1
-        FROM public.unit_completions uc
-        INNER JOIN public.course_units cu ON uc.unit_id = cu.id
-        WHERE uc.pilot_id = p_pilot_id
-          AND cu.course_id = uas_pilot_course_id
-          AND cu.section_id = ground_school_test_section_id
-          AND uc.completed_at IS NOT NULL
+        FROM public.test_results
+        WHERE pilot_id = p_pilot_id
+          AND course_id = uas_pilot_course_id
+          AND passed = true
     ) INTO has_passed;
     
     RETURN has_passed;
@@ -82,8 +79,7 @@ GRANT EXECUTE ON FUNCTION public.validate_course_enrollment_prerequisites() TO a
 -- Summary:
 -- ============================================================
 -- Created function: has_passed_ground_school_test(pilot_id)
---   - Checks unit_completions table for completed units in Ground School Test Section
---   - Ground School Test Section ID: 00000002-0000-0000-0000-000000000002
+--   - Checks test_results table for passed ground school test
 --   - UAS Pilot Course ID: a1b2c3d4-e5f6-7890-abcd-ef1234567890
 --
 -- Created trigger function: validate_course_enrollment_prerequisites()

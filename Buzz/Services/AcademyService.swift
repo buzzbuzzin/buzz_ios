@@ -218,37 +218,30 @@ class AcademyService: ObservableObject {
     func checkGroundSchoolTestStatus(pilotId: UUID, courseId: UUID) async throws -> Bool {
         print("🔍 [AcademyService] Checking ground school test status for pilot: \(pilotId)")
         
-        // Ground School Test Section ID
-        let groundSchoolTestSectionId = UUID(uuidString: "00000002-0000-0000-0000-000000000002")!
-        
         do {
-            // Check if pilot has completed any unit in the ground school test section
+            // Check test_results table for passed ground school test
             let response = try await supabase
-                .from("unit_completions")
-                .select("""
-                    *,
-                    course_units!inner(
-                        id,
-                        course_id,
-                        section_id
-                    )
-                """)
+                .from("test_results")
+                .select("passed")
                 .eq("pilot_id", value: pilotId.uuidString)
-                .eq("course_units.course_id", value: courseId.uuidString)
-                .eq("course_units.section_id", value: groundSchoolTestSectionId.uuidString)
-                .not("completed_at", operator: .is, value: "null")
+                .eq("course_id", value: courseId.uuidString)
                 .execute()
             
             let data = response.data
             
             guard let jsonArray = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
-                print("⚠️ [AcademyService] No ground school test completion found")
+                print("⚠️ [AcademyService] No test results found")
                 return false
             }
             
-            let hasPassed = !jsonArray.isEmpty
-            print("✅ [AcademyService] Ground school test status: \(hasPassed ? "PASSED" : "NOT PASSED")")
-            return hasPassed
+            guard let firstResult = jsonArray.first,
+                  let passed = firstResult["passed"] as? Bool else {
+                print("⚠️ [AcademyService] No test record found or invalid format")
+                return false
+            }
+            
+            print("✅ [AcademyService] Ground school test status: \(passed ? "PASSED" : "NOT PASSED")")
+            return passed
         } catch {
             print("❌ [AcademyService] Error checking ground school test status: \(error)")
             return false
