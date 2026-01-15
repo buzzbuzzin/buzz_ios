@@ -133,7 +133,7 @@ struct BadgesView: View {
                         .font(.subheadline)
                 } else {
                     ForEach(filteredBadges) { badge in
-                        BadgeRow(badge: badge)
+                        BadgeRow(badge: badge, userId: authService.currentUser?.id)
                     }
                 }
             } header: {
@@ -218,6 +218,15 @@ struct BadgesView: View {
 
 struct BadgeRow: View {
     let badge: Badge
+    let userId: UUID?
+    
+    @State private var showCertificateViewer = false
+    
+    /// Checks if this badge has a certificate that can be viewed (First Aid or Basic Firefighter)
+    private var isCertificateBadge: Bool {
+        guard let badgeType = badge.badgeType else { return false }
+        return badgeType.requiresCertificateUpload
+    }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -309,9 +318,22 @@ struct BadgeRow: View {
                 
                 Spacer()
                 
-                Image(systemName: badge.isExpired ? "xmark.seal.fill" : "checkmark.seal.fill")
-                    .foregroundColor(badge.isExpired ? .red : .blue)
-                    .font(.system(size: 24))
+                // Show chevron for certificate badges, otherwise the seal icon
+                if isCertificateBadge {
+                    HStack(spacing: 8) {
+                        Image(systemName: badge.isExpired ? "xmark.seal.fill" : "checkmark.seal.fill")
+                            .foregroundColor(badge.isExpired ? .red : .blue)
+                            .font(.system(size: 24))
+                        
+                        Image(systemName: "chevron.right")
+                            .foregroundColor(.secondary)
+                            .font(.system(size: 14))
+                    }
+                } else {
+                    Image(systemName: badge.isExpired ? "xmark.seal.fill" : "checkmark.seal.fill")
+                        .foregroundColor(badge.isExpired ? .red : .blue)
+                        .font(.system(size: 24))
+                }
             }
             .padding(.vertical, 4)
             
@@ -342,6 +364,21 @@ struct BadgeRow: View {
             }
         }
         .padding(.vertical, 4)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            if isCertificateBadge {
+                showCertificateViewer = true
+            }
+        }
+        .sheet(isPresented: $showCertificateViewer) {
+            if let userId = userId, let badgeType = badge.badgeType {
+                CertificateViewerView(
+                    userId: userId,
+                    badgeType: badgeType,
+                    earnedDate: badge.earnedAt
+                )
+            }
+        }
     }
 }
 
