@@ -216,14 +216,14 @@ struct PublicProfileView: View {
                             .foregroundColor(.secondary)
                             .padding(.vertical, 4)
                     } else {
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 12) {
-                                ForEach(badgeService.badges) { badge in
-                                    BadgePreviewCard(badge: badge)
-                                }
+                        LazyVGrid(columns: [
+                            GridItem(.adaptive(minimum: 80), spacing: 12)
+                        ], spacing: 12) {
+                            ForEach(badgeService.badges) { badge in
+                                BadgePreviewCard(badge: badge)
                             }
-                            .padding(.vertical, 4)
                         }
+                        .padding(.vertical, 4)
                     }
                 } header: {
                     Text("Badges")
