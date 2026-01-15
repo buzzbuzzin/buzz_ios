@@ -242,26 +242,12 @@ struct PilotProfileView: View {
                                         .foregroundColor(.secondary)
                                         .padding(.vertical, 4)
                                 } else {
-                                    ScrollView(.horizontal, showsIndicators: false) {
-                                        HStack(spacing: 12) {
-                                            ForEach(badgeService.badges.prefix(5)) { badge in
-                                                BadgePreviewCard(badge: badge)
-                                            }
-                                            
-                                            if badgeService.badges.count > 5 {
-                                                VStack {
-                                                    Image(systemName: "ellipsis")
-                                                        .font(.title2)
-                                                        .foregroundColor(.secondary)
-                                                    Text("+\(badgeService.badges.count - 5)")
-                                                        .font(.caption)
-                                                        .foregroundColor(.secondary)
-                                                }
-                                                .frame(width: 50, height: 50)
-                                            }
+                                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 4), spacing: 12) {
+                                        ForEach(badgeService.badges) { badge in
+                                            BadgePreviewCard(badge: badge)
                                         }
-                                        .padding(.vertical, 4)
                                     }
+                                    .padding(.vertical, 4)
                                 }
                             }
                         }
