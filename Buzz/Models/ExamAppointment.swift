@@ -23,7 +23,7 @@ enum ExamType: String, Codable, CaseIterable, Identifiable {
         case .flightReview:
             return "Flight Review"
         case .rocA:
-            return "ROC-A Exam"
+            return "ROC-A"
         case .groundSchoolTest:
             return "Ground School Test"
         }

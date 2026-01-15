@@ -727,7 +727,7 @@ struct RecurrentTrainingCardContent: View {
             }
             
             VStack(alignment: .leading, spacing: 4) {
-                Text("FAA 107 Recurrent Training")
+                Text("Part 107 Recurrent Training")
                     .font(.headline)
                     .foregroundColor(isLocked ? .secondary : .primary)
                 

@@ -120,7 +120,7 @@ struct ExamTypeConfig: Codable, Identifiable {
     
     static let defaultRocA = ExamTypeConfig(
         examType: "roc_a",
-        displayName: "ROC-A Exam",
+        displayName: "ROC-A",
         shortDescription: "Radio communication competency exam",
         fullDescription: "A Restricted Operator Certificate with Aeronautical Qualification (ROC-A) exam demonstrates your competence in operating aeronautical radio equipment. It ensures you understand and can use proper radiotelephone communication procedures with air traffic control.",
         icon: "antenna.radiowaves.left.and.right",

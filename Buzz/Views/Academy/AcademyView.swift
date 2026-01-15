@@ -57,21 +57,55 @@ struct AcademyView: View {
             filtered = filtered.filter { $0.provider == provider }
         }
         
-        // Sort courses with UAS Pilot first
+        // Sort courses in specific order:
+        // 1. UAS Pilot
+        // 2. Flight Review
+        // 3. ROC-A
+        // 4. Part 107 Recurrent Training
+        // 5. Extension Courses
+        // 6. Everything else
         return filtered.sorted { course1, course2 in
-            let uasPilotId = uasPilotCourseId.uuidString
+            let priority1 = courseSortPriority(course1)
+            let priority2 = courseSortPriority(course2)
             
-            // If course1 is UAS Pilot, it comes first
-            if course1.id.uuidString == uasPilotId {
-                return true
+            if priority1 != priority2 {
+                return priority1 < priority2
             }
-            // If course2 is UAS Pilot, it comes first
-            if course2.id.uuidString == uasPilotId {
-                return false
-            }
-            // Otherwise maintain original order
+            
+            // Same priority - maintain original order
             return false
         }
+    }
+    
+    /// Returns sort priority for a course (lower number = higher priority)
+    private func courseSortPriority(_ course: TrainingCourse) -> Int {
+        // UAS Pilot Course
+        if course.id.uuidString.lowercased() == "a1b2c3d4-e5f6-7890-abcd-ef1234567890" {
+            return 1
+        }
+        
+        // Flight Review
+        if course.title.lowercased().contains("flight review") {
+            return 2
+        }
+        
+        // ROC-A (with or without "Exam")
+        if course.title.lowercased().contains("roc-a") || course.title.lowercased().contains("roc a") {
+            return 3
+        }
+        
+        // Part 107 Recurrent Training (matches both "FAA 107" and "Part 107")
+        if course.title.lowercased().contains("107 recurrent") {
+            return 4
+        }
+        
+        // Extension Courses
+        if course.title.lowercased().contains("extension courses") {
+            return 5
+        }
+        
+        // Everything else
+        return 999
     }
     
     var body: some View {
