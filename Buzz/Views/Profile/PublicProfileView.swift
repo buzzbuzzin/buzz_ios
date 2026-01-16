@@ -359,15 +359,60 @@ struct CompletedCourseRow: View {
     
     var body: some View {
         HStack(spacing: 12) {
-            // Course Icon
-            ZStack {
-                Circle()
-                    .fill(course.provider.color.opacity(0.2))
-                    .frame(width: 50, height: 50)
-                
-                Image(systemName: course.category.icon)
-                    .font(.system(size: 24))
-                    .foregroundColor(course.provider.color)
+            // Course Image or Icon
+            if let coverImageUrl = course.coverImageUrl, !coverImageUrl.isEmpty {
+                AsyncImage(url: URL(string: coverImageUrl)) { phase in
+                    switch phase {
+                    case .empty:
+                        ZStack {
+                            Circle()
+                                .fill(course.provider.color.opacity(0.2))
+                                .frame(width: 50, height: 50)
+                            ProgressView()
+                        }
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: 50, height: 50)
+                            .clipShape(Circle())
+                            .overlay(
+                                Circle()
+                                    .stroke(course.provider.color.opacity(0.3), lineWidth: 2)
+                            )
+                    case .failure:
+                        ZStack {
+                            Circle()
+                                .fill(course.provider.color.opacity(0.2))
+                                .frame(width: 50, height: 50)
+                            
+                            Image(systemName: course.category.icon)
+                                .font(.system(size: 24))
+                                .foregroundColor(course.provider.color)
+                        }
+                    @unknown default:
+                        ZStack {
+                            Circle()
+                                .fill(course.provider.color.opacity(0.2))
+                                .frame(width: 50, height: 50)
+                            
+                            Image(systemName: course.category.icon)
+                                .font(.system(size: 24))
+                                .foregroundColor(course.provider.color)
+                        }
+                    }
+                }
+            } else {
+                // Default icon when no cover image
+                ZStack {
+                    Circle()
+                        .fill(course.provider.color.opacity(0.2))
+                        .frame(width: 50, height: 50)
+                    
+                    Image(systemName: course.category.icon)
+                        .font(.system(size: 24))
+                        .foregroundColor(course.provider.color)
+                }
             }
             
             VStack(alignment: .leading, spacing: 4) {

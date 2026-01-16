@@ -52,7 +52,8 @@ class AcademyService: ObservableObject {
                     requiresUasGroundSchool: courseResponse.requiresUasGroundSchool ?? false,
                     requiresFlightReviewPassed: courseResponse.requiresFlightReviewPassed ?? false,
                     requiresRocAPassed: courseResponse.requiresRocAPassed ?? false,
-                    externalUrl: courseResponse.externalUrl
+                    externalUrl: courseResponse.externalUrl,
+                    coverImageUrl: courseResponse.coverImageUrl
                 )
             }
             
@@ -134,7 +135,8 @@ class AcademyService: ObservableObject {
                     requiresUasGroundSchool: courseResponse.requiresUasGroundSchool ?? false,
                     requiresFlightReviewPassed: courseResponse.requiresFlightReviewPassed ?? false,
                     requiresRocAPassed: courseResponse.requiresRocAPassed ?? false,
-                    externalUrl: courseResponse.externalUrl
+                    externalUrl: courseResponse.externalUrl,
+                    coverImageUrl: courseResponse.coverImageUrl
                 )
             }
             let step3Duration = Date().timeIntervalSince(step3Start)
@@ -541,7 +543,8 @@ class AcademyService: ObservableObject {
                     requiresUasGroundSchool: courseJson["requires_uas_ground_school"] as? Bool ?? false,
                     requiresFlightReviewPassed: courseJson["requires_flight_review_passed"] as? Bool ?? false,
                     requiresRocAPassed: courseJson["requires_roc_a_passed"] as? Bool ?? false,
-                    externalUrl: courseJson["external_url"] as? String
+                    externalUrl: courseJson["external_url"] as? String,
+                    coverImageUrl: courseJson["cover_image_url"] as? String
                 )
                 
                 completedCourses.append(course)
@@ -644,6 +647,7 @@ struct TrainingCourseResponse: Codable {
     let requiresFlightReviewPassed: Bool?
     let requiresRocAPassed: Bool?
     let externalUrl: String?
+    let coverImageUrl: String?
     
     enum CodingKeys: String, CodingKey {
         case id
@@ -661,6 +665,7 @@ struct TrainingCourseResponse: Codable {
         case requiresFlightReviewPassed = "requires_flight_review_passed"
         case requiresRocAPassed = "requires_roc_a_passed"
         case externalUrl = "external_url"
+        case coverImageUrl = "cover_image_url"
     }
 }
 

@@ -28,6 +28,7 @@ struct TrainingCourse: Identifiable {
     var requiresFlightReviewPassed: Bool // Whether this course requires passing Flight Review test
     var requiresRocAPassed: Bool // Whether this course requires passing ROC-A test
     var externalUrl: String? // External URL for non-Buzz courses
+    var coverImageUrl: String? // Cover image URL for the course
     
     enum CourseLevel: String {
         case beginner = "Beginner"

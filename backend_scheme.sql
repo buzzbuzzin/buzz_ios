@@ -613,6 +613,7 @@ CREATE TABLE public.training_courses (
   requires_flight_review_passed boolean DEFAULT false,
   requires_roc_a_passed boolean DEFAULT false,
   external_url text,
+  cover_image_url text,
   CONSTRAINT training_courses_pkey PRIMARY KEY (id)
 );
 CREATE TABLE public.transponders (

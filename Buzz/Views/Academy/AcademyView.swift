@@ -761,33 +761,34 @@ struct CourseDetailView: View {
                         switch phase {
                         case .empty:
                             Color.blue.opacity(0.3)
-                                .frame(height: 200)
+                                .frame(height: 250)
                         case .success(let image):
                             image
                                 .resizable()
-                                .scaledToFill()
-                                .frame(height: 200)
+                                .aspectRatio(contentMode: .fill)
+                                .frame(width: UIScreen.main.bounds.width, height: 250)
                                 .clipped()
                         case .failure:
                             Color.blue.opacity(0.3)
-                                .frame(height: 200)
+                                .frame(height: 250)
                         @unknown default:
                             Color.blue.opacity(0.3)
-                                .frame(height: 200)
+                                .frame(height: 250)
                         }
                     }
+                    .frame(height: 250)
                     
                     // Gradient overlay
                     LinearGradient(
-                        gradient: Gradient(colors: [Color.clear, Color.black.opacity(0.6)]),
+                        gradient: Gradient(colors: [Color.clear, Color.black.opacity(0.7)]),
                         startPoint: .top,
                         endPoint: .bottom
                     )
-                    .frame(height: 200)
+                    .frame(height: 250)
                     
                     // Title overlay
                     VStack(alignment: .leading, spacing: 8) {
-                        HStack {
+                        HStack(alignment: .top) {
                             Image(systemName: course.category.icon)
                                 .foregroundColor(.white)
                                 .font(.system(size: 24))
@@ -802,13 +803,21 @@ struct CourseDetailView: View {
                                         .fontWeight(.semibold)
                                         .foregroundColor(.white)
                                 }
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(Color.black.opacity(0.4))
+                                .cornerRadius(20)
                             }
                         }
+                        
+                        Spacer()
                         
                         Text(course.title)
                             .font(.title)
                             .fontWeight(.bold)
                             .foregroundColor(.white)
+                            .lineLimit(3)
+                            .fixedSize(horizontal: false, vertical: true)
                         
                         // Provider badge
                         HStack(spacing: 4) {
@@ -825,7 +834,9 @@ struct CourseDetailView: View {
                         }
                     }
                     .padding()
+                    .frame(height: 250)
                 }
+                .frame(height: 250)
                 
                 VStack(alignment: .leading, spacing: 24) {
                     // Description
@@ -1219,6 +1230,11 @@ struct CourseDetailView: View {
     }
     
     private var courseBackgroundImageUrl: String {
+        // Use cover image URL from database if available, otherwise fall back to category-based images
+        if let coverImageUrl = course.coverImageUrl, !coverImageUrl.isEmpty {
+            return coverImageUrl
+        }
+        
         // Return relevant background images based on course category
         switch course.category {
         case .mandatory:
