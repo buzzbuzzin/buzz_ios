@@ -15,6 +15,7 @@ struct BeaconView: View {
     @State private var showOnboarding: Bool = false
     @State private var isBeaconVolunteer: Bool = false
     @State private var trainingProgress: [BeaconTrainingProgress] = []
+    @State private var showDashboard: Bool = false
     
     var body: some View {
         ScrollView {
@@ -109,8 +110,11 @@ struct BeaconView: View {
                             Spacer()
                         }
                         
-                        // Volunteer dashboard link could go here
-                        NavigationLink(destination: BeaconVolunteerDashboardView().environmentObject(authService)) {
+                        // Volunteer dashboard link - using Button + fullScreenCover to avoid
+                        // navigation pop when parent view state resets (same pattern as Checklist)
+                        Button(action: {
+                            showDashboard = true
+                        }) {
                             HStack {
                                 Image(systemName: "square.grid.2x2")
                                 Text("View Dashboard")
@@ -259,6 +263,24 @@ struct BeaconView: View {
                     }
                 )
                 .environmentObject(authService)
+            }
+        }
+        // Use fullScreenCover for stable presentation - immune to parent body re-evaluations
+        .fullScreenCover(isPresented: $showDashboard) {
+            NavigationView {
+                BeaconVolunteerDashboardView()
+                    .environmentObject(authService)
+                    .toolbar {
+                        ToolbarItem(placement: .navigationBarLeading) {
+                            Button {
+                                showDashboard = false
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.title2)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    }
             }
         }
     }
