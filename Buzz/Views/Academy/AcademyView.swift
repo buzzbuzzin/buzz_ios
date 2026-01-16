@@ -732,6 +732,7 @@ struct CourseDetailView: View {
     @State private var isEnrolled: Bool
     @State private var showUnenrollConfirmation = false
     @State private var showCompletionConfirmation = false
+    @State private var showExternalCourseConfirmation = false
     @State private var isUnenrolling = false
     @State private var unenrollError: String?
     @State private var enrollError: String?
@@ -833,6 +834,29 @@ struct CourseDetailView: View {
                         .foregroundColor(.secondary)
                         .padding(.horizontal)
                         .padding(.top)
+                    
+                    // External course disclaimer
+                    if let externalUrl = course.externalUrl, !externalUrl.isEmpty {
+                        HStack(alignment: .top, spacing: 12) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundColor(.orange)
+                                .font(.system(size: 20))
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("External Course Notice")
+                                    .font(.subheadline)
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(.primary)
+                                Text("This course is hosted by a third-party provider, not Buzz. It is not covered by the Buzz Academy subscription. Additional costs may apply to take this course.")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+                        .padding()
+                        .background(Color.orange.opacity(0.1))
+                        .cornerRadius(12)
+                        .padding(.horizontal)
+                    }
                     
                     // Course Info Cards
                     VStack(spacing: 12) {
@@ -1030,20 +1054,38 @@ struct CourseDetailView: View {
                         }
                         .padding(.horizontal)
                     } else {
-                        Button(action: {
-                            Task {
-                                await enrollInCourse()
+                        // Check if this is an external course (non-Buzz with external URL)
+                        if let externalUrl = course.externalUrl, !externalUrl.isEmpty {
+                            // External course - show "Go to Course" button with confirmation
+                            Button(action: {
+                                showExternalCourseConfirmation = true
+                            }) {
+                                Text("Go to Course")
+                                    .font(.headline)
+                                    .foregroundColor(.white)
+                                    .frame(maxWidth: .infinity)
+                                    .frame(height: 50)
+                                    .background(Color.blue)
+                                    .cornerRadius(12)
                             }
-                        }) {
-                            Text("Enroll Now")
-                                .font(.headline)
-                                .foregroundColor(.white)
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 50)
-                                .background(Color.blue)
-                                .cornerRadius(12)
+                            .padding(.horizontal)
+                        } else {
+                            // Buzz course - show "Enroll Now" button
+                            Button(action: {
+                                Task {
+                                    await enrollInCourse()
+                                }
+                            }) {
+                                Text("Enroll Now")
+                                    .font(.headline)
+                                    .foregroundColor(.white)
+                                    .frame(maxWidth: .infinity)
+                                    .frame(height: 50)
+                                    .background(Color.blue)
+                                    .cornerRadius(12)
+                            }
+                            .padding(.horizontal)
                         }
-                        .padding(.horizontal)
                     }
                 }
             }
@@ -1087,6 +1129,21 @@ struct CourseDetailView: View {
             }
         } message: {
             Text("Mark \"\(course.title)\" as completed? You will earn a badge for this achievement.")
+        }
+        .alert("External Course Warning", isPresented: $showExternalCourseConfirmation) {
+            Button("Cancel", role: .cancel) {}
+            Button("Got it", role: .none) {
+                // Open the external URL
+                if let externalUrl = course.externalUrl, let url = URL(string: externalUrl) {
+                    #if os(iOS)
+                    UIApplication.shared.open(url)
+                    #elseif os(macOS)
+                    NSWorkspace.shared.open(url)
+                    #endif
+                }
+            }
+        } message: {
+            Text("You are going to a third-party website to take the course. This is not covered by the Buzz Academy subscription.")
         }
     }
     

@@ -601,7 +601,7 @@ CREATE TABLE public.training_courses (
   description text NOT NULL,
   duration text NOT NULL,
   level text NOT NULL CHECK (level = ANY (ARRAY['Beginner'::text, 'Intermediate'::text, 'Advanced'::text])),
-  category text NOT NULL CHECK (category = ANY (ARRAY['Mandatory'::text, 'Extension'::text, 'Intermediate'::text, 'Advanced'::text, 'Specialized'::text])),
+  category text DEFAULT 'General'::text CHECK (category = ANY (ARRAY['Mandatory'::text, 'Extension'::text, 'Intermediate'::text, 'Advanced'::text, 'Specialized'::text, 'General'::text])),
   instructor text NOT NULL,
   rating double precision DEFAULT 0.0,
   students_count integer DEFAULT 0,
@@ -612,6 +612,7 @@ CREATE TABLE public.training_courses (
   requires_uas_ground_school boolean DEFAULT false,
   requires_flight_review_passed boolean DEFAULT false,
   requires_roc_a_passed boolean DEFAULT false,
+  external_url text,
   CONSTRAINT training_courses_pkey PRIMARY KEY (id)
 );
 CREATE TABLE public.transponders (
