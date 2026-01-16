@@ -161,7 +161,9 @@ struct BulletPoint: View {
             badgeId: nil,
             isRecurrent: false,
             recurrentDueDate: nil,
-            requiresUasGroundSchool: false
+            requiresUasGroundSchool: false,
+            requiresFlightReviewPassed: false,
+            requiresRocAPassed: false
         ),
         onStartTest: {}
     )

@@ -49,7 +49,9 @@ class AcademyService: ObservableObject {
                     badgeId: nil,
                     isRecurrent: false,
                     recurrentDueDate: nil,
-                    requiresUasGroundSchool: courseResponse.requiresUasGroundSchool ?? false
+                    requiresUasGroundSchool: courseResponse.requiresUasGroundSchool ?? false,
+                    requiresFlightReviewPassed: courseResponse.requiresFlightReviewPassed ?? false,
+                    requiresRocAPassed: courseResponse.requiresRocAPassed ?? false
                 )
             }
             
@@ -128,7 +130,9 @@ class AcademyService: ObservableObject {
                     badgeId: nil,
                     isRecurrent: false,
                     recurrentDueDate: nil,
-                    requiresUasGroundSchool: courseResponse.requiresUasGroundSchool ?? false
+                    requiresUasGroundSchool: courseResponse.requiresUasGroundSchool ?? false,
+                    requiresFlightReviewPassed: courseResponse.requiresFlightReviewPassed ?? false,
+                    requiresRocAPassed: courseResponse.requiresRocAPassed ?? false
                 )
             }
             let step3Duration = Date().timeIntervalSince(step3Start)
@@ -248,6 +252,91 @@ class AcademyService: ObservableObject {
         }
     }
     
+    // MARK: - Check Flight Review Test Status
+    
+    /// Check if pilot has passed the Flight Review test
+    /// - Parameter pilotId: The pilot's UUID
+    /// - Returns: true if the pilot has passed the Flight Review test
+    func checkFlightReviewTestStatus(pilotId: UUID) async throws -> Bool {
+        let flightReviewCourseId = UUID(uuidString: "b2c3d4e5-f6a7-8901-bcde-f23456789012")!
+        print("🔍 [AcademyService] Checking Flight Review test status for pilot: \(pilotId)")
+        
+        do {
+            let response = try await supabase
+                .from("test_results")
+                .select("passed")
+                .eq("pilot_id", value: pilotId.uuidString)
+                .eq("course_id", value: flightReviewCourseId.uuidString)
+                .eq("passed", value: true)
+                .execute()
+            
+            let data = response.data
+            
+            guard let jsonArray = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+                print("⚠️ [AcademyService] No Flight Review test results found")
+                return false
+            }
+            
+            let hasPassed = !jsonArray.isEmpty
+            print("✅ [AcademyService] Flight Review test status: \(hasPassed ? "PASSED" : "NOT PASSED")")
+            return hasPassed
+        } catch {
+            print("❌ [AcademyService] Error checking Flight Review test status: \(error)")
+            return false
+        }
+    }
+    
+    // MARK: - Check ROC-A Test Status
+    
+    /// Check if pilot has passed the ROC-A test
+    /// - Parameter pilotId: The pilot's UUID
+    /// - Returns: true if the pilot has passed the ROC-A test
+    func checkRocATestStatus(pilotId: UUID) async throws -> Bool {
+        let rocACourseId = UUID(uuidString: "c3d4e5f6-a7b8-9012-cdef-345678901234")!
+        print("🔍 [AcademyService] Checking ROC-A test status for pilot: \(pilotId)")
+        
+        do {
+            let response = try await supabase
+                .from("test_results")
+                .select("passed")
+                .eq("pilot_id", value: pilotId.uuidString)
+                .eq("course_id", value: rocACourseId.uuidString)
+                .eq("passed", value: true)
+                .execute()
+            
+            let data = response.data
+            
+            guard let jsonArray = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+                print("⚠️ [AcademyService] No ROC-A test results found")
+                return false
+            }
+            
+            let hasPassed = !jsonArray.isEmpty
+            print("✅ [AcademyService] ROC-A test status: \(hasPassed ? "PASSED" : "NOT PASSED")")
+            return hasPassed
+        } catch {
+            print("❌ [AcademyService] Error checking ROC-A test status: \(error)")
+            return false
+        }
+    }
+    
+    // MARK: - Check All Prerequisites Status
+    
+    /// Check all prerequisite test statuses for a pilot
+    /// - Parameter pilotId: The pilot's UUID
+    /// - Returns: A tuple containing the status of all three prerequisites
+    func checkAllPrerequisites(pilotId: UUID) async -> (groundSchool: Bool, flightReview: Bool, rocA: Bool) {
+        let uasPilotCourseId = UUID(uuidString: "a1b2c3d4-e5f6-7890-abcd-ef1234567890")!
+        
+        async let groundSchoolStatus = (try? checkGroundSchoolTestStatus(pilotId: pilotId, courseId: uasPilotCourseId)) ?? false
+        async let flightReviewStatus = (try? checkFlightReviewTestStatus(pilotId: pilotId)) ?? false
+        async let rocAStatus = (try? checkRocATestStatus(pilotId: pilotId)) ?? false
+        
+        let results = await (groundSchoolStatus, flightReviewStatus, rocAStatus)
+        print("📋 [AcademyService] All prerequisites - Ground School: \(results.0), Flight Review: \(results.1), ROC-A: \(results.2)")
+        return results
+    }
+    
     // MARK: - Fetch Course Tests
     
     func fetchCourseTests(courseId: UUID) async throws -> [CourseTest] {
@@ -296,22 +385,46 @@ class AcademyService: ObservableObject {
     // MARK: - Enroll in Course
     
     func enrollInCourse(pilotId: UUID, courseId: UUID) async throws {
-        // First, check if the course requires ground school test
-        if let course = courses.first(where: { $0.id == courseId }),
-           course.requiresUasGroundSchool {
-            // Check if pilot has passed ground school test
-            let uasPilotCourseId = UUID(uuidString: "a1b2c3d4-e5f6-7890-abcd-ef1234567890")!
-            let hasPassedTest = try await checkGroundSchoolTestStatus(
-                pilotId: pilotId,
-                courseId: uasPilotCourseId
-            )
+        // Check all prerequisite requirements for the course
+        if let course = courses.first(where: { $0.id == courseId }) {
+            var missingPrerequisites: [String] = []
             
-            if !hasPassedTest {
+            // Check Ground School prerequisite
+            if course.requiresUasGroundSchool {
+                let uasPilotCourseId = UUID(uuidString: "a1b2c3d4-e5f6-7890-abcd-ef1234567890")!
+                let hasPassedGroundSchool = try await checkGroundSchoolTestStatus(
+                    pilotId: pilotId,
+                    courseId: uasPilotCourseId
+                )
+                if !hasPassedGroundSchool {
+                    missingPrerequisites.append("UAS Pilot Ground School Test")
+                }
+            }
+            
+            // Check Flight Review prerequisite
+            if course.requiresFlightReviewPassed {
+                let hasPassedFlightReview = try await checkFlightReviewTestStatus(pilotId: pilotId)
+                if !hasPassedFlightReview {
+                    missingPrerequisites.append("Flight Review Test")
+                }
+            }
+            
+            // Check ROC-A prerequisite
+            if course.requiresRocAPassed {
+                let hasPassedRocA = try await checkRocATestStatus(pilotId: pilotId)
+                if !hasPassedRocA {
+                    missingPrerequisites.append("ROC-A Test")
+                }
+            }
+            
+            // If any prerequisites are missing, throw an error
+            if !missingPrerequisites.isEmpty {
+                let prerequisiteList = missingPrerequisites.joined(separator: ", ")
                 throw NSError(
                     domain: "AcademyService",
                     code: 403,
                     userInfo: [
-                        NSLocalizedDescriptionKey: "You must pass the UAS Pilot Ground School Test before enrolling in this course."
+                        NSLocalizedDescriptionKey: "You must pass the following before enrolling: \(prerequisiteList)"
                     ]
                 )
             }
@@ -423,7 +536,9 @@ class AcademyService: ObservableObject {
                     badgeId: nil,
                     isRecurrent: courseJson["is_recurrent"] as? Bool ?? false,
                     recurrentDueDate: nil,
-                    requiresUasGroundSchool: courseJson["requires_uas_ground_school"] as? Bool ?? false
+                    requiresUasGroundSchool: courseJson["requires_uas_ground_school"] as? Bool ?? false,
+                    requiresFlightReviewPassed: courseJson["requires_flight_review_passed"] as? Bool ?? false,
+                    requiresRocAPassed: courseJson["requires_roc_a_passed"] as? Bool ?? false
                 )
                 
                 completedCourses.append(course)
@@ -523,6 +638,8 @@ struct TrainingCourseResponse: Codable {
     let studentsCount: Int
     let provider: String?
     let requiresUasGroundSchool: Bool?
+    let requiresFlightReviewPassed: Bool?
+    let requiresRocAPassed: Bool?
     
     enum CodingKeys: String, CodingKey {
         case id
@@ -537,6 +654,8 @@ struct TrainingCourseResponse: Codable {
         case studentsCount = "students_count"
         case provider
         case requiresUasGroundSchool = "requires_uas_ground_school"
+        case requiresFlightReviewPassed = "requires_flight_review_passed"
+        case requiresRocAPassed = "requires_roc_a_passed"
     }
 }
 

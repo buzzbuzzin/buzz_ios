@@ -23,9 +23,13 @@ struct AcademyView: View {
     @State private var showRecurrentNotices = true
     @State private var isPromotionCardDismissed = false
     @State private var hasPassedGroundSchoolTest = false
+    @State private var hasPassedFlightReview = false
+    @State private var hasPassedRocA = false
     
-    // UAS Pilot Course ID constant
+    // Course ID constants
     private let uasPilotCourseId = UUID(uuidString: "a1b2c3d4-e5f6-7890-abcd-ef1234567890")!
+    private let flightReviewCourseId = UUID(uuidString: "b2c3d4e5-f6a7-8901-bcde-f23456789012")!
+    private let rocACourseId = UUID(uuidString: "c3d4e5f6-a7b8-9012-cdef-345678901234")!
     
     /// Check if user has active subscription from any source (Apple or Stripe)
     var hasSubscription: Bool {
@@ -226,14 +230,15 @@ struct AcademyView: View {
                 ZStack {
                     List {
                         ForEach(filteredCourses) { course in
-                            let isLocked = course.requiresUasGroundSchool && !hasPassedGroundSchoolTest
+                            let missingPrerequisites = getMissingPrerequisites(for: course)
+                            let isLocked = !missingPrerequisites.isEmpty
                             
                             if isLocked {
                                 // Show locked course card (not tappable)
                                 CourseCard(
                                     course: courses.first(where: { $0.id == course.id }) ?? course,
                                     isLocked: true,
-                                    lockReason: "Complete UAS Pilot Ground School Test to unlock"
+                                    missingPrerequisites: missingPrerequisites
                                 )
                             } else {
                                 NavigationLink(destination: CourseDetailView(
@@ -381,20 +386,42 @@ struct AcademyView: View {
     private func checkGroundSchoolTestStatus() async {
         guard let currentUser = authService.currentUser else {
             hasPassedGroundSchoolTest = false
+            hasPassedFlightReview = false
+            hasPassedRocA = false
             return
         }
         
         let academyService = AcademyService()
-        do {
-            hasPassedGroundSchoolTest = try await academyService.checkGroundSchoolTestStatus(
-                pilotId: currentUser.id,
-                courseId: uasPilotCourseId
-            )
-            print("📋 [AcademyView] Ground School Test passed: \(hasPassedGroundSchoolTest)")
-        } catch {
-            print("❌ [AcademyView] Error checking ground school test status: \(error)")
-            hasPassedGroundSchoolTest = false
+        
+        // Check all prerequisites in parallel
+        let results = await academyService.checkAllPrerequisites(pilotId: currentUser.id)
+        hasPassedGroundSchoolTest = results.groundSchool
+        hasPassedFlightReview = results.flightReview
+        hasPassedRocA = results.rocA
+        
+        print("📋 [AcademyView] Prerequisites - Ground School: \(hasPassedGroundSchoolTest), Flight Review: \(hasPassedFlightReview), ROC-A: \(hasPassedRocA)")
+    }
+    
+    /// Get the list of missing prerequisites for a course
+    private func getMissingPrerequisites(for course: TrainingCourse) -> [String] {
+        var missing: [String] = []
+        
+        // Check Ground School prerequisite
+        if course.requiresUasGroundSchool && !hasPassedGroundSchoolTest {
+            missing.append("UAS Pilot Ground School Test")
         }
+        
+        // Check Flight Review prerequisite
+        if course.requiresFlightReviewPassed && !hasPassedFlightReview {
+            missing.append("Flight Review Test")
+        }
+        
+        // Check ROC-A prerequisite
+        if course.requiresRocAPassed && !hasPassedRocA {
+            missing.append("ROC-A Test")
+        }
+        
+        return missing
     }
     
     private func loadRecurrentNotices() async {
@@ -535,7 +562,7 @@ struct CategoryChip: View {
 struct CourseCard: View {
     let course: TrainingCourse
     var isLocked: Bool = false
-    var lockReason: String = ""
+    var missingPrerequisites: [String] = []
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -563,16 +590,30 @@ struct CourseCard: View {
                         .foregroundColor(.secondary)
                         .lineLimit(2)
                     
-                    // Lock reason if locked
-                    if isLocked && !lockReason.isEmpty {
-                        HStack(spacing: 4) {
-                            Image(systemName: "lock.circle.fill")
-                                .foregroundColor(.orange)
-                                .font(.caption)
-                            Text(lockReason)
-                                .font(.caption)
-                                .foregroundColor(.orange)
-                                .fontWeight(.medium)
+                    // Missing prerequisites if locked
+                    if isLocked && !missingPrerequisites.isEmpty {
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .foregroundColor(.orange)
+                                    .font(.caption)
+                                Text("Missing prerequisite\(missingPrerequisites.count > 1 ? "s" : ""):")
+                                    .font(.caption)
+                                    .foregroundColor(.orange)
+                                    .fontWeight(.semibold)
+                            }
+                            
+                            ForEach(missingPrerequisites, id: \.self) { prerequisite in
+                                HStack(spacing: 4) {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .foregroundColor(.red)
+                                        .font(.caption2)
+                                    Text(prerequisite)
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                                .padding(.leading, 4)
+                            }
                         }
                         .padding(.top, 2)
                     }
@@ -676,54 +717,6 @@ struct CourseCard: View {
                 }
                 
                 Spacer()
-                
-                // Students Count - temporarily hidden
-                // HStack(spacing: 4) {
-                //     Image(systemName: "person.2.fill")
-                //         .font(.caption)
-                //         .foregroundColor(.secondary)
-                //     Text("\(course.studentsCount)")
-                //         .font(.caption)
-                //         .foregroundColor(.secondary)
-                // }
-            }
-            
-            HStack(spacing: 4) {
-                if course.instructor == "Buzz" {
-                    Image("Logo")
-                        .resizable()
-                        .scaledToFill()
-                        .frame(width: 16, height: 16)
-                        .clipShape(Circle())
-                } else if let pictureUrl = course.instructorPictureUrl,
-                   let url = URL(string: pictureUrl) {
-                    AsyncImage(url: url) { phase in
-                        switch phase {
-                        case .empty:
-                            ProgressView()
-                                .frame(width: 16, height: 16)
-                        case .success(let image):
-                            image
-                                .resizable()
-                                .scaledToFill()
-                                .frame(width: 16, height: 16)
-                                .clipShape(Circle())
-                        case .failure:
-                            Image(systemName: "person.circle.fill")
-                                .font(.caption)
-                                .foregroundColor(.blue)
-                        @unknown default:
-                            EmptyView()
-                        }
-                    }
-                } else {
-                    Image(systemName: "person.circle.fill")
-                        .font(.caption)
-                        .foregroundColor(.blue)
-                }
-                Text("Instructor: \(course.instructor)")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
             }
         }
         .padding(.vertical, 8)

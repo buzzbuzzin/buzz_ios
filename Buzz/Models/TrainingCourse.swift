@@ -25,6 +25,8 @@ struct TrainingCourse: Identifiable {
     var isRecurrent: Bool // Whether this is recurrent training
     var recurrentDueDate: Date? // When recurrent training is due
     var requiresUasGroundSchool: Bool // Whether this course requires passing UAS Pilot Ground School Test
+    var requiresFlightReviewPassed: Bool // Whether this course requires passing Flight Review test
+    var requiresRocAPassed: Bool // Whether this course requires passing ROC-A test
     
     enum CourseLevel: String {
         case beginner = "Beginner"
