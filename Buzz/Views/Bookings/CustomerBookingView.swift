@@ -1623,6 +1623,12 @@ struct CustomerBookingDetailView: View {
             }
             .padding(.vertical)
         }
+        .refreshable {
+            await refreshBooking()
+            if currentBooking.pilotId != nil {
+                await loadPilotProfile()
+            }
+        }
         .navigationTitle("Booking Details")
         .navigationBarTitleDisplayMode(.inline)
         .alert("Cancel Booking", isPresented: $showCancelAlert) {
@@ -1736,6 +1742,11 @@ struct CustomerBookingDetailView: View {
             let updatedBooking = try await bookingService.getBooking(bookingId: booking.id)
             currentBooking = updatedBooking
         } catch {
+            // Ignore NSURLErrorCancelled (-999) - this is a benign cancellation during view updates
+            let nsError = error as NSError
+            if nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled {
+                return
+            }
             print("Error refreshing booking: \(error)")
         }
     }
@@ -1755,6 +1766,11 @@ struct CustomerBookingDetailView: View {
             // Use only callsign for customer-facing display to maintain pilot privacy
             pilotName = pilotProfile?.callSign ?? "Pilot"
         } catch {
+            // Ignore NSURLErrorCancelled (-999) - benign cancellation during view updates
+            let nsError = error as NSError
+            if nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled {
+                return
+            }
             print("Error loading pilot profile: \(error)")
             pilotName = "Pilot"
             }
@@ -1767,6 +1783,11 @@ struct CustomerBookingDetailView: View {
                 pilotRating = ratingSummary.averageRating
             }
         } catch {
+            // Ignore NSURLErrorCancelled (-999) - benign cancellation during view updates
+            let nsError = error as NSError
+            if nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled {
+                return
+            }
             print("Error loading pilot rating: \(error)")
         }
     }

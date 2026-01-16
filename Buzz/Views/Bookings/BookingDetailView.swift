@@ -756,6 +756,13 @@ struct BookingDetailView: View {
             }
             .padding(.vertical)
         }
+        .refreshable {
+            await refreshBooking()
+            await loadCustomerProfile()
+            if currentBooking.isAutomotiveCrewBooking || currentBooking.isSearchRescueCrewBooking {
+                await loadCrewInfo()
+            }
+        }
         .navigationTitle("Booking Details")
         .navigationBarTitleDisplayMode(.inline)
         .alert("Accept Booking", isPresented: $showAcceptAlert) {
@@ -902,6 +909,11 @@ struct BookingDetailView: View {
             let updatedBooking = try await bookingService.getBooking(bookingId: booking.id)
             currentBooking = updatedBooking
         } catch {
+            // Ignore NSURLErrorCancelled (-999) - this is a benign cancellation during view updates
+            let nsError = error as NSError
+            if nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled {
+                return
+            }
             print("Error refreshing booking: \(error)")
             // Keep current booking if refresh fails
         }
@@ -1169,7 +1181,7 @@ struct BookingDetailView: View {
         
         isLoadingCrew = true
         do {
-            let requesterType = authService.userProfile?.userType == .pilot ? "pilot" : "customer"
+            let requesterType = authService.userProfile?.userType == .pilot ? "pilot" : "crew"
             crewInfo = try await bookingService.fetchBookingCrew(
                 bookingId: currentBooking.id,
                 requesterId: authService.currentUser?.id,
@@ -1178,6 +1190,11 @@ struct BookingDetailView: View {
             isLoadingCrew = false
         } catch {
             isLoadingCrew = false
+            // Ignore NSURLErrorCancelled (-999) - this is a benign cancellation during view updates
+            let nsError = error as NSError
+            if nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled {
+                return
+            }
             print("Error loading crew info: \(error)")
         }
     }
