@@ -168,7 +168,7 @@ serve(async (req) => {
           has_qualified_lead: isSearchRescue ? true : hasQualifiedLead, // S&R doesn't need a lead
           lead_pilot: leadPilot ? {
             pilot_id: leadPilot.pilot_id,
-            pilot_name: leadPilot.pilot_name,
+            pilot_name: leadPilot.call_sign || "Pilot", // Customers only see callsign for privacy
             call_sign: leadPilot.call_sign,
             rank_name: leadPilot.rank_name,
             profile_picture_url: leadPilot.profile_picture_url,

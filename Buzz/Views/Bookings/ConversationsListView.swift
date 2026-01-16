@@ -254,7 +254,19 @@ struct ConversationItem: Identifiable {
 // MARK: - Conversation Row
 
 struct ConversationRow: View {
+    @EnvironmentObject var authService: AuthService
     let conversation: ConversationItem
+    
+    // Computed property to determine display name based on user types
+    private var displayName: String {
+        // If current user is a customer viewing a pilot, show callsign only
+        if authService.userProfile?.userType == .customer && conversation.otherUserProfile.userType == .pilot {
+            return conversation.otherUserProfile.callSign ?? "Pilot"
+        }
+        
+        // Otherwise show full name
+        return conversation.otherUserProfile.fullName
+    }
     
     var body: some View {
         HStack(spacing: 12) {
@@ -298,11 +310,12 @@ struct ConversationRow: View {
             
             // Conversation Info
             VStack(alignment: .leading, spacing: 4) {
-                Text(conversation.otherUserProfile.fullName)
+                Text(displayName)
                     .font(.headline)
                 
-                // Show call sign for pilots
-                if let callSign = conversation.otherUserProfile.callSign {
+                // Show call sign for pilots (only if viewing as pilot)
+                if authService.userProfile?.userType == .pilot,
+                   let callSign = conversation.otherUserProfile.callSign {
                     Text("@\(callSign)")
                         .font(.caption)
                         .foregroundColor(.blue)
@@ -404,10 +417,13 @@ struct DirectMessageConversationRow: View {
             
             // Conversation Info
             VStack(alignment: .leading, spacing: 4) {
-                if let callSign = conversation.partnerProfile.callSign {
-                    Text("@\(callSign)")
+                // Show callsign for pilots, full name otherwise
+                if conversation.partnerProfile.userType == .pilot {
+                    // If partner is a pilot, show only callsign
+                    Text("@\(conversation.partnerProfile.callSign ?? "Pilot")")
                         .font(.headline)
                 } else {
+                    // If partner is not a pilot (e.g., customer), show full name
                     Text(conversation.partnerProfile.fullName)
                         .font(.headline)
                 }

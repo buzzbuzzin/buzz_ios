@@ -1058,10 +1058,11 @@ class BookingService: ObservableObject {
                     // Send notification to customer if they have booking reminders enabled
                     if notificationPreferencesService.preferences.bookingReminders.system {
                         let aircraftType = booking.specialization?.displayName ?? "drone flight"
-                        let pilotName = pilotProfile.fullName
+                        // Use callsign for customer notifications to maintain pilot privacy
+                        let pilotCallsign = pilotProfile.callSign ?? "Pilot"
                         await notificationManager.notifyBookingAccepted(
                             bookingId: bookingId,
-                            pilotName: pilotName,
+                            pilotName: pilotCallsign,
                             aircraftType: aircraftType,
                             departureTime: booking.scheduledDate ?? Date()
                         )
@@ -1071,11 +1072,13 @@ class BookingService: ObservableObject {
                     if let scheduledDate = booking.scheduledDate,
                        notificationPreferencesService.preferences.bookingReminders.system {
                         let aircraftType = booking.specialization?.displayName ?? "drone flight"
+                        // Use callsign for customer notifications to maintain pilot privacy
+                        let pilotCallsign = pilotProfile.callSign ?? "Pilot"
                         await notificationManager.scheduleBookingReminder(
                             bookingId: bookingId,
                             aircraftType: aircraftType,
                             departureTime: scheduledDate,
-                            pilotName: pilotProfile.fullName
+                            pilotName: pilotCallsign
                         )
                     }
                 } catch {

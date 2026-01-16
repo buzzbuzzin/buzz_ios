@@ -1746,14 +1746,14 @@ struct CustomerBookingDetailView: View {
         // Try to get sample pilot profile first (for demo)
         if let sampleProfile = profileService.getSamplePilotProfile(pilotId: pilotId) {
             pilotProfile = sampleProfile
-            // Use callsign for display in RatingView (not payment-related)
-            pilotName = sampleProfile.callSign ?? sampleProfile.fullName
+            // Use only callsign for customer-facing display to maintain pilot privacy
+            pilotName = sampleProfile.callSign ?? "Pilot"
         } else {
             // Fallback to real profile fetch
         do {
             pilotProfile = try await profileService.getProfile(userId: pilotId)
-            // Use callsign for display in RatingView (not payment-related)
-            pilotName = pilotProfile?.callSign ?? pilotProfile?.fullName ?? "Pilot"
+            // Use only callsign for customer-facing display to maintain pilot privacy
+            pilotName = pilotProfile?.callSign ?? "Pilot"
         } catch {
             print("Error loading pilot profile: \(error)")
             pilotName = "Pilot"

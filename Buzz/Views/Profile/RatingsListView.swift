@@ -62,7 +62,19 @@ struct RatingsListView: View {
 // MARK: - Rating Row View
 
 struct RatingRowView: View {
+    @EnvironmentObject var authService: AuthService
     let ratingWithUser: RatingWithUser
+    
+    // Computed property to determine display name based on user types
+    private var displayName: String {
+        // If the rater is a pilot and current user is a customer, show callsign only
+        if ratingWithUser.raterProfile.userType == .pilot && authService.userProfile?.userType == .customer {
+            return ratingWithUser.raterProfile.callSign ?? "Pilot"
+        }
+        
+        // Otherwise show full name
+        return ratingWithUser.raterProfile.fullName
+    }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -96,8 +108,8 @@ struct RatingRowView: View {
                 }
                 
                 VStack(alignment: .leading, spacing: 4) {
-                    // Name
-                    Text(ratingWithUser.raterProfile.fullName)
+                    // Name (callsign for pilots, full name for customers)
+                    Text(displayName)
                         .font(.headline)
                     
                     // Date

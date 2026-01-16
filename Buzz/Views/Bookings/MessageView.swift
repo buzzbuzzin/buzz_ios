@@ -17,6 +17,19 @@ struct MessageView: View {
     @State private var messageText = ""
     @FocusState private var isTextFieldFocused: Bool
     
+    // Computed property to determine display name based on user type
+    private var displayName: String {
+        guard let profile = customerProfile else { return "User" }
+        
+        // If current user is a customer viewing a pilot, show callsign only (privacy)
+        if authService.userProfile?.userType == .customer && profile.userType == .pilot {
+            return profile.callSign ?? "Pilot"
+        }
+        
+        // If current user is a pilot viewing a customer, show full name
+        return profile.fullName
+    }
+    
     var body: some View {
         NavigationView {
             VStack(spacing: 0) {
@@ -73,12 +86,13 @@ struct MessageView: View {
                         }
                         
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(profile.fullName)
+                            Text(displayName)
                                 .font(.headline)
                             
-                            // Show call sign for pilots
-                            if let callSign = profile.callSign {
-                                Text(callSign)
+                            // Show call sign for pilots (if viewing as pilot and they have one)
+                            if authService.userProfile?.userType == .pilot,
+                               let callSign = profile.callSign {
+                                Text("@\(callSign)")
                                     .font(.caption)
                                     .foregroundColor(.blue)
                             }
