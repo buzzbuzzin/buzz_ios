@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import SwiftUI
 
 struct CourseTest: Identifiable, Codable {
     let id: UUID
@@ -45,6 +46,12 @@ struct TestResult: Identifiable, Codable {
     let answers: [String: Int]?
     let attemptNumber: Int
     let completedAt: Date
+    let resultFileUrls: [String]?
+    let uploadStatus: String?
+    let uploadedAt: Date?
+    let reviewedAt: Date?
+    let reviewerNotes: String?
+    let reviewedBy: UUID?
     
     enum CodingKeys: String, CodingKey {
         case id
@@ -56,6 +63,44 @@ struct TestResult: Identifiable, Codable {
         case answers
         case attemptNumber = "attempt_number"
         case completedAt = "completed_at"
+        case resultFileUrls = "result_file_urls"
+        case uploadStatus = "upload_status"
+        case uploadedAt = "uploaded_at"
+        case reviewedAt = "reviewed_at"
+        case reviewerNotes = "reviewer_notes"
+        case reviewedBy = "reviewed_by"
+    }
+}
+
+enum TestUploadStatus: String, Codable {
+    case notSubmitted = "not_submitted"
+    case pending = "pending"
+    case approved = "approved"
+    case rejected = "rejected"
+    
+    var displayName: String {
+        switch self {
+        case .notSubmitted: return "Not Submitted"
+        case .pending: return "Under Review"
+        case .approved: return "Approved"
+        case .rejected: return "Rejected"
+        }
+    }
+    
+    var color: Color {
+        switch self {
+        case .notSubmitted: return .gray
+        case .pending: return .orange
+        case .approved: return .green
+        case .rejected: return .red
+        }
+    }
+}
+
+extension TestResult {
+    var uploadStatusEnum: TestUploadStatus {
+        guard let status = uploadStatus else { return .notSubmitted }
+        return TestUploadStatus(rawValue: status) ?? .notSubmitted
     }
 }
 

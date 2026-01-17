@@ -13,12 +13,43 @@ struct ExamIntroView: View {
     
     @EnvironmentObject var authService: AuthService
     @StateObject private var examService = ExamService()
+    @StateObject private var uploadService = ExamResultUploadService()
     @Environment(\.dismiss) private var dismiss
     @State private var priceInfo: ExamPriceResponse?
     @State private var isLoadingPrice = true
     @State private var priceError: String?
     @State private var prerequisitesStatus: ExamPrerequisitesStatus?
     @State private var showSchedulingView = false
+    @State private var showUploadView = false
+    @State private var testResult: TestResult?
+    @State private var isLoadingTestResult = true
+    
+    // Test IDs for Flight Review and ROC-A
+    private let flightReviewTestId = UUID(uuidString: "f1a2b3c4-d5e6-7890-abcd-f11ab0000001")!
+    private let rocATestId = UUID(uuidString: "a0c4a5b6-c7d8-9012-efab-a0ca00000001")!
+    private let flightReviewCourseId = UUID(uuidString: "b2c3d4e5-f6a7-8901-bcde-f23456789012")!
+    private let rocACourseId = UUID(uuidString: "c3d4e5f6-a7b8-9012-cdef-345678901234")!
+    
+    // Check if this exam requires upload (non-multiple-choice)
+    private var requiresUpload: Bool {
+        examType == .flightReview || examType == .rocA
+    }
+    
+    private var testId: UUID {
+        examType == .flightReview ? flightReviewTestId : rocATestId
+    }
+    
+    private var courseId: UUID {
+        examType == .flightReview ? flightReviewCourseId : rocACourseId
+    }
+    
+    private var hasPassed: Bool {
+        testResult?.passed == true
+    }
+    
+    private var uploadStatus: TestUploadStatus {
+        testResult?.uploadStatusEnum ?? .notSubmitted
+    }
     
     private var config: ExamTypeConfig {
         examService.getConfig(for: examType)
@@ -163,7 +194,85 @@ struct ExamIntroView: View {
                         .padding(.horizontal)
                     }
                     
-                    // Schedule Button
+                    // Test Result Status (for upload-required exams)
+                    if requiresUpload && !isLoadingTestResult {
+                        if hasPassed {
+                            // Passed - Show success message
+                            VStack(spacing: 12) {
+                                HStack {
+                                    Image(systemName: "checkmark.seal.fill")
+                                        .foregroundColor(.green)
+                                        .font(.title2)
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text("You've passed this exam!")
+                                            .font(.headline)
+                                            .foregroundColor(.green)
+                                        Text("Congratulations on completing your \(config.displayName).")
+                                            .font(.subheadline)
+                                            .foregroundColor(.secondary)
+                                    }
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding()
+                                .background(Color.green.opacity(0.1))
+                                .cornerRadius(12)
+                            }
+                            .padding(.horizontal)
+                        } else if uploadStatus == .pending {
+                            // Pending Review
+                            VStack(spacing: 12) {
+                                HStack {
+                                    Image(systemName: "clock.fill")
+                                        .foregroundColor(.orange)
+                                        .font(.title2)
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text("Results Under Review")
+                                            .font(.headline)
+                                            .foregroundColor(.orange)
+                                        Text("Your uploaded test results are being reviewed by our team. You'll be notified once approved.")
+                                            .font(.subheadline)
+                                            .foregroundColor(.secondary)
+                                    }
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding()
+                                .background(Color.orange.opacity(0.1))
+                                .cornerRadius(12)
+                            }
+                            .padding(.horizontal)
+                        } else if uploadStatus == .rejected {
+                            // Rejected - Show reason and allow re-upload
+                            VStack(spacing: 12) {
+                                HStack(alignment: .top) {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .foregroundColor(.red)
+                                        .font(.title2)
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text("Results Not Approved")
+                                            .font(.headline)
+                                            .foregroundColor(.red)
+                                        if let notes = testResult?.reviewerNotes {
+                                            Text(notes)
+                                                .font(.subheadline)
+                                                .foregroundColor(.secondary)
+                                        } else {
+                                            Text("Please upload your test results again or schedule a new exam.")
+                                                .font(.subheadline)
+                                                .foregroundColor(.secondary)
+                                        }
+                                    }
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding()
+                                .background(Color.red.opacity(0.1))
+                                .cornerRadius(12)
+                            }
+                            .padding(.horizontal)
+                        }
+                    }
+                    
+                    // Schedule Button (only show if not passed and prerequisites met)
+                    if !hasPassed {
                     Button(action: {
                         showSchedulingView = true
                     }) {
@@ -184,6 +293,26 @@ struct ExamIntroView: View {
                     }
                     .disabled(prerequisitesStatus?.isEligible != true || priceInfo == nil)
                     .padding(.horizontal)
+                        
+                        // Upload Button (for non-multiple-choice exams)
+                        if requiresUpload && uploadStatus != .pending {
+                            Button(action: {
+                                showUploadView = true
+                            }) {
+                                HStack {
+                                    Image(systemName: "arrow.up.doc.fill")
+                                    Text(uploadStatus == .rejected ? "Re-upload Test Results" : "Upload Test Results")
+                                        .fontWeight(.semibold)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(prerequisitesStatus?.isEligible == true ? Color.green : Color.gray)
+                                .foregroundColor(.white)
+                                .cornerRadius(12)
+                            }
+                            .disabled(prerequisitesStatus?.isEligible != true)
+                            .padding(.horizontal)
+                        }
                     
                     if prerequisitesStatus?.isEligible != true {
                         Text("Complete all prerequisites to schedule this exam")
@@ -192,6 +321,7 @@ struct ExamIntroView: View {
                             .multilineTextAlignment(.center)
                             .frame(maxWidth: .infinity)
                             .padding(.horizontal)
+                        }
                     }
                     
                     Spacer(minLength: 40)
@@ -200,6 +330,21 @@ struct ExamIntroView: View {
         }
         .navigationTitle(config.displayName)
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $showUploadView) {
+            if requiresUpload {
+                TestResultUploadView(
+                    examType: examType,
+                    testId: testId,
+                    courseId: courseId,
+                    onUploadComplete: {
+                        Task {
+                            await loadTestResultStatus()
+                        }
+                    }
+                )
+                .environmentObject(authService)
+            }
+        }
         .navigationDestination(isPresented: $showSchedulingView) {
             if let price = priceInfo {
                 ExamSchedulingView(
@@ -218,6 +363,9 @@ struct ExamIntroView: View {
         }
         .task {
             await loadData()
+        }
+        .refreshable {
+            await loadTestResultStatus()
         }
     }
     
@@ -244,6 +392,27 @@ struct ExamIntroView: View {
             print("Error fetching price: \(error)")
         }
         isLoadingPrice = false
+        
+        // Load test result status for upload-required exams
+        await loadTestResultStatus()
+    }
+    
+    private func loadTestResultStatus() async {
+        guard requiresUpload, let currentUser = authService.currentUser else {
+            isLoadingTestResult = false
+            return
+        }
+        
+        isLoadingTestResult = true
+        do {
+            testResult = try await uploadService.getTestResultStatus(
+                pilotId: currentUser.id,
+                testId: testId
+            )
+        } catch {
+            print("Error loading test result status: \(error)")
+        }
+        isLoadingTestResult = false
     }
     
     private func getPrerequisiteStatus(index: Int) -> Bool {
