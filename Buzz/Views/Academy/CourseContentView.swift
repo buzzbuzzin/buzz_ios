@@ -84,6 +84,9 @@ struct CourseContentView: View {
                     }
                 }
             }
+            .refreshable {
+                await refreshContent()
+            }
         }
         .navigationTitle("Course Content")
         .navigationBarTitleDisplayMode(.inline)
@@ -97,29 +100,7 @@ struct CourseContentView: View {
             }
         }
         .task {
-            print("🚀 [CourseContentView] Loading course content...")
-            await loadSectionsAndUnits()
-            if let currentUser = authService.currentUser {
-                print("👤 [CourseContentView] Current user ID: \(currentUser.id)")
-                
-                // Check ALL subscription sources (Apple + Stripe backend)
-                _ = await storeKitManager.checkAllSubscriptions(pilotId: currentUser.id)
-                print("📋 [CourseContentView] Subscription status: \(hasSubscription) (source: \(entitlementManager.subscriptionSourceDisplayName))")
-                
-                do {
-                    print("🔄 [CourseContentView] Checking Ground School Test status...")
-                    hasPassedGroundSchoolTest = try await academyService.checkGroundSchoolTestStatus(pilotId: currentUser.id, courseId: course.id)
-                    print("📋 [CourseContentView] Ground School Test passed: \(hasPassedGroundSchoolTest)")
-                } catch {
-                    print("❌ [CourseContentView] Error checking test status: \(error)")
-                }
-                
-                // Fetch completed unit IDs
-                await loadCompletedUnits(pilotId: currentUser.id)
-                
-                // Fetch passed test IDs for prerequisite checking
-                await loadPassedTests(pilotId: currentUser.id)
-            }
+            await refreshContent()
         }
         .sheet(isPresented: $showSubscriptionSheet) {
             if let currentUser = authService.currentUser {
@@ -149,6 +130,33 @@ struct CourseContentView: View {
             }
             .hidden()
         )
+    }
+    
+    /// Refreshes all course content including sections, units, subscription status, and progress
+    private func refreshContent() async {
+        print("🚀 [CourseContentView] Refreshing course content...")
+        await loadSectionsAndUnits()
+        if let currentUser = authService.currentUser {
+            print("👤 [CourseContentView] Current user ID: \(currentUser.id)")
+            
+            // Check ALL subscription sources (Apple + Stripe backend)
+            _ = await storeKitManager.checkAllSubscriptions(pilotId: currentUser.id)
+            print("📋 [CourseContentView] Subscription status: \(hasSubscription) (source: \(entitlementManager.subscriptionSourceDisplayName))")
+            
+            do {
+                print("🔄 [CourseContentView] Checking Ground School Test status...")
+                hasPassedGroundSchoolTest = try await academyService.checkGroundSchoolTestStatus(pilotId: currentUser.id, courseId: course.id)
+                print("📋 [CourseContentView] Ground School Test passed: \(hasPassedGroundSchoolTest)")
+            } catch {
+                print("❌ [CourseContentView] Error checking test status: \(error)")
+            }
+            
+            // Fetch completed unit IDs
+            await loadCompletedUnits(pilotId: currentUser.id)
+            
+            // Fetch passed test IDs for prerequisite checking
+            await loadPassedTests(pilotId: currentUser.id)
+        }
     }
     
     private func loadCompletedUnits(pilotId: UUID) async {
