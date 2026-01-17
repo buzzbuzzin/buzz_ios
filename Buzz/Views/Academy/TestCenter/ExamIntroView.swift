@@ -27,8 +27,8 @@ struct ExamIntroView: View {
     // Test IDs for Flight Review and ROC-A
     private let flightReviewTestId = UUID(uuidString: "f1a2b3c4-d5e6-7890-abcd-f11ab0000001")!
     private let rocATestId = UUID(uuidString: "a0c4a5b6-c7d8-9012-efab-a0ca00000001")!
-    private let flightReviewCourseId = UUID(uuidString: "b2c3d4e5-f6a7-8901-bcde-f23456789012")!
-    private let rocACourseId = UUID(uuidString: "c3d4e5f6-a7b8-9012-cdef-345678901234")!
+    // Flight Review and ROC-A are both part of the UAS Pilot Course
+    private let uasPilotCourseId = UUID(uuidString: "a1b2c3d4-e5f6-7890-abcd-ef1234567890")!
     
     // Check if this exam requires upload (non-multiple-choice)
     private var requiresUpload: Bool {
@@ -40,7 +40,8 @@ struct ExamIntroView: View {
     }
     
     private var courseId: UUID {
-        examType == .flightReview ? flightReviewCourseId : rocACourseId
+        // Both Flight Review and ROC-A tests belong to the UAS Pilot Course
+        uasPilotCourseId
     }
     
     private var hasPassed: Bool {

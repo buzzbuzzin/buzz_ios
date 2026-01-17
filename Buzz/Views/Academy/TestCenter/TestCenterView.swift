@@ -218,7 +218,7 @@ struct TestCenterView: View {
         let flightReviewTestId = UUID(uuidString: "f1a2b3c4-d5e6-7890-abcd-f11ab0000001")!
         let rocATestId = UUID(uuidString: "a0c4a5b6-c7d8-9012-efab-a0ca00000001")!
         
-        // Fetch Flight Review test result
+        // Fetch Flight Review test result (part of UAS Pilot Course)
         if let flightReviewResult = try? await uploadService.getTestResultStatus(
             pilotId: pilotId,
             testId: flightReviewTestId
@@ -226,7 +226,7 @@ struct TestCenterView: View {
             testResultStatuses[.flightReview] = flightReviewResult
         }
         
-        // Fetch ROC-A test result
+        // Fetch ROC-A test result (part of UAS Pilot Course)
         if let rocAResult = try? await uploadService.getTestResultStatus(
             pilotId: pilotId,
             testId: rocATestId
