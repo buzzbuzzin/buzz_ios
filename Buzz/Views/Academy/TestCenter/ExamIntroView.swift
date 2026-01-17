@@ -271,8 +271,9 @@ struct ExamIntroView: View {
                         }
                     }
                     
-                    // Schedule Button (only show if not passed and prerequisites met)
-                    if !hasPassed {
+                    // Schedule Button (only show if not passed, not under review, and prerequisites met)
+                    // Hide if results are under review (pending) unless they failed
+                    if !hasPassed && uploadStatus != .pending {
                     Button(action: {
                         showSchedulingView = true
                     }) {
@@ -295,7 +296,8 @@ struct ExamIntroView: View {
                     .padding(.horizontal)
                         
                         // Upload Button (for non-multiple-choice exams)
-                        if requiresUpload && uploadStatus != .pending {
+                        // Only show if: not passed, not under review, and (never submitted OR rejected)
+                        if requiresUpload && uploadStatus != .pending && !hasPassed {
                             Button(action: {
                                 showUploadView = true
                             }) {

@@ -11,10 +11,13 @@ import Auth
 struct TestCenterView: View {
     @EnvironmentObject var authService: AuthService
     @StateObject private var examService = ExamService()
+    @StateObject private var uploadService = ExamResultUploadService()
     @State private var prerequisitesStatus: ExamPrerequisitesStatus?
     @State private var isCheckingPrerequisites = true
     @State private var existingAppointments: [ExamType: Bool] = [:]
     @State private var selectedAppointment: ExamAppointment?
+    @State private var testResultStatuses: [ExamType: TestResult] = [:]
+    @State private var showPassedExams = false
     
     var body: some View {
         ScrollView {
@@ -45,7 +48,7 @@ struct TestCenterView: View {
                         .padding(.horizontal)
                 }
                 
-                // Available Exams
+                // Available Exams (non-passed exams)
                 VStack(alignment: .leading, spacing: 16) {
                     Text("Available Exams")
                         .font(.headline)
@@ -53,23 +56,82 @@ struct TestCenterView: View {
                     
                     ForEach(ExamType.allCases) { examType in
                         let config = examService.getConfig(for: examType)
+                        let testResult = testResultStatuses[examType]
+                        let hasPassed = testResult?.passed == true && testResult?.uploadStatusEnum == .approved
                         
-                        // Ground School Test is free and doesn't require scheduling
-                        if examType == .groundSchoolTest {
-                            GroundSchoolTestCard(
-                                config: config,
-                                hasPassedTest: prerequisitesStatus?.passedGroundSchoolTest ?? false
-                            )
-                            .padding(.horizontal)
-                        } else {
-                            // Regular paid exams (Flight Review, ROC-A)
-                            ExamCard(
-                                examType: examType,
-                                config: config,
-                                isEligible: prerequisitesStatus?.isEligible ?? false,
-                                hasExistingAppointment: existingAppointments[examType] ?? false
-                            )
-                            .padding(.horizontal)
+                        // Only show if not passed
+                        if !hasPassed {
+                            // Ground School Test is free and doesn't require scheduling
+                            if examType == .groundSchoolTest {
+                                if !(prerequisitesStatus?.passedGroundSchoolTest ?? false) {
+                                    GroundSchoolTestCard(
+                                        config: config,
+                                        hasPassedTest: false
+                                    )
+                                    .padding(.horizontal)
+                                }
+                            } else {
+                                // Regular paid exams (Flight Review, ROC-A)
+                                ExamCard(
+                                    examType: examType,
+                                    config: config,
+                                    isEligible: prerequisitesStatus?.isEligible ?? false,
+                                    hasExistingAppointment: existingAppointments[examType] ?? false,
+                                    testResult: testResult
+                                )
+                                .padding(.horizontal)
+                            }
+                        }
+                    }
+                }
+                
+                // Passed Exams (collapsible)
+                VStack(alignment: .leading, spacing: 16) {
+                    Button(action: {
+                        withAnimation {
+                            showPassedExams.toggle()
+                        }
+                    }) {
+                        HStack {
+                            Text("Passed Exams")
+                                .font(.headline)
+                                .foregroundColor(.primary)
+                            
+                            Spacer()
+                            
+                            Image(systemName: showPassedExams ? "chevron.up" : "chevron.down")
+                                .foregroundColor(.secondary)
+                                .font(.subheadline)
+                        }
+                        .padding(.horizontal)
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                    
+                    if showPassedExams {
+                        ForEach(ExamType.allCases) { examType in
+                            let config = examService.getConfig(for: examType)
+                            let testResult = testResultStatuses[examType]
+                            let hasPassed = testResult?.passed == true && testResult?.uploadStatusEnum == .approved
+                            
+                            // Only show passed exams
+                            if hasPassed || (examType == .groundSchoolTest && (prerequisitesStatus?.passedGroundSchoolTest ?? false)) {
+                                if examType == .groundSchoolTest {
+                                    GroundSchoolTestCard(
+                                        config: config,
+                                        hasPassedTest: true
+                                    )
+                                    .padding(.horizontal)
+                                } else {
+                                    ExamCard(
+                                        examType: examType,
+                                        config: config,
+                                        isEligible: prerequisitesStatus?.isEligible ?? false,
+                                        hasExistingAppointment: existingAppointments[examType] ?? false,
+                                        testResult: testResult
+                                    )
+                                    .padding(.horizontal)
+                                }
+                            }
                         }
                     }
                 }
@@ -142,10 +204,35 @@ struct TestCenterView: View {
             )
         }
         
+        // Fetch test result statuses for upload-required exams
+        await loadTestResultStatuses(pilotId: currentUser.id)
+        
         // Fetch appointments
         await examService.fetchAppointments(pilotId: currentUser.id)
         
         isCheckingPrerequisites = false
+    }
+    
+    private func loadTestResultStatuses(pilotId: UUID) async {
+        // Test IDs for Flight Review and ROC-A
+        let flightReviewTestId = UUID(uuidString: "f1a2b3c4-d5e6-7890-abcd-f11ab0000001")!
+        let rocATestId = UUID(uuidString: "a0c4a5b6-c7d8-9012-efab-a0ca00000001")!
+        
+        // Fetch Flight Review test result
+        if let flightReviewResult = try? await uploadService.getTestResultStatus(
+            pilotId: pilotId,
+            testId: flightReviewTestId
+        ) {
+            testResultStatuses[.flightReview] = flightReviewResult
+        }
+        
+        // Fetch ROC-A test result
+        if let rocAResult = try? await uploadService.getTestResultStatus(
+            pilotId: pilotId,
+            testId: rocATestId
+        ) {
+            testResultStatuses[.rocA] = rocAResult
+        }
     }
 }
 
@@ -224,11 +311,20 @@ struct ExamCard: View {
     let config: ExamTypeConfig
     let isEligible: Bool
     let hasExistingAppointment: Bool
+    let testResult: TestResult?
     
     @EnvironmentObject var authService: AuthService
     
     var isLocked: Bool {
         !isEligible || hasExistingAppointment
+    }
+    
+    var uploadStatus: TestUploadStatus {
+        testResult?.uploadStatusEnum ?? .notSubmitted
+    }
+    
+    var hasPassed: Bool {
+        testResult?.passed == true
     }
     
     var body: some View {
@@ -252,7 +348,29 @@ struct ExamCard: View {
                             .font(.headline)
                             .foregroundColor(isLocked ? .secondary : .primary)
                         
-                        if hasExistingAppointment {
+                        // Show status badges based on test result
+                        if hasPassed && uploadStatus == .approved {
+                            // Passed and approved
+                            Text("Passed")
+                                .font(.caption)
+                                .fontWeight(.medium)
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 2)
+                                .background(Color.green)
+                                .cornerRadius(4)
+                        } else if uploadStatus == .pending {
+                            // Under review
+                            Text("Pending")
+                                .font(.caption)
+                                .fontWeight(.medium)
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 2)
+                                .background(Color.orange)
+                                .cornerRadius(4)
+                        } else if hasExistingAppointment {
+                            // Scheduled
                             Text("Scheduled")
                                 .font(.caption)
                                 .fontWeight(.medium)
@@ -299,7 +417,13 @@ struct ExamCard: View {
                             .foregroundColor(.gray)
                             .font(.title3)
                     }
+                } else if hasPassed && uploadStatus == .approved {
+                    // Show checkmark for passed exams
+                    Image(systemName: "checkmark.seal.fill")
+                        .foregroundColor(.green)
+                        .font(.title2)
                 } else {
+                    // Removed clock icon for pending - just show chevron
                     Image(systemName: "chevron.right")
                         .foregroundColor(.secondary)
                         .font(.subheadline)
