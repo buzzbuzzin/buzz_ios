@@ -237,8 +237,10 @@ CREATE TABLE public.course_tests (
   is_active boolean DEFAULT true,
   created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
   updated_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  section_id uuid,
   CONSTRAINT course_tests_pkey PRIMARY KEY (id),
-  CONSTRAINT course_tests_course_id_fkey FOREIGN KEY (course_id) REFERENCES public.training_courses(id)
+  CONSTRAINT course_tests_course_id_fkey FOREIGN KEY (course_id) REFERENCES public.training_courses(id),
+  CONSTRAINT course_tests_section_id_fkey FOREIGN KEY (section_id) REFERENCES public.course_sections(id)
 );
 CREATE TABLE public.course_units (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
@@ -254,6 +256,8 @@ CREATE TABLE public.course_units (
   updated_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
   pdf_url jsonb,
   section_id uuid,
+  prerequisite_units ARRAY,
+  prerequisite_tests ARRAY,
   CONSTRAINT course_units_pkey PRIMARY KEY (id),
   CONSTRAINT course_units_course_id_fkey FOREIGN KEY (course_id) REFERENCES public.training_courses(id),
   CONSTRAINT course_units_section_id_fkey FOREIGN KEY (section_id) REFERENCES public.course_sections(id)

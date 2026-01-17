@@ -18,6 +18,7 @@ struct CourseTest: Identifiable, Codable {
     let requiredUnits: [Int]
     let orderIndex: Int
     let isActive: Bool
+    let sectionId: UUID?
     
     enum CodingKeys: String, CodingKey {
         case id
@@ -30,6 +31,7 @@ struct CourseTest: Identifiable, Codable {
         case requiredUnits = "required_units"
         case orderIndex = "order_index"
         case isActive = "is_active"
+        case sectionId = "section_id"
     }
 }
 

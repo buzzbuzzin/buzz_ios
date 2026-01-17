@@ -357,31 +357,56 @@ struct UnitDetailView: View {
         
         do {
             let supabase = SupabaseClient.shared.client
-            
-            // Check if units 1, 2, and 3 are all completed
-            // First, get all units for the course
             let academyService = AcademyService()
-            let allUnits = try await academyService.fetchCourseUnits(courseId: course.id)
-            let mandatoryUnits = allUnits.filter { $0.isMandatory && $0.unitNumber <= 3 }
             
-            // Check completions for units 1-3
-            var allCompleted = true
-            for mandatoryUnit in mandatoryUnits {
-                let response: [UnitCompletion] = try await supabase
-                    .from("unit_completions")
-                    .select()
-                    .eq("pilot_id", value: currentUser.id.uuidString)
-                    .eq("unit_id", value: mandatoryUnit.id.uuidString)
-                    .execute()
-                    .value
-                
-                if response.isEmpty {
-                    allCompleted = false
-                    break
-                }
+            // Fetch the Ground School Test for this course
+            let courseTests = try await academyService.fetchCourseTests(courseId: course.id)
+            
+            // Find the Ground School Test (assuming it's the first test or has a specific name)
+            guard let groundSchoolTest = courseTests.first else {
+                print("No Ground School Test found for this course")
+                canTakeTest = false
+                return
             }
             
-            canTakeTest = allCompleted
+            // Get the required units from the test
+            let requiredUnitNumbers = groundSchoolTest.requiredUnits
+            
+            if requiredUnitNumbers.isEmpty {
+                // If no required units specified, default to checking mandatory units (legacy behavior)
+                let allUnits = try await academyService.fetchCourseUnits(courseId: course.id)
+                let mandatoryUnits = allUnits.filter { $0.isMandatory }
+                
+                // Check if all mandatory units are completed
+                var allCompleted = true
+                for mandatoryUnit in mandatoryUnits {
+                    let response: [UnitCompletion] = try await supabase
+                        .from("unit_completions")
+                        .select()
+                        .eq("pilot_id", value: currentUser.id.uuidString)
+                        .eq("unit_id", value: mandatoryUnit.id.uuidString)
+                        .execute()
+                        .value
+                    
+                    if response.isEmpty {
+                        allCompleted = false
+                        break
+                    }
+                }
+                canTakeTest = allCompleted
+            } else {
+                // Check if all required units (by unit number) are completed
+                let completedUnitNumbers = await academyService.checkUnitCompletionsByNumber(
+                    pilotId: currentUser.id,
+                    courseId: course.id,
+                    unitNumbers: requiredUnitNumbers
+                )
+                
+                // Check if all required units are in the completed set
+                canTakeTest = requiredUnitNumbers.allSatisfy { completedUnitNumbers.contains($0) }
+            }
+            
+            print("✅ [UnitDetailView] Can take test: \(canTakeTest)")
         } catch {
             print("Error checking if can take test: \(error)")
         }

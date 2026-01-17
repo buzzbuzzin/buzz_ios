@@ -24,6 +24,8 @@ struct CourseContentView: View {
     @State private var hasPassedGroundSchoolTest = false
     @State private var navigateToTest = false
     @State private var completedUnitIds: Set<UUID> = []
+    @State private var completedUnitNumbers: Set<Int> = []
+    @State private var passedTestIds: Set<UUID> = []
     
     /// Check if user has active subscription from any source (Apple or Stripe)
     var hasSubscription: Bool {
@@ -70,6 +72,8 @@ struct CourseContentView: View {
                             hasSubscription: hasSubscription,
                             hasPassedTest: hasPassedGroundSchoolTest,
                             completedUnitIds: completedUnitIds,
+                            completedUnitNumbers: completedUnitNumbers,
+                            passedTestIds: passedTestIds,
                             onSubscribe: {
                                 showSubscriptionSheet = true
                             },
@@ -88,6 +92,7 @@ struct CourseContentView: View {
             if let currentUser = authService.currentUser {
                 Task {
                     await loadCompletedUnits(pilotId: currentUser.id)
+                    await loadPassedTests(pilotId: currentUser.id)
                 }
             }
         }
@@ -111,6 +116,9 @@ struct CourseContentView: View {
                 
                 // Fetch completed unit IDs
                 await loadCompletedUnits(pilotId: currentUser.id)
+                
+                // Fetch passed test IDs for prerequisite checking
+                await loadPassedTests(pilotId: currentUser.id)
             }
         }
         .sheet(isPresented: $showSubscriptionSheet) {
@@ -155,9 +163,58 @@ struct CourseContentView: View {
                 .value
             
             completedUnitIds = Set(response.map { $0.unitId })
-            print("✅ [CourseContentView] Loaded \(completedUnitIds.count) completed units")
+            
+            // Also load completed unit numbers for prerequisite checking
+            let unitCompletionsWithNumbers = try await supabase
+                .from("unit_completions")
+                .select("*, course_units!inner(unit_number)")
+                .eq("pilot_id", value: pilotId.uuidString)
+                .eq("course_id", value: course.id.uuidString)
+                .execute()
+            
+            let data = unitCompletionsWithNumbers.data
+            if let jsonArray = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
+                var numbers: Set<Int> = []
+                for item in jsonArray {
+                    if let courseUnits = item["course_units"] as? [String: Any],
+                       let unitNumber = courseUnits["unit_number"] as? Int {
+                        numbers.insert(unitNumber)
+                    }
+                }
+                completedUnitNumbers = numbers
+            }
+            
+            print("✅ [CourseContentView] Loaded \(completedUnitIds.count) completed units, unit numbers: \(completedUnitNumbers.sorted())")
         } catch {
             print("❌ [CourseContentView] Error loading completed units: \(error)")
+        }
+    }
+    
+    private func loadPassedTests(pilotId: UUID) async {
+        do {
+            let supabase = SupabaseClient.shared.client
+            let response = try await supabase
+                .from("test_results")
+                .select("test_id")
+                .eq("pilot_id", value: pilotId.uuidString)
+                .eq("course_id", value: course.id.uuidString)
+                .eq("passed", value: true)
+                .execute()
+            
+            let data = response.data
+            if let jsonArray = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
+                var testIds: Set<UUID> = []
+                for item in jsonArray {
+                    if let testIdString = item["test_id"] as? String,
+                       let testId = UUID(uuidString: testIdString) {
+                        testIds.insert(testId)
+                    }
+                }
+                passedTestIds = testIds
+                print("✅ [CourseContentView] Loaded \(passedTestIds.count) passed tests")
+            }
+        } catch {
+            print("❌ [CourseContentView] Error loading passed tests: \(error)")
         }
     }
     
@@ -345,6 +402,8 @@ struct DynamicSectionView: View {
     let hasSubscription: Bool
     let hasPassedTest: Bool
     let completedUnitIds: Set<UUID>
+    let completedUnitNumbers: Set<Int>
+    let passedTestIds: Set<UUID>
     let onSubscribe: () -> Void
     let onNavigateToTest: () -> Void
     
@@ -368,45 +427,55 @@ struct DynamicSectionView: View {
     }
     
     var body: some View {
-        switch section.sectionType {
-        case "test":
-            // Render test section (Ground School Test)
-            NavigationLink(destination: GroundSchoolTestIntroView(
-                course: course,
-                onStartTest: onNavigateToTest
-            )) {
-                GroundSchoolTestSectionContent(sectionName: section.name, hasPassedTest: hasPassedTest)
-            }
-            .buttonStyle(PlainButtonStyle())
-            
-        case "exam":
-            // Render exam section (Flight Review, ROC-A Test - links to Test Center)
-            TestCenterExamSectionView(
-                section: section,
-                hasPassedTest: hasPassedTest
-            )
-            
-        case "recurrent":
-            // Render recurrent training section
-            RecurrentTrainingSectionContent(
-                sectionName: section.name,
-                hasPassedTest: hasPassedTest,
-                hasSubscription: hasSubscription,
-                onSubscribe: onSubscribe
-            )
-            
-        default:
-            // Render regular units section
-            if !units.isEmpty {
-                DynamicUnitsSectionView(
-                    section: section,
-                    units: units,
+        return Group {
+            switch section.sectionType {
+            case "test":
+                // Render test section (Ground School Test)
+                NavigationLink(destination: GroundSchoolTestIntroView(
                     course: course,
-                    hasSubscription: hasSubscription,
+                    onStartTest: onNavigateToTest
+                )) {
+                    GroundSchoolTestSectionContent(sectionName: section.name, hasPassedTest: hasPassedTest)
+                }
+                .buttonStyle(PlainButtonStyle())
+                
+            case "exam":
+                // Render exam section (Flight Review, ROC-A Test - links to Test Center)
+                TestCenterExamSectionView(
+                    section: section,
+                    hasPassedTest: hasPassedTest
+                )
+                
+            case "recurrent":
+                // Render recurrent training section
+                RecurrentTrainingSectionContent(
+                    sectionName: section.name,
                     hasPassedTest: hasPassedTest,
-                    completedUnitIds: completedUnitIds,
+                    hasSubscription: hasSubscription,
                     onSubscribe: onSubscribe
                 )
+                
+            default:
+                // Render regular units section
+                if !units.isEmpty {
+                    DynamicUnitsSectionView(
+                        section: section,
+                        units: units,
+                        course: course,
+                        hasSubscription: hasSubscription,
+                        hasPassedTest: hasPassedTest,
+                        completedUnitIds: completedUnitIds,
+                        completedUnitNumbers: completedUnitNumbers,
+                        passedTestIds: passedTestIds,
+                        onSubscribe: onSubscribe
+                    )
+                } else {
+                    // Show a placeholder for empty sections
+                    Text("Section '\(section.name)' has no units yet")
+                        .foregroundColor(.secondary)
+                        .italic()
+                        .padding()
+                }
             }
         }
     }
@@ -421,6 +490,8 @@ struct DynamicUnitsSectionView: View {
     let hasSubscription: Bool
     let hasPassedTest: Bool
     let completedUnitIds: Set<UUID>
+    let completedUnitNumbers: Set<Int>
+    let passedTestIds: Set<UUID>
     let onSubscribe: () -> Void
     
     var body: some View {
@@ -457,19 +528,61 @@ struct DynamicUnitsSectionView: View {
         }
     }
     
+    /// Determines the lock status for a unit based on:
+    /// 1. Unit-level prerequisites (prerequisite_units and prerequisite_tests)
+    /// 2. Section-level requirements (requires_subscription and requires_test_passed)
     private func getLockStatus(for unit: CourseUnit) -> (isLocked: Bool, lockReason: String, requiresAction: LockAction) {
-        let needsTest = section.requiresTestPassed && !hasPassedTest
-        let needsSubscription = section.requiresSubscription && !hasSubscription
+        var reasons: [String] = []
+        var needsSubscription = false
         
-        if needsTest && needsSubscription {
-            return (true, "Pass Ground School Test & Subscribe to unlock", .subscribe)
-        } else if needsTest {
-            return (true, "Complete Ground School Test to unlock", .test)
-        } else if needsSubscription {
-            return (true, "Subscribe to unlock", .subscribe)
+        // Check unit-level prerequisite units
+        if let prerequisiteUnits = unit.prerequisiteUnits, !prerequisiteUnits.isEmpty {
+            let missingUnits = prerequisiteUnits.filter { !completedUnitNumbers.contains($0) }
+            if !missingUnits.isEmpty {
+                let unitList = missingUnits.sorted().map { "Unit \($0)" }.joined(separator: ", ")
+                reasons.append("Complete \(unitList)")
+            }
         }
         
-        return (false, "", .none)
+        // Check unit-level prerequisite tests
+        if let prerequisiteTests = unit.prerequisiteTests, !prerequisiteTests.isEmpty {
+            let missingTests = prerequisiteTests.filter { !passedTestIds.contains($0) }
+            if !missingTests.isEmpty {
+                reasons.append("Pass required test(s)")
+            }
+        }
+        
+        // Check section-level requirements (fallback for legacy behavior)
+        let needsSectionTest = section.requiresTestPassed && !hasPassedTest
+        let needsSectionSubscription = section.requiresSubscription && !hasSubscription
+        
+        if needsSectionTest {
+            reasons.append("Complete Ground School Test")
+        }
+        
+        if needsSectionSubscription {
+            needsSubscription = true
+            reasons.append("Subscribe to Buzz Academy Pass")
+        }
+        
+        // Determine if unit is locked and why
+        if reasons.isEmpty {
+            return (false, "", .none)
+        }
+        
+        let lockReason = reasons.joined(separator: " & ")
+        
+        // Determine what action is required
+        if needsSubscription && reasons.count == 1 {
+            // Only subscription is needed
+            return (true, lockReason, .subscribe)
+        } else if needsSectionTest && !needsSubscription && reasons.count == 1 {
+            // Only test is needed
+            return (true, lockReason, .test)
+        } else {
+            // Multiple requirements or prerequisite units/tests needed
+            return (true, lockReason, needsSubscription ? .subscribe : .none)
+        }
     }
     
     private enum LockAction {

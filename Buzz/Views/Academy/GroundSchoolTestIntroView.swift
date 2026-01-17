@@ -19,7 +19,7 @@ struct GroundSchoolTestIntroView: View {
                             .font(.title)
                             .fontWeight(.bold)
                         
-                        Text("Congratulations! You've completed the mandatory units (1-3) and are ready to take your Ground School Test.")
+                        Text("Congratulations! You've completed the required units and are ready to take your Ground School Test.")
                             .font(.body)
                             .multilineTextAlignment(.center)
                             .foregroundColor(.secondary)

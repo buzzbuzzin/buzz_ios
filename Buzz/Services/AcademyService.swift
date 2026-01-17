@@ -170,7 +170,6 @@ class AcademyService: ObservableObject {
                 .from("course_sections")
                 .select()
                 .eq("course_id", value: courseId.uuidString)
-                .eq("is_active", value: true)
                 .order("display_order", ascending: true)
                 .execute()
                 .value
@@ -383,6 +382,98 @@ class AcademyService: ObservableObject {
         } catch {
             print("Error checking test status: \(error)")
             return false
+        }
+    }
+    
+    // MARK: - Check Multiple Test Statuses
+    
+    /// Check if pilot has passed all specified tests
+    /// - Parameters:
+    ///   - pilotId: The pilot's UUID
+    ///   - testIds: Array of test UUIDs to check
+    /// - Returns: Dictionary mapping test ID to pass status
+    func checkTestStatuses(pilotId: UUID, testIds: [UUID]) async -> [UUID: Bool] {
+        var results: [UUID: Bool] = [:]
+        
+        // Check all tests in parallel
+        await withTaskGroup(of: (UUID, Bool).self) { group in
+            for testId in testIds {
+                group.addTask {
+                    let passed = (try? await self.checkTestStatus(pilotId: pilotId, testId: testId)) ?? false
+                    return (testId, passed)
+                }
+            }
+            
+            for await (testId, passed) in group {
+                results[testId] = passed
+            }
+        }
+        
+        return results
+    }
+    
+    // MARK: - Check Unit Completion
+    
+    /// Check if a unit has been completed by the pilot
+    /// - Parameters:
+    ///   - pilotId: The pilot's UUID
+    ///   - unitId: The unit's UUID
+    /// - Returns: true if the unit has been completed
+    func checkUnitCompletion(pilotId: UUID, unitId: UUID) async -> Bool {
+        do {
+            let response = try await supabase
+                .from("unit_completions")
+                .select("id")
+                .eq("pilot_id", value: pilotId.uuidString)
+                .eq("unit_id", value: unitId.uuidString)
+                .execute()
+            
+            let data = response.data
+            guard let jsonArray = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+                return false
+            }
+            
+            return !jsonArray.isEmpty
+        } catch {
+            print("Error checking unit completion: \(error)")
+            return false
+        }
+    }
+    
+    // MARK: - Check Multiple Unit Completions by Unit Number
+    
+    /// Check if pilot has completed all specified units (by unit number)
+    /// - Parameters:
+    ///   - pilotId: The pilot's UUID
+    ///   - courseId: The course UUID
+    ///   - unitNumbers: Array of unit numbers to check
+    /// - Returns: Set of completed unit numbers
+    func checkUnitCompletionsByNumber(pilotId: UUID, courseId: UUID, unitNumbers: [Int]) async -> Set<Int> {
+        do {
+            let response = try await supabase
+                .from("unit_completions")
+                .select("*, course_units!inner(unit_number)")
+                .eq("pilot_id", value: pilotId.uuidString)
+                .eq("course_id", value: courseId.uuidString)
+                .execute()
+            
+            let data = response.data
+            guard let jsonArray = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+                return []
+            }
+            
+            var completedNumbers: Set<Int> = []
+            for item in jsonArray {
+                if let courseUnits = item["course_units"] as? [String: Any],
+                   let unitNumber = courseUnits["unit_number"] as? Int {
+                    completedNumbers.insert(unitNumber)
+                }
+            }
+            
+            return completedNumbers
+        } catch {
+            print("Error checking unit completions by number: \(error)")
+            return []
         }
     }
     
