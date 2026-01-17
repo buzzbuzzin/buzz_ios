@@ -15,6 +15,7 @@ struct CourseUnit: Identifiable, Codable {
     let description: String?
     let content: String?
     let pdfUrls: [String] // Array of URLs to PDF course materials (multiple modules per unit)
+    let pdfNames: [String] // Array of names for PDF course materials (corresponding to pdfUrls)
     let sectionId: UUID?  // NEW: Reference to course_sections table
     let stepNumber: Int?  // DEPRECATED: Use sectionId instead
     let isMandatory: Bool // DEPRECATED: Use sectionId instead
@@ -30,6 +31,7 @@ struct CourseUnit: Identifiable, Codable {
         case description
         case content
         case pdfUrl = "pdf_url"
+        case pdfNames = "pdf_names"
         case sectionId = "section_id"
         case stepNumber = "step_number"
         case isMandatory = "is_mandatory"
@@ -61,6 +63,13 @@ struct CourseUnit: Identifiable, Codable {
         } else {
             pdfUrls = []
         }
+        
+        // Handle pdf_names as JSON array (can be null)
+        if let pdfNamesArray = try? container.decode([String].self, forKey: .pdfNames) {
+            pdfNames = pdfNamesArray
+        } else {
+            pdfNames = []
+        }
     }
     
     func encode(to encoder: Encoder) throws {
@@ -76,6 +85,7 @@ struct CourseUnit: Identifiable, Codable {
         try container.encode(isMandatory, forKey: .isMandatory)
         try container.encode(orderIndex, forKey: .orderIndex)
         try container.encode(pdfUrls, forKey: .pdfUrl)
+        try container.encode(pdfNames, forKey: .pdfNames)
         try container.encodeIfPresent(prerequisiteUnits, forKey: .prerequisiteUnits)
         try container.encodeIfPresent(prerequisiteTests, forKey: .prerequisiteTests)
     }

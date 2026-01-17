@@ -30,10 +30,6 @@ struct UnitDetailView: View {
         isUASPilotCourse && unit.unitNumber == 3 && unit.isMandatory
     }
     
-    private var isGroundSchoolUnitOne: Bool {
-        unit.unitNumber == 1 && unit.title.localizedCaseInsensitiveContains("ground school")
-    }
-    
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
@@ -90,39 +86,11 @@ struct UnitDetailView: View {
                             .fontWeight(.semibold)
                             .frame(maxWidth: .infinity, alignment: .leading)
                         
-                        if isGroundSchoolUnitOne {
-                            // 1. Flowchart (Index 0)
-                            if let flowchartUrl = unit.pdfUrls.first {
-                                Button(action: {
-                                    selectedPDF = PDFSelection(url: flowchartUrl)
-                                }) {
-                                    ModuleButtonContent(title: "Flowchart")
-                                }
-                            }
-                            
-                            // 2. Syllabus
-                            NavigationLink(destination: ComingSoonModuleView(title: "Syllabus")) {
-                                ModuleButtonContent(title: "Syllabus")
-                            }
-                            .buttonStyle(PlainButtonStyle())
-                            
-                            // 3. Rest of the items (Introduction, Module 1, etc.)
-                            ForEach(Array(unit.pdfUrls.enumerated()), id: \.offset) { index, pdfUrl in
-                                if index > 0 {
-                                    Button(action: {
-                                        selectedPDF = PDFSelection(url: pdfUrl)
-                                    }) {
-                                        ModuleButtonContent(title: getModuleName(unitNumber: unit.unitNumber, index: index))
-                                    }
-                                }
-                            }
-                        } else {
-                            ForEach(Array(unit.pdfUrls.enumerated()), id: \.offset) { index, pdfUrl in
-                                Button(action: {
-                                    selectedPDF = PDFSelection(url: pdfUrl)
-                                }) {
-                                    ModuleButtonContent(title: getModuleName(unitNumber: unit.unitNumber, index: index))
-                                }
+                        ForEach(Array(unit.pdfUrls.enumerated()), id: \.offset) { index, pdfUrl in
+                            Button(action: {
+                                selectedPDF = PDFSelection(url: pdfUrl)
+                            }) {
+                                ModuleButtonContent(title: getPDFName(index: index))
                             }
                         }
                     }
@@ -412,23 +380,16 @@ struct UnitDetailView: View {
         }
     }
     
-    // Helper function to get the proper module name based on unit and index
-    private func getModuleName(unitNumber: Int, index: Int) -> String {
-        // For Unit 1, handle special naming for first two items
-        if unitNumber == 1 {
-            switch index {
-            case 0:
-                return "Flowchart"
-            case 1:
-                return "Introduction"
-            default:
-                // For index 2+, display as "Module 1", "Module 2", etc.
-                return "Module \(index - 1)"
-            }
-        } else {
-            // For all other units, use standard numbering
-            return "Module \(index + 1)"
+    // Helper function to get PDF name from backend or return empty string if not available
+    private func getPDFName(index: Int) -> String {
+        // Check if we have a name in the pdfNames array at this index
+        if index < unit.pdfNames.count {
+            let name = unit.pdfNames[index]
+            // Return the name if it's not empty, otherwise return empty string
+            return name.isEmpty ? "" : name
         }
+        // If pdfNames is null or index is out of bounds, return empty string
+        return ""
     }
 }
 
