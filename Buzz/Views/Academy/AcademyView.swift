@@ -731,7 +731,6 @@ struct CourseDetailView: View {
     let onEnrollmentChange: () -> Void
     @State private var isEnrolled: Bool
     @State private var showUnenrollConfirmation = false
-    @State private var showCompletionConfirmation = false
     @State private var showExternalCourseConfirmation = false
     @State private var isUnenrolling = false
     @State private var unenrollError: String?
@@ -1032,22 +1031,6 @@ struct CourseDetailView: View {
                                         .background(Color.blue)
                                         .cornerRadius(12)
                                 }
-                                
-                                // Hide "Mark as Completed" button for UAS Pilot Course
-                                // Badge is now awarded automatically after passing ground school test
-                                if !isUASPilotCourse {
-                                    Button(action: {
-                                        showCompletionConfirmation = true
-                                    }) {
-                                        Text("Mark as Completed")
-                                            .font(.headline)
-                                            .frame(maxWidth: .infinity)
-                                            .frame(height: 50)
-                                            .background(Color.green)
-                                            .foregroundColor(.white)
-                                            .cornerRadius(12)
-                                    }
-                                }
                             }
                             
                             Button(action: {
@@ -1131,16 +1114,6 @@ struct CourseDetailView: View {
                 Text(error)
             }
         }
-        .alert("Complete Course", isPresented: $showCompletionConfirmation) {
-            Button("Cancel", role: .cancel) {}
-            Button("Complete", role: .none) {
-                Task {
-                    await completeCourse()
-                }
-            }
-        } message: {
-            Text("Mark \"\(course.title)\" as completed? You will earn a badge for this achievement.")
-        }
         .alert("External Course Warning", isPresented: $showExternalCourseConfirmation) {
             Button("Cancel", role: .cancel) {}
             Button("Got it", role: .none) {
@@ -1155,28 +1128,6 @@ struct CourseDetailView: View {
             }
         } message: {
             Text("You are going to a third-party website to take the course. This is not covered by the Buzz Academy subscription.")
-        }
-    }
-    
-    private func completeCourse() async {
-        guard let currentUser = authService.currentUser else { return }
-        
-        do {
-            try await badgeService.awardBadge(
-                pilotId: currentUser.id,
-                courseId: course.id,
-                courseTitle: course.title,
-                courseCategory: course.category.rawValue,
-                provider: Badge.CourseProvider(rawValue: course.provider.rawValue) ?? .buzz
-            )
-            
-            // Show success message
-            showCompletionConfirmation = false
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                dismiss()
-            }
-        } catch {
-            print("Error awarding badge: \(error)")
         }
     }
     
