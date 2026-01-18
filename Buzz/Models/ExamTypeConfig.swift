@@ -112,7 +112,7 @@ struct ExamTypeConfig: Codable, Identifiable {
         shortDescription: "In-person hands-on flight assessment",
         fullDescription: "The Flight Review is an in-person, hands-on assessment that evaluates your ability to plan and execute a drone flight safely. An examiner will observe your pre-flight procedures, flight execution, and post-flight protocols.",
         icon: "person.text.rectangle.fill",
-        durationMinutes: 30,
+        durationMinutes: 45,
         allowsOnline: false,
         stripeProductId: "prod_TW3nHwTNX9Xtec",
         prerequisites: ["Passed Ground School Test", "Completed Unit 4 of UAS Pilot Course"]
