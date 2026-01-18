@@ -242,6 +242,7 @@ class BadgeService: ObservableObject {
         let coursesResponse: [TrainingCourseResponse] = try await supabase
             .from("training_courses")
             .select()
+            .eq("active", value: true) // Only fetch active courses
             .order("created_at", ascending: false)
             .execute()
             .value

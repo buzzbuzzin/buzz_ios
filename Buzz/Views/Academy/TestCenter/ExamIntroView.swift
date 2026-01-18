@@ -402,7 +402,9 @@ struct ExamIntroView: View {
                         requiresFlightReviewPassed: false,
                         requiresRocAPassed: false,
                         externalUrl: nil,
-                        coverImageUrl: nil
+                        coverImageUrl: nil,
+                        region: .global,
+                        active: true
                     ),
                     pilotId: currentUser.id,
                     testName: courseTest?.testName ?? config.displayName,
@@ -443,7 +445,9 @@ struct ExamIntroView: View {
                         requiresFlightReviewPassed: false,
                         requiresRocAPassed: false,
                         externalUrl: nil,
-                        coverImageUrl: nil
+                        coverImageUrl: nil,
+                        region: .global,
+                        active: true
                     ),
                     pilotId: currentUser.id,
                     testName: courseTest?.testName ?? config.displayName,

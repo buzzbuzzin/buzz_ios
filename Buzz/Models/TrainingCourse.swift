@@ -29,6 +29,8 @@ struct TrainingCourse: Identifiable {
     var requiresRocAPassed: Bool // Whether this course requires passing ROC-A test
     var externalUrl: String? // External URL for non-Buzz courses
     var coverImageUrl: String? // Cover image URL for the course
+    var region: CourseRegion // Region where the course is available
+    var active: Bool // Whether the course is active and should be displayed
     
     enum CourseLevel: String {
         case beginner = "Beginner"
@@ -106,6 +108,35 @@ struct TrainingCourse: Identifiable {
                 return "t.circle.fill"
             case .other:
                 return "building.2.fill"
+            }
+        }
+    }
+    
+    enum CourseRegion: String {
+        case canada = "Canada"
+        case usa = "USA"
+        case uk = "UK"
+        case australia = "Australia"
+        case newZealand = "New Zealand"
+        case southAfrica = "South Africa"
+        case global = "Global"
+        
+        var icon: String {
+            switch self {
+            case .canada:
+                return "🇨🇦"
+            case .usa:
+                return "🇺🇸"
+            case .uk:
+                return "🇬🇧"
+            case .australia:
+                return "🇦🇺"
+            case .newZealand:
+                return "🇳🇿"
+            case .southAfrica:
+                return "🇿🇦"
+            case .global:
+                return "🌍"
             }
         }
     }

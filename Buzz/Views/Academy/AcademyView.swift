@@ -15,6 +15,7 @@ struct AcademyView: View {
     @ObservedObject private var entitlementManager = EntitlementManager.shared
     @State private var selectedCategory: TrainingCourse.CourseCategory? = nil
     @State private var selectedProvider: TrainingCourse.CourseProvider? = nil
+    @State private var selectedRegion: TrainingCourse.CourseRegion? = nil
     @State private var courses: [TrainingCourse] = []
     @State private var recurrentNotices: [RecurrentTrainingNotice] = []
     @State private var isLoading = false
@@ -50,6 +51,10 @@ struct AcademyView: View {
         .buzz, .redCross, .usfa, .fema, .amazon, .tmobile, .other
     ]
     
+    private let allRegions: [TrainingCourse.CourseRegion] = [
+        .global, .canada, .usa, .uk, .australia, .newZealand, .southAfrica
+    ]
+    
     var filteredCourses: [TrainingCourse] {
         var filtered = courses
         
@@ -59,6 +64,10 @@ struct AcademyView: View {
         
         if let provider = selectedProvider {
             filtered = filtered.filter { $0.provider == provider }
+        }
+        
+        if let region = selectedRegion {
+            filtered = filtered.filter { $0.region == region }
         }
         
         // Sort courses in specific order:
@@ -163,6 +172,33 @@ struct AcademyView: View {
                     .padding(.vertical, 8)
                     .background(Color(.systemGray6))
                 }
+                
+                // Region Filter
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 12) {
+                        // All Regions Button
+                        RegionChip(
+                            title: "All Regions",
+                            icon: "🌐",
+                            isSelected: selectedRegion == nil
+                        ) {
+                            selectedRegion = nil
+                        }
+                        
+                        ForEach(allRegions, id: \.self) { region in
+                            RegionChip(
+                                title: region.rawValue,
+                                icon: region.icon,
+                                isSelected: selectedRegion == region
+                            ) {
+                                selectedRegion = region
+                            }
+                        }
+                    }
+                    .padding(.horizontal)
+                    .padding(.vertical, 8)
+                }
+                .background(Color(.systemGray6))
                 
                 // Provider Filter
                 ScrollView(.horizontal, showsIndicators: false) {
@@ -546,6 +582,37 @@ struct CategoryChip: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 8)
             .background(isSelected ? Color.orange : Color(.systemBackground))
+            .foregroundColor(isSelected ? .white : .primary)
+            .cornerRadius(20)
+            .overlay(
+                RoundedRectangle(cornerRadius: 20)
+                    .stroke(isSelected ? Color.clear : Color(.separator), lineWidth: 1)
+            )
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+}
+
+// MARK: - Region Chip
+
+struct RegionChip: View {
+    let title: String
+    let icon: String
+    let isSelected: Bool
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Text(icon)
+                    .font(.system(size: 14))
+                Text(title)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .background(isSelected ? Color.green : Color(.systemBackground))
             .foregroundColor(isSelected ? .white : .primary)
             .cornerRadius(20)
             .overlay(

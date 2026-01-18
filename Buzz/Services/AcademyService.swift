@@ -27,6 +27,7 @@ class AcademyService: ObservableObject {
             let response: [TrainingCourseResponse] = try await supabase
                 .from("training_courses")
                 .select()
+                .eq("active", value: true) // Only fetch active courses
                 .order("created_at", ascending: false)
                 .execute()
                 .value
@@ -53,7 +54,9 @@ class AcademyService: ObservableObject {
                     requiresFlightReviewPassed: courseResponse.requiresFlightReviewPassed ?? false,
                     requiresRocAPassed: courseResponse.requiresRocAPassed ?? false,
                     externalUrl: courseResponse.externalUrl,
-                    coverImageUrl: courseResponse.coverImageUrl
+                    coverImageUrl: courseResponse.coverImageUrl,
+                    region: TrainingCourse.CourseRegion(rawValue: courseResponse.region ?? "Global") ?? .global,
+                    active: courseResponse.active ?? false
                 )
             }
             
@@ -89,6 +92,7 @@ class AcademyService: ObservableObject {
             let coursesResponse: [TrainingCourseResponse] = try await supabase
                 .from("training_courses")
                 .select()
+                .eq("active", value: true) // Only fetch active courses
                 .order("created_at", ascending: false)
                 .execute()
                 .value
@@ -136,7 +140,9 @@ class AcademyService: ObservableObject {
                     requiresFlightReviewPassed: courseResponse.requiresFlightReviewPassed ?? false,
                     requiresRocAPassed: courseResponse.requiresRocAPassed ?? false,
                     externalUrl: courseResponse.externalUrl,
-                    coverImageUrl: courseResponse.coverImageUrl
+                    coverImageUrl: courseResponse.coverImageUrl,
+                    region: TrainingCourse.CourseRegion(rawValue: courseResponse.region ?? "Global") ?? .global,
+                    active: courseResponse.active ?? false
                 )
             }
             let step3Duration = Date().timeIntervalSince(step3Start)
@@ -692,10 +698,12 @@ class AcademyService: ObservableObject {
                 let rating = (courseJson["rating"] as? Double) ?? 0.0
                 let studentsCount = (courseJson["students_count"] as? Int) ?? 0
                 let providerString = courseJson["provider"] as? String ?? "Buzz"
+                let regionString = courseJson["region"] as? String ?? "Global"
                 
                 let level = TrainingCourse.CourseLevel(rawValue: levelString) ?? .beginner
                 let category = TrainingCourse.CourseCategory(rawValue: categoryString) ?? .mandatory
                 let provider = TrainingCourse.CourseProvider(rawValue: providerString) ?? .buzz
+                let region = TrainingCourse.CourseRegion(rawValue: regionString) ?? .global
                 
                 let course = TrainingCourse(
                     id: courseId,
@@ -717,7 +725,9 @@ class AcademyService: ObservableObject {
                     requiresFlightReviewPassed: courseJson["requires_flight_review_passed"] as? Bool ?? false,
                     requiresRocAPassed: courseJson["requires_roc_a_passed"] as? Bool ?? false,
                     externalUrl: courseJson["external_url"] as? String,
-                    coverImageUrl: courseJson["cover_image_url"] as? String
+                    coverImageUrl: courseJson["cover_image_url"] as? String,
+                    region: region,
+                    active: courseJson["active"] as? Bool ?? true
                 )
                 
                 completedCourses.append(course)
@@ -821,6 +831,8 @@ struct TrainingCourseResponse: Codable {
     let requiresRocAPassed: Bool?
     let externalUrl: String?
     let coverImageUrl: String?
+    let region: String?
+    let active: Bool?
     
     enum CodingKeys: String, CodingKey {
         case id
@@ -839,6 +851,8 @@ struct TrainingCourseResponse: Codable {
         case requiresRocAPassed = "requires_roc_a_passed"
         case externalUrl = "external_url"
         case coverImageUrl = "cover_image_url"
+        case region
+        case active
     }
 }
 

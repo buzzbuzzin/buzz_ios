@@ -247,7 +247,9 @@ struct ExamInfoRow: View {
             requiresFlightReviewPassed: false,
             requiresRocAPassed: false,
             externalUrl: nil,
-            coverImageUrl: nil
+            coverImageUrl: nil,
+            region: .global,
+            active: true
         ),
         pilotId: UUID(),
         testName: "ROC-A Multiple Choice Exam",

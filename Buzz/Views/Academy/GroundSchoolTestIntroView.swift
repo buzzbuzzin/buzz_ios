@@ -163,7 +163,11 @@ struct BulletPoint: View {
             recurrentDueDate: nil,
             requiresUasGroundSchool: false,
             requiresFlightReviewPassed: false,
-            requiresRocAPassed: false
+            requiresRocAPassed: false,
+            externalUrl: nil,
+            coverImageUrl: nil,
+            region: .global,
+            active: true
         ),
         onStartTest: {}
     )
