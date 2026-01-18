@@ -363,6 +363,7 @@ class AcademyService: ObservableObject {
     // MARK: - Fetch Test Questions
     
     /// Fetch questions for a specific test from the test_questions table
+    /// If the test uses problem sets, randomly selects one set for the student
     /// - Parameter testId: The UUID of the test
     /// - Returns: Array of TestQuestion objects ordered by question_number
     func fetchTestQuestions(testId: UUID) async throws -> [TestQuestion] {
@@ -378,11 +379,67 @@ class AcademyService: ObservableObject {
                 .value
             
             print("✅ [AcademyService] Successfully fetched \(response.count) questions for test: \(testId)")
-            return response
+            
+            // Check if this test uses problem sets
+            let filteredQuestions = filterQuestionsByProblemSet(questions: response)
+            
+            if filteredQuestions.count < response.count {
+                print("📋 [AcademyService] Problem set filtering applied: \(filteredQuestions.count) of \(response.count) questions selected")
+            }
+            
+            return filteredQuestions
         } catch {
             print("❌ [AcademyService] Error fetching test questions: \(error)")
             throw error
         }
+    }
+    
+    /// Filter questions by problem set if applicable
+    /// If any question has problem sets assigned, randomly select one set
+    /// - Parameter questions: All questions from the test
+    /// - Returns: Filtered questions (or all questions if no problem sets)
+    private func filterQuestionsByProblemSet(questions: [TestQuestion]) -> [TestQuestion] {
+        // Check if any question has problem sets
+        let questionsWithProblemSets = questions.filter { question in
+            if let sets = question.problemSets, !sets.isEmpty {
+                return true
+            }
+            return false
+        }
+        
+        // If no questions have problem sets, return all questions
+        guard !questionsWithProblemSets.isEmpty else {
+            print("ℹ️ [AcademyService] No problem sets found, returning all questions")
+            return questions
+        }
+        
+        // Find all unique problem set numbers
+        var allProblemSets = Set<Int>()
+        for question in questionsWithProblemSets {
+            if let sets = question.problemSets {
+                allProblemSets.formUnion(sets)
+            }
+        }
+        
+        // Randomly select one problem set
+        guard let selectedSet = allProblemSets.randomElement() else {
+            print("⚠️ [AcademyService] Could not select a random problem set, returning all questions")
+            return questions
+        }
+        
+        print("🎲 [AcademyService] Selected problem set: \(selectedSet) from available sets: \(allProblemSets.sorted())")
+        
+        // Filter questions: include if problemSets is nil/empty OR contains the selected set
+        let filteredQuestions = questions.filter { question in
+            guard let sets = question.problemSets, !sets.isEmpty else {
+                // Questions without problem sets are always included
+                return true
+            }
+            // Include if this question belongs to the selected set
+            return sets.contains(selectedSet)
+        }
+        
+        return filteredQuestions
     }
     
     // MARK: - Check Test Status by Test ID

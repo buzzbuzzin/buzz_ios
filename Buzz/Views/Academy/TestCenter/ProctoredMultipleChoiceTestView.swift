@@ -491,16 +491,9 @@ struct ProctoredMultipleChoiceTestView: View {
         errorMessage = nil
         
         do {
-            let supabase = SupabaseClient.shared.client
-            let response: [TestQuestion] = try await supabase
-                .from("test_questions")
-                .select()
-                .eq("test_id", value: testId.uuidString)
-                .order("question_number", ascending: true)
-                .execute()
-                .value
-            
-            questions = response
+            // Use AcademyService to fetch questions with problem set filtering
+            let fetchedQuestions = try await academyService.fetchTestQuestions(testId: testId)
+            questions = fetchedQuestions
             
             if !questions.isEmpty {
                 startTimer()

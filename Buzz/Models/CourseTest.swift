@@ -120,6 +120,7 @@ struct TestQuestion: Identifiable, Codable, Hashable {
     let correctAnswerIndex: Int
     let explanation: String?
     let imageUrls: [String]
+    let problemSets: [Int]?
     
     enum CodingKeys: String, CodingKey {
         case id
@@ -131,6 +132,7 @@ struct TestQuestion: Identifiable, Codable, Hashable {
         case correctAnswerIndex = "correct_answer_index"
         case explanation
         case imageUrls = "image_urls"
+        case problemSets = "problem_sets"
     }
     
     // Custom decoder to handle JSONB options field
@@ -144,6 +146,7 @@ struct TestQuestion: Identifiable, Codable, Hashable {
         correctAnswerIndex = try container.decode(Int.self, forKey: .correctAnswerIndex)
         explanation = try container.decodeIfPresent(String.self, forKey: .explanation)
         imageUrls = (try? container.decode([String].self, forKey: .imageUrls)) ?? []
+        problemSets = try? container.decodeIfPresent([Int].self, forKey: .problemSets)
         
         // Handle options - can be JSONB array or string array
         if let optionsArray = try? container.decode([String].self, forKey: .options) {
@@ -156,7 +159,7 @@ struct TestQuestion: Identifiable, Codable, Hashable {
     // Standard initializer for testing/manual creation
     init(id: UUID, testId: UUID, questionNumber: Int, questionArea: String? = nil, 
          questionText: String, options: [String], correctAnswerIndex: Int, 
-         explanation: String? = nil, imageUrls: [String] = []) {
+         explanation: String? = nil, imageUrls: [String] = [], problemSets: [Int]? = nil) {
         self.id = id
         self.testId = testId
         self.questionNumber = questionNumber
@@ -166,5 +169,6 @@ struct TestQuestion: Identifiable, Codable, Hashable {
         self.correctAnswerIndex = correctAnswerIndex
         self.explanation = explanation
         self.imageUrls = imageUrls
+        self.problemSets = problemSets
     }
 }
