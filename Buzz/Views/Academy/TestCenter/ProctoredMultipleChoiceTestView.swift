@@ -17,6 +17,7 @@ struct ProctoredMultipleChoiceTestView: View {
     let passingScore: Int
     let durationMinutes: Int
     let proctorName: String
+    let onDismiss: () -> Void
     
     @Environment(\.dismiss) var dismiss
     @StateObject private var badgeService = BadgeService()
@@ -44,7 +45,7 @@ struct ProctoredMultipleChoiceTestView: View {
     }
     
     // Custom initializer
-    init(testId: UUID, course: TrainingCourse, pilotId: UUID, testName: String, passingScore: Int = 70, durationMinutes: Int = 60, proctorName: String) {
+    init(testId: UUID, course: TrainingCourse, pilotId: UUID, testName: String, passingScore: Int = 70, durationMinutes: Int = 60, proctorName: String, onDismiss: @escaping () -> Void) {
         self.testId = testId
         self.course = course
         self.pilotId = pilotId
@@ -52,6 +53,7 @@ struct ProctoredMultipleChoiceTestView: View {
         self.passingScore = passingScore
         self.durationMinutes = durationMinutes
         self.proctorName = proctorName
+        self.onDismiss = onDismiss
         self._timeRemaining = State(initialValue: TimeInterval(durationMinutes * 60))
     }
     
@@ -75,29 +77,32 @@ struct ProctoredMultipleChoiceTestView: View {
     }
     
     var body: some View {
-        testContentView
-            .navigationTitle(testName)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                testToolbar
-            }
-            .alert("Exit Test?", isPresented: $showExitAlert) {
-                exitAlert
-            } message: {
-                Text("By exiting you will lose all your test progress and you will have to retake the exam.")
-            }
-            .sheet(isPresented: $showQuestionNavigator) {
-                questionNavigatorSheet
-            }
-            .sheet(isPresented: $showChartViewer) {
-                chartViewerSheet
-            }
-            .task {
-                await loadTestQuestions()
-            }
-            .onDisappear {
-                stopTimer()
-            }
+        NavigationStack {
+            testContentView
+                .background(Color(.systemBackground))
+                .navigationTitle(testName)
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    testToolbar
+                }
+                .alert("Exit Test?", isPresented: $showExitAlert) {
+                    exitAlert
+                } message: {
+                    Text("By exiting you will lose all your test progress and you will have to retake the exam.")
+                }
+                .sheet(isPresented: $showQuestionNavigator) {
+                    questionNavigatorSheet
+                }
+                .sheet(isPresented: $showChartViewer) {
+                    chartViewerSheet
+                }
+        }
+        .task {
+            await loadTestQuestions()
+        }
+        .onDisappear {
+            stopTimer()
+        }
     }
     
     @ViewBuilder
@@ -181,7 +186,7 @@ struct ProctoredMultipleChoiceTestView: View {
             testName: testName,
             passingScore: passingScore,
             onDismiss: {
-                dismiss()
+                onDismiss()
             }
         )
     }
@@ -414,6 +419,20 @@ struct ProctoredMultipleChoiceTestView: View {
     
     @ToolbarContentBuilder
     private var testToolbar: some ToolbarContent {
+        ToolbarItem(placement: .navigationBarLeading) {
+            Button {
+                if showResults {
+                    onDismiss()
+                } else {
+                    showExitAlert = true
+                }
+            } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.title2)
+                    .foregroundColor(.secondary)
+            }
+        }
+        
         if !showResults && !isLoading && !questions.isEmpty {
             ToolbarItem(placement: .navigationBarTrailing) {
                 Menu {
@@ -442,7 +461,7 @@ struct ProctoredMultipleChoiceTestView: View {
             Button("Cancel", role: .cancel) {}
             Button("Exit", role: .destructive) {
                 stopTimer()
-                dismiss()
+                onDismiss()
             }
         }
     }

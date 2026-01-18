@@ -1188,7 +1188,7 @@ struct GroundSchoolTestCard: View {
     let hasPassedTest: Bool
     
     @EnvironmentObject var authService: AuthService
-    @State private var navigateToTest = false
+    @State private var showGroundSchoolTest = false
     @State private var showIntroSheet = false
     
     var body: some View {
@@ -1262,25 +1262,25 @@ struct GroundSchoolTestCard: View {
                     hasPassedTest: hasPassedTest,
                     onStartTest: {
                         showIntroSheet = false
-                        navigateToTest = true
+                        // Delay to ensure sheet dismisses before fullscreen cover
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                            showGroundSchoolTest = true
+                        }
                     }
                 )
                 .environmentObject(authService)
             }
         }
-        .background(
-            NavigationLink(
-                destination: authService.currentUser.map { currentUser in
-                    // Need to get the UAS Pilot Course
-                    GroundSchoolTestWrapperView(pilotId: currentUser.id)
-                        .navigationBarBackButtonHidden(true)
-                },
-                isActive: $navigateToTest
-            ) {
-                EmptyView()
+        .fullScreenCover(isPresented: $showGroundSchoolTest) {
+            if let currentUser = authService.currentUser {
+                GroundSchoolTestWrapperView(
+                    pilotId: currentUser.id,
+                    onDismiss: {
+                        showGroundSchoolTest = false
+                    }
+                )
             }
-            .hidden()
-        )
+        }
     }
 }
 
@@ -1415,6 +1415,8 @@ struct GroundSchoolTestIntroSheetView: View {
 
 struct GroundSchoolTestWrapperView: View {
     let pilotId: UUID
+    let onDismiss: () -> Void
+    
     @StateObject private var academyService = AcademyService()
     @State private var course: TrainingCourse?
     @State private var courseTest: CourseTest?
@@ -1457,7 +1459,8 @@ struct GroundSchoolTestWrapperView: View {
                     pilotId: pilotId,
                     testName: courseTest?.testName ?? "Ground School Test",
                     passingScore: courseTest?.passingScore ?? 70,
-                    durationMinutes: 60
+                    durationMinutes: 60,
+                    onDismiss: onDismiss
                 )
             } else {
                 VStack(spacing: 16) {

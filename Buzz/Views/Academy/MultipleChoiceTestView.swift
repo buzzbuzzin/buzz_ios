@@ -16,6 +16,7 @@ struct MultipleChoiceTestView: View {
     let testName: String
     let passingScore: Int
     let durationMinutes: Int
+    var onDismiss: (() -> Void)? = nil
     
     @Environment(\.dismiss) var dismiss
     @StateObject private var badgeService = BadgeService()
@@ -43,13 +44,14 @@ struct MultipleChoiceTestView: View {
     }
     
     // Custom initializer
-    init(testId: UUID, course: TrainingCourse, pilotId: UUID, testName: String, passingScore: Int = 70, durationMinutes: Int = 60) {
+    init(testId: UUID, course: TrainingCourse, pilotId: UUID, testName: String, passingScore: Int = 70, durationMinutes: Int = 60, onDismiss: (() -> Void)? = nil) {
         self.testId = testId
         self.course = course
         self.pilotId = pilotId
         self.testName = testName
         self.passingScore = passingScore
         self.durationMinutes = durationMinutes
+        self.onDismiss = onDismiss
         self._timeRemaining = State(initialValue: TimeInterval(durationMinutes * 60))
     }
     
@@ -73,29 +75,45 @@ struct MultipleChoiceTestView: View {
     }
     
     var body: some View {
-        testContentView
-            .navigationTitle(testName)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                testToolbar
+        Group {
+            if onDismiss != nil {
+                // Full-screen mode - wrap in NavigationStack
+                NavigationStack {
+                    testContentView
+                        .background(Color(.systemBackground))
+                        .navigationTitle(testName)
+                        .navigationBarTitleDisplayMode(.inline)
+                        .toolbar {
+                            testToolbar
+                        }
+                }
+            } else {
+                // Embedded mode - no NavigationStack wrapper
+                testContentView
+                    .navigationTitle(testName)
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        testToolbar
+                    }
             }
-            .alert("Exit Test?", isPresented: $showExitAlert) {
-                exitAlert
-            } message: {
-                Text("By exiting you will lose all your test progress and you will have to retake the exam.")
-            }
-            .sheet(isPresented: $showQuestionNavigator) {
-                questionNavigatorSheet
-            }
-            .sheet(isPresented: $showChartViewer) {
-                chartViewerSheet
-            }
-            .task {
-                await loadTestQuestions()
-            }
-            .onDisappear {
-                stopTimer()
-            }
+        }
+        .alert("Exit Test?", isPresented: $showExitAlert) {
+            exitAlert
+        } message: {
+            Text("By exiting you will lose all your test progress and you will have to retake the exam.")
+        }
+        .sheet(isPresented: $showQuestionNavigator) {
+            questionNavigatorSheet
+        }
+        .sheet(isPresented: $showChartViewer) {
+            chartViewerSheet
+        }
+        .task {
+            await loadTestQuestions()
+        }
+        .onDisappear {
+            stopTimer()
+        }
     }
     
     @ViewBuilder
@@ -158,7 +176,11 @@ struct MultipleChoiceTestView: View {
                             testName: testName,
                             passingScore: passingScore,
                             onDismiss: {
-                                dismiss()
+                                if let onDismiss = onDismiss {
+                                    onDismiss()
+                                } else {
+                                    dismiss()
+                                }
                             }
                         )
                     } else {
@@ -377,23 +399,32 @@ struct MultipleChoiceTestView: View {
     
     @ToolbarContentBuilder
     private var testToolbar: some ToolbarContent {
-        if !showResults && !isLoading {
-            ToolbarItem(placement: .navigationBarLeading) {
-                Button("Exit") {
+        ToolbarItem(placement: .navigationBarLeading) {
+            Button {
+                if showResults {
+                    if let onDismiss = onDismiss {
+                        onDismiss()
+                    } else {
+                        dismiss()
+                    }
+                } else {
                     stopTimer()
                     showExitAlert = true
                 }
-                .foregroundColor(.red)
+            } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.title2)
+                    .foregroundColor(.secondary)
             }
-            
-            if !questions.isEmpty {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(action: {
-                        showQuestionNavigator = true
-                    }) {
-                        Image(systemName: "square.grid.3x3.fill")
-                            .font(.title3)
-                    }
+        }
+        
+        if !showResults && !isLoading && !questions.isEmpty {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button(action: {
+                    showQuestionNavigator = true
+                }) {
+                    Image(systemName: "square.grid.3x3.fill")
+                        .font(.title3)
                 }
             }
         }
@@ -406,7 +437,11 @@ struct MultipleChoiceTestView: View {
         }
         Button("Exit", role: .destructive) {
             stopTimer()
-            dismiss()
+            if let onDismiss = onDismiss {
+                onDismiss()
+            } else {
+                dismiss()
+            }
         }
     }
     

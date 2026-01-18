@@ -26,8 +26,8 @@ struct ExamIntroView: View {
     @State private var courseTest: CourseTest?
     @State private var isLoadingTestType = true
     @State private var showProctorInfoView = false
+    @State private var showProctoredTest = false
     @State private var proctorName: String = ""
-    @State private var navigateToTest = false
     
     // Test IDs for Flight Review and ROC-A
     private let flightReviewTestId = UUID(uuidString: "f1a2b3c4-d5e6-7890-abcd-f11ab0000001")!
@@ -410,9 +410,51 @@ struct ExamIntroView: View {
                     durationMinutes: config.durationMinutes,
                     onStartTest: { name in
                         proctorName = name
-                        navigateToTest = true
+                        showProctorInfoView = false
+                        // Delay to ensure sheet dismisses before fullscreen cover
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                            showProctoredTest = true
+                        }
                     }
                 )
+            }
+        }
+        .fullScreenCover(isPresented: $showProctoredTest) {
+            if isProctored, let currentUser = authService.currentUser {
+                ProctoredMultipleChoiceTestView(
+                    testId: testId,
+                    course: TrainingCourse(
+                        id: courseId,
+                        title: config.displayName,
+                        description: config.fullDescription,
+                        duration: "\(config.durationMinutes) minutes",
+                        level: .advanced,
+                        category: .advanced,
+                        instructor: "Buzz",
+                        instructorPictureUrl: nil,
+                        rating: 5.0,
+                        studentsCount: 0,
+                        isEnrolled: true,
+                        provider: .buzz,
+                        badgeId: nil,
+                        isRecurrent: false,
+                        recurrentDueDate: nil,
+                        requiresUasGroundSchool: false,
+                        requiresFlightReviewPassed: false,
+                        requiresRocAPassed: false,
+                        externalUrl: nil,
+                        coverImageUrl: nil
+                    ),
+                    pilotId: currentUser.id,
+                    testName: courseTest?.testName ?? config.displayName,
+                    passingScore: courseTest?.passingScore ?? 70,
+                    durationMinutes: config.durationMinutes,
+                    proctorName: proctorName,
+                    onDismiss: {
+                        showProctoredTest = false
+                    }
+                )
+                .environmentObject(authService)
             }
         }
         .sheet(isPresented: $showUploadView) {
@@ -430,47 +472,6 @@ struct ExamIntroView: View {
                 .environmentObject(authService)
             }
         }
-        .background(
-            NavigationLink(
-                destination: authService.currentUser.map { currentUser in
-                    ProctoredMultipleChoiceTestView(
-                        testId: testId,
-                        course: TrainingCourse(
-                            id: courseId,
-                            title: config.displayName,
-                            description: config.fullDescription,
-                            duration: "\(config.durationMinutes) minutes",
-                            level: .advanced,
-                            category: .advanced,
-                            instructor: "Buzz",
-                            instructorPictureUrl: nil,
-                            rating: 5.0,
-                            studentsCount: 0,
-                            isEnrolled: true,
-                            provider: .buzz,
-                            badgeId: nil,
-                            isRecurrent: false,
-                            recurrentDueDate: nil,
-                            requiresUasGroundSchool: false,
-                            requiresFlightReviewPassed: false,
-                            requiresRocAPassed: false,
-                            externalUrl: nil,
-                            coverImageUrl: nil
-                        ),
-                        pilotId: currentUser.id,
-                        testName: courseTest?.testName ?? config.displayName,
-                        passingScore: courseTest?.passingScore ?? 70,
-                        durationMinutes: config.durationMinutes,
-                        proctorName: proctorName
-                    )
-                    .navigationBarBackButtonHidden(true)
-                },
-                isActive: $navigateToTest
-            ) {
-                EmptyView()
-            }
-            .hidden()
-        )
         .navigationDestination(isPresented: $showSchedulingView) {
             if let price = priceInfo {
                 ExamSchedulingView(
