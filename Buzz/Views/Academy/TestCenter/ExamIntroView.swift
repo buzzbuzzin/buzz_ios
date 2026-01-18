@@ -412,7 +412,7 @@ struct ExamIntroView: View {
                         proctorName = name
                         showProctorInfoView = false
                         // Delay to ensure sheet dismisses before fullscreen cover
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                             showProctoredTest = true
                         }
                     }

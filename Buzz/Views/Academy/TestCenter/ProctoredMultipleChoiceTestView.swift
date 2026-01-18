@@ -96,12 +96,12 @@ struct ProctoredMultipleChoiceTestView: View {
                 .sheet(isPresented: $showChartViewer) {
                     chartViewerSheet
                 }
-        }
-        .task {
-            await loadTestQuestions()
-        }
-        .onDisappear {
-            stopTimer()
+                .task {
+                    await loadTestQuestions()
+                }
+                .onDisappear {
+                    stopTimer()
+                }
         }
     }
     
@@ -508,6 +508,13 @@ struct ProctoredMultipleChoiceTestView: View {
             
             isLoading = false
         } catch {
+            // Check if error is a cancellation (user navigated away during load)
+            let nsError = error as NSError
+            if nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled {
+                print("⚠️ [ProctoredTest] Load cancelled - user navigated away")
+                return // Don't show error for cancellation
+            }
+            
             errorMessage = "Error loading test: \(error.localizedDescription)"
             isLoading = false
         }
