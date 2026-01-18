@@ -20,6 +20,7 @@ struct CourseTest: Identifiable, Codable {
     let orderIndex: Int
     let isActive: Bool
     let sectionId: UUID?
+    let needsProctor: Bool
     
     enum CodingKeys: String, CodingKey {
         case id
@@ -33,6 +34,7 @@ struct CourseTest: Identifiable, Codable {
         case orderIndex = "order_index"
         case isActive = "is_active"
         case sectionId = "section_id"
+        case needsProctor = "needs_proctor"
     }
 }
 
@@ -52,6 +54,7 @@ struct TestResult: Identifiable, Codable {
     let reviewedAt: Date?
     let reviewerNotes: String?
     let reviewedBy: UUID?
+    let proctorName: String?
     
     enum CodingKeys: String, CodingKey {
         case id
@@ -69,6 +72,7 @@ struct TestResult: Identifiable, Codable {
         case reviewedAt = "reviewed_at"
         case reviewerNotes = "reviewer_notes"
         case reviewedBy = "reviewed_by"
+        case proctorName = "proctor_name"
     }
 }
 

@@ -25,6 +25,9 @@ struct ExamIntroView: View {
     @State private var isLoadingTestResult = true
     @State private var courseTest: CourseTest?
     @State private var isLoadingTestType = true
+    @State private var showProctorInfoView = false
+    @State private var proctorName: String = ""
+    @State private var navigateToTest = false
     
     // Test IDs for Flight Review and ROC-A
     private let flightReviewTestId = UUID(uuidString: "f1a2b3c4-d5e6-7890-abcd-f11ab0000001")!
@@ -42,6 +45,12 @@ struct ExamIntroView: View {
         }
         // Upload is required for all test types except multiple_choice
         return courseTest.testType != "multiple_choice"
+    }
+    
+    // Check if this is a proctored multiple-choice exam
+    private var isProctored: Bool {
+        guard let courseTest = courseTest else { return false }
+        return courseTest.testType == "multiple_choice" && courseTest.needsProctor
     }
     
     private var testId: UUID {
@@ -312,6 +321,26 @@ struct ExamIntroView: View {
                     .disabled(prerequisitesStatus?.isEligible != true || priceInfo == nil)
                     .padding(.horizontal)
                         
+                        // Start Exam Button (for proctored multiple-choice exams)
+                        if isProctored && !hasPassed && uploadStatus != .pending {
+                            Button(action: {
+                                showProctorInfoView = true
+                            }) {
+                                HStack {
+                                    Image(systemName: "play.fill")
+                                    Text("Start Exam")
+                                        .fontWeight(.semibold)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(prerequisitesStatus?.isEligible == true ? Color.orange : Color.gray)
+                                .foregroundColor(.white)
+                                .cornerRadius(12)
+                            }
+                            .disabled(prerequisitesStatus?.isEligible != true)
+                            .padding(.horizontal)
+                        }
+                        
                         // Upload Button (for non-multiple-choice exams)
                         // Only show if: not passed, not under review, and (never submitted OR rejected)
                         if requiresUpload && uploadStatus != .pending && !hasPassed {
@@ -349,6 +378,43 @@ struct ExamIntroView: View {
         }
         .navigationTitle(config.displayName)
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $showProctorInfoView) {
+            if isProctored, let currentUser = authService.currentUser {
+                ProctorInfoView(
+                    testId: testId,
+                    course: TrainingCourse(
+                        id: courseId,
+                        title: config.displayName,
+                        description: config.fullDescription,
+                        duration: "\(config.durationMinutes) minutes",
+                        level: .advanced,
+                        category: .advanced,
+                        instructor: "Buzz",
+                        instructorPictureUrl: nil,
+                        rating: 5.0,
+                        studentsCount: 0,
+                        isEnrolled: true,
+                        provider: .buzz,
+                        badgeId: nil,
+                        isRecurrent: false,
+                        recurrentDueDate: nil,
+                        requiresUasGroundSchool: false,
+                        requiresFlightReviewPassed: false,
+                        requiresRocAPassed: false,
+                        externalUrl: nil,
+                        coverImageUrl: nil
+                    ),
+                    pilotId: currentUser.id,
+                    testName: courseTest?.testName ?? config.displayName,
+                    passingScore: courseTest?.passingScore ?? 70,
+                    durationMinutes: config.durationMinutes,
+                    onStartTest: { name in
+                        proctorName = name
+                        navigateToTest = true
+                    }
+                )
+            }
+        }
         .sheet(isPresented: $showUploadView) {
             if requiresUpload {
                 TestResultUploadView(
@@ -364,6 +430,47 @@ struct ExamIntroView: View {
                 .environmentObject(authService)
             }
         }
+        .background(
+            NavigationLink(
+                destination: authService.currentUser.map { currentUser in
+                    ProctoredMultipleChoiceTestView(
+                        testId: testId,
+                        course: TrainingCourse(
+                            id: courseId,
+                            title: config.displayName,
+                            description: config.fullDescription,
+                            duration: "\(config.durationMinutes) minutes",
+                            level: .advanced,
+                            category: .advanced,
+                            instructor: "Buzz",
+                            instructorPictureUrl: nil,
+                            rating: 5.0,
+                            studentsCount: 0,
+                            isEnrolled: true,
+                            provider: .buzz,
+                            badgeId: nil,
+                            isRecurrent: false,
+                            recurrentDueDate: nil,
+                            requiresUasGroundSchool: false,
+                            requiresFlightReviewPassed: false,
+                            requiresRocAPassed: false,
+                            externalUrl: nil,
+                            coverImageUrl: nil
+                        ),
+                        pilotId: currentUser.id,
+                        testName: courseTest?.testName ?? config.displayName,
+                        passingScore: courseTest?.passingScore ?? 70,
+                        durationMinutes: config.durationMinutes,
+                        proctorName: proctorName
+                    )
+                    .navigationBarBackButtonHidden(true)
+                },
+                isActive: $navigateToTest
+            ) {
+                EmptyView()
+            }
+            .hidden()
+        )
         .navigationDestination(isPresented: $showSchedulingView) {
             if let price = priceInfo {
                 ExamSchedulingView(
