@@ -1,21 +1,27 @@
 //
-//  GroundSchoolTestView.swift
+//  MultipleChoiceTestView.swift
 //  Buzz
 //
-//  Created for Ground School test after units 1-3
+//  Generic multiple choice test view that works for any test
+//  Fetches questions, answers, and images from the test_questions table
 //
 
 import SwiftUI
 import Supabase
 
-struct GroundSchoolTestView: View {
+struct MultipleChoiceTestView: View {
+    let testId: UUID
     let course: TrainingCourse
     let pilotId: UUID
+    let testName: String
+    let passingScore: Int
+    let durationMinutes: Int
+    
     @Environment(\.dismiss) var dismiss
     @StateObject private var badgeService = BadgeService()
     @StateObject private var academyService = AcademyService()
     @State private var currentQuestionIndex = 0
-    @State private var selectedAnswers: [Int: Int] = [:]
+    @State private var selectedAnswers: [UUID: Int] = [:]
     @State private var showResults = false
     @State private var testScore = 0
     @State private var passed = false
@@ -26,43 +32,26 @@ struct GroundSchoolTestView: View {
     @State private var showExitAlert = false
     @State private var selectedChartURL: URL? = nil
     @State private var showChartViewer = false
-    @State private var timeRemaining: TimeInterval = 3600 // 60 minutes in seconds
+    @State private var timeRemaining: TimeInterval
     @State private var timer: Timer? = nil
     @State private var testStartTime: Date? = nil
     @State private var wasAutoSubmitted = false
     
-    // Ground School Test ID (fixed UUID)
-    private let groundSchoolTestId = UUID(uuidString: "a1b2c3d4-e5f6-7890-abcd-000000000001")!
+    // Computed property for duration in seconds
+    private var durationSeconds: TimeInterval {
+        TimeInterval(durationMinutes * 60)
+    }
     
-    // Chart URLs mapping based on available files in Supabase storage
-    private let chartURLsMapping: [Int: [URL]] = {
-        let baseURL = "https://mzapuczjijqjzdcujetx.supabase.co/storage/v1/object/public/course-materials/test-1/materials"
-        return [
-            12: [URL(string: "\(baseURL)/Q_12.png")!],
-            15: [URL(string: "\(baseURL)/Q_15.png")!],
-            22: [URL(string: "\(baseURL)/Q_22.png")!],
-            23: [URL(string: "\(baseURL)/Q_23.png")!],
-            25: [URL(string: "\(baseURL)/Q_25.png")!],
-            26: [URL(string: "\(baseURL)/Q_26.png")!],
-            27: [URL(string: "\(baseURL)/Q_27.png")!],
-            28: [URL(string: "\(baseURL)/Q_28_1.png")!, URL(string: "\(baseURL)/Q_28_2.png")!],
-            30: [URL(string: "\(baseURL)/Q_30.png")!],
-            31: [URL(string: "\(baseURL)/Q_31.png")!],
-            32: [URL(string: "\(baseURL)/Q_32.png")!],
-            42: [URL(string: "\(baseURL)/Q_42.png")!],
-            43: [URL(string: "\(baseURL)/Q_43.png")!],
-            44: [URL(string: "\(baseURL)/Q_44.png")!],
-            45: [URL(string: "\(baseURL)/Q_45.png")!],
-            46: [URL(string: "\(baseURL)/Q_46.png")!],
-            47: [URL(string: "\(baseURL)/Q_47.png")!],
-            48: [URL(string: "\(baseURL)/Q_48.png")!],
-            49: [URL(string: "\(baseURL)/Q_49.png")!],
-            50: [URL(string: "\(baseURL)/Q_50.png")!],
-            51: [URL(string: "\(baseURL)/Q_51.png")!],
-            52: [URL(string: "\(baseURL)/Q_52.png")!],
-            53: [URL(string: "\(baseURL)/Q_53.png")!]
-        ]
-    }()
+    // Custom initializer
+    init(testId: UUID, course: TrainingCourse, pilotId: UUID, testName: String, passingScore: Int = 70, durationMinutes: Int = 60) {
+        self.testId = testId
+        self.course = course
+        self.pilotId = pilotId
+        self.testName = testName
+        self.passingScore = passingScore
+        self.durationMinutes = durationMinutes
+        self._timeRemaining = State(initialValue: TimeInterval(durationMinutes * 60))
+    }
     
     var currentQuestion: TestQuestion {
         questions[currentQuestionIndex]
@@ -85,7 +74,7 @@ struct GroundSchoolTestView: View {
     
     var body: some View {
         testContentView
-            .navigationTitle("Ground School Test")
+            .navigationTitle(testName)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 testToolbar
@@ -161,11 +150,13 @@ struct GroundSchoolTestView: View {
                         .padding()
                     } else if showResults {
                         // Results View
-                        TestResultsView(
+                        MultipleChoiceTestResultsView(
                             score: testScore,
                             passed: passed,
                             totalQuestions: questions.count,
                             wasAutoSubmitted: wasAutoSubmitted,
+                            testName: testName,
+                            passingScore: passingScore,
                             onDismiss: {
                                 dismiss()
                             }
@@ -218,46 +209,48 @@ struct GroundSchoolTestView: View {
                             
                             // Question
                             VStack(alignment: .leading, spacing: 16) {
-                                Text(currentQuestion.question)
+                                Text(currentQuestion.questionText)
                                     .font(.title3)
                                     .fontWeight(.semibold)
                                     .padding(.horizontal)
                                 
-                                // Chart images (if available)
-                                if let chartURLs = chartURLsMapping[currentQuestion.id], !chartURLs.isEmpty {
+                                // Chart images (if available from database)
+                                if !currentQuestion.imageUrls.isEmpty {
                                     ScrollView(.horizontal, showsIndicators: false) {
                                         HStack(spacing: 12) {
-                                            ForEach(chartURLs, id: \.self) { url in
-                                                Button(action: {
-                                                    selectedChartURL = url
-                                                    showChartViewer = true
-                                                }) {
-                                                    AsyncImage(url: url) { image in
-                                                        image
-                                                            .resizable()
-                                                            .aspectRatio(contentMode: .fit)
-                                                            .frame(height: 200)
-                                                            .cornerRadius(8)
-                                                            .overlay(
-                                                                VStack {
-                                                                    Spacer()
-                                                                    HStack {
+                                            ForEach(currentQuestion.imageUrls, id: \.self) { urlString in
+                                                if let url = URL(string: urlString) {
+                                                    Button(action: {
+                                                        selectedChartURL = url
+                                                        showChartViewer = true
+                                                    }) {
+                                                        AsyncImage(url: url) { image in
+                                                            image
+                                                                .resizable()
+                                                                .aspectRatio(contentMode: .fit)
+                                                                .frame(height: 200)
+                                                                .cornerRadius(8)
+                                                                .overlay(
+                                                                    VStack {
                                                                         Spacer()
-                                                                        Image(systemName: "magnifyingglass")
-                                                                            .padding(8)
-                                                                            .background(Color.black.opacity(0.6))
-                                                                            .foregroundColor(.white)
-                                                                            .cornerRadius(6)
-                                                                            .padding(8)
+                                                                        HStack {
+                                                                            Spacer()
+                                                                            Image(systemName: "magnifyingglass")
+                                                                                .padding(8)
+                                                                                .background(Color.black.opacity(0.6))
+                                                                                .foregroundColor(.white)
+                                                                                .cornerRadius(6)
+                                                                                .padding(8)
+                                                                        }
                                                                     }
-                                                                }
-                                                            )
-                                                    } placeholder: {
-                                                        ProgressView()
-                                                            .frame(height: 200)
+                                                                )
+                                                        } placeholder: {
+                                                            ProgressView()
+                                                                .frame(height: 200)
+                                                        }
                                                     }
+                                                    .buttonStyle(PlainButtonStyle())
                                                 }
-                                                .buttonStyle(PlainButtonStyle())
                                             }
                                         }
                                         .padding(.horizontal)
@@ -437,124 +430,40 @@ struct GroundSchoolTestView: View {
     }
     
     private func loadTestQuestions() async {
-        print("🚀 [GroundSchoolTestView] Starting to load test questions...")
-        print("🌐 [GroundSchoolTestView] Fetching from backend storage...")
+        print("🚀 [MultipleChoiceTestView] Starting to load test questions for test: \(testId)")
+        print("🌐 [MultipleChoiceTestView] Fetching from database...")
         
         isLoading = true
         errorMessage = nil
         
         do {
-            // Fetch CSV directly from backend storage
-            let csvURL = URL(string: "https://mzapuczjijqjzdcujetx.supabase.co/storage/v1/object/public/course-materials/test-1/ground_school_exam_questions.csv")!
+            // Fetch questions from database
+            let loadedQuestions = try await academyService.fetchTestQuestions(testId: testId)
             
-            print("🔄 [GroundSchoolTestView] Downloading CSV from: \(csvURL)")
-            
-            let (data, response) = try await URLSession.shared.data(from: csvURL)
-            
-            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-                print("❌ [GroundSchoolTestView] Failed to download CSV - invalid response")
-                errorMessage = "Failed to download test questions"
-                isLoading = false
-                return
-            }
-            
-            print("✅ [GroundSchoolTestView] CSV downloaded successfully - \(data.count) bytes")
-            
-            guard let csvString = String(data: data, encoding: .utf8) else {
-                print("❌ [GroundSchoolTestView] Failed to parse CSV as UTF-8")
-                errorMessage = "Failed to parse test questions"
-                isLoading = false
-                return
-            }
-            
-            // Parse CSV
-            print("🔄 [GroundSchoolTestView] Parsing CSV data...")
-            let lines = csvString.components(separatedBy: .newlines)
-            print("📊 [GroundSchoolTestView] CSV has \(lines.count) line(s)")
-            
-            var loadedQuestions: [TestQuestion] = []
-            
-            // Skip header line (line 0)
-            for (index, line) in lines.enumerated() where index > 0 {
-                // Skip empty lines
-                guard !line.trimmingCharacters(in: .whitespaces).isEmpty else { continue }
-                
-                // Parse CSV line - handle quoted fields with commas
-                let fields = parseCSVLine(line)
-                
-                guard fields.count >= 7 else {
-                    print("⚠️ [GroundSchoolTestView] Skipping line \(index) - not enough fields (\(fields.count))")
-                    continue
-                }
-                
-                // CSV format: problem_number, problem_area, problem_statement, option_1, option_2, option_3, correct_answer
-                guard let questionNumber = Int(fields[0]),
-                      let correctAnswerIndex = Int(fields[6]) else {
-                    print("⚠️ [GroundSchoolTestView] Skipping line \(index) - invalid number format")
-                    continue
-                }
-                
-                let questionText = fields[2]
-                let options = [fields[3], fields[4], fields[5]]
-                
-                // CSV uses 1-indexed (1, 2, 3), we need 0-indexed (0, 1, 2)
-                let correctAnswer = correctAnswerIndex - 1
-                
-                loadedQuestions.append(TestQuestion(
-                    id: questionNumber,
-                    question: questionText,
-                    options: options,
-                    correctAnswer: correctAnswer
-                ))
-            }
-            
-            print("✅ [GroundSchoolTestView] Successfully parsed \(loadedQuestions.count) question(s)")
+            print("✅ [MultipleChoiceTestView] Successfully loaded \(loadedQuestions.count) question(s)")
             
             if loadedQuestions.isEmpty {
-                print("❌ [GroundSchoolTestView] No valid questions found")
+                print("❌ [MultipleChoiceTestView] No valid questions found")
                 errorMessage = "No questions found in test"
             } else {
                 questions = loadedQuestions
-                print("🎉 [GroundSchoolTestView] Test ready with \(questions.count) questions!")
+                print("🎉 [MultipleChoiceTestView] Test ready with \(questions.count) questions!")
                 // Start the timer when questions are loaded
                 startTimer()
             }
             
             isLoading = false
         } catch {
-            print("❌ [GroundSchoolTestView] Error loading test: \(error)")
+            print("❌ [MultipleChoiceTestView] Error loading test: \(error)")
             errorMessage = "Error loading test: \(error.localizedDescription)"
             isLoading = false
         }
     }
     
-    // Helper function to parse CSV line with quoted fields
-    private func parseCSVLine(_ line: String) -> [String] {
-        var fields: [String] = []
-        var currentField = ""
-        var insideQuotes = false
-        
-        for char in line {
-            if char == "\"" {
-                insideQuotes.toggle()
-            } else if char == "," && !insideQuotes {
-                fields.append(currentField.trimmingCharacters(in: .whitespaces))
-                currentField = ""
-            } else {
-                currentField.append(char)
-            }
-        }
-        
-        // Add the last field
-        fields.append(currentField.trimmingCharacters(in: .whitespaces))
-        
-        return fields
-    }
-    
     private func startTimer() {
         stopTimer() // Stop any existing timer
         testStartTime = Date()
-        timeRemaining = 3600 // Reset to 60 minutes
+        timeRemaining = durationSeconds
         wasAutoSubmitted = false
         
         timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
@@ -593,13 +502,13 @@ struct GroundSchoolTestView: View {
         var correctAnswers = 0
         for question in questions {
             if let selectedAnswer = selectedAnswers[question.id],
-               selectedAnswer == question.correctAnswer {
+               selectedAnswer == question.correctAnswerIndex {
                 correctAnswers += 1
             }
         }
         
         testScore = Int((Double(correctAnswers) / Double(questions.count)) * 100)
-        passed = testScore >= 70 // Passing score is 70%
+        passed = testScore >= passingScore
         
         // Save test results
         Task {
@@ -615,13 +524,13 @@ struct GroundSchoolTestView: View {
             var answersDict: [String: AnyJSON] = [:]
             for question in questions {
                 if let selectedAnswer = selectedAnswers[question.id] {
-                    answersDict["question_\(question.id)"] = .integer(selectedAnswer)
+                    answersDict["question_\(question.id.uuidString)"] = .integer(selectedAnswer)
                 }
             }
             
             let testResult: [String: AnyJSON] = [
                 "pilot_id": .string(pilotId.uuidString),
-                "test_id": .string(groundSchoolTestId.uuidString),
+                "test_id": .string(testId.uuidString),
                 "course_id": .string(course.id.uuidString),
                 "score": .integer(score),
                 "passed": .bool(passed),
@@ -634,8 +543,7 @@ struct GroundSchoolTestView: View {
                 .upsert(testResult, onConflict: "pilot_id,test_id")
                 .execute()
             
-            // If passed, award the UAA course badge
-            // This replaces the manual "Mark as Completed" flow for the UAS Pilot Course
+            // If passed, award the course badge
             if passed {
                 try await badgeService.awardBadge(
                     pilotId: pilotId,
@@ -645,28 +553,25 @@ struct GroundSchoolTestView: View {
                     provider: Badge.CourseProvider(rawValue: course.provider.rawValue) ?? .buzz
                 )
                 
-                // Express Promotion: Auto-promote to Commander
+                // Express Promotion: Auto-promote to Commander (only for UAS Pilot Course)
                 // Requires BOTH conditions:
                 // 1. Test passed (already satisfied - we're inside the `if passed` block)
                 // 2. Step 1 completed (Lieutenant promotion verified)
-                // Only check for UAS Ground School Test (course ID: a1b2c3d4-e5f6-7890-abcd-ef1234567890)
                 let uasCourseId = UUID(uuidString: "a1b2c3d4-e5f6-7890-abcd-ef1234567890")
                 if course.id == uasCourseId {
                     let expressPromotionService = ExpressPromotionService()
                     let hasLieutenantPromotion = await expressPromotionService.hasLieutenantPromotion(pilotId: pilotId)
                     
-                    // Check both conditions: test passed AND Step 1 completed
                     if passed && hasLieutenantPromotion {
-                        print("🚀 [GroundSchoolTestView] Both conditions met - Test passed AND Lieutenant verified. Auto-promoting to Commander...")
+                        print("🚀 [MultipleChoiceTestView] Both conditions met - Test passed AND Lieutenant verified. Auto-promoting to Commander...")
                         do {
                             try await expressPromotionService.autoPromoteToCommander(pilotId: pilotId)
-                            print("✅ [GroundSchoolTestView] Successfully auto-promoted to Commander")
+                            print("✅ [MultipleChoiceTestView] Successfully auto-promoted to Commander")
                         } catch {
-                            print("⚠️ [GroundSchoolTestView] Error auto-promoting to Commander: \(error.localizedDescription)")
-                            // Don't fail the test submission if promotion fails
+                            print("⚠️ [MultipleChoiceTestView] Error auto-promoting to Commander: \(error.localizedDescription)")
                         }
                     } else if passed && !hasLieutenantPromotion {
-                        print("ℹ️ [GroundSchoolTestView] Test passed but Step 1 (Lieutenant promotion) not completed. Commander promotion skipped.")
+                        print("ℹ️ [MultipleChoiceTestView] Test passed but Step 1 (Lieutenant promotion) not completed. Commander promotion skipped.")
                     }
                 }
             }
@@ -682,22 +587,15 @@ struct GroundSchoolTestView: View {
     }
 }
 
-// MARK: - Test Question Model
+// MARK: - Generic Test Results View
 
-struct TestQuestion {
-    let id: Int
-    let question: String
-    let options: [String]
-    let correctAnswer: Int // Index of correct answer
-}
-
-// MARK: - Test Results View
-
-struct TestResultsView: View {
+struct MultipleChoiceTestResultsView: View {
     let score: Int
     let passed: Bool
     let totalQuestions: Int
     let wasAutoSubmitted: Bool
+    let testName: String
+    let passingScore: Int
     let onDismiss: () -> Void
     
     var body: some View {
@@ -726,7 +624,7 @@ struct TestResultsView: View {
                         .padding(.horizontal)
                 }
                 
-                Text(passed ? "You've earned the Ground School badge!" : "You need 70% to pass. Try again!")
+                Text(passed ? "You've completed the \(testName)!" : "You need \(passingScore)% to pass. Try again!")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
@@ -755,7 +653,7 @@ struct TestResultsView: View {
                     Text("Required:")
                         .foregroundColor(.secondary)
                     Spacer()
-                    Text("70%")
+                    Text("\(passingScore)%")
                         .fontWeight(.semibold)
                 }
             }
@@ -780,4 +678,3 @@ struct TestResultsView: View {
         .padding(.top)
     }
 }
-

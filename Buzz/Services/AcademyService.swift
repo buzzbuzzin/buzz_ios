@@ -360,6 +360,31 @@ class AcademyService: ObservableObject {
         }
     }
     
+    // MARK: - Fetch Test Questions
+    
+    /// Fetch questions for a specific test from the test_questions table
+    /// - Parameter testId: The UUID of the test
+    /// - Returns: Array of TestQuestion objects ordered by question_number
+    func fetchTestQuestions(testId: UUID) async throws -> [TestQuestion] {
+        print("🔍 [AcademyService] Fetching questions for test: \(testId)")
+        
+        do {
+            let response: [TestQuestion] = try await supabase
+                .from("test_questions")
+                .select()
+                .eq("test_id", value: testId.uuidString)
+                .order("question_number", ascending: true)
+                .execute()
+                .value
+            
+            print("✅ [AcademyService] Successfully fetched \(response.count) questions for test: \(testId)")
+            return response
+        } catch {
+            print("❌ [AcademyService] Error fetching test questions: \(error)")
+            throw error
+        }
+    }
+    
     // MARK: - Check Test Status by Test ID
     
     func checkTestStatus(pilotId: UUID, testId: UUID) async throws -> Bool {

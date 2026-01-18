@@ -104,3 +104,64 @@ extension TestResult {
     }
 }
 
+
+// MARK: - Test Question Model
+
+struct TestQuestion: Identifiable, Codable, Hashable {
+    let id: UUID
+    let testId: UUID
+    let questionNumber: Int
+    let questionArea: String?
+    let questionText: String
+    let options: [String]
+    let correctAnswerIndex: Int
+    let explanation: String?
+    let imageUrls: [String]
+    
+    enum CodingKeys: String, CodingKey {
+        case id
+        case testId = "test_id"
+        case questionNumber = "question_number"
+        case questionArea = "question_area"
+        case questionText = "question_text"
+        case options
+        case correctAnswerIndex = "correct_answer_index"
+        case explanation
+        case imageUrls = "image_urls"
+    }
+    
+    // Custom decoder to handle JSONB options field
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        testId = try container.decode(UUID.self, forKey: .testId)
+        questionNumber = try container.decode(Int.self, forKey: .questionNumber)
+        questionArea = try container.decodeIfPresent(String.self, forKey: .questionArea)
+        questionText = try container.decode(String.self, forKey: .questionText)
+        correctAnswerIndex = try container.decode(Int.self, forKey: .correctAnswerIndex)
+        explanation = try container.decodeIfPresent(String.self, forKey: .explanation)
+        imageUrls = (try? container.decode([String].self, forKey: .imageUrls)) ?? []
+        
+        // Handle options - can be JSONB array or string array
+        if let optionsArray = try? container.decode([String].self, forKey: .options) {
+            options = optionsArray
+        } else {
+            options = []
+        }
+    }
+    
+    // Standard initializer for testing/manual creation
+    init(id: UUID, testId: UUID, questionNumber: Int, questionArea: String? = nil, 
+         questionText: String, options: [String], correctAnswerIndex: Int, 
+         explanation: String? = nil, imageUrls: [String] = []) {
+        self.id = id
+        self.testId = testId
+        self.questionNumber = questionNumber
+        self.questionArea = questionArea
+        self.questionText = questionText
+        self.options = options
+        self.correctAnswerIndex = correctAnswerIndex
+        self.explanation = explanation
+        self.imageUrls = imageUrls
+    }
+}

@@ -1417,11 +1417,14 @@ struct GroundSchoolTestWrapperView: View {
     let pilotId: UUID
     @StateObject private var academyService = AcademyService()
     @State private var course: TrainingCourse?
+    @State private var courseTest: CourseTest?
     @State private var isLoading = true
     @State private var errorMessage: String?
     
     // UAS Pilot Course UUID (fixed)
     private let uasPilotCourseId = UUID(uuidString: "a1b2c3d4-e5f6-7890-abcd-ef1234567890")!
+    // Ground School Test UUID (fixed)
+    private let groundSchoolTestId = UUID(uuidString: "a1b2c3d4-e5f6-7890-abcd-000000000001")!
     
     var body: some View {
         Group {
@@ -1448,7 +1451,14 @@ struct GroundSchoolTestWrapperView: View {
                 }
                 .padding()
             } else if let course = course {
-                GroundSchoolTestView(course: course, pilotId: pilotId)
+                MultipleChoiceTestView(
+                    testId: groundSchoolTestId,
+                    course: course,
+                    pilotId: pilotId,
+                    testName: courseTest?.testName ?? "Ground School Test",
+                    passingScore: courseTest?.passingScore ?? 70,
+                    durationMinutes: 60
+                )
             } else {
                 VStack(spacing: 16) {
                     Image(systemName: "exclamationmark.triangle.fill")
@@ -1477,6 +1487,12 @@ struct GroundSchoolTestWrapperView: View {
             // Fetch the UAS Pilot Course
             try await academyService.fetchCourses()
             course = academyService.courses.first { $0.id == uasPilotCourseId }
+            
+            // Fetch the course tests to get test configuration
+            if let course = course {
+                let tests = try await academyService.fetchCourseTests(courseId: course.id)
+                courseTest = tests.first { $0.testType == "multiple_choice" }
+            }
             
             if course == nil {
                 errorMessage = "UAS Pilot Course not found"

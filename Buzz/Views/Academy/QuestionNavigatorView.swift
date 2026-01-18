@@ -2,7 +2,7 @@ import SwiftUI
 
 struct QuestionNavigatorView: View {
     let questions: [TestQuestion]
-    let selectedAnswers: [Int: Int]
+    let selectedAnswers: [UUID: Int]
     @Binding var currentQuestionIndex: Int
     let onDismiss: () -> Void
     
@@ -155,15 +155,18 @@ struct LegendItem: View {
 }
 
 #Preview {
-    QuestionNavigatorView(
+    let testId = UUID()
+    let q1Id = UUID()
+    let q2Id = UUID()
+    return QuestionNavigatorView(
         questions: [
-            TestQuestion(id: 1, question: "Test 1", options: ["A", "B", "C"], correctAnswer: 0),
-            TestQuestion(id: 2, question: "Test 2", options: ["A", "B", "C"], correctAnswer: 1),
-            TestQuestion(id: 3, question: "Test 3", options: ["A", "B", "C"], correctAnswer: 2),
-            TestQuestion(id: 4, question: "Test 4", options: ["A", "B", "C"], correctAnswer: 0),
-            TestQuestion(id: 5, question: "Test 5", options: ["A", "B", "C"], correctAnswer: 1),
+            TestQuestion(id: q1Id, testId: testId, questionNumber: 1, questionText: "Test 1", options: ["A", "B", "C"], correctAnswerIndex: 0),
+            TestQuestion(id: q2Id, testId: testId, questionNumber: 2, questionText: "Test 2", options: ["A", "B", "C"], correctAnswerIndex: 1),
+            TestQuestion(id: UUID(), testId: testId, questionNumber: 3, questionText: "Test 3", options: ["A", "B", "C"], correctAnswerIndex: 2),
+            TestQuestion(id: UUID(), testId: testId, questionNumber: 4, questionText: "Test 4", options: ["A", "B", "C"], correctAnswerIndex: 0),
+            TestQuestion(id: UUID(), testId: testId, questionNumber: 5, questionText: "Test 5", options: ["A", "B", "C"], correctAnswerIndex: 1),
         ],
-        selectedAnswers: [1: 0, 2: 1],
+        selectedAnswers: [q1Id: 0, q2Id: 1],
         currentQuestionIndex: .constant(0),
         onDismiss: {}
     )

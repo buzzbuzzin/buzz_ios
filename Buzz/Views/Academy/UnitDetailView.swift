@@ -13,17 +13,22 @@ struct UnitDetailView: View {
     let unit: CourseUnit
     let course: TrainingCourse
     @EnvironmentObject var authService: AuthService
+    @StateObject private var academyService = AcademyService()
     @State private var selectedPDF: PDFSelection?
     @State private var isCompleted = false
     @State private var showTestView = false
     @State private var canTakeTest = false
     @State private var isLoading = false
     @State private var showCompletionSuccess = false
+    @State private var courseTest: CourseTest?
     
     // Check if this is the UAS Pilot Course
     var isUASPilotCourse: Bool {
         course.id.uuidString == "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
     }
+    
+    // Ground School Test UUID (fixed)
+    private let groundSchoolTestId = UUID(uuidString: "a1b2c3d4-e5f6-7890-abcd-000000000001")!
     
     // Check if this is unit 3 (last mandatory unit)
     var isLastMandatoryUnit: Bool {
@@ -259,8 +264,27 @@ struct UnitDetailView: View {
         }
         .sheet(isPresented: $showTestView) {
             if let currentUser = authService.currentUser {
-                GroundSchoolTestView(course: course, pilotId: currentUser.id)
+                MultipleChoiceTestView(
+                    testId: groundSchoolTestId,
+                    course: course,
+                    pilotId: currentUser.id,
+                    testName: courseTest?.testName ?? "Ground School Test",
+                    passingScore: courseTest?.passingScore ?? 70,
+                    durationMinutes: 60
+                )
             }
+        }
+        .task {
+            await loadCourseTest()
+        }
+    }
+    
+    private func loadCourseTest() async {
+        do {
+            let tests = try await academyService.fetchCourseTests(courseId: course.id)
+            courseTest = tests.first { $0.testType == "multiple_choice" }
+        } catch {
+            print("Error loading course test: \(error)")
         }
     }
     

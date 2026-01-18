@@ -26,16 +26,16 @@ struct CourseContentView: View {
     @State private var completedUnitIds: Set<UUID> = []
     @State private var completedUnitNumbers: Set<Int> = []
     @State private var passedTestIds: Set<UUID> = []
+    @State private var courseTests: [CourseTest] = []
     
     /// Check if user has active subscription from any source (Apple or Stripe)
     var hasSubscription: Bool {
         entitlementManager.hasAcademyPass
     }
     
-    // Check if this is the UAS Pilot Course
-    var isUASPilotCourse: Bool {
-        let isUAS = course.id.uuidString.lowercased() == "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
-        return isUAS
+    // Get the first multiple choice test for this course (if any)
+    var multipleChoiceTest: CourseTest? {
+        courseTests.first { $0.testType == "multiple_choice" }
     }
     
     var body: some View {
@@ -109,8 +109,17 @@ struct CourseContentView: View {
         }
         .background(
             NavigationLink(
-                destination: authService.currentUser.map { currentUser in
-                    GroundSchoolTestView(course: course, pilotId: currentUser.id)
+                destination: Group {
+                    if let currentUser = authService.currentUser,
+                       let test = multipleChoiceTest {
+                        MultipleChoiceTestView(
+                            testId: test.id,
+                            course: course,
+                            pilotId: currentUser.id,
+                            testName: test.testName,
+                            passingScore: test.passingScore,
+                            durationMinutes: 60 // Default duration, can be fetched from backend
+                        )
                         .navigationBarBackButtonHidden(true)
                         .onDisappear {
                             Task {
@@ -123,6 +132,9 @@ struct CourseContentView: View {
                                 }
                             }
                         }
+                    } else {
+                        EmptyView()
+                    }
                 },
                 isActive: $navigateToTest
             ) {
@@ -136,6 +148,7 @@ struct CourseContentView: View {
     private func refreshContent() async {
         print("🚀 [CourseContentView] Refreshing course content...")
         await loadSectionsAndUnits()
+        await loadCourseTests()
         if let currentUser = authService.currentUser {
             print("👤 [CourseContentView] Current user ID: \(currentUser.id)")
             
@@ -156,6 +169,15 @@ struct CourseContentView: View {
             
             // Fetch passed test IDs for prerequisite checking
             await loadPassedTests(pilotId: currentUser.id)
+        }
+    }
+    
+    private func loadCourseTests() async {
+        do {
+            courseTests = try await academyService.fetchCourseTests(courseId: course.id)
+            print("✅ [CourseContentView] Loaded \(courseTests.count) course tests")
+        } catch {
+            print("❌ [CourseContentView] Error loading course tests: \(error)")
         }
     }
     
