@@ -1279,6 +1279,7 @@ struct GroundSchoolTestCard: View {
                         showGroundSchoolTest = false
                     }
                 )
+                .environmentObject(authService)
             }
         }
     }
@@ -1418,6 +1419,7 @@ struct GroundSchoolTestWrapperView: View {
     let onDismiss: () -> Void
     
     @StateObject private var academyService = AcademyService()
+    @EnvironmentObject var authService: AuthService
     @State private var course: TrainingCourse?
     @State private var courseTest: CourseTest?
     @State private var isLoading = true
@@ -1429,56 +1431,84 @@ struct GroundSchoolTestWrapperView: View {
     private let groundSchoolTestId = UUID(uuidString: "a1b2c3d4-e5f6-7890-abcd-000000000001")!
     
     var body: some View {
-        Group {
-            if isLoading {
-                VStack(spacing: 16) {
-                    ProgressView()
-                        .scaleEffect(1.5)
-                    Text("Loading test...")
-                        .font(.headline)
-                        .foregroundColor(.secondary)
+        NavigationStack {
+            Group {
+                if isLoading {
+                    VStack(spacing: 16) {
+                        ProgressView()
+                            .scaleEffect(1.5)
+                        Text("Loading test...")
+                            .font(.headline)
+                            .foregroundColor(.secondary)
+                    }
+                } else if let errorMessage = errorMessage {
+                    VStack(spacing: 16) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.system(size: 50))
+                            .foregroundColor(.red)
+                        Text("Error Loading Test")
+                            .font(.title2)
+                            .fontWeight(.bold)
+                        Text(errorMessage)
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                        
+                        Button("Try Again") {
+                            Task {
+                                await loadCourse()
+                            }
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                    .padding()
+                } else if let course = course {
+                    MultipleChoiceTestView(
+                        testId: groundSchoolTestId,
+                        course: course,
+                        pilotId: pilotId,
+                        testName: courseTest?.testName ?? "Ground School Test",
+                        passingScore: courseTest?.passingScore ?? 70,
+                        durationMinutes: 60,
+                        onDismiss: onDismiss
+                    )
+                } else {
+                    VStack(spacing: 16) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.system(size: 50))
+                            .foregroundColor(.orange)
+                        Text("Course Not Found")
+                            .font(.title2)
+                            .fontWeight(.bold)
+                        Text("Unable to load the UAS Pilot Course.")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                        
+                        Button("Retry") {
+                            Task {
+                                await loadCourse()
+                            }
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                    .padding()
                 }
-            } else if let errorMessage = errorMessage {
-                VStack(spacing: 16) {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.system(size: 50))
-                        .foregroundColor(.red)
-                    Text("Error Loading Test")
-                        .font(.title2)
-                        .fontWeight(.bold)
-                    Text(errorMessage)
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
-                }
-                .padding()
-            } else if let course = course {
-                MultipleChoiceTestView(
-                    testId: groundSchoolTestId,
-                    course: course,
-                    pilotId: pilotId,
-                    testName: courseTest?.testName ?? "Ground School Test",
-                    passingScore: courseTest?.passingScore ?? 70,
-                    durationMinutes: 60,
-                    onDismiss: onDismiss
-                )
-            } else {
-                VStack(spacing: 16) {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.system(size: 50))
-                        .foregroundColor(.orange)
-                    Text("Course Not Found")
-                        .font(.title2)
-                        .fontWeight(.bold)
-                    Text("Unable to load the UAS Pilot Course.")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                }
-                .padding()
             }
-        }
-        .task {
-            await loadCourse()
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button {
+                        onDismiss()
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.title2)
+                            .foregroundColor(.secondary)
+                    }
+                }
+            }
+            .task {
+                await loadCourse()
+            }
         }
     }
     
@@ -1487,22 +1517,26 @@ struct GroundSchoolTestWrapperView: View {
         errorMessage = nil
         
         do {
-            // Fetch the UAS Pilot Course
+            // Fetch all courses using AcademyService
             try await academyService.fetchCourses()
-            course = academyService.courses.first { $0.id == uasPilotCourseId }
             
-            // Fetch the course tests to get test configuration
-            if let course = course {
-                let tests = try await academyService.fetchCourseTests(courseId: course.id)
+            // Find the UAS Pilot Course
+            if let fetchedCourse = academyService.courses.first(where: { $0.id == uasPilotCourseId }) {
+                course = fetchedCourse
+                
+                // Fetch the course tests to get test configuration
+                let tests = try await academyService.fetchCourseTests(courseId: fetchedCourse.id)
                 courseTest = tests.first { $0.testType == "multiple_choice" }
-            }
-            
-            if course == nil {
-                errorMessage = "UAS Pilot Course not found"
+                
+                print("✅ [GroundSchoolTestWrapperView] Successfully loaded course: \(fetchedCourse.title)")
+                print("✅ [GroundSchoolTestWrapperView] Course test: \(courseTest?.testName ?? "none")")
+            } else {
+                errorMessage = "UAS Pilot Course not found in database"
+                print("❌ [GroundSchoolTestWrapperView] Course not found with ID: \(uasPilotCourseId)")
             }
         } catch {
-            errorMessage = error.localizedDescription
-            print("Error loading course: \(error)")
+            errorMessage = "Failed to load course: \(error.localizedDescription)"
+            print("❌ [GroundSchoolTestWrapperView] Error loading course: \(error)")
         }
         
         isLoading = false

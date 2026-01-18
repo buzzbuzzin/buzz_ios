@@ -262,7 +262,7 @@ struct UnitDetailView: View {
                 await checkIfCanTakeTest()
             }
         }
-        .sheet(isPresented: $showTestView) {
+        .fullScreenCover(isPresented: $showTestView) {
             if let currentUser = authService.currentUser {
                 MultipleChoiceTestView(
                     testId: groundSchoolTestId,
@@ -270,8 +270,12 @@ struct UnitDetailView: View {
                     pilotId: currentUser.id,
                     testName: courseTest?.testName ?? "Ground School Test",
                     passingScore: courseTest?.passingScore ?? 70,
-                    durationMinutes: 60
+                    durationMinutes: 60,
+                    onDismiss: {
+                        showTestView = false
+                    }
                 )
+                .environmentObject(authService)
             }
         }
         .task {
