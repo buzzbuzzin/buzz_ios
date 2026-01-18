@@ -23,16 +23,25 @@ struct ExamIntroView: View {
     @State private var showUploadView = false
     @State private var testResult: TestResult?
     @State private var isLoadingTestResult = true
+    @State private var courseTest: CourseTest?
+    @State private var isLoadingTestType = true
     
     // Test IDs for Flight Review and ROC-A
     private let flightReviewTestId = UUID(uuidString: "f1a2b3c4-d5e6-7890-abcd-f11ab0000001")!
     private let rocATestId = UUID(uuidString: "a0c4a5b6-c7d8-9012-efab-a0ca00000001")!
-    // Flight Review and ROC-A are both part of the UAS Pilot Course
+    // Course IDs
     private let uasPilotCourseId = UUID(uuidString: "a1b2c3d4-e5f6-7890-abcd-ef1234567890")!
+    private let rocACourseId = UUID(uuidString: "c3d4e5f6-a7b8-9012-cdef-345678901234")!
     
     // Check if this exam requires upload (non-multiple-choice)
+    // Only practical, oral, and written exams require upload
     private var requiresUpload: Bool {
-        examType == .flightReview || examType == .rocA
+        guard let courseTest = courseTest else {
+            // Fallback to old behavior while loading
+            return examType == .flightReview || examType == .rocA
+        }
+        // Upload is required for all test types except multiple_choice
+        return courseTest.testType != "multiple_choice"
     }
     
     private var testId: UUID {
@@ -40,8 +49,15 @@ struct ExamIntroView: View {
     }
     
     private var courseId: UUID {
-        // Both Flight Review and ROC-A tests belong to the UAS Pilot Course
-        uasPilotCourseId
+        // Flight Review belongs to UAS Pilot Course, ROC-A belongs to standalone ROC-A Course
+        switch examType {
+        case .flightReview:
+            return uasPilotCourseId
+        case .rocA:
+            return rocACourseId
+        case .groundSchoolTest:
+            return uasPilotCourseId
+        }
     }
     
     private var hasPassed: Bool {
@@ -378,6 +394,9 @@ struct ExamIntroView: View {
         // Load exam configurations from backend
         await examService.fetchExamConfigs()
         
+        // Load test type from database
+        await loadTestType()
+        
         // Load prerequisites status
         do {
             prerequisitesStatus = try await examService.checkPrerequisites(pilotId: currentUser.id)
@@ -398,6 +417,22 @@ struct ExamIntroView: View {
         
         // Load test result status for upload-required exams
         await loadTestResultStatus()
+    }
+    
+    private func loadTestType() async {
+        isLoadingTestType = true
+        let academyService = AcademyService()
+        
+        do {
+            let tests = try await academyService.fetchCourseTests(courseId: courseId)
+            // Find the test matching this exam's test ID
+            courseTest = tests.first { $0.id == testId }
+            print("✅ [ExamIntroView] Loaded test type for \(examType.displayName): \(courseTest?.testType ?? "none")")
+        } catch {
+            print("⚠️ [ExamIntroView] Error loading test type: \(error)")
+        }
+        
+        isLoadingTestType = false
     }
     
     private func loadTestResultStatus() async {
