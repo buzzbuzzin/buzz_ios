@@ -18,6 +18,7 @@ struct CourseContentView: View {
     @EnvironmentObject var authService: AuthService
     @State private var sections: [CourseSection] = []
     @State private var unitsBySection: [UUID: [CourseUnit]] = [:]
+    @State private var testsBySection: [UUID: [CourseTest]] = [:]
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var showSubscriptionSheet = false
@@ -68,6 +69,7 @@ struct CourseContentView: View {
                         DynamicSectionView(
                             section: section,
                             units: unitsBySection[section.id] ?? [],
+                            tests: testsBySection[section.id] ?? [],
                             course: course,
                             hasSubscription: hasSubscription,
                             hasPassedTest: hasPassedGroundSchoolTest,
@@ -262,6 +264,10 @@ struct CourseContentView: View {
             let allUnits = try await academyService.fetchCourseUnits(courseId: course.id)
             print("✅ [CourseContentView] Loaded \(allUnits.count) units")
             
+            // Fetch all tests for the course
+            let allTests = try await academyService.fetchCourseTests(courseId: course.id)
+            print("✅ [CourseContentView] Loaded \(allTests.count) tests")
+            
             // Check if course has sections defined in database
             if dbSections.isEmpty && !allUnits.isEmpty {
                 // FALLBACK: Course has no sections in database - create legacy sections
@@ -269,36 +275,51 @@ struct CourseContentView: View {
                 let (fallbackSections, fallbackGrouped) = createLegacySections(from: allUnits)
                 sections = fallbackSections
                 unitsBySection = fallbackGrouped
+                testsBySection = [:] // No tests in legacy sections
             } else {
                 // Use database sections and group units
                 sections = dbSections
-                var grouped: [UUID: [CourseUnit]] = [:]
+                var groupedUnits: [UUID: [CourseUnit]] = [:]
+                var groupedTests: [UUID: [CourseTest]] = [:]
                 var unassignedUnits: [CourseUnit] = []
                 
+                // Group units by section
                 for unit in allUnits {
                     if let sectionId = unit.sectionId {
-                        if grouped[sectionId] == nil {
-                            grouped[sectionId] = []
+                        if groupedUnits[sectionId] == nil {
+                            groupedUnits[sectionId] = []
                         }
-                        grouped[sectionId]?.append(unit)
+                        groupedUnits[sectionId]?.append(unit)
                     } else {
                         // Collect units without section_id
                         unassignedUnits.append(unit)
                     }
                 }
                 
+                // Group tests by section
+                for test in allTests {
+                    if let sectionId = test.sectionId {
+                        if groupedTests[sectionId] == nil {
+                            groupedTests[sectionId] = []
+                        }
+                        groupedTests[sectionId]?.append(test)
+                    }
+                }
+                
                 // Handle unassigned units by placing them in appropriate legacy sections
                 if !unassignedUnits.isEmpty {
                     print("⚠️ [CourseContentView] Found \(unassignedUnits.count) units without section_id, assigning to legacy sections")
-                    assignUnassignedUnits(unassignedUnits, to: &grouped, sections: sections)
+                    assignUnassignedUnits(unassignedUnits, to: &groupedUnits, sections: sections)
                 }
                 
-                unitsBySection = grouped
+                unitsBySection = groupedUnits
+                testsBySection = groupedTests
             }
             
             for section in sections {
                 let unitCount = unitsBySection[section.id]?.count ?? 0
-                print("📊 [CourseContentView] Section '\(section.name)': \(unitCount) units")
+                let testCount = testsBySection[section.id]?.count ?? 0
+                print("📊 [CourseContentView] Section '\(section.name)': \(unitCount) units, \(testCount) tests")
             }
         } catch {
             errorMessage = error.localizedDescription
@@ -428,6 +449,7 @@ private struct LegacySection {
 struct DynamicSectionView: View {
     let section: CourseSection
     let units: [CourseUnit]
+    let tests: [CourseTest]
     let course: TrainingCourse
     let hasSubscription: Bool
     let hasPassedTest: Bool
@@ -459,22 +481,21 @@ struct DynamicSectionView: View {
     var body: some View {
         return Group {
             switch section.sectionType {
-            case "test":
-                // Render test section (Ground School Test)
-                NavigationLink(destination: GroundSchoolTestIntroView(
-                    course: course,
-                    onStartTest: onNavigateToTest
-                )) {
-                    GroundSchoolTestSectionContent(sectionName: section.name, hasPassedTest: hasPassedTest)
+            case "test", "exam":
+                // Unified handling for test and exam sections
+                // Display all tests associated with this section
+                if !tests.isEmpty {
+                    TestsSectionView(
+                        section: section,
+                        tests: tests,
+                        course: course,
+                        hasPassedTest: hasPassedTest,
+                        passedTestIds: passedTestIds
+                    )
+                } else {
+                    // Fallback to legacy behavior if no tests found
+                    EmptyView()
                 }
-                .buttonStyle(PlainButtonStyle())
-                
-            case "exam":
-                // Render exam section (Flight Review, ROC-A Test - links to Test Center)
-                TestCenterExamSectionView(
-                    section: section,
-                    hasPassedTest: hasPassedTest
-                )
                 
             case "recurrent":
                 // Render recurrent training section
@@ -508,6 +529,254 @@ struct DynamicSectionView: View {
                 }
             }
         }
+    }
+}
+
+// MARK: - Tests Section View
+
+struct TestsSectionView: View {
+    let section: CourseSection
+    let tests: [CourseTest]
+    let course: TrainingCourse
+    let hasPassedTest: Bool
+    let passedTestIds: Set<UUID>
+    @EnvironmentObject var authService: AuthService
+    
+    var isLocked: Bool {
+        section.requiresTestPassed && !hasPassedTest
+    }
+    
+    var lockReason: String {
+        if isLocked {
+            return "Complete Ground School Test to unlock"
+        }
+        return ""
+    }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text(section.name)
+                .font(.headline)
+                .fontWeight(.bold)
+                .foregroundColor(.primary)
+                .padding(.horizontal)
+            
+            VStack(spacing: 12) {
+                ForEach(tests.sorted(by: { $0.orderIndex < $1.orderIndex })) { test in
+                    TestRow(
+                        test: test,
+                        course: course,
+                        isLocked: isLocked,
+                        lockReason: lockReason,
+                        isPassed: passedTestIds.contains(test.id),
+                        sectionDescription: section.description
+                    )
+                }
+            }
+            .padding(.horizontal)
+        }
+    }
+}
+
+// MARK: - Test Row
+
+struct TestRow: View {
+    let test: CourseTest
+    let course: TrainingCourse
+    let isLocked: Bool
+    let lockReason: String
+    let isPassed: Bool
+    let sectionDescription: String?
+    @EnvironmentObject var authService: AuthService
+    
+    var body: some View {
+        Group {
+            if isLocked {
+                // Locked test - show disabled card
+                TestCardContent(
+                    test: test,
+                    sectionDescription: sectionDescription,
+                    isLocked: true,
+                    lockReason: lockReason,
+                    isPassed: isPassed
+                )
+            } else {
+                // Unlocked test - navigate based on test type
+                if test.testType == "multiple_choice" {
+                    // Multiple choice test - navigate to test view
+                    if let currentUser = authService.currentUser {
+                        NavigationLink(destination: MultipleChoiceTestView(
+                            testId: test.id,
+                            course: course,
+                            pilotId: currentUser.id,
+                            testName: test.testName,
+                            passingScore: test.passingScore,
+                            durationMinutes: 60
+                        )) {
+                            TestCardContent(
+                                test: test,
+                                sectionDescription: sectionDescription,
+                                isLocked: false,
+                                lockReason: "",
+                                isPassed: isPassed
+                            )
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                    }
+                } else if test.testType == "oral" || test.testType == "practical" {
+                    // Oral/practical exam - link to Test Center or exam intro
+                    // Determine exam type based on test name
+                    let examType = determineExamType(for: test)
+                    if let examType = examType {
+                        NavigationLink(destination: ExamIntroView(examType: examType)) {
+                            TestCardContent(
+                                test: test,
+                                sectionDescription: sectionDescription,
+                                isLocked: false,
+                                lockReason: "",
+                                isPassed: isPassed
+                            )
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                    } else {
+                        // Unknown exam type, show card without navigation
+                        TestCardContent(
+                            test: test,
+                            sectionDescription: sectionDescription,
+                            isLocked: false,
+                            lockReason: "",
+                            isPassed: isPassed
+                        )
+                    }
+                } else {
+                    // Other test types - show card without navigation
+                    TestCardContent(
+                        test: test,
+                        sectionDescription: sectionDescription,
+                        isLocked: false,
+                        lockReason: "",
+                        isPassed: isPassed
+                    )
+                }
+            }
+        }
+    }
+    
+    private func determineExamType(for test: CourseTest) -> ExamType? {
+        let testNameLower = test.testName.lowercased()
+        if testNameLower.contains("roc-a") || testNameLower.contains("radio") {
+            return .rocA
+        } else if testNameLower.contains("flight review") {
+            return .flightReview
+        }
+        return nil
+    }
+}
+
+// MARK: - Test Card Content
+
+struct TestCardContent: View {
+    let test: CourseTest
+    let sectionDescription: String?
+    let isLocked: Bool
+    let lockReason: String
+    let isPassed: Bool
+    
+    var testIcon: String {
+        switch test.testType {
+        case "multiple_choice":
+            return "doc.text.fill"
+        case "practical":
+            return "airplane"
+        case "oral":
+            return "antenna.radiowaves.left.and.right"
+        case "written":
+            return "pencil.and.outline"
+        default:
+            return "checkmark.circle.fill"
+        }
+    }
+    
+    var testColor: Color {
+        if isLocked {
+            return .gray
+        } else if isPassed {
+            return .green
+        } else {
+            return .blue
+        }
+    }
+    
+    var body: some View {
+        HStack(spacing: 16) {
+            // Test Icon
+            ZStack {
+                Circle()
+                    .fill(testColor.opacity(0.2))
+                    .frame(width: 50, height: 50)
+                
+                Image(systemName: isLocked ? "lock.fill" : testIcon)
+                    .foregroundColor(testColor)
+                    .font(.headline)
+            }
+            
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text(test.testName)
+                        .font(.headline)
+                        .foregroundColor(isLocked ? .secondary : .primary)
+                    
+                    if isPassed {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundColor(.green)
+                            .font(.subheadline)
+                    }
+                }
+                
+                if let description = test.testDescription ?? sectionDescription {
+                    Text(description)
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .lineLimit(2)
+                }
+                
+                if isLocked {
+                    Text(lockReason)
+                        .font(.caption)
+                        .foregroundColor(.blue)
+                        .fontWeight(.semibold)
+                } else if test.testType == "oral" || test.testType == "practical" {
+                    HStack(spacing: 4) {
+                        Image(systemName: "calendar.badge.clock")
+                            .foregroundColor(.blue)
+                            .font(.caption)
+                        Text("Schedule in Test Center")
+                            .font(.caption)
+                            .foregroundColor(.blue)
+                    }
+                } else if test.testType == "multiple_choice" {
+                    HStack(spacing: 4) {
+                        Image(systemName: "play.circle.fill")
+                            .foregroundColor(.blue)
+                            .font(.caption)
+                        Text("Start Test")
+                            .font(.caption)
+                            .foregroundColor(.blue)
+                    }
+                }
+            }
+            
+            Spacer()
+            
+            if !isLocked {
+                Image(systemName: "chevron.right")
+                    .foregroundColor(.secondary)
+                    .font(.caption)
+            }
+        }
+        .padding()
+        .background(Color(.secondarySystemBackground))
+        .cornerRadius(12)
     }
 }
 
