@@ -233,7 +233,7 @@ struct EmailSignInView: View {
             .accessibilityLabel("Agree to terms")
             .accessibilityValue(hasAgreedToPolicies ? "Selected" : "Not selected")
             
-            Text(.init("I agree to the [End User License Agreement](https://www.apple.com/legal/internet-services/itunes/dev/stdeula/) and [Privacy Policy](https://buzzbuzzin.com/legal/)"))
+            Text(.init("I agree to the [End User License Agreement](https://www.apple.com/legal/internet-services/itunes/dev/stdeula/) and [Privacy Policy](https://www.buzzbuzzin.com/privacy)"))
                 .font(.footnote)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.leading)
@@ -249,7 +249,7 @@ struct EmailSignInView: View {
     }
     
     private var privacyPolicyURL: URL {
-        URL(string: "https://buzzbuzzin.com/legal/")!
+        URL(string: "https://www.buzzbuzzin.com/privacy")!
     }
     
     private func signIn() {

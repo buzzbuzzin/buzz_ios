@@ -196,7 +196,7 @@ struct LegalDocumentsView: View {
     }
     
     private var privacyPolicyURL: URL {
-        URL(string: "https://buzzbuzzin.com/legal/")!
+        URL(string: "https://www.buzzbuzzin.com/privacy")!
     }
     
     var body: some View {

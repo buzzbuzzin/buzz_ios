@@ -202,33 +202,33 @@ struct AcademyView: View {
                     .padding(.vertical, 8)
                     .background(Color(.systemGray6))
                 }
-                
-                // Region Filter
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 12) {
-                        // All Regions Button
-                        RegionChip(
-                            title: "All Regions",
-                            icon: "🌐",
-                            isSelected: selectedRegion == nil
-                        ) {
-                            selectedRegion = nil
-                        }
-                        
-                        ForEach(allRegions, id: \.self) { region in
-                            RegionChip(
-                                title: region.rawValue,
-                                icon: region.icon,
-                                isSelected: selectedRegion == region || (selectedRegion == nil && region == userSelectedRegion)
-                            ) {
-                                selectedRegion = region
-                            }
-                        }
-                    }
-                    .padding(.horizontal)
-                    .padding(.vertical, 8)
-                }
-                .background(Color(.systemGray6))
+
+                // // Region Filter
+                // ScrollView(.horizontal, showsIndicators: false) {
+                //     HStack(spacing: 12) {
+                //         // All Regions Button
+                //         RegionChip(
+                //             title: "All Regions",
+                //             icon: "🌐",
+                //             isSelected: selectedRegion == nil
+                //         ) {
+                //             selectedRegion = nil
+                //         }
+                //
+                //         ForEach(allRegions, id: \.self) { region in
+                //             RegionChip(
+                //                 title: region.rawValue,
+                //                 icon: region.icon,
+                //                 isSelected: selectedRegion == region || (selectedRegion == nil && region == userSelectedRegion)
+                //             ) {
+                //                 selectedRegion = region
+                //             }
+                //         }
+                //     }
+                //     .padding(.horizontal)
+                //     .padding(.vertical, 8)
+                // }
+                // .background(Color(.systemGray6))
                 
                 // Provider Filter
                 ScrollView(.horizontal, showsIndicators: false) {
