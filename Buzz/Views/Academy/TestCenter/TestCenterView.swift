@@ -51,6 +51,24 @@ struct TestCenterView: View {
                         .padding(.horizontal)
                 }
                 
+                // My Appointments Section (shown prominently before available exams)
+                if !examService.appointments.filter({ $0.status != .cancelled }).isEmpty {
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text("My Appointments")
+                            .font(.headline)
+                            .padding(.horizontal)
+                        
+                        ForEach(examService.appointments.filter { $0.status != .cancelled }) { appointment in
+                            AppointmentCard(appointment: appointment)
+                                .padding(.horizontal)
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    selectedAppointment = appointment
+                                }
+                        }
+                    }
+                }
+                
                 // Available Exams (non-passed exams)
                 VStack(alignment: .leading, spacing: 16) {
                     Text("Available Exams")
@@ -101,25 +119,6 @@ struct TestCenterView: View {
                             .padding(.horizontal)
                         }
                     }
-                }
-                
-                // Scheduled Appointments Section
-                if !examService.appointments.isEmpty {
-                    VStack(alignment: .leading, spacing: 16) {
-                        Text("Your Appointments")
-                            .font(.headline)
-                            .padding(.horizontal)
-                        
-                        ForEach(examService.appointments.filter { $0.status != .cancelled }) { appointment in
-                            AppointmentCard(appointment: appointment)
-                                .padding(.horizontal)
-                                .contentShape(Rectangle())
-                                .onTapGesture {
-                                    selectedAppointment = appointment
-                                }
-                        }
-                    }
-                    .padding(.top, 8)
                 }
                 
                 Spacer(minLength: 40)
@@ -1572,32 +1571,22 @@ struct DatabaseTestCard: View {
         }
     }
     
-    private var examType: ExamType? {
-        let testNameLower = test.testName.lowercased()
-        if testNameLower.contains("roc-a") || testNameLower.contains("radio") {
-            return .rocA
-        } else if testNameLower.contains("flight review") {
-            return .flightReview
-        }
-        return nil
-    }
-    
     var body: some View {
         Group {
-            if test.needsProctor {
-                // Needs proctor → Navigate to scheduling/exam intro view
-                if let examType = examType {
-                    NavigationLink(destination: ExamIntroView(examType: examType)) {
+            if let currentUser = authService.currentUser {
+                if test.needsProctor {
+                    // Needs proctor → Navigate to proctored test intro (handles scheduling)
+                    NavigationLink(destination: ProctorTestIntroView(
+                        test: test,
+                        pilotId: currentUser.id,
+                        isEligible: isEligible,
+                        hasPassed: hasPassed
+                    )) {
                         cardContent
                     }
                     .buttonStyle(PlainButtonStyle())
                 } else {
-                    // Unknown exam type, show card without navigation
-                    cardContent
-                }
-            } else {
-                // No proctor needed → Navigate to test intro (like Ground School Test)
-                if let currentUser = authService.currentUser {
+                    // No proctor needed → Navigate to test intro (like Ground School Test)
                     NavigationLink(destination: TestIntroView(
                         test: test,
                         pilotId: currentUser.id,
@@ -1606,9 +1595,9 @@ struct DatabaseTestCard: View {
                         cardContent
                     }
                     .buttonStyle(PlainButtonStyle())
-                } else {
-                    cardContent
                 }
+            } else {
+                cardContent
             }
         }
     }
@@ -1901,3 +1890,613 @@ struct TestIntroView: View {
     }
 }
 
+// MARK: - Proctor Test Intro View (for tests that need a proctor)
+
+struct ProctorTestIntroView: View {
+    let test: CourseTest
+    let pilotId: UUID
+    var isEligible: Bool = true
+    var hasPassed: Bool = false
+    
+    @StateObject private var academyService = AcademyService()
+    @StateObject private var examService = ExamService()
+    @EnvironmentObject var authService: AuthService
+    @Environment(\.dismiss) private var dismiss
+    
+    @State private var course: TrainingCourse?
+    @State private var isLoadingCourse = true
+    @State private var showProctorInfoView = false
+    @State private var showProctoredTest = false
+    @State private var proctorName: String = ""
+    @State private var showSchedulingView = false
+    @State private var priceInfo: ExamPriceResponse?
+    @State private var isLoadingPrice = true
+    
+    // Check if this is a proctored multiple-choice exam (can be taken in-app with proctor)
+    private var isMultipleChoice: Bool {
+        test.testType == "multiple_choice"
+    }
+    
+    // For non-multiple-choice tests (oral, practical), scheduling is required
+    private var requiresScheduling: Bool {
+        test.testType != "multiple_choice"
+    }
+    
+    private var testIcon: String {
+        switch test.testType {
+        case "multiple_choice":
+            return "doc.text.fill"
+        case "oral":
+            return "antenna.radiowaves.left.and.right"
+        case "practical":
+            return "airplane"
+        case "written":
+            return "pencil.and.outline"
+        default:
+            return "person.badge.shield.checkmark.fill"
+        }
+    }
+    
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 24) {
+                // Header
+                VStack(spacing: 12) {
+                    ZStack {
+                        Circle()
+                            .fill(hasPassed ? Color.green.opacity(0.15) : Color.orange.opacity(0.15))
+                            .frame(width: 80, height: 80)
+                        
+                        Image(systemName: hasPassed ? "checkmark.seal.fill" : testIcon)
+                            .font(.system(size: 36))
+                            .foregroundColor(hasPassed ? .green : .orange)
+                    }
+                    
+                    Text(test.testName)
+                        .font(.title2)
+                        .fontWeight(.bold)
+                        .multilineTextAlignment(.center)
+                    
+                    if hasPassed {
+                        Text("Passed")
+                            .font(.headline)
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 6)
+                            .background(Color.green)
+                            .cornerRadius(8)
+                    } else {
+                        // Proctor required badge
+                        HStack(spacing: 4) {
+                            Image(systemName: "person.badge.shield.checkmark.fill")
+                                .font(.caption)
+                            Text("Proctor Required")
+                                .font(.caption)
+                                .fontWeight(.medium)
+                        }
+                        .foregroundColor(.orange)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(Color.orange.opacity(0.15))
+                        .cornerRadius(8)
+                    }
+                }
+                .padding(.top, 20)
+                
+                // About This Test
+                if let description = test.testDescription {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("About This Test")
+                            .font(.headline)
+                        
+                        Text(description)
+                            .font(.body)
+                            .foregroundColor(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding()
+                    .background(Color(.systemGray6))
+                    .cornerRadius(12)
+                    .padding(.horizontal)
+                }
+                
+                // Test Details
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("Test Details")
+                        .font(.headline)
+                        .padding(.horizontal)
+                    
+                    VStack(spacing: 12) {
+                        DetailRow(icon: "clock", label: "Duration", value: "60 minutes")
+                        DetailRow(icon: "checklist", label: "Type", value: test.testType.replacingOccurrences(of: "_", with: " ").capitalized)
+                        DetailRow(icon: "percent", label: "Passing Score", value: "\(test.passingScore)%")
+                        DetailRow(icon: "person.badge.shield.checkmark", label: "Supervision", value: "Proctor Required")
+                        
+                        if requiresScheduling {
+                            DetailRow(icon: "calendar.badge.clock", label: "Scheduling", value: "Required")
+                        } else {
+                            DetailRow(icon: "play.circle.fill", label: "Availability", value: "Start anytime with proctor")
+                        }
+                    }
+                }
+                .padding()
+                .background(Color(.systemGray6))
+                .cornerRadius(12)
+                .padding(.horizontal)
+                
+                // Proctor Information
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Proctor Requirements")
+                        .font(.headline)
+                    
+                    VStack(alignment: .leading, spacing: 8) {
+                        ProctorRequirementRow(text: "Must be a certified instructor or examiner")
+                        ProctorRequirementRow(text: "Must supervise the entire exam session")
+                        ProctorRequirementRow(text: "Must verify your identity before starting")
+                        ProctorRequirementRow(text: "Proctor name will be recorded with results")
+                    }
+                }
+                .padding()
+                .background(Color.orange.opacity(0.1))
+                .cornerRadius(12)
+                .padding(.horizontal)
+                
+                // Action Buttons
+                if isLoadingCourse {
+                    ProgressView()
+                        .padding()
+                } else if let course = course {
+                    VStack(spacing: 12) {
+                        if hasPassed {
+                            // Already passed
+                            VStack(spacing: 12) {
+                                Text("You've already passed this test!")
+                                    .font(.subheadline)
+                                    .foregroundColor(.green)
+                                    .multilineTextAlignment(.center)
+                                
+                                if isMultipleChoice {
+                                    Button(action: {
+                                        showProctorInfoView = true
+                                    }) {
+                                        Text("Retake Test")
+                                            .fontWeight(.semibold)
+                                            .frame(maxWidth: .infinity)
+                                            .padding()
+                                            .background(Color.orange)
+                                            .foregroundColor(.white)
+                                            .cornerRadius(12)
+                                    }
+                                }
+                            }
+                            .padding(.horizontal)
+                        } else if !isEligible {
+                            // Not eligible
+                            VStack(spacing: 8) {
+                                HStack {
+                                    Image(systemName: "lock.fill")
+                                        .foregroundColor(.orange)
+                                    Text("Complete prerequisites to unlock this test")
+                                        .font(.subheadline)
+                                        .foregroundColor(.orange)
+                                }
+                            }
+                            .padding(.horizontal)
+                        } else if isMultipleChoice {
+                            // Multiple choice proctored test - can start immediately
+                            Button(action: {
+                                showProctorInfoView = true
+                            }) {
+                                HStack {
+                                    Image(systemName: "play.fill")
+                                    Text("Start Proctored Test")
+                                }
+                                .fontWeight(.semibold)
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(Color.orange)
+                                .foregroundColor(.white)
+                                .cornerRadius(12)
+                            }
+                            .padding(.horizontal)
+                        } else {
+                            // Oral/Practical test - requires scheduling
+                            Button(action: {
+                                showSchedulingView = true
+                            }) {
+                                HStack {
+                                    Image(systemName: "calendar.badge.plus")
+                                    Text("Schedule Exam")
+                                }
+                                .fontWeight(.semibold)
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(priceInfo != nil ? Color.blue : Color.gray)
+                                .foregroundColor(.white)
+                                .cornerRadius(12)
+                            }
+                            .disabled(priceInfo == nil)
+                            .padding(.horizontal)
+                            
+                            if isLoadingPrice {
+                                HStack {
+                                    ProgressView()
+                                        .scaleEffect(0.8)
+                                    Text("Loading pricing...")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    Text("Unable to load course information")
+                        .foregroundColor(.red)
+                        .padding(.horizontal)
+                }
+                
+                Spacer(minLength: 40)
+            }
+        }
+        .navigationTitle("Test Info")
+        .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $showProctorInfoView) {
+            if let course = course {
+                ProctorInfoView(
+                    testId: test.id,
+                    course: course,
+                    pilotId: pilotId,
+                    testName: test.testName,
+                    passingScore: test.passingScore,
+                    durationMinutes: 60,
+                    onStartTest: { name in
+                        proctorName = name
+                        showProctorInfoView = false
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                            showProctoredTest = true
+                        }
+                    }
+                )
+            }
+        }
+        .fullScreenCover(isPresented: $showProctoredTest) {
+            if let course = course {
+                ProctoredMultipleChoiceTestView(
+                    testId: test.id,
+                    course: course,
+                    pilotId: pilotId,
+                    testName: test.testName,
+                    passingScore: test.passingScore,
+                    durationMinutes: 60,
+                    proctorName: proctorName,
+                    onDismiss: {
+                        showProctoredTest = false
+                    }
+                )
+                .environmentObject(authService)
+            }
+        }
+        .navigationDestination(isPresented: $showSchedulingView) {
+            if let price = priceInfo {
+                GenericExamSchedulingView(
+                    test: test,
+                    priceInfo: price,
+                    onBookingComplete: {
+                        showSchedulingView = false
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                            dismiss()
+                        }
+                    }
+                )
+            }
+        }
+        .task {
+            await loadCourse()
+            if requiresScheduling {
+                await loadPrice()
+            }
+        }
+    }
+    
+    private func loadCourse() async {
+        isLoadingCourse = true
+        do {
+            try await academyService.fetchCourses()
+            course = academyService.courses.first { $0.id == test.courseId }
+            
+            if course == nil {
+                print("⚠️ [ProctorTestIntroView] Could not find course with ID: \(test.courseId)")
+            }
+        } catch {
+            print("❌ [ProctorTestIntroView] Error loading course: \(error)")
+        }
+        isLoadingCourse = false
+    }
+    
+    private func loadPrice() async {
+        isLoadingPrice = true
+        do {
+            // Try to fetch price for generic proctored exam
+            priceInfo = try await examService.fetchExamPrice(examType: .flightReview)
+        } catch {
+            print("⚠️ [ProctorTestIntroView] Error loading price: \(error)")
+        }
+        isLoadingPrice = false
+    }
+}
+
+// MARK: - Proctor Requirement Row
+
+struct ProctorRequirementRow: View {
+    let text: String
+    
+    var body: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: "checkmark.circle.fill")
+                .foregroundColor(.orange)
+                .font(.caption)
+            
+            Text(text)
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+            
+            Spacer()
+        }
+    }
+}
+
+// MARK: - Generic Exam Scheduling View (for proctored tests without predefined ExamType)
+
+struct GenericExamSchedulingView: View {
+    let test: CourseTest
+    let priceInfo: ExamPriceResponse
+    var onBookingComplete: (() -> Void)?
+    
+    @EnvironmentObject var authService: AuthService
+    @StateObject private var examService = ExamService()
+    @Environment(\.dismiss) private var dismiss
+    
+    @State private var selectedDate = Date()
+    @State private var selectedTime: Date?
+    @State private var locationType: ExamLocationType = .inPerson
+    @State private var locationAddress = ""
+    @State private var showPaymentView = false
+    @State private var showError = false
+    @State private var errorMessage = ""
+    
+    // Minimum scheduling date is tomorrow
+    private var minimumDate: Date {
+        Calendar.current.date(byAdding: .day, value: 1, to: Date()) ?? Date()
+    }
+    
+    // Maximum scheduling date is 3 months from now
+    private var maximumDate: Date {
+        Calendar.current.date(byAdding: .month, value: 3, to: Date()) ?? Date()
+    }
+    
+    private var availableTimeSlots: [Date] {
+        examService.getAvailableTimeSlots(for: selectedDate)
+    }
+    
+    private var canProceed: Bool {
+        guard selectedTime != nil else { return false }
+        
+        if locationType == .inPerson {
+            return !locationAddress.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+        
+        return true
+    }
+    
+    private var scheduledDateTime: Date? {
+        guard let time = selectedTime else { return nil }
+        
+        let calendar = Calendar.current
+        let dateComponents = calendar.dateComponents([.year, .month, .day], from: selectedDate)
+        let timeComponents = calendar.dateComponents([.hour, .minute], from: time)
+        
+        var combinedComponents = DateComponents()
+        combinedComponents.year = dateComponents.year
+        combinedComponents.month = dateComponents.month
+        combinedComponents.day = dateComponents.day
+        combinedComponents.hour = timeComponents.hour
+        combinedComponents.minute = timeComponents.minute
+        
+        return calendar.date(from: combinedComponents)
+    }
+    
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 24) {
+                // Header
+                VStack(spacing: 12) {
+                    Image(systemName: "calendar.badge.clock")
+                        .font(.system(size: 48))
+                        .foregroundColor(.blue)
+                    
+                    Text("Schedule \(test.testName)")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                        .multilineTextAlignment(.center)
+                    
+                    Text("Select a date and time for your proctored exam")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+                .padding(.top, 20)
+                
+                // Date Selection
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("1. Select Date")
+                        .font(.headline)
+                        .padding(.horizontal)
+                    
+                    DatePicker(
+                        "Exam Date",
+                        selection: $selectedDate,
+                        in: minimumDate...maximumDate,
+                        displayedComponents: [.date]
+                    )
+                    .datePickerStyle(.graphical)
+                    .padding(.horizontal)
+                    .onChange(of: selectedDate) { _, _ in
+                        selectedTime = nil
+                    }
+                }
+                
+                Divider()
+                    .padding(.horizontal)
+                
+                // Time Selection
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("2. Select Time")
+                        .font(.headline)
+                        .padding(.horizontal)
+                    
+                    LazyVGrid(columns: [
+                        GridItem(.flexible()),
+                        GridItem(.flexible()),
+                        GridItem(.flexible())
+                    ], spacing: 12) {
+                        ForEach(availableTimeSlots, id: \.self) { slot in
+                            TimeSlotButton(
+                                time: slot,
+                                isSelected: selectedTime == slot,
+                                action: {
+                                    selectedTime = slot
+                                }
+                            )
+                        }
+                    }
+                    .padding(.horizontal)
+                }
+                
+                Divider()
+                    .padding(.horizontal)
+                
+                // Location Selection
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("3. Select Location")
+                        .font(.headline)
+                        .padding(.horizontal)
+                    
+                    VStack(spacing: 12) {
+                        LocationTypeButton(
+                            type: .inPerson,
+                            isSelected: locationType == .inPerson,
+                            action: { locationType = .inPerson }
+                        )
+                        
+                        LocationTypeButton(
+                            type: .online,
+                            isSelected: locationType == .online,
+                            action: { locationType = .online }
+                        )
+                    }
+                    .padding(.horizontal)
+                    
+                    if locationType == .inPerson {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Enter the exam location address:")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                            
+                            TextField("Street address, City, State, ZIP", text: $locationAddress)
+                                .textFieldStyle(.roundedBorder)
+                                .textContentType(.fullStreetAddress)
+                        }
+                        .padding(.horizontal)
+                    } else {
+                        HStack(spacing: 12) {
+                            Image(systemName: "video.fill")
+                                .foregroundColor(.blue)
+                                .font(.title2)
+                            
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Online Exam via Zoom")
+                                    .font(.subheadline)
+                                    .fontWeight(.semibold)
+                                
+                                Text("A Zoom meeting link will be sent to your email after booking.")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        .padding()
+                        .background(Color.blue.opacity(0.1))
+                        .cornerRadius(10)
+                        .padding(.horizontal)
+                    }
+                }
+                
+                Divider()
+                    .padding(.horizontal)
+                
+                // Price Summary
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("4. Price")
+                        .font(.headline)
+                        .padding(.horizontal)
+                    
+                    HStack {
+                        Text("Exam Fee")
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        Text(priceInfo.formattedPrice)
+                            .font(.headline)
+                            .foregroundColor(.green)
+                    }
+                    .padding()
+                    .background(Color(.systemGray6))
+                    .cornerRadius(10)
+                    .padding(.horizontal)
+                }
+                
+                // Proceed Button
+                Button(action: {
+                    if canProceed {
+                        showPaymentView = true
+                    } else {
+                        showValidationError()
+                    }
+                }) {
+                    HStack {
+                        Image(systemName: "creditcard")
+                        Text("Proceed to Payment")
+                            .fontWeight(.semibold)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(canProceed ? Color.blue : Color.gray)
+                    .foregroundColor(.white)
+                    .cornerRadius(12)
+                }
+                .disabled(!canProceed)
+                .padding(.horizontal)
+                
+                Spacer(minLength: 40)
+            }
+            .padding(.top)
+        }
+        .navigationTitle("Schedule Exam")
+        .navigationBarTitleDisplayMode(.inline)
+        .alert("Missing Information", isPresented: $showError) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(errorMessage)
+        }
+        .task {
+            await examService.ensureConfigsLoaded()
+        }
+    }
+    
+    private func showValidationError() {
+        if selectedTime == nil {
+            errorMessage = "Please select a time slot for your exam."
+        } else if locationType == .inPerson && locationAddress.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            errorMessage = "Please enter the location address for your in-person exam."
+        }
+        showError = true
+    }
+}
