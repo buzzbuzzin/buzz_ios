@@ -11,13 +11,16 @@ import Auth
 struct TestCenterView: View {
     @EnvironmentObject var authService: AuthService
     @StateObject private var examService = ExamService()
+    @StateObject private var academyService = AcademyService()
     @StateObject private var uploadService = ExamResultUploadService()
     @State private var prerequisitesStatus: ExamPrerequisitesStatus?
     @State private var isCheckingPrerequisites = true
     @State private var existingAppointments: [ExamType: Bool] = [:]
     @State private var selectedAppointment: ExamAppointment?
-    @State private var testResultStatuses: [ExamType: TestResult] = [:]
+    @State private var testResultStatuses: [UUID: TestResult] = [:] // Changed to use test ID instead of ExamType
     @State private var showPassedExams = false
+    @State private var availableTests: [CourseTest] = [] // Tests from database
+    @State private var passedTestIds: Set<UUID> = []
     
     var body: some View {
         ScrollView {
@@ -54,34 +57,24 @@ struct TestCenterView: View {
                         .font(.headline)
                         .padding(.horizontal)
                     
-                    ForEach(ExamType.allCases) { examType in
-                        let config = examService.getConfig(for: examType)
-                        let testResult = testResultStatuses[examType]
-                        let hasPassed = testResult?.passed == true && testResult?.uploadStatusEnum == .approved
-                        
-                        // Only show if not passed
-                        if !hasPassed {
-                            // Ground School Test is free and doesn't require scheduling
-                            if examType == .groundSchoolTest {
-                                if !(prerequisitesStatus?.passedGroundSchoolTest ?? false) {
-                                    GroundSchoolTestCard(
-                                        config: config,
-                                        hasPassedTest: false
-                                    )
-                                    .padding(.horizontal)
-                                }
-                            } else {
-                                // Regular paid exams (Flight Review, ROC-A)
-                                ExamCard(
-                                    examType: examType,
-                                    config: config,
-                                    isEligible: prerequisitesStatus?.isEligible ?? false,
-                                    hasExistingAppointment: existingAppointments[examType] ?? false,
-                                    testResult: testResult
-                                )
-                                .padding(.horizontal)
-                            }
-                        }
+                    // Ground School Test (hardcoded - not in course_tests)
+                    if !(prerequisitesStatus?.passedGroundSchoolTest ?? false) {
+                        let config = examService.getConfig(for: .groundSchoolTest)
+                        GroundSchoolTestCard(
+                            config: config,
+                            hasPassedTest: false
+                        )
+                        .padding(.horizontal)
+                    }
+                    
+                    // Database tests (oral/practical exams)
+                    ForEach(availableTests.filter { !passedTestIds.contains($0.id) }) { test in
+                        DatabaseTestCard(
+                            test: test,
+                            isEligible: prerequisitesStatus?.isEligible ?? false,
+                            testResult: testResultStatuses[test.id]
+                        )
+                        .padding(.horizontal)
                     }
                 }
                 
@@ -108,30 +101,24 @@ struct TestCenterView: View {
                     .buttonStyle(PlainButtonStyle())
                     
                     if showPassedExams {
-                        ForEach(ExamType.allCases) { examType in
-                            let config = examService.getConfig(for: examType)
-                            let testResult = testResultStatuses[examType]
-                            let hasPassed = testResult?.passed == true && testResult?.uploadStatusEnum == .approved
-                            
-                            // Only show passed exams
-                            if hasPassed || (examType == .groundSchoolTest && (prerequisitesStatus?.passedGroundSchoolTest ?? false)) {
-                                if examType == .groundSchoolTest {
-                                    GroundSchoolTestCard(
-                                        config: config,
-                                        hasPassedTest: true
-                                    )
-                                    .padding(.horizontal)
-                                } else {
-                                    ExamCard(
-                                        examType: examType,
-                                        config: config,
-                                        isEligible: prerequisitesStatus?.isEligible ?? false,
-                                        hasExistingAppointment: existingAppointments[examType] ?? false,
-                                        testResult: testResult
-                                    )
-                                    .padding(.horizontal)
-                                }
-                            }
+                        // Ground School Test if passed
+                        if prerequisitesStatus?.passedGroundSchoolTest ?? false {
+                            let config = examService.getConfig(for: .groundSchoolTest)
+                            GroundSchoolTestCard(
+                                config: config,
+                                hasPassedTest: true
+                            )
+                            .padding(.horizontal)
+                        }
+                        
+                        // Database tests that are passed
+                        ForEach(availableTests.filter { passedTestIds.contains($0.id) }) { test in
+                            DatabaseTestCard(
+                                test: test,
+                                isEligible: prerequisitesStatus?.isEligible ?? false,
+                                testResult: testResultStatuses[test.id]
+                            )
+                            .padding(.horizontal)
                         }
                     }
                 }
@@ -189,6 +176,9 @@ struct TestCenterView: View {
         // Load exam configurations from backend
         await examService.fetchExamConfigs()
         
+        // Fetch all active oral/practical tests from database
+        await loadAvailableTests()
+        
         // Check prerequisites
         do {
             prerequisitesStatus = try await examService.checkPrerequisites(pilotId: currentUser.id)
@@ -196,7 +186,7 @@ struct TestCenterView: View {
             print("Error checking prerequisites: \(error)")
         }
         
-        // Check for existing appointments
+        // Check for existing appointments (still needed for legacy ExamType-based appointments)
         for examType in ExamType.allCases {
             existingAppointments[examType] = await examService.hasExistingAppointment(
                 pilotId: currentUser.id,
@@ -204,7 +194,7 @@ struct TestCenterView: View {
             )
         }
         
-        // Fetch test result statuses for upload-required exams
+        // Fetch test result statuses for all tests
         await loadTestResultStatuses(pilotId: currentUser.id)
         
         // Fetch appointments
@@ -213,26 +203,47 @@ struct TestCenterView: View {
         isCheckingPrerequisites = false
     }
     
+    private func loadAvailableTests() async {
+        guard let currentUser = authService.currentUser else { return }
+        
+        do {
+            // Fetch only tests from courses the pilot is enrolled in
+            let allTests = try await academyService.fetchTestsForEnrolledCourses(pilotId: currentUser.id)
+            availableTests = allTests
+            print("✅ [TestCenter] Loaded \(availableTests.count) available tests from enrolled courses")
+        } catch {
+            print("❌ [TestCenter] Error loading tests: \(error)")
+        }
+    }
+    
     private func loadTestResultStatuses(pilotId: UUID) async {
-        // Test IDs for Flight Review and ROC-A
-        let flightReviewTestId = UUID(uuidString: "f1a2b3c4-d5e6-7890-abcd-f11ab0000001")!
-        let rocATestId = UUID(uuidString: "a0c4a5b6-c7d8-9012-efab-a0ca00000001")!
-        
-        // Fetch Flight Review test result (part of UAS Pilot Course)
-        if let flightReviewResult = try? await uploadService.getTestResultStatus(
-            pilotId: pilotId,
-            testId: flightReviewTestId
-        ) {
-            testResultStatuses[.flightReview] = flightReviewResult
+        // Fetch test results for all available tests
+        for test in availableTests {
+            if let testResult = try? await uploadService.getTestResultStatus(
+                pilotId: pilotId,
+                testId: test.id
+            ) {
+                testResultStatuses[test.id] = testResult
+                
+                // Track passed tests based on test type
+                // For tests that need a proctor (oral/practical), require upload_status == 'approved'
+                // For tests that don't need a proctor (multiple choice), just check if passed
+                let isPassedTest: Bool
+                if test.needsProctor {
+                    // Proctored tests: must be passed AND approved
+                    isPassedTest = testResult.passed && testResult.uploadStatusEnum == .approved
+                } else {
+                    // Non-proctored tests (e.g., Ground School multiple choice): just check passed
+                    isPassedTest = testResult.passed
+                }
+                
+                if isPassedTest {
+                    passedTestIds.insert(test.id)
+                }
+            }
         }
         
-        // Fetch ROC-A test result (part of UAS Pilot Course)
-        if let rocAResult = try? await uploadService.getTestResultStatus(
-            pilotId: pilotId,
-            testId: rocATestId
-        ) {
-            testResultStatuses[.rocA] = rocAResult
-        }
+        print("✅ [TestCenter] Loaded test result statuses for \(testResultStatuses.count) tests, \(passedTestIds.count) passed")
     }
 }
 
@@ -1542,3 +1553,314 @@ struct GroundSchoolTestWrapperView: View {
         isLoading = false
     }
 }
+
+// MARK: - Database Test Card
+
+struct DatabaseTestCard: View {
+    let test: CourseTest
+    let isEligible: Bool
+    let testResult: TestResult?
+    @EnvironmentObject var authService: AuthService
+    
+    private var hasPassed: Bool {
+        testResult?.passed == true && testResult?.uploadStatusEnum == .approved
+    }
+    
+    private var testIcon: String {
+        switch test.testType {
+        case "multiple_choice":
+            return "doc.text.fill"
+        case "oral":
+            return "antenna.radiowaves.left.and.right"
+        case "practical":
+            return "airplane"
+        case "written":
+            return "pencil.and.outline"
+        default:
+            return "checkmark.seal.fill"
+        }
+    }
+    
+    private var examType: ExamType? {
+        let testNameLower = test.testName.lowercased()
+        if testNameLower.contains("roc-a") || testNameLower.contains("radio") {
+            return .rocA
+        } else if testNameLower.contains("flight review") {
+            return .flightReview
+        }
+        return nil
+    }
+    
+    var body: some View {
+        Group {
+            if test.needsProctor {
+                // Needs proctor → Navigate to scheduling/exam intro view
+                if let examType = examType {
+                    NavigationLink(destination: ExamIntroView(examType: examType)) {
+                        cardContent
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                } else {
+                    // Unknown exam type, show card without navigation
+                    cardContent
+                }
+            } else {
+                // No proctor needed → Navigate to test intro (like Ground School Test)
+                if let currentUser = authService.currentUser {
+                    NavigationLink(destination: TestIntroView(
+                        test: test,
+                        pilotId: currentUser.id
+                    )) {
+                        cardContent
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                } else {
+                    cardContent
+                }
+            }
+        }
+    }
+    
+    private var cardContent: some View {
+        HStack(spacing: 16) {
+            // Icon
+            ZStack {
+                Circle()
+                    .fill(hasPassed ? Color.green.opacity(0.2) : Color.blue.opacity(0.2))
+                    .frame(width: 60, height: 60)
+                
+                Image(systemName: hasPassed ? "checkmark.seal.fill" : testIcon)
+                    .font(.title2)
+                    .foregroundColor(hasPassed ? .green : .blue)
+            }
+            
+            VStack(alignment: .leading, spacing: 6) {
+                Text(test.testName)
+                    .font(.headline)
+                    .foregroundColor(.primary)
+                
+                if let description = test.testDescription {
+                    Text(description)
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .lineLimit(2)
+                }
+                
+                if hasPassed {
+                    HStack(spacing: 4) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundColor(.green)
+                            .font(.caption)
+                        Text("Completed")
+                            .font(.caption)
+                            .foregroundColor(.green)
+                            .fontWeight(.semibold)
+                    }
+                } else if !isEligible {
+                    HStack(spacing: 4) {
+                        Image(systemName: "lock.fill")
+                            .foregroundColor(.orange)
+                            .font(.caption)
+                        Text("Complete prerequisites")
+                            .font(.caption)
+                            .foregroundColor(.orange)
+                            .fontWeight(.semibold)
+                    }
+                } else if test.needsProctor {
+                    HStack(spacing: 4) {
+                        Image(systemName: "calendar.badge.clock")
+                            .foregroundColor(.blue)
+                            .font(.caption)
+                        Text("Requires scheduling")
+                            .font(.caption)
+                            .foregroundColor(.blue)
+                    }
+                } else {
+                    HStack(spacing: 4) {
+                        Image(systemName: "play.circle.fill")
+                            .foregroundColor(.blue)
+                            .font(.caption)
+                        Text("Start Test")
+                            .font(.caption)
+                            .foregroundColor(.blue)
+                    }
+                }
+            }
+            
+            Spacer()
+            
+            if isEligible || hasPassed {
+                Image(systemName: "chevron.right")
+                    .foregroundColor(.secondary)
+                    .font(.caption)
+            }
+        }
+        .padding()
+        .background(Color(.secondarySystemBackground))
+        .cornerRadius(12)
+    }
+}
+
+// MARK: - Test Intro View (for tests that don't need a proctor)
+
+struct TestIntroView: View {
+    let test: CourseTest
+    let pilotId: UUID
+    @StateObject private var academyService = AcademyService()
+    @Environment(\.dismiss) private var dismiss
+    @State private var navigateToTest = false
+    @State private var course: TrainingCourse?
+    @State private var isLoadingCourse = true
+    
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 24) {
+                // Test icon/header
+                VStack(spacing: 16) {
+                    ZStack {
+                        Circle()
+                            .fill(Color.blue.opacity(0.2))
+                            .frame(width: 100, height: 100)
+                        
+                        Image(systemName: getTestIcon(for: test.testType))
+                            .font(.system(size: 50))
+                            .foregroundColor(.blue)
+                    }
+                    
+                    Text(test.testName)
+                        .font(.title)
+                        .fontWeight(.bold)
+                        .multilineTextAlignment(.center)
+                }
+                .padding(.top, 40)
+                
+                // About This Test
+                if let description = test.testDescription {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("About This Test")
+                            .font(.headline)
+                        
+                        Text(description)
+                            .font(.body)
+                            .foregroundColor(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding()
+                    .background(Color(.secondarySystemBackground))
+                    .cornerRadius(12)
+                }
+                
+                // Test Details
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Test Details")
+                        .font(.headline)
+                    
+                    VStack(spacing: 16) {
+                        DetailRow(
+                            icon: "checkmark.circle",
+                            label: "Passing Score",
+                            value: "\(test.passingScore)%"
+                        )
+                        
+                        DetailRow(
+                            icon: "clock",
+                            label: "Duration",
+                            value: "60 minutes"
+                        )
+                        
+                        DetailRow(
+                            icon: "doc.text",
+                            label: "Test Type",
+                            value: test.testType.capitalized
+                        )
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding()
+                .background(Color(.secondarySystemBackground))
+                .cornerRadius(12)
+                
+                // Start Test Button
+                if isLoadingCourse {
+                    ProgressView()
+                } else if let course = course {
+                    Button(action: {
+                        navigateToTest = true
+                    }) {
+                        HStack {
+                            Image(systemName: "play.circle.fill")
+                            Text("Start Test")
+                                .fontWeight(.semibold)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color.blue)
+                        .foregroundColor(.white)
+                        .cornerRadius(12)
+                    }
+                    .padding(.top)
+                    
+                    // Navigation to test
+                    NavigationLink(
+                        destination: MultipleChoiceTestView(
+                            testId: test.id,
+                            course: course,
+                            pilotId: pilotId,
+                            testName: test.testName,
+                            passingScore: test.passingScore,
+                            durationMinutes: 60
+                        )
+                        .navigationBarBackButtonHidden(true),
+                        isActive: $navigateToTest
+                    ) {
+                        EmptyView()
+                    }
+                    .hidden()
+                } else {
+                    Text("Unable to load course information")
+                        .foregroundColor(.red)
+                }
+                
+                Spacer(minLength: 40)
+            }
+            .padding()
+        }
+        .navigationTitle(test.testName)
+        .navigationBarTitleDisplayMode(.inline)
+        .task {
+            await loadCourse()
+        }
+    }
+    
+    private func loadCourse() async {
+        isLoadingCourse = true
+        do {
+            // Fetch all courses to find the one that matches this test's course_id
+            try await academyService.fetchCourses()
+            course = academyService.courses.first { $0.id == test.courseId }
+            
+            if course == nil {
+                print("⚠️ [TestIntroView] Could not find course with ID: \(test.courseId)")
+            }
+        } catch {
+            print("❌ [TestIntroView] Error loading course: \(error)")
+        }
+        isLoadingCourse = false
+    }
+    
+    private func getTestIcon(for testType: String) -> String {
+        switch testType {
+        case "multiple_choice":
+            return "doc.text.fill"
+        case "oral":
+            return "antenna.radiowaves.left.and.right"
+        case "practical":
+            return "airplane"
+        case "written":
+            return "pencil.and.outline"
+        default:
+            return "checkmark.seal.fill"
+        }
+    }
+}
+

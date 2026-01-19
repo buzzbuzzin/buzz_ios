@@ -366,6 +366,64 @@ class AcademyService: ObservableObject {
         }
     }
     
+    /// Fetch all active tests across all courses (for Test Center)
+    func fetchAllActiveTests() async throws -> [CourseTest] {
+        do {
+            let response: [CourseTest] = try await supabase
+                .from("course_tests")
+                .select()
+                .eq("is_active", value: true)
+                .order("order_index", ascending: true)
+                .execute()
+                .value
+            
+            print("✅ [AcademyService] Fetched \(response.count) active tests across all courses")
+            return response
+        } catch {
+            print("❌ [AcademyService] Error fetching all active tests: \(error)")
+            throw error
+        }
+    }
+    
+    /// Fetch active tests only from courses the pilot is enrolled in
+    func fetchTestsForEnrolledCourses(pilotId: UUID) async throws -> [CourseTest] {
+        do {
+            // First, fetch the pilot's course enrollments
+            let enrollmentsResponse = try await supabase
+                .from("course_enrollments")
+                .select("course_id")
+                .eq("pilot_id", value: pilotId.uuidString)
+                .execute()
+            
+            let enrollmentsData = try JSONDecoder().decode([CourseEnrollmentResponse].self, from: enrollmentsResponse.data)
+            let enrolledCourseIds = enrollmentsData.map { $0.courseId.uuidString }
+            
+            print("📚 [AcademyService] Pilot is enrolled in \(enrolledCourseIds.count) courses")
+            
+            // If no enrollments, return empty array
+            guard !enrolledCourseIds.isEmpty else {
+                print("⚠️ [AcademyService] No course enrollments found for pilot")
+                return []
+            }
+            
+            // Fetch tests for enrolled courses only
+            let response: [CourseTest] = try await supabase
+                .from("course_tests")
+                .select()
+                .eq("is_active", value: true)
+                .in("course_id", values: enrolledCourseIds)
+                .order("order_index", ascending: true)
+                .execute()
+                .value
+            
+            print("✅ [AcademyService] Fetched \(response.count) active tests from enrolled courses")
+            return response
+        } catch {
+            print("❌ [AcademyService] Error fetching tests for enrolled courses: \(error)")
+            throw error
+        }
+    }
+    
     // MARK: - Fetch Test Questions
     
     /// Fetch questions for a specific test from the test_questions table
