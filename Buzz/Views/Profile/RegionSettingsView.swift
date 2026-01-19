@@ -60,22 +60,20 @@ struct RegionSettingsView: View {
 
             Section("Change Region") {
                 ForEach(availableRegions, id: \.self) { region in
-                    Button(action: {
-                        selectedRegion = region
-                    }) {
-                        HStack {
-                            Text(region.icon)
-                                .font(.title3)
-                            Text(region.rawValue)
-                                .foregroundColor(.primary)
-                            Spacer()
-                            if selectedRegion == region {
-                                Image(systemName: "checkmark")
-                                    .foregroundColor(.blue)
-                            }
+                    HStack {
+                        Text(region.icon)
+                            .font(.title3)
+                        Text(region.rawValue)
+                        Spacer()
+                        if selectedRegion == region {
+                            Image(systemName: "checkmark")
+                                .foregroundColor(.blue)
                         }
                     }
-                    .buttonStyle(PlainButtonStyle())
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        selectedRegion = region
+                    }
                 }
             }
 
