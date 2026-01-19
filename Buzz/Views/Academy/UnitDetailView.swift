@@ -14,7 +14,7 @@ struct UnitDetailView: View {
     let course: TrainingCourse
     @EnvironmentObject var authService: AuthService
     @StateObject private var academyService = AcademyService()
-    @State private var selectedPDF: PDFSelection?
+    @State private var selectedMaterial: MaterialSelection?
     @State private var isCompleted = false
     @State private var showTestView = false
     @State private var canTakeTest = false
@@ -83,28 +83,28 @@ struct UnitDetailView: View {
                 .cornerRadius(12)
                 .padding(.horizontal)
                 
-                // PDF Course Material Buttons (multiple modules per unit)
-                if !unit.pdfUrls.isEmpty {
+                // Course Material Buttons (multiple modules per unit, supporting various formats)
+                if !unit.materials.isEmpty {
                     VStack(spacing: 12) {
-                        Text("Course Material PDFs")
+                        Text("Course Materials")
                             .font(.headline)
                             .fontWeight(.semibold)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                        
-                        ForEach(Array(unit.pdfUrls.enumerated()), id: \.offset) { index, pdfUrl in
+
+                        ForEach(unit.materials, id: \.index) { material in
                             Button(action: {
-                                selectedPDF = PDFSelection(url: pdfUrl)
+                                selectedMaterial = MaterialSelection(material: material)
                             }) {
-                                ModuleButtonContent(title: getPDFName(index: index))
+                                MaterialButtonContent(material: material)
                             }
                         }
                     }
                     .padding(.horizontal)
-                    .sheet(item: $selectedPDF) { pdfSelection in
+                    .sheet(item: $selectedMaterial) { materialSelection in
                         NavigationView {
                             FileViewer(
-                                fileUrl: pdfSelection.url,
-                                fileType: .pdf,
+                                fileUrl: materialSelection.material.url,
+                                fileType: materialSelection.material.fileViewerTypeString == "pdf" ? .pdf : .image,
                                 bucketName: "course-materials"
                             )
                         }
@@ -126,7 +126,7 @@ struct UnitDetailView: View {
                     .background(Color(.systemBackground))
                     .cornerRadius(12)
                     .padding(.horizontal)
-                } else if unit.pdfUrls.isEmpty {
+                } else if unit.materials.isEmpty {
                     // Placeholder content (only show if no PDF)
                     VStack(alignment: .leading, spacing: 12) {
                         Text("Course Material")
@@ -408,28 +408,24 @@ struct UnitDetailView: View {
         }
     }
     
-    // Helper function to get PDF name from backend or return empty string if not available
-    private func getPDFName(index: Int) -> String {
-        // Check if we have a name in the pdfNames array at this index
-        if index < unit.pdfNames.count {
-            let name = unit.pdfNames[index]
-            // Return the name if it's not empty, otherwise return empty string
-            return name.isEmpty ? "" : name
-        }
-        // If pdfNames is null or index is out of bounds, return empty string
-        return ""
-    }
+    // Helper function to get material name - now handled by CourseMaterial struct
+    // This function is kept for potential future use but materials are now self-contained
 }
 
-struct ModuleButtonContent: View {
-    let title: String
-    
+struct MaterialButtonContent: View {
+    let material: CourseMaterial
+
     var body: some View {
         HStack {
-            Image(systemName: "doc.fill")
+            Image(systemName: material.iconName)
                 .font(.title3)
-            Text(title)
-                .font(.headline)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(material.name)
+                    .font(.headline)
+                Text(material.type.uppercased())
+                    .font(.caption)
+                    .foregroundColor(.white.opacity(0.8))
+            }
             Spacer()
             Image(systemName: "chevron.right")
                 .font(.caption)
@@ -467,11 +463,11 @@ struct ComingSoonModuleView: View {
     }
 }
 
-// MARK: - PDF Selection Wrapper
+// MARK: - Material Selection Wrapper
 
-private struct PDFSelection: Identifiable {
+private struct MaterialSelection: Identifiable {
     let id = UUID()
-    let url: String
+    let material: CourseMaterial
 }
 
 // MARK: - Unit Completion Model
