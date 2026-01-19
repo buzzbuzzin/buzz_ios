@@ -52,6 +52,9 @@ struct TestCenterView: View {
                 }
                 
                 // My Appointments Section (shown prominently before available exams)
+                // #region agent log
+                let _ = { let logPath = "/Users/xinyufang/Documents/Buzz/.cursor/debug.log"; if let logFile = FileHandle(forWritingAtPath: logPath) ?? (try? FileHandle(forWritingAtPath: (try? FileManager.default.createFile(atPath: logPath, contents: nil)) != nil ? logPath : logPath)) { defer { try? logFile.close() }; logFile.seekToEndOfFile(); let filtered = examService.appointments.filter({ $0.status != .cancelled }); if let logData = (try? JSONSerialization.data(withJSONObject: ["sessionId":"debug-session","runId":"initial","hypothesisId":"H1,H3","location":"TestCenterView.swift:body:appointments","message":"Checking My Appointments visibility","data":["totalAppointments":examService.appointments.count,"filteredCount":filtered.count,"isEmpty":filtered.isEmpty,"willShow":!filtered.isEmpty,"allAppointments":examService.appointments.map{["id":$0.id.uuidString,"status":$0.status.rawValue]}],"timestamp":Date().timeIntervalSince1970*1000] as [String:Any])) { logFile.write(logData); logFile.write("\n".data(using: .utf8)!) } } }()
+                // #endregion
                 if !examService.appointments.filter({ $0.status != .cancelled }).isEmpty {
                     VStack(alignment: .leading, spacing: 16) {
                         Text("My Appointments")
@@ -150,6 +153,10 @@ struct TestCenterView: View {
     private func loadData() async {
         guard let currentUser = authService.currentUser else { return }
         
+        // #region agent log
+        let logPath = "/Users/xinyufang/Documents/Buzz/.cursor/debug.log"; if let logFile = FileHandle(forWritingAtPath: logPath) ?? (try? FileHandle(forWritingAtPath: (try? FileManager.default.createFile(atPath: logPath, contents: nil)) != nil ? logPath : logPath)) { defer { try? logFile.close() }; logFile.seekToEndOfFile(); if let logData = (try? JSONSerialization.data(withJSONObject: ["sessionId":"debug-session","runId":"initial","hypothesisId":"H2","location":"TestCenterView.swift:loadData:entry","message":"loadData called","data":["userId":currentUser.id.uuidString],"timestamp":Date().timeIntervalSince1970*1000] as [String:Any])) { logFile.write(logData); logFile.write("\n".data(using: .utf8)!) } }
+        // #endregion
+        
         isCheckingPrerequisites = true
         
         // Load exam configurations from backend
@@ -178,6 +185,10 @@ struct TestCenterView: View {
         
         // Fetch appointments
         await examService.fetchAppointments(pilotId: currentUser.id)
+        
+        // #region agent log
+        if let logFile = FileHandle(forWritingAtPath: logPath) ?? (try? FileHandle(forWritingAtPath: (try? FileManager.default.createFile(atPath: logPath, contents: nil)) != nil ? logPath : logPath)) { defer { try? logFile.close() }; logFile.seekToEndOfFile(); if let logData = (try? JSONSerialization.data(withJSONObject: ["sessionId":"debug-session","runId":"initial","hypothesisId":"H1,H2","location":"TestCenterView.swift:loadData:exit","message":"Appointments fetched","data":["appointmentsCount":examService.appointments.count,"appointments":examService.appointments.map{["id":$0.id.uuidString,"status":$0.status.rawValue,"examType":$0.examType.rawValue]}],"timestamp":Date().timeIntervalSince1970*1000] as [String:Any])) { logFile.write(logData); logFile.write("\n".data(using: .utf8)!) } }
+        // #endregion
         
         isCheckingPrerequisites = false
     }
@@ -1573,6 +1584,9 @@ struct DatabaseTestCard: View {
     
     var body: some View {
         Group {
+            // #region agent log
+            let _ = { let logPath = "/Users/xinyufang/Documents/Buzz/.cursor/debug.log"; if let logFile = FileHandle(forWritingAtPath: logPath) ?? (try? FileHandle(forWritingAtPath: (try? FileManager.default.createFile(atPath: logPath, contents: nil)) != nil ? logPath : logPath)) { defer { try? logFile.close() }; logFile.seekToEndOfFile(); if let logData = (try? JSONSerialization.data(withJSONObject: ["sessionId":"debug-session","runId":"initial","hypothesisId":"H5","location":"TestCenterView.swift:DatabaseTestCard:body","message":"DatabaseTestCard rendering","data":["testName":test.testName,"testType":test.testType,"needsProctor":test.needsProctor,"isEligible":isEligible,"hasPassed":hasPassed],"timestamp":Date().timeIntervalSince1970*1000] as [String:Any])) { logFile.write(logData); logFile.write("\n".data(using: .utf8)!) } } }()
+            // #endregion
             if let currentUser = authService.currentUser {
                 if test.needsProctor {
                     // Needs proctor → Navigate to proctored test intro (handles scheduling)
@@ -1938,6 +1952,9 @@ struct ProctorTestIntroView: View {
     }
     
     var body: some View {
+        // #region agent log
+        let _ = { let logPath = "/Users/xinyufang/Documents/Buzz/.cursor/debug.log"; if let logFile = FileHandle(forWritingAtPath: logPath) ?? (try? FileHandle(forWritingAtPath: (try? FileManager.default.createFile(atPath: logPath, contents: nil)) != nil ? logPath : logPath)) { defer { try? logFile.close() }; logFile.seekToEndOfFile(); if let logData = (try? JSONSerialization.data(withJSONObject: ["sessionId":"debug-session","runId":"initial","hypothesisId":"H6","location":"TestCenterView.swift:ProctorTestIntroView:body","message":"ProctorTestIntroView rendering","data":["testName":test.testName,"testType":test.testType,"isMultipleChoice":isMultipleChoice,"requiresScheduling":requiresScheduling,"isEligible":isEligible,"hasPassed":hasPassed,"isLoadingCourse":isLoadingCourse,"courseLoaded":course != nil],"timestamp":Date().timeIntervalSince1970*1000] as [String:Any])) { logFile.write(logData); logFile.write("\n".data(using: .utf8)!) } } }()
+        // #endregion
         ScrollView {
             VStack(spacing: 24) {
                 // Header
@@ -2100,8 +2117,14 @@ struct ProctorTestIntroView: View {
                             }
                             .padding(.horizontal)
                         } else {
+                            // #region agent log
+                            let _ = { let logPath = "/Users/xinyufang/Documents/Buzz/.cursor/debug.log"; if let logFile = FileHandle(forWritingAtPath: logPath) ?? (try? FileHandle(forWritingAtPath: (try? FileManager.default.createFile(atPath: logPath, contents: nil)) != nil ? logPath : logPath)) { defer { try? logFile.close() }; logFile.seekToEndOfFile(); if let logData = (try? JSONSerialization.data(withJSONObject: ["sessionId":"debug-session","runId":"initial","hypothesisId":"H7,H8","location":"TestCenterView.swift:ProctorTestIntroView:scheduleButton","message":"Schedule Exam button rendered","data":["testName":test.testName,"priceLoaded":priceInfo != nil,"isLoadingPrice":isLoadingPrice,"buttonDisabled":priceInfo == nil,"requiresScheduling":requiresScheduling],"timestamp":Date().timeIntervalSince1970*1000] as [String:Any])) { logFile.write(logData); logFile.write("\n".data(using: .utf8)!) } } }()
+                            // #endregion
                             // Oral/Practical test - requires scheduling
                             Button(action: {
+                                // #region agent log
+                                let logPath = "/Users/xinyufang/Documents/Buzz/.cursor/debug.log"; if let logFile = FileHandle(forWritingAtPath: logPath) ?? (try? FileHandle(forWritingAtPath: (try? FileManager.default.createFile(atPath: logPath, contents: nil)) != nil ? logPath : logPath)) { defer { try? logFile.close() }; logFile.seekToEndOfFile(); if let logData = (try? JSONSerialization.data(withJSONObject: ["sessionId":"debug-session","runId":"initial","hypothesisId":"H8","location":"TestCenterView.swift:ProctorTestIntroView:scheduleButtonTap","message":"Schedule Exam button tapped","data":["testName":test.testName,"showSchedulingView":showSchedulingView],"timestamp":Date().timeIntervalSince1970*1000] as [String:Any])) { logFile.write(logData); logFile.write("\n".data(using: .utf8)!) } }
+                                // #endregion
                                 showSchedulingView = true
                             }) {
                                 HStack {
@@ -2215,10 +2238,19 @@ struct ProctorTestIntroView: View {
     
     private func loadPrice() async {
         isLoadingPrice = true
+        // #region agent log
+        let logPath = "/Users/xinyufang/Documents/Buzz/.cursor/debug.log"; if let logFile = FileHandle(forWritingAtPath: logPath) ?? (try? FileHandle(forWritingAtPath: (try? FileManager.default.createFile(atPath: logPath, contents: nil)) != nil ? logPath : logPath)) { defer { try? logFile.close() }; logFile.seekToEndOfFile(); if let logData = (try? JSONSerialization.data(withJSONObject: ["sessionId":"debug-session","runId":"initial","hypothesisId":"H7","location":"TestCenterView.swift:ProctorTestIntroView:loadPrice:start","message":"Loading price for proctored exam","data":["testName":test.testName],"timestamp":Date().timeIntervalSince1970*1000] as [String:Any])) { logFile.write(logData); logFile.write("\n".data(using: .utf8)!) } }
+        // #endregion
         do {
             // Try to fetch price for generic proctored exam
             priceInfo = try await examService.fetchExamPrice(examType: .flightReview)
+            // #region agent log
+            if let logFile = FileHandle(forWritingAtPath: logPath) ?? (try? FileHandle(forWritingAtPath: (try? FileManager.default.createFile(atPath: logPath, contents: nil)) != nil ? logPath : logPath)) { defer { try? logFile.close() }; logFile.seekToEndOfFile(); if let logData = (try? JSONSerialization.data(withJSONObject: ["sessionId":"debug-session","runId":"initial","hypothesisId":"H7","location":"TestCenterView.swift:ProctorTestIntroView:loadPrice:success","message":"Price loaded successfully","data":["testName":test.testName,"priceLoaded":priceInfo != nil],"timestamp":Date().timeIntervalSince1970*1000] as [String:Any])) { logFile.write(logData); logFile.write("\n".data(using: .utf8)!) } }
+            // #endregion
         } catch {
+            // #region agent log
+            if let logFile = FileHandle(forWritingAtPath: logPath) ?? (try? FileHandle(forWritingAtPath: (try? FileManager.default.createFile(atPath: logPath, contents: nil)) != nil ? logPath : logPath)) { defer { try? logFile.close() }; logFile.seekToEndOfFile(); if let logData = (try? JSONSerialization.data(withJSONObject: ["sessionId":"debug-session","runId":"initial","hypothesisId":"H7","location":"TestCenterView.swift:ProctorTestIntroView:loadPrice:error","message":"Price loading failed","data":["testName":test.testName,"error":error.localizedDescription],"timestamp":Date().timeIntervalSince1970*1000] as [String:Any])) { logFile.write(logData); logFile.write("\n".data(using: .utf8)!) } }
+            // #endregion
             print("⚠️ [ProctorTestIntroView] Error loading price: \(error)")
         }
         isLoadingPrice = false
