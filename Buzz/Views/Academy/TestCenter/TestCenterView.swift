@@ -57,17 +57,7 @@ struct TestCenterView: View {
                         .font(.headline)
                         .padding(.horizontal)
                     
-                    // Ground School Test (hardcoded - not in course_tests)
-                    if !(prerequisitesStatus?.passedGroundSchoolTest ?? false) {
-                        let config = examService.getConfig(for: .groundSchoolTest)
-                        GroundSchoolTestCard(
-                            config: config,
-                            hasPassedTest: false
-                        )
-                        .padding(.horizontal)
-                    }
-                    
-                    // Database tests (oral/practical exams)
+                    // All tests from enrolled courses (filtered by passed status)
                     ForEach(availableTests.filter { !passedTestIds.contains($0.id) }) { test in
                         DatabaseTestCard(
                             test: test,
@@ -101,17 +91,7 @@ struct TestCenterView: View {
                     .buttonStyle(PlainButtonStyle())
                     
                     if showPassedExams {
-                        // Ground School Test if passed
-                        if prerequisitesStatus?.passedGroundSchoolTest ?? false {
-                            let config = examService.getConfig(for: .groundSchoolTest)
-                            GroundSchoolTestCard(
-                                config: config,
-                                hasPassedTest: true
-                            )
-                            .padding(.horizontal)
-                        }
-                        
-                        // Database tests that are passed
+                        // All passed tests from enrolled courses
                         ForEach(availableTests.filter { passedTestIds.contains($0.id) }) { test in
                             DatabaseTestCard(
                                 test: test,
@@ -1562,8 +1542,19 @@ struct DatabaseTestCard: View {
     let testResult: TestResult?
     @EnvironmentObject var authService: AuthService
     
+    /// Determines if the test is passed based on test type
+    /// - For proctored tests: requires passed = true AND upload_status = 'approved'
+    /// - For non-proctored tests: only requires passed = true
     private var hasPassed: Bool {
-        testResult?.passed == true && testResult?.uploadStatusEnum == .approved
+        guard let result = testResult, result.passed else { return false }
+        
+        if test.needsProctor {
+            // Proctored tests require approval
+            return result.uploadStatusEnum == .approved
+        } else {
+            // Non-proctored tests (e.g., multiple choice) just need passed = true
+            return true
+        }
     }
     
     private var testIcon: String {
@@ -1609,7 +1600,8 @@ struct DatabaseTestCard: View {
                 if let currentUser = authService.currentUser {
                     NavigationLink(destination: TestIntroView(
                         test: test,
-                        pilotId: currentUser.id
+                        pilotId: currentUser.id,
+                        hasPassed: hasPassed
                     )) {
                         cardContent
                     }
@@ -1627,17 +1619,32 @@ struct DatabaseTestCard: View {
             ZStack {
                 Circle()
                     .fill(hasPassed ? Color.green.opacity(0.2) : Color.blue.opacity(0.2))
-                    .frame(width: 60, height: 60)
+                    .frame(width: 56, height: 56)
                 
                 Image(systemName: hasPassed ? "checkmark.seal.fill" : testIcon)
-                    .font(.title2)
+                    .font(.system(size: 24))
                     .foregroundColor(hasPassed ? .green : .blue)
             }
             
-            VStack(alignment: .leading, spacing: 6) {
-                Text(test.testName)
-                    .font(.headline)
-                    .foregroundColor(.primary)
+            // Content
+            VStack(alignment: .leading, spacing: 4) {
+                // Title with Passed badge
+                HStack {
+                    Text(test.testName)
+                        .font(.headline)
+                        .foregroundColor(.primary)
+                    
+                    if hasPassed {
+                        Text("Passed")
+                            .font(.caption)
+                            .fontWeight(.medium)
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 2)
+                            .background(Color.green)
+                            .cornerRadius(4)
+                    }
+                }
                 
                 if let description = test.testDescription {
                     Text(description)
@@ -1646,58 +1653,63 @@ struct DatabaseTestCard: View {
                         .lineLimit(2)
                 }
                 
-                if hasPassed {
-                    HStack(spacing: 4) {
-                        Image(systemName: "checkmark.circle.fill")
+                // Bottom info row
+                HStack(spacing: 12) {
+                    if !test.needsProctor {
+                        // Duration for non-proctored tests
+                        Label("60 min", systemImage: "clock")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        
+                        // Free badge for non-proctored tests
+                        Label("Free", systemImage: "checkmark.circle.fill")
+                            .font(.caption)
                             .foregroundColor(.green)
-                            .font(.caption)
-                        Text("Completed")
-                            .font(.caption)
-                            .foregroundColor(.green)
-                            .fontWeight(.semibold)
-                    }
-                } else if !isEligible {
-                    HStack(spacing: 4) {
-                        Image(systemName: "lock.fill")
-                            .foregroundColor(.orange)
-                            .font(.caption)
-                        Text("Complete prerequisites")
-                            .font(.caption)
-                            .foregroundColor(.orange)
-                            .fontWeight(.semibold)
-                    }
-                } else if test.needsProctor {
-                    HStack(spacing: 4) {
-                        Image(systemName: "calendar.badge.clock")
-                            .foregroundColor(.blue)
-                            .font(.caption)
-                        Text("Requires scheduling")
-                            .font(.caption)
-                            .foregroundColor(.blue)
-                    }
-                } else {
-                    HStack(spacing: 4) {
-                        Image(systemName: "play.circle.fill")
-                            .foregroundColor(.blue)
-                            .font(.caption)
-                        Text("Start Test")
-                            .font(.caption)
-                            .foregroundColor(.blue)
+                    } else if hasPassed {
+                        // Show completed status for passed proctored tests
+                        HStack(spacing: 4) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundColor(.green)
+                                .font(.caption)
+                            Text("Completed")
+                                .font(.caption)
+                                .foregroundColor(.green)
+                                .fontWeight(.semibold)
+                        }
+                    } else if !isEligible {
+                        HStack(spacing: 4) {
+                            Image(systemName: "lock.fill")
+                                .foregroundColor(.orange)
+                                .font(.caption)
+                            Text("Complete prerequisites")
+                                .font(.caption)
+                                .foregroundColor(.orange)
+                                .fontWeight(.semibold)
+                        }
+                    } else {
+                        HStack(spacing: 4) {
+                            Image(systemName: "calendar.badge.clock")
+                                .foregroundColor(.blue)
+                                .font(.caption)
+                            Text("Requires scheduling")
+                                .font(.caption)
+                                .foregroundColor(.blue)
+                        }
                     }
                 }
             }
             
             Spacer()
             
-            if isEligible || hasPassed {
-                Image(systemName: "chevron.right")
-                    .foregroundColor(.secondary)
-                    .font(.caption)
-            }
+            // Arrow indicator
+            Image(systemName: "chevron.right")
+                .foregroundColor(.secondary)
+                .font(.subheadline)
         }
         .padding()
-        .background(Color(.secondarySystemBackground))
+        .background(Color(.systemBackground))
         .cornerRadius(12)
+        .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
     }
 }
 
@@ -1706,6 +1718,8 @@ struct DatabaseTestCard: View {
 struct TestIntroView: View {
     let test: CourseTest
     let pilotId: UUID
+    var hasPassed: Bool = false
+    
     @StateObject private var academyService = AcademyService()
     @Environment(\.dismiss) private var dismiss
     @State private var navigateToTest = false
@@ -1716,23 +1730,33 @@ struct TestIntroView: View {
         ScrollView {
             VStack(spacing: 24) {
                 // Test icon/header
-                VStack(spacing: 16) {
+                VStack(spacing: 12) {
                     ZStack {
                         Circle()
-                            .fill(Color.blue.opacity(0.2))
-                            .frame(width: 100, height: 100)
+                            .fill(hasPassed ? Color.green.opacity(0.15) : Color.blue.opacity(0.15))
+                            .frame(width: 80, height: 80)
                         
-                        Image(systemName: getTestIcon(for: test.testType))
-                            .font(.system(size: 50))
-                            .foregroundColor(.blue)
+                        Image(systemName: hasPassed ? "checkmark.seal.fill" : getTestIcon(for: test.testType))
+                            .font(.system(size: 36))
+                            .foregroundColor(hasPassed ? .green : .blue)
                     }
                     
                     Text(test.testName)
-                        .font(.title)
+                        .font(.title2)
                         .fontWeight(.bold)
                         .multilineTextAlignment(.center)
+                    
+                    if hasPassed {
+                        Text("Passed")
+                            .font(.headline)
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 6)
+                            .background(Color.green)
+                            .cornerRadius(8)
+                    }
                 }
-                .padding(.top, 40)
+                .padding(.top, 20)
                 
                 // About This Test
                 if let description = test.testDescription {
@@ -1746,59 +1770,73 @@ struct TestIntroView: View {
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding()
-                    .background(Color(.secondarySystemBackground))
+                    .background(Color(.systemGray6))
                     .cornerRadius(12)
+                    .padding(.horizontal)
                 }
                 
                 // Test Details
-                VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: 16) {
                     Text("Test Details")
                         .font(.headline)
+                        .padding(.horizontal)
                     
-                    VStack(spacing: 16) {
-                        DetailRow(
-                            icon: "checkmark.circle",
-                            label: "Passing Score",
-                            value: "\(test.passingScore)%"
-                        )
-                        
-                        DetailRow(
-                            icon: "clock",
-                            label: "Duration",
-                            value: "60 minutes"
-                        )
-                        
-                        DetailRow(
-                            icon: "doc.text",
-                            label: "Test Type",
-                            value: test.testType.capitalized
-                        )
+                    VStack(spacing: 12) {
+                        DetailRow(icon: "clock", label: "Duration", value: "60 minutes")
+                        DetailRow(icon: "checklist", label: "Questions", value: "Multiple choice")
+                        DetailRow(icon: "percent", label: "Passing Score", value: "\(test.passingScore)%")
+                        DetailRow(icon: "dollarsign.circle.fill", label: "Cost", value: "Free")
+                        DetailRow(icon: "arrow.clockwise", label: "Retakes", value: "Unlimited")
                     }
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
                 .padding()
-                .background(Color(.secondarySystemBackground))
+                .background(Color(.systemGray6))
                 .cornerRadius(12)
+                .padding(.horizontal)
                 
-                // Start Test Button
+                // Action Button
                 if isLoadingCourse {
                     ProgressView()
                 } else if let course = course {
-                    Button(action: {
-                        navigateToTest = true
-                    }) {
-                        HStack {
-                            Image(systemName: "play.circle.fill")
-                            Text("Start Test")
-                                .fontWeight(.semibold)
+                    if hasPassed {
+                        // Already passed - show option to retake
+                        VStack(spacing: 12) {
+                            Text("You've already passed this test!")
+                                .font(.subheadline)
+                                .foregroundColor(.green)
+                                .multilineTextAlignment(.center)
+                            
+                            Button(action: {
+                                navigateToTest = true
+                            }) {
+                                Text("Retake Test")
+                                    .fontWeight(.semibold)
+                                    .frame(maxWidth: .infinity)
+                                    .padding()
+                                    .background(Color.orange)
+                                    .foregroundColor(.white)
+                                    .cornerRadius(12)
+                            }
                         }
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color.blue)
-                        .foregroundColor(.white)
-                        .cornerRadius(12)
+                        .padding(.horizontal)
+                    } else {
+                        // Not passed yet - show start button
+                        Button(action: {
+                            navigateToTest = true
+                        }) {
+                            HStack {
+                                Image(systemName: "play.fill")
+                                Text("Start Test")
+                            }
+                            .fontWeight(.semibold)
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(Color.orange)
+                            .foregroundColor(.white)
+                            .cornerRadius(12)
+                        }
+                        .padding(.horizontal)
                     }
-                    .padding(.top)
                     
                     // Navigation to test
                     NavigationLink(
@@ -1823,9 +1861,8 @@ struct TestIntroView: View {
                 
                 Spacer(minLength: 40)
             }
-            .padding()
         }
-        .navigationTitle(test.testName)
+        .navigationTitle("Test Info")
         .navigationBarTitleDisplayMode(.inline)
         .task {
             await loadCourse()
