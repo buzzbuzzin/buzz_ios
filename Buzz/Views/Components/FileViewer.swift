@@ -9,6 +9,7 @@ import SwiftUI
 import PDFKit
 import UIKit
 import Supabase
+import CryptoKit
 
 struct FileViewer: View {
     let fileUrl: String
@@ -22,8 +23,47 @@ struct FileViewer: View {
     @State private var downloadProgress: Double = 0.0
     @State private var downloadedBytes: Int64 = 0
     @State private var totalBytes: Int64 = 0
-    
+
     private let supabase = SupabaseClient.shared.client
+
+    // MARK: - File Caching Properties
+
+    private var cacheDirectory: URL? {
+        FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first?.appendingPathComponent("FileViewerCache")
+    }
+
+    private var cacheKey: String {
+        // Create a unique cache key based on file URL and bucket
+        let inputString = "\(bucketName)/\(fileUrl)"
+        let inputData = Data(inputString.utf8)
+        let hash = SHA256.hash(data: inputData)
+        return hash.compactMap { String(format: "%02x", $0) }.joined()
+    }
+
+    private var cachedFileURL: URL? {
+        cacheDirectory?.appendingPathComponent("\(cacheKey).\(fileType == .pdf ? "pdf" : "image")")
+    }
+
+    private var cacheMetadataURL: URL? {
+        cacheDirectory?.appendingPathComponent("\(cacheKey).metadata")
+    }
+
+    // MARK: - Cache Metadata Structure
+
+    private struct CacheMetadata: Codable {
+        let url: String
+        let bucket: String
+        let eTag: String?
+        let lastModified: String?
+        let contentLength: Int64?
+        let cachedAt: Date
+        let fileType: String
+
+        var isExpired: Bool {
+            // Consider cache expired after 30 days
+            return Date().timeIntervalSince(cachedAt) > (30 * 24 * 60 * 60)
+        }
+    }
     
     enum FileViewerType {
         case pdf
@@ -182,6 +222,17 @@ struct FileViewer: View {
                     dismiss()
                 }
             }
+            ToolbarItem(placement: .navigationBarLeading) {
+                Button(action: {
+                    Task {
+                        await refreshFile()
+                    }
+                }) {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 16, weight: .semibold))
+                }
+                .disabled(isLoading)
+            }
         }
         .onAppear {
             print("DEBUG FileViewer: ========== VIEW APPEARED ==========")
@@ -199,12 +250,183 @@ struct FileViewer: View {
         }
     }
     
+    // MARK: - File Caching Methods
+
+    private func ensureCacheDirectoryExists() throws {
+        guard let cacheDir = cacheDirectory else {
+            throw NSError(domain: "FileViewer", code: -1, userInfo: [NSLocalizedDescriptionKey: "Unable to create cache directory"])
+        }
+
+        if !FileManager.default.fileExists(atPath: cacheDir.path) {
+            try FileManager.default.createDirectory(at: cacheDir, withIntermediateDirectories: true)
+        }
+    }
+
+    private func loadFromCache() async -> Bool {
+        guard let cachedURL = cachedFileURL else {
+            print("DEBUG FileViewer: No cache URL available")
+            return false
+        }
+
+        do {
+            let data = try Data(contentsOf: cachedURL)
+            print("DEBUG FileViewer: Loaded file from cache, size: \(data.count) bytes")
+
+            // Check if cache is still valid by making a conditional request
+            if await isCacheValid() {
+                print("DEBUG FileViewer: Cache is valid, using cached file")
+                // Update progress to 100% for cached files
+                await MainActor.run {
+                    self.downloadProgress = 1.0
+                    self.downloadedBytes = Int64(data.count)
+                    self.totalBytes = Int64(data.count)
+                }
+
+                await processFileData(data: data, response: nil)
+                return true
+            } else {
+                print("DEBUG FileViewer: Cache is invalid, will download fresh copy")
+                // Remove invalid cache
+                try? FileManager.default.removeItem(at: cachedURL)
+                try? FileManager.default.removeItem(at: cacheMetadataURL!)
+                return false
+            }
+        } catch {
+            print("DEBUG FileViewer: Failed to load from cache: \(error.localizedDescription)")
+            return false
+        }
+    }
+
+    private func loadCacheMetadata() -> CacheMetadata? {
+        guard let metadataURL = cacheMetadataURL else { return nil }
+
+        do {
+            let data = try Data(contentsOf: metadataURL)
+            let metadata = try JSONDecoder().decode(CacheMetadata.self, from: data)
+            return metadata
+        } catch {
+            print("DEBUG FileViewer: Failed to load cache metadata: \(error.localizedDescription)")
+            return nil
+        }
+    }
+
+    private func saveCacheMetadata(_ metadata: CacheMetadata) {
+        guard let metadataURL = cacheMetadataURL else { return }
+
+        do {
+            try ensureCacheDirectoryExists()
+            let data = try JSONEncoder().encode(metadata)
+            try data.write(to: metadataURL)
+            print("DEBUG FileViewer: Saved cache metadata")
+        } catch {
+            print("DEBUG FileViewer: Failed to save cache metadata: \(error.localizedDescription)")
+        }
+    }
+
+    private func saveToCache(data: Data, response: URLResponse?) {
+        guard let cachedURL = cachedFileURL else {
+            print("DEBUG FileViewer: No cache URL available for saving")
+            return
+        }
+
+        do {
+            try ensureCacheDirectoryExists()
+            try data.write(to: cachedURL)
+            print("DEBUG FileViewer: Saved file to cache: \(cachedURL.path)")
+
+            // Save metadata for cache validation
+            if let httpResponse = response as? HTTPURLResponse {
+                let metadata = CacheMetadata(
+                    url: fileUrl,
+                    bucket: bucketName,
+                    eTag: httpResponse.value(forHTTPHeaderField: "ETag"),
+                    lastModified: httpResponse.value(forHTTPHeaderField: "Last-Modified"),
+                    contentLength: httpResponse.value(forHTTPHeaderField: "Content-Length").flatMap { Int64($0) },
+                    cachedAt: Date(),
+                    fileType: fileType == .pdf ? "pdf" : "image"
+                )
+                saveCacheMetadata(metadata)
+            }
+        } catch {
+            print("DEBUG FileViewer: Failed to save to cache: \(error.localizedDescription)")
+        }
+    }
+
+    private func isCacheValid() async -> Bool {
+        guard let metadata = loadCacheMetadata() else {
+            print("DEBUG FileViewer: No cache metadata found")
+            return false
+        }
+
+        // Check if cache is expired (older than 30 days)
+        if metadata.isExpired {
+            print("DEBUG FileViewer: Cache is expired (older than 30 days)")
+            return false
+        }
+
+        // Make conditional request to check if file has changed
+        guard let url = URL(string: fileUrl) else { return false }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "HEAD" // HEAD request to check headers without downloading
+        request.timeoutInterval = 10.0 // Shorter timeout for validation
+
+        // Add conditional headers
+        if let eTag = metadata.eTag {
+            request.setValue(eTag, forHTTPHeaderField: "If-None-Match")
+        }
+        if let lastModified = metadata.lastModified {
+            request.setValue(lastModified, forHTTPHeaderField: "If-Modified-Since")
+        }
+
+        // Try with authentication if available
+        do {
+            let session = try await supabase.auth.session
+            request.setValue("Bearer \(session.accessToken)", forHTTPHeaderField: "Authorization")
+            request.setValue(Config.supabaseAnonKey, forHTTPHeaderField: "apikey")
+        } catch {
+            // Continue without auth for public buckets
+        }
+
+        do {
+            let (_, response) = try await URLSession.shared.data(for: request)
+
+            if let httpResponse = response as? HTTPURLResponse {
+                if httpResponse.statusCode == 304 {
+                    // 304 Not Modified - cache is still valid
+                    print("DEBUG FileViewer: Cache is valid (304 Not Modified)")
+                    return true
+                } else if httpResponse.statusCode == 200 {
+                    // File has been modified
+                    print("DEBUG FileViewer: Cache is invalid (file modified)")
+                    return false
+                }
+            }
+        } catch {
+            // If network request fails, assume cache is valid (offline mode)
+            print("DEBUG FileViewer: Network check failed, assuming cache is valid: \(error.localizedDescription)")
+            return true
+        }
+
+        // Default to invalid if we can't determine
+        return false
+    }
+
     private func loadFile() async {
         print("DEBUG FileViewer: loadFile() called")
         print("DEBUG FileViewer: fileUrl = \(fileUrl)")
         print("DEBUG FileViewer: bucketName = \(bucketName)")
-        
-        // First, try direct URL download (simplest approach for public buckets)
+        print("DEBUG FileViewer: cacheKey = \(cacheKey)")
+
+        // First, try to load from cache
+        if await loadFromCache() {
+            print("DEBUG FileViewer: Successfully loaded from cache")
+            return
+        }
+
+        print("DEBUG FileViewer: File not in cache, downloading from server")
+
+        // If not in cache, download from server
         await loadFileFromURL()
     }
     
@@ -278,7 +500,7 @@ struct FileViewer: View {
             }
             
             print("DEBUG FileViewer: Processing \(data.count) bytes of data")
-            await processFileData(data: data)
+            await processFileData(data: data, response: response)
         } catch {
             print("DEBUG FileViewer: Error downloading file: \(error)")
             print("DEBUG FileViewer: Error details: \(error.localizedDescription)")
@@ -306,7 +528,7 @@ struct FileViewer: View {
                 .download(path: filePath)
             
             print("DEBUG FileViewer: Supabase download successful, size: \(data.count) bytes")
-            await processFileData(data: data)
+            await processFileData(data: data, response: nil)
         } catch {
             print("DEBUG FileViewer: Supabase storage download also failed: \(error.localizedDescription)")
             await MainActor.run {
@@ -316,9 +538,12 @@ struct FileViewer: View {
         }
     }
     
-    private func processFileData(data: Data) async {
+    private func processFileData(data: Data, response: URLResponse? = nil) async {
         print("DEBUG FileViewer: Processing file data, size: \(data.count) bytes, type: \(fileType)")
-        
+
+        // Save to cache for future use (with metadata)
+        saveToCache(data: data, response: response)
+
         if fileType == .pdf {
             if let pdfDoc = PDFDocument(data: data) {
                 print("DEBUG FileViewer: PDF document loaded successfully, page count: \(pdfDoc.pageCount)")
@@ -362,14 +587,34 @@ struct FileViewer: View {
             } completion: { result in
                 continuation.resume(with: result)
             }
-            
+
             let configuration = URLSessionConfiguration.default
             let session = URLSession(configuration: configuration, delegate: delegate, delegateQueue: nil)
-            
+
             let task = session.dataTask(with: request)
             delegate.task = task
             task.resume()
         }
+    }
+
+    // Force refresh cached file
+    func refreshFile() async {
+        print("DEBUG FileViewer: Force refreshing file...")
+        await MainActor.run {
+            self.isLoading = true
+            self.errorMessage = nil
+        }
+
+        // Clear cache
+        if let cachedURL = cachedFileURL {
+            try? FileManager.default.removeItem(at: cachedURL)
+        }
+        if let metadataURL = cacheMetadataURL {
+            try? FileManager.default.removeItem(at: metadataURL)
+        }
+
+        // Download fresh copy
+        await loadFileFromURL()
     }
     
     // Format bytes to human-readable string
