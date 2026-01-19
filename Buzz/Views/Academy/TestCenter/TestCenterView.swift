@@ -52,9 +52,6 @@ struct TestCenterView: View {
                 }
                 
                 // My Appointments Section (shown prominently before available exams)
-                // #region agent log
-                let _ = { let logPath = "/Users/xinyufang/Documents/Buzz/.cursor/debug.log"; if let logFile = FileHandle(forWritingAtPath: logPath) ?? (try? FileHandle(forWritingAtPath: (try? FileManager.default.createFile(atPath: logPath, contents: nil)) != nil ? logPath : logPath)) { defer { try? logFile.close() }; logFile.seekToEndOfFile(); let filtered = examService.appointments.filter({ $0.status != .cancelled }); if let logData = (try? JSONSerialization.data(withJSONObject: ["sessionId":"debug-session","runId":"initial","hypothesisId":"H1,H3","location":"TestCenterView.swift:body:appointments","message":"Checking My Appointments visibility","data":["totalAppointments":examService.appointments.count,"filteredCount":filtered.count,"isEmpty":filtered.isEmpty,"willShow":!filtered.isEmpty,"allAppointments":examService.appointments.map{["id":$0.id.uuidString,"status":$0.status.rawValue]}],"timestamp":Date().timeIntervalSince1970*1000] as [String:Any])) { logFile.write(logData); logFile.write("\n".data(using: .utf8)!) } } }()
-                // #endregion
                 if !examService.appointments.filter({ $0.status != .cancelled }).isEmpty {
                     VStack(alignment: .leading, spacing: 16) {
                         Text("My Appointments")
@@ -153,10 +150,6 @@ struct TestCenterView: View {
     private func loadData() async {
         guard let currentUser = authService.currentUser else { return }
         
-        // #region agent log
-        let logPath = "/Users/xinyufang/Documents/Buzz/.cursor/debug.log"; if let logFile = FileHandle(forWritingAtPath: logPath) ?? (try? FileHandle(forWritingAtPath: (try? FileManager.default.createFile(atPath: logPath, contents: nil)) != nil ? logPath : logPath)) { defer { try? logFile.close() }; logFile.seekToEndOfFile(); if let logData = (try? JSONSerialization.data(withJSONObject: ["sessionId":"debug-session","runId":"initial","hypothesisId":"H2","location":"TestCenterView.swift:loadData:entry","message":"loadData called","data":["userId":currentUser.id.uuidString],"timestamp":Date().timeIntervalSince1970*1000] as [String:Any])) { logFile.write(logData); logFile.write("\n".data(using: .utf8)!) } }
-        // #endregion
-        
         isCheckingPrerequisites = true
         
         // Load exam configurations from backend
@@ -185,10 +178,6 @@ struct TestCenterView: View {
         
         // Fetch appointments
         await examService.fetchAppointments(pilotId: currentUser.id)
-        
-        // #region agent log
-        if let logFile = FileHandle(forWritingAtPath: logPath) ?? (try? FileHandle(forWritingAtPath: (try? FileManager.default.createFile(atPath: logPath, contents: nil)) != nil ? logPath : logPath)) { defer { try? logFile.close() }; logFile.seekToEndOfFile(); if let logData = (try? JSONSerialization.data(withJSONObject: ["sessionId":"debug-session","runId":"initial","hypothesisId":"H1,H2","location":"TestCenterView.swift:loadData:exit","message":"Appointments fetched","data":["appointmentsCount":examService.appointments.count,"appointments":examService.appointments.map{["id":$0.id.uuidString,"status":$0.status.rawValue,"examType":$0.examType.rawValue]}],"timestamp":Date().timeIntervalSince1970*1000] as [String:Any])) { logFile.write(logData); logFile.write("\n".data(using: .utf8)!) } }
-        // #endregion
         
         isCheckingPrerequisites = false
     }
@@ -1584,9 +1573,6 @@ struct DatabaseTestCard: View {
     
     var body: some View {
         Group {
-            // #region agent log
-            let _ = { let logPath = "/Users/xinyufang/Documents/Buzz/.cursor/debug.log"; if let logFile = FileHandle(forWritingAtPath: logPath) ?? (try? FileHandle(forWritingAtPath: (try? FileManager.default.createFile(atPath: logPath, contents: nil)) != nil ? logPath : logPath)) { defer { try? logFile.close() }; logFile.seekToEndOfFile(); if let logData = (try? JSONSerialization.data(withJSONObject: ["sessionId":"debug-session","runId":"initial","hypothesisId":"H5","location":"TestCenterView.swift:DatabaseTestCard:body","message":"DatabaseTestCard rendering","data":["testName":test.testName,"testType":test.testType,"needsProctor":test.needsProctor,"isEligible":isEligible,"hasPassed":hasPassed],"timestamp":Date().timeIntervalSince1970*1000] as [String:Any])) { logFile.write(logData); logFile.write("\n".data(using: .utf8)!) } } }()
-            // #endregion
             if let currentUser = authService.currentUser {
                 if test.needsProctor {
                     // Needs proctor → Navigate to proctored test intro (handles scheduling)
@@ -1925,15 +1911,22 @@ struct ProctorTestIntroView: View {
     @State private var showSchedulingView = false
     @State private var priceInfo: ExamPriceResponse?
     @State private var isLoadingPrice = true
+    @State private var existingAppointment: ExamAppointment?
+    @State private var isLoadingAppointment = true
     
-    // Check if this is a proctored multiple-choice exam (can be taken in-app with proctor)
-    private var isMultipleChoice: Bool {
-        test.testType == "multiple_choice"
+    // Check if there's a valid (non-cancelled) appointment for this test
+    private var hasScheduledAppointment: Bool {
+        guard let appointment = existingAppointment else { return false }
+        return appointment.status != .cancelled
     }
     
-    // For non-multiple-choice tests (oral, practical), scheduling is required
-    private var requiresScheduling: Bool {
-        test.testType != "multiple_choice"
+    // Check if the scheduled appointment is ready to start (within 30 mins or past start time)
+    private var canStartScheduledExam: Bool {
+        guard let appointment = existingAppointment,
+              appointment.status == .confirmed || appointment.status == .pending else { return false }
+        let now = Date()
+        let thirtyMinutesBefore = appointment.scheduledDate.addingTimeInterval(-30 * 60)
+        return now >= thirtyMinutesBefore
     }
     
     private var testIcon: String {
@@ -1952,9 +1945,6 @@ struct ProctorTestIntroView: View {
     }
     
     var body: some View {
-        // #region agent log
-        let _ = { let logPath = "/Users/xinyufang/Documents/Buzz/.cursor/debug.log"; if let logFile = FileHandle(forWritingAtPath: logPath) ?? (try? FileHandle(forWritingAtPath: (try? FileManager.default.createFile(atPath: logPath, contents: nil)) != nil ? logPath : logPath)) { defer { try? logFile.close() }; logFile.seekToEndOfFile(); if let logData = (try? JSONSerialization.data(withJSONObject: ["sessionId":"debug-session","runId":"initial","hypothesisId":"H6","location":"TestCenterView.swift:ProctorTestIntroView:body","message":"ProctorTestIntroView rendering","data":["testName":test.testName,"testType":test.testType,"isMultipleChoice":isMultipleChoice,"requiresScheduling":requiresScheduling,"isEligible":isEligible,"hasPassed":hasPassed,"isLoadingCourse":isLoadingCourse,"courseLoaded":course != nil],"timestamp":Date().timeIntervalSince1970*1000] as [String:Any])) { logFile.write(logData); logFile.write("\n".data(using: .utf8)!) } } }()
-        // #endregion
         ScrollView {
             VStack(spacing: 24) {
                 // Header
@@ -2028,18 +2018,54 @@ struct ProctorTestIntroView: View {
                         DetailRow(icon: "checklist", label: "Type", value: test.testType.replacingOccurrences(of: "_", with: " ").capitalized)
                         DetailRow(icon: "percent", label: "Passing Score", value: "\(test.passingScore)%")
                         DetailRow(icon: "person.badge.shield.checkmark", label: "Supervision", value: "Proctor Required")
-                        
-                        if requiresScheduling {
-                            DetailRow(icon: "calendar.badge.clock", label: "Scheduling", value: "Required")
-                        } else {
-                            DetailRow(icon: "play.circle.fill", label: "Availability", value: "Start anytime with proctor")
-                        }
+                        DetailRow(icon: "calendar.badge.clock", label: "Scheduling", value: hasScheduledAppointment ? "Scheduled" : "Required")
                     }
                 }
                 .padding()
                 .background(Color(.systemGray6))
                 .cornerRadius(12)
                 .padding(.horizontal)
+                
+                // Scheduled Appointment Info (if exists)
+                if let appointment = existingAppointment, appointment.status != .cancelled {
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack {
+                            Image(systemName: "calendar.badge.checkmark")
+                                .foregroundColor(.green)
+                            Text("Scheduled Appointment")
+                                .font(.headline)
+                        }
+                        
+                        VStack(spacing: 8) {
+                            HStack {
+                                Text("Date & Time")
+                                    .foregroundColor(.secondary)
+                                Spacer()
+                                Text(appointment.formattedDate)
+                                    .fontWeight(.medium)
+                            }
+                            HStack {
+                                Text("Location")
+                                    .foregroundColor(.secondary)
+                                Spacer()
+                                Text(appointment.locationType.displayName)
+                                    .fontWeight(.medium)
+                            }
+                            HStack {
+                                Text("Status")
+                                    .foregroundColor(.secondary)
+                                Spacer()
+                                Text(appointment.status.displayName)
+                                    .fontWeight(.medium)
+                                    .foregroundColor(appointment.status == .confirmed ? .green : .orange)
+                            }
+                        }
+                    }
+                    .padding()
+                    .background(Color.green.opacity(0.1))
+                    .cornerRadius(12)
+                    .padding(.horizontal)
+                }
                 
                 // Proctor Information
                 VStack(alignment: .leading, spacing: 12) {
@@ -2059,32 +2085,35 @@ struct ProctorTestIntroView: View {
                 .padding(.horizontal)
                 
                 // Action Buttons
-                if isLoadingCourse {
+                if isLoadingCourse || isLoadingAppointment {
                     ProgressView()
                         .padding()
                 } else if let course = course {
                     VStack(spacing: 12) {
                         if hasPassed {
-                            // Already passed
+                            // Already passed - can schedule again if they want to retake
                             VStack(spacing: 12) {
                                 Text("You've already passed this test!")
                                     .font(.subheadline)
                                     .foregroundColor(.green)
                                     .multilineTextAlignment(.center)
                                 
-                                if isMultipleChoice {
-                                    Button(action: {
-                                        showProctorInfoView = true
-                                    }) {
-                                        Text("Retake Test")
-                                            .fontWeight(.semibold)
-                                            .frame(maxWidth: .infinity)
-                                            .padding()
-                                            .background(Color.orange)
-                                            .foregroundColor(.white)
-                                            .cornerRadius(12)
+                                // Allow scheduling a retake
+                                Button(action: {
+                                    showSchedulingView = true
+                                }) {
+                                    HStack {
+                                        Image(systemName: "calendar.badge.plus")
+                                        Text("Schedule Retake")
                                     }
+                                    .fontWeight(.semibold)
+                                    .frame(maxWidth: .infinity)
+                                    .padding()
+                                    .background(priceInfo != nil ? Color.orange : Color.gray)
+                                    .foregroundColor(.white)
+                                    .cornerRadius(12)
                                 }
+                                .disabled(priceInfo == nil)
                             }
                             .padding(.horizontal)
                         } else if !isEligible {
@@ -2099,8 +2128,8 @@ struct ProctorTestIntroView: View {
                                 }
                             }
                             .padding(.horizontal)
-                        } else if isMultipleChoice {
-                            // Multiple choice proctored test - can start immediately
+                        } else if hasScheduledAppointment {
+                            // Has a scheduled appointment - show Start Proctored Test button
                             Button(action: {
                                 showProctorInfoView = true
                             }) {
@@ -2116,15 +2145,16 @@ struct ProctorTestIntroView: View {
                                 .cornerRadius(12)
                             }
                             .padding(.horizontal)
+                            
+                            // Info about the scheduled time
+                            if let appointment = existingAppointment {
+                                Text("Scheduled for \(appointment.formattedDate)")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
                         } else {
-                            // #region agent log
-                            let _ = { let logPath = "/Users/xinyufang/Documents/Buzz/.cursor/debug.log"; if let logFile = FileHandle(forWritingAtPath: logPath) ?? (try? FileHandle(forWritingAtPath: (try? FileManager.default.createFile(atPath: logPath, contents: nil)) != nil ? logPath : logPath)) { defer { try? logFile.close() }; logFile.seekToEndOfFile(); if let logData = (try? JSONSerialization.data(withJSONObject: ["sessionId":"debug-session","runId":"initial","hypothesisId":"H7,H8","location":"TestCenterView.swift:ProctorTestIntroView:scheduleButton","message":"Schedule Exam button rendered","data":["testName":test.testName,"priceLoaded":priceInfo != nil,"isLoadingPrice":isLoadingPrice,"buttonDisabled":priceInfo == nil,"requiresScheduling":requiresScheduling],"timestamp":Date().timeIntervalSince1970*1000] as [String:Any])) { logFile.write(logData); logFile.write("\n".data(using: .utf8)!) } } }()
-                            // #endregion
-                            // Oral/Practical test - requires scheduling
+                            // No appointment yet - show Schedule Exam button
                             Button(action: {
-                                // #region agent log
-                                let logPath = "/Users/xinyufang/Documents/Buzz/.cursor/debug.log"; if let logFile = FileHandle(forWritingAtPath: logPath) ?? (try? FileHandle(forWritingAtPath: (try? FileManager.default.createFile(atPath: logPath, contents: nil)) != nil ? logPath : logPath)) { defer { try? logFile.close() }; logFile.seekToEndOfFile(); if let logData = (try? JSONSerialization.data(withJSONObject: ["sessionId":"debug-session","runId":"initial","hypothesisId":"H8","location":"TestCenterView.swift:ProctorTestIntroView:scheduleButtonTap","message":"Schedule Exam button tapped","data":["testName":test.testName,"showSchedulingView":showSchedulingView],"timestamp":Date().timeIntervalSince1970*1000] as [String:Any])) { logFile.write(logData); logFile.write("\n".data(using: .utf8)!) } }
-                                // #endregion
                                 showSchedulingView = true
                             }) {
                                 HStack {
@@ -2215,9 +2245,8 @@ struct ProctorTestIntroView: View {
         }
         .task {
             await loadCourse()
-            if requiresScheduling {
-                await loadPrice()
-            }
+            await loadPrice()
+            await loadExistingAppointment()
         }
     }
     
@@ -2238,22 +2267,39 @@ struct ProctorTestIntroView: View {
     
     private func loadPrice() async {
         isLoadingPrice = true
-        // #region agent log
-        let logPath = "/Users/xinyufang/Documents/Buzz/.cursor/debug.log"; if let logFile = FileHandle(forWritingAtPath: logPath) ?? (try? FileHandle(forWritingAtPath: (try? FileManager.default.createFile(atPath: logPath, contents: nil)) != nil ? logPath : logPath)) { defer { try? logFile.close() }; logFile.seekToEndOfFile(); if let logData = (try? JSONSerialization.data(withJSONObject: ["sessionId":"debug-session","runId":"initial","hypothesisId":"H7","location":"TestCenterView.swift:ProctorTestIntroView:loadPrice:start","message":"Loading price for proctored exam","data":["testName":test.testName],"timestamp":Date().timeIntervalSince1970*1000] as [String:Any])) { logFile.write(logData); logFile.write("\n".data(using: .utf8)!) } }
-        // #endregion
         do {
             // Try to fetch price for generic proctored exam
             priceInfo = try await examService.fetchExamPrice(examType: .flightReview)
-            // #region agent log
-            if let logFile = FileHandle(forWritingAtPath: logPath) ?? (try? FileHandle(forWritingAtPath: (try? FileManager.default.createFile(atPath: logPath, contents: nil)) != nil ? logPath : logPath)) { defer { try? logFile.close() }; logFile.seekToEndOfFile(); if let logData = (try? JSONSerialization.data(withJSONObject: ["sessionId":"debug-session","runId":"initial","hypothesisId":"H7","location":"TestCenterView.swift:ProctorTestIntroView:loadPrice:success","message":"Price loaded successfully","data":["testName":test.testName,"priceLoaded":priceInfo != nil],"timestamp":Date().timeIntervalSince1970*1000] as [String:Any])) { logFile.write(logData); logFile.write("\n".data(using: .utf8)!) } }
-            // #endregion
         } catch {
-            // #region agent log
-            if let logFile = FileHandle(forWritingAtPath: logPath) ?? (try? FileHandle(forWritingAtPath: (try? FileManager.default.createFile(atPath: logPath, contents: nil)) != nil ? logPath : logPath)) { defer { try? logFile.close() }; logFile.seekToEndOfFile(); if let logData = (try? JSONSerialization.data(withJSONObject: ["sessionId":"debug-session","runId":"initial","hypothesisId":"H7","location":"TestCenterView.swift:ProctorTestIntroView:loadPrice:error","message":"Price loading failed","data":["testName":test.testName,"error":error.localizedDescription],"timestamp":Date().timeIntervalSince1970*1000] as [String:Any])) { logFile.write(logData); logFile.write("\n".data(using: .utf8)!) } }
-            // #endregion
             print("⚠️ [ProctorTestIntroView] Error loading price: \(error)")
         }
         isLoadingPrice = false
+    }
+    
+    private func loadExistingAppointment() async {
+        isLoadingAppointment = true
+        
+        // Fetch all appointments for this pilot
+        await examService.fetchAppointments(pilotId: pilotId)
+        
+        // Find an active appointment for this test (by matching test name or exam type)
+        // Since we're using CourseTest, we need to match by test name pattern
+        let testNameLower = test.testName.lowercased()
+        existingAppointment = examService.appointments.first { appointment in
+            guard appointment.status != .cancelled else { return false }
+            
+            // Match by exam type based on test name
+            if testNameLower.contains("roc-a") || testNameLower.contains("radio") {
+                return appointment.examType == .rocA
+            } else if testNameLower.contains("flight review") {
+                return appointment.examType == .flightReview
+            }
+            // For generic proctored tests, we'd need a different matching strategy
+            // For now, return false for tests that don't match known exam types
+            return false
+        }
+        
+        isLoadingAppointment = false
     }
 }
 
