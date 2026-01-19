@@ -7,6 +7,9 @@
 
 import Foundation
 
+// Typealias to avoid circular imports with TrainingCourse
+typealias UserCourseRegion = String
+
 enum UserType: String, Codable {
     case pilot
     case customer
@@ -97,6 +100,7 @@ struct UserProfile: Codable, Identifiable {
     let referralCredits: Decimal? // Available referral credits (for customers)
     let referredBy: UUID? // UUID of user who referred this user
     let isBeaconVolunteer: Bool? // Beacon emergency response volunteer status
+    let selectedRegion: UserCourseRegion? // User's selected region for course filtering
     
     enum CodingKeys: String, CodingKey {
         case id
@@ -128,6 +132,7 @@ struct UserProfile: Codable, Identifiable {
         case referralCredits = "referral_credits"
         case referredBy = "referred_by"
         case isBeaconVolunteer = "is_beacon_volunteer"
+        case selectedRegion = "selected_region"
     }
     
     var fullName: String {

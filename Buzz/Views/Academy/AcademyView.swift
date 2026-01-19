@@ -16,6 +16,14 @@ struct AcademyView: View {
     @State private var selectedCategory: TrainingCourse.CourseCategory? = nil
     @State private var selectedProvider: TrainingCourse.CourseProvider? = nil
     @State private var selectedRegion: TrainingCourse.CourseRegion? = nil
+
+    // Computed property to get user's selected region for default filtering
+    private var userSelectedRegion: TrainingCourse.CourseRegion? {
+        if let regionString = authService.userProfile?.selectedRegion {
+            return TrainingCourse.CourseRegion(rawValue: regionString)
+        }
+        return nil
+    }
     @State private var courses: [TrainingCourse] = []
     @State private var recurrentNotices: [RecurrentTrainingNotice] = []
     @State private var isLoading = false
@@ -66,8 +74,9 @@ struct AcademyView: View {
             filtered = filtered.filter { $0.provider == provider }
         }
         
-        if let region = selectedRegion {
-            filtered = filtered.filter { $0.region == region }
+        if let regionString = authService.userProfile?.selectedRegion,
+           let region = TrainingCourse.CourseRegion(rawValue: regionString) {
+            filtered = filtered.filter { $0.region == region || $0.region == .global }
         }
         
         // Sort courses in specific order:
@@ -133,8 +142,18 @@ struct AcademyView: View {
     }
     
     var body: some View {
-        NavigationStack {
-            VStack(spacing: 0) {
+        // Check if user needs to complete region onboarding
+        if let currentUser = authService.currentUser,
+           authService.userProfile?.selectedRegion == nil {
+            return AnyView(
+                RegionOnboardingView()
+                    .navigationBarBackButtonHidden(true)
+            )
+        }
+
+        return AnyView(
+            NavigationStack {
+                VStack(spacing: 0) {
                 // Recurrent Training Notices Section
                 if showRecurrentNotices && !recurrentNotices.isEmpty {
                     VStack(alignment: .leading, spacing: 8) {
@@ -200,7 +219,7 @@ struct AcademyView: View {
                             RegionChip(
                                 title: region.rawValue,
                                 icon: region.icon,
-                                isSelected: selectedRegion == region
+                                isSelected: selectedRegion == region || (selectedRegion == nil && region == userSelectedRegion)
                             ) {
                                 selectedRegion = region
                             }
@@ -353,9 +372,10 @@ struct AcademyView: View {
                     if let currentUser = authService.currentUser {
                         _ = await storeKitManager.checkAllSubscriptions(pilotId: currentUser.id)
                     }
+                    }
                 }
             }
-        }
+        )
     }
     
     private func loadCourses() async {

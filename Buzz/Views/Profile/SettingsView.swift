@@ -47,6 +47,13 @@ struct SettingsView: View {
                     Text("Personal Info")
                 }
             }
+
+            // Region
+            NavigationLink(destination: RegionSettingsView()) {
+                HStack {
+                    Text("Region")
+                }
+            }
             
             // Login & Security
             NavigationLink(destination: LoginSecurityView()) {

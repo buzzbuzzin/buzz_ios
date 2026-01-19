@@ -60,7 +60,19 @@ class ProfileService: ObservableObject {
         let updates: [String: AnyJSON] = [
             "communication_preference": .string(preference.rawValue)
         ]
-        
+
+        try await supabase
+            .from("profiles")
+            .update(updates)
+            .eq("id", value: userId.uuidString)
+            .execute()
+    }
+
+    func updateRegion(userId: UUID, regionString: String) async throws {
+        let updates: [String: AnyJSON] = [
+            "selected_region": .string(regionString)
+        ]
+
         try await supabase
             .from("profiles")
             .update(updates)
@@ -173,13 +185,14 @@ class ProfileService: ObservableObject {
                 lastLocationUpdate: nil,
                 referralCredits: nil,
                 referredBy: nil,
-                isBeaconVolunteer: nil
+                isBeaconVolunteer: nil,
+                selectedRegion: nil
             )
         }
-        
+
         return nil
     }
-    
+
     // MARK: - Sample Pilot Profiles for Demo
     // TODO: Remove this function when connecting to real backend
     
@@ -238,10 +251,11 @@ class ProfileService: ObservableObject {
                 lastLocationUpdate: nil,
                 referralCredits: nil,
                 referredBy: nil,
-                isBeaconVolunteer: nil
+                isBeaconVolunteer: nil,
+                selectedRegion: nil
             )
         }
-        
+
         return nil
     }
 }

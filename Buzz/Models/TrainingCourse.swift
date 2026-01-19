@@ -119,6 +119,7 @@ struct TrainingCourse: Identifiable {
         case australia = "Australia"
         case newZealand = "New Zealand"
         case southAfrica = "South Africa"
+        case other = "Other"
         case global = "Global"
         
         var icon: String {
@@ -135,6 +136,8 @@ struct TrainingCourse: Identifiable {
                 return "🇳🇿"
             case .southAfrica:
                 return "🇿🇦"
+            case .other:
+                return "🌍"
             case .global:
                 return "🌍"
             }
