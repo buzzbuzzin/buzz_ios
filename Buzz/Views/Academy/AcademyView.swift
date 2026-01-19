@@ -71,13 +71,24 @@ struct AcademyView: View {
         }
         
         // Sort courses in specific order:
-        // 1. UAS Pilot
-        // 2. Flight Review
-        // 3. ROC-A
-        // 4. Part 107 Recurrent Training
-        // 5. Extension Courses
-        // 6. Everything else
+        // 1. Unlocked courses first, then locked courses
+        // 2. Within each group (unlocked/locked):
+        //    - UAS Pilot
+        //    - Flight Review
+        //    - ROC-A
+        //    - Part 107 Recurrent Training
+        //    - Extension Courses
+        //    - Everything else
         return filtered.sorted { course1, course2 in
+            let isLocked1 = !getMissingPrerequisites(for: course1).isEmpty
+            let isLocked2 = !getMissingPrerequisites(for: course2).isEmpty
+            
+            // First sort by lock status (unlocked first)
+            if isLocked1 != isLocked2 {
+                return !isLocked1 // false (unlocked) comes before true (locked)
+            }
+            
+            // Then sort by priority
             let priority1 = courseSortPriority(course1)
             let priority2 = courseSortPriority(course2)
             
@@ -943,48 +954,18 @@ struct CourseDetailView: View {
                         // Provider
                         InfoRow(icon: course.provider.icon, label: "Provider", value: course.provider.rawValue)
                         
-                        // Instructor with profile picture
+                        // Region with flag
                         HStack {
-                            Image(systemName: "person.circle.fill")
+                            Image(systemName: "globe")
                                 .foregroundColor(.blue)
                                 .frame(width: 24)
-                            Text("Instructor")
+                            Text("Region")
                                 .foregroundColor(.secondary)
                             Spacer()
                             HStack(spacing: 8) {
-                                if course.instructor == "Buzz" {
-                                    Image("Logo")
-                                        .resizable()
-                                        .scaledToFill()
-                                        .frame(width: 32, height: 32)
-                                        .clipShape(Circle())
-                                } else if let pictureUrl = course.instructorPictureUrl,
-                                   let url = URL(string: pictureUrl) {
-                                    AsyncImage(url: url) { phase in
-                                        switch phase {
-                                        case .empty:
-                                            ProgressView()
-                                                .frame(width: 32, height: 32)
-                                        case .success(let image):
-                                            image
-                                                .resizable()
-                                                .scaledToFill()
-                                                .frame(width: 32, height: 32)
-                                                .clipShape(Circle())
-                                        case .failure:
-                                            Image(systemName: "person.circle.fill")
-                                                .font(.system(size: 32))
-                                                .foregroundColor(.blue)
-                                        @unknown default:
-                                            EmptyView()
-                                        }
-                                    }
-                                } else {
-                                    Image(systemName: "person.circle.fill")
-                                        .font(.system(size: 32))
-                                        .foregroundColor(.blue)
-                                }
-                                Text(course.instructor)
+                                Text(course.region.icon)
+                                    .font(.system(size: 24))
+                                Text(course.region.rawValue)
                                     .fontWeight(.semibold)
                             }
                         }
