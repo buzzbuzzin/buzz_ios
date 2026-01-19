@@ -9,6 +9,7 @@ import SwiftUI
 import Auth
 import StripePaymentSheet
 import Supabase
+import PassKit
 
 struct ProctorTestSchedulingView: View {
     let test: CourseTest
@@ -312,6 +313,20 @@ struct ProctorTestSchedulingView: View {
         }
         showError = true
     }
+
+    private func isApplePaySupported() -> Bool {
+        // Check if Apple Pay is available on this device
+        guard PKPaymentAuthorizationController.canMakePayments() else {
+            return false
+        }
+
+        // Check if the user has at least one payment card configured
+        guard PKPaymentAuthorizationController.canMakePayments(usingNetworks: [.visa, .masterCard, .amex, .discover]) else {
+            return false
+        }
+
+        return true
+    }
     
     private func processPayment() async {
         guard let dateTime = scheduledDateTime,
@@ -335,6 +350,14 @@ struct ProctorTestSchedulingView: View {
             var configuration = PaymentSheet.Configuration()
             configuration.merchantDisplayName = "Buzz Academy"
             configuration.allowsDelayedPaymentMethods = false
+
+            // Enable Apple Pay if supported
+            if isApplePaySupported() {
+                configuration.applePay = .init(
+                    merchantId: Config.appleMerchantID,
+                    merchantCountryCode: "US"
+                )
+            }
             
             // Initialize payment sheet
             paymentSheet = PaymentSheet(
