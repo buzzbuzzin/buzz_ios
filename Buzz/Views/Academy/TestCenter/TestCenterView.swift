@@ -787,6 +787,7 @@ struct DetailRow: View {
     let icon: String
     let label: String
     let value: String
+    var valueColor: Color = .primary
     
     var body: some View {
         HStack(spacing: 12) {
@@ -801,6 +802,7 @@ struct DetailRow: View {
             
             Text(value)
                 .fontWeight(.medium)
+                .foregroundColor(valueColor)
                 .multilineTextAlignment(.trailing)
         }
     }
@@ -1601,6 +1603,8 @@ struct DatabaseTestCard: View {
     let isEligible: Bool
     let testResult: TestResult?
     @EnvironmentObject var authService: AuthService
+    @StateObject private var academyService = AcademyService()
+    @State private var courseTitle: String = ""
     
     /// Determines if the test is passed based on test type
     /// - For proctored tests: requires passed = true AND upload_status = 'approved'
@@ -1661,6 +1665,20 @@ struct DatabaseTestCard: View {
                 cardContent
             }
         }
+        .task {
+            await loadCourseTitle()
+        }
+    }
+    
+    private func loadCourseTitle() async {
+        do {
+            try await academyService.fetchCourses()
+            if let course = academyService.courses.first(where: { $0.id == test.courseId }) {
+                courseTitle = course.title
+            }
+        } catch {
+            print("❌ [DatabaseTestCard] Error loading course title: \(error)")
+        }
     }
     
     private var cardContent: some View {
@@ -1696,8 +1714,9 @@ struct DatabaseTestCard: View {
                     }
                 }
                 
-                if let description = test.testDescription {
-                    Text(description)
+                // Show course title instead of test description
+                if !courseTitle.isEmpty {
+                    Text(courseTitle)
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                         .lineLimit(2)
@@ -1970,8 +1989,6 @@ struct ProctorTestIntroView: View {
     @State private var showProctoredTest = false
     @State private var proctorName: String = ""
     @State private var showSchedulingView = false
-    @State private var priceInfo: ExamPriceResponse?
-    @State private var isLoadingPrice = true
     @State private var existingAppointment: ExamAppointment?
     @State private var isLoadingAppointment = true
     
@@ -2099,6 +2116,12 @@ struct ProctorTestIntroView: View {
                         DetailRow(icon: "checklist", label: "Type", value: formatTestType(test.testType))
                         DetailRow(icon: "percent", label: "Passing Score", value: "\(test.passingScore)%")
                         DetailRow(icon: "person.badge.shield.checkmark", label: "Supervision", value: test.needsProctor ? "Proctor Required" : "Not Required")
+                        DetailRow(
+                            icon: "dollarsign.circle",
+                            label: "Price",
+                            value: test.formattedPrice,
+                            valueColor: test.priceOfSchedule == nil || test.priceOfSchedule == 0 ? .green : .primary
+                        )
                         DetailRow(icon: "calendar.badge.clock", label: "Scheduling", value: hasScheduledAppointment ? "Scheduled" : "Required")
                     }
                 }
@@ -2190,11 +2213,10 @@ struct ProctorTestIntroView: View {
                                     .fontWeight(.semibold)
                                     .frame(maxWidth: .infinity)
                                     .padding()
-                                    .background(priceInfo != nil ? Color.orange : Color.gray)
+                                    .background(Color.orange)
                                     .foregroundColor(.white)
                                     .cornerRadius(12)
                                 }
-                                .disabled(priceInfo == nil)
                             }
                             .padding(.horizontal)
                         } else if !isEligible {
@@ -2245,22 +2267,11 @@ struct ProctorTestIntroView: View {
                                 .fontWeight(.semibold)
                                 .frame(maxWidth: .infinity)
                                 .padding()
-                                .background(priceInfo != nil ? Color.blue : Color.gray)
+                                .background(Color.blue)
                                 .foregroundColor(.white)
                                 .cornerRadius(12)
                             }
-                            .disabled(priceInfo == nil)
                             .padding(.horizontal)
-                            
-                            if isLoadingPrice {
-                                HStack {
-                                    ProgressView()
-                                        .scaleEffect(0.8)
-                                    Text("Loading pricing...")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                }
-                            }
                         }
                     }
                 } else {
@@ -2311,22 +2322,16 @@ struct ProctorTestIntroView: View {
             }
         }
         .navigationDestination(isPresented: $showSchedulingView) {
-            if let price = priceInfo {
-                GenericExamSchedulingView(
+            if let course = course {
+                ProctorTestSchedulingView(
                     test: test,
-                    priceInfo: price,
-                    onBookingComplete: {
-                        showSchedulingView = false
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                            dismiss()
-                        }
-                    }
+                    course: course,
+                    pilotId: pilotId
                 )
             }
         }
         .task {
             await loadCourse()
-            await loadPrice()
             await loadExistingAppointment()
         }
     }
@@ -2344,17 +2349,6 @@ struct ProctorTestIntroView: View {
             print("❌ [ProctorTestIntroView] Error loading course: \(error)")
         }
         isLoadingCourse = false
-    }
-    
-    private func loadPrice() async {
-        isLoadingPrice = true
-        do {
-            // Try to fetch price for generic proctored exam
-            priceInfo = try await examService.fetchExamPrice(examType: .flightReview)
-        } catch {
-            print("⚠️ [ProctorTestIntroView] Error loading price: \(error)")
-        }
-        isLoadingPrice = false
     }
     
     private func loadExistingAppointment() async {

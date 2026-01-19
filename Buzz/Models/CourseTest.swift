@@ -22,6 +22,7 @@ struct CourseTest: Identifiable, Codable {
     let isActive: Bool
     let sectionId: UUID?
     let needsProctor: Bool
+    let priceOfSchedule: Int? // Price in cents (e.g., 9900 for $99.00)
     
     enum CodingKeys: String, CodingKey {
         case id
@@ -37,6 +38,19 @@ struct CourseTest: Identifiable, Codable {
         case isActive = "is_active"
         case sectionId = "section_id"
         case needsProctor = "needs_proctor"
+        case priceOfSchedule = "price_of_schedule"
+    }
+    
+    /// Returns formatted price string (e.g., "$99.00")
+    var formattedPrice: String {
+        guard let price = priceOfSchedule else { return "Free" }
+        if price == 0 { return "Free" }
+        
+        let amount = Double(price) / 100.0
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .currency
+        formatter.currencyCode = "USD"
+        return formatter.string(from: NSNumber(value: amount)) ?? "$\(amount)"
     }
 }
 
