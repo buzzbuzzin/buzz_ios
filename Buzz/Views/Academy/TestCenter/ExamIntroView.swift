@@ -130,7 +130,7 @@ struct ExamIntroView: View {
                             ExamDetailRow(
                                 icon: "clock",
                                 label: "Duration",
-                                value: "\(config.durationMinutes) minutes"
+                                value: "\(courseTest?.duration ?? config.durationMinutes) minutes"
                             )
                             
                             ExamDetailRow(
@@ -409,7 +409,7 @@ struct ExamIntroView: View {
                     pilotId: currentUser.id,
                     testName: courseTest?.testName ?? config.displayName,
                     passingScore: courseTest?.passingScore ?? 70,
-                    durationMinutes: config.durationMinutes,
+                    durationMinutes: courseTest?.duration ?? config.durationMinutes,
                     onStartTest: { name in
                         proctorName = name
                         showProctorInfoView = false
@@ -452,7 +452,7 @@ struct ExamIntroView: View {
                     pilotId: currentUser.id,
                     testName: courseTest?.testName ?? config.displayName,
                     passingScore: courseTest?.passingScore ?? 70,
-                    durationMinutes: config.durationMinutes,
+                    durationMinutes: courseTest?.duration ?? config.durationMinutes,
                     proctorName: proctorName,
                     onDismiss: {
                         showProctoredTest = false

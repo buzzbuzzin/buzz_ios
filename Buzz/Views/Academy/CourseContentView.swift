@@ -601,17 +601,31 @@ struct TestRow: View {
                     isPassed: isPassed
                 )
             } else {
-                // Unlocked test - navigate based on test type
-                if test.testType == "multiple_choice" {
-                    // Multiple choice test - navigate to test view
-                    if let currentUser = authService.currentUser {
-                        NavigationLink(destination: MultipleChoiceTestView(
-                            testId: test.id,
-                            course: course,
+                // Unlocked test - navigate to appropriate intro view based on proctor requirement
+                if let currentUser = authService.currentUser {
+                    if test.needsProctor {
+                        // Proctored test - navigate to ProctorTestIntroView (handles scheduling)
+                        NavigationLink(destination: ProctorTestIntroView(
+                            test: test,
                             pilotId: currentUser.id,
-                            testName: test.testName,
-                            passingScore: test.passingScore,
-                            durationMinutes: 60
+                            isEligible: true,
+                            hasPassed: isPassed
+                        )) {
+                            TestCardContent(
+                                test: test,
+                                sectionDescription: sectionDescription,
+                                isLocked: false,
+                                lockReason: "",
+                                isPassed: isPassed
+                            )
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                    } else {
+                        // Non-proctored test - navigate to TestIntroView
+                        NavigationLink(destination: TestIntroView(
+                            test: test,
+                            pilotId: currentUser.id,
+                            hasPassed: isPassed
                         )) {
                             TestCardContent(
                                 test: test,
@@ -623,33 +637,8 @@ struct TestRow: View {
                         }
                         .buttonStyle(PlainButtonStyle())
                     }
-                } else if test.testType == "oral" || test.testType == "practical" {
-                    // Oral/practical exam - link to Test Center or exam intro
-                    // Determine exam type based on test name
-                    let examType = determineExamType(for: test)
-                    if let examType = examType {
-                        NavigationLink(destination: ExamIntroView(examType: examType)) {
-                            TestCardContent(
-                                test: test,
-                                sectionDescription: sectionDescription,
-                                isLocked: false,
-                                lockReason: "",
-                                isPassed: isPassed
-                            )
-                        }
-                        .buttonStyle(PlainButtonStyle())
-                    } else {
-                        // Unknown exam type, show card without navigation
-                        TestCardContent(
-                            test: test,
-                            sectionDescription: sectionDescription,
-                            isLocked: false,
-                            lockReason: "",
-                            isPassed: isPassed
-                        )
-                    }
                 } else {
-                    // Other test types - show card without navigation
+                    // No current user - show card without navigation
                     TestCardContent(
                         test: test,
                         sectionDescription: sectionDescription,
@@ -660,16 +649,6 @@ struct TestRow: View {
                 }
             }
         }
-    }
-    
-    private func determineExamType(for test: CourseTest) -> ExamType? {
-        let testNameLower = test.testName.lowercased()
-        if testNameLower.contains("roc-a") || testNameLower.contains("radio") {
-            return .rocA
-        } else if testNameLower.contains("flight review") {
-            return .flightReview
-        }
-        return nil
     }
 }
 
@@ -745,23 +724,30 @@ struct TestCardContent: View {
                         .font(.caption)
                         .foregroundColor(.blue)
                         .fontWeight(.semibold)
-                } else if test.testType == "oral" || test.testType == "practical" {
+                } else if test.needsProctor {
                     HStack(spacing: 4) {
                         Image(systemName: "calendar.badge.clock")
                             .foregroundColor(.blue)
                             .font(.caption)
-                        Text("Schedule in Test Center")
+                        Text("Requires scheduling")
                             .font(.caption)
                             .foregroundColor(.blue)
                     }
-                } else if test.testType == "multiple_choice" {
+                } else {
                     HStack(spacing: 4) {
-                        Image(systemName: "play.circle.fill")
-                            .foregroundColor(.blue)
+                        Image(systemName: "clock")
+                            .foregroundColor(.secondary)
                             .font(.caption)
-                        Text("Start Test")
+                        Text("60 min")
                             .font(.caption)
-                            .foregroundColor(.blue)
+                            .foregroundColor(.secondary)
+                        
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundColor(.green)
+                            .font(.caption)
+                        Text("Free")
+                            .font(.caption)
+                            .foregroundColor(.green)
                     }
                 }
             }

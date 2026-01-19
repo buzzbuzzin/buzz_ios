@@ -15,6 +15,7 @@ struct CourseTest: Identifiable, Codable {
     let testDescription: String?
     let testType: String
     let passingScore: Int
+    let duration: Int? // Duration in minutes
     let requiredForProgression: Bool
     let requiredUnits: [Int]
     let orderIndex: Int
@@ -29,6 +30,7 @@ struct CourseTest: Identifiable, Codable {
         case testDescription = "test_description"
         case testType = "test_type"
         case passingScore = "passing_score"
+        case duration
         case requiredForProgression = "required_for_progression"
         case requiredUnits = "required_units"
         case orderIndex = "order_index"

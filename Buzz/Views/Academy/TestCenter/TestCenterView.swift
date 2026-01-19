@@ -1178,8 +1178,15 @@ struct GroundSchoolTestCard: View {
     let hasPassedTest: Bool
     
     @EnvironmentObject var authService: AuthService
+    @StateObject private var academyService = AcademyService()
     @State private var showGroundSchoolTest = false
     @State private var showIntroSheet = false
+    @State private var courseTest: CourseTest?
+    
+    // Ground School Test UUID (fixed)
+    private let groundSchoolTestId = UUID(uuidString: "a1b2c3d4-e5f6-7890-abcd-000000000001")!
+    // UAS Pilot Course UUID (fixed)
+    private let uasPilotCourseId = UUID(uuidString: "a1b2c3d4-e5f6-7890-abcd-ef1234567890")!
     
     var body: some View {
         Button(action: {
@@ -1245,11 +1252,15 @@ struct GroundSchoolTestCard: View {
             .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
         }
         .buttonStyle(PlainButtonStyle())
+        .task {
+            await loadCourseTest()
+        }
         .sheet(isPresented: $showIntroSheet) {
             if let currentUser = authService.currentUser {
                 GroundSchoolTestIntroSheetView(
                     config: config,
                     hasPassedTest: hasPassedTest,
+                    courseTest: courseTest,
                     onStartTest: {
                         showIntroSheet = false
                         // Delay to ensure sheet dismisses before fullscreen cover
@@ -1273,16 +1284,66 @@ struct GroundSchoolTestCard: View {
             }
         }
     }
+    
+    private func loadCourseTest() async {
+        do {
+            let tests = try await academyService.fetchCourseTests(courseId: uasPilotCourseId)
+            courseTest = tests.first { $0.id == groundSchoolTestId }
+        } catch {
+            print("❌ [GroundSchoolTestCard] Error loading course test: \(error)")
+        }
+    }
 }
 
-// MARK: - Ground School Test Intro Sheet
+// MARK: - Test Intro Sheet (Generic for all tests)
 
 struct GroundSchoolTestIntroSheetView: View {
     let config: ExamTypeConfig
     let hasPassedTest: Bool
+    let courseTest: CourseTest? // Optional CourseTest data from database
     let onStartTest: () -> Void
     
     @Environment(\.dismiss) private var dismiss
+    
+    // Computed properties with fallbacks
+    private var testName: String {
+        courseTest?.testName ?? config.displayName
+    }
+    
+    private var testDescription: String {
+        courseTest?.testDescription ?? config.fullDescription
+    }
+    
+    private var passingScore: Int {
+        courseTest?.passingScore ?? 70
+    }
+    
+    private var formattedTestType: String {
+        guard let testType = courseTest?.testType else {
+            return "Multiple choice"
+        }
+        return formatTestType(testType)
+    }
+    
+    private func formatTestType(_ testType: String) -> String {
+        switch testType.lowercased() {
+        case "multiple_choice":
+            return "Multiple choice"
+        case "practical":
+            return "Practical"
+        case "written":
+            return "Written"
+        case "oral":
+            return "Oral"
+        default:
+            // Capitalize first letter and replace underscores with spaces
+            return testType
+                .replacingOccurrences(of: "_", with: " ")
+                .split(separator: " ")
+                .map { $0.capitalized }
+                .joined(separator: " ")
+        }
+    }
     
     var body: some View {
         NavigationStack {
@@ -1300,7 +1361,7 @@ struct GroundSchoolTestIntroSheetView: View {
                                 .foregroundColor(hasPassedTest ? .green : .orange)
                         }
                         
-                        Text(config.displayName)
+                        Text(testName)
                             .font(.title2)
                             .fontWeight(.bold)
                         
@@ -1321,7 +1382,7 @@ struct GroundSchoolTestIntroSheetView: View {
                         Text("About This Test")
                             .font(.headline)
                         
-                        Text(config.fullDescription)
+                        Text(testDescription)
                             .font(.body)
                             .foregroundColor(.secondary)
                     }
@@ -1334,9 +1395,9 @@ struct GroundSchoolTestIntroSheetView: View {
                             .padding(.horizontal)
                         
                         VStack(spacing: 12) {
-                            DetailRow(icon: "clock", label: "Duration", value: "\(config.durationMinutes) minutes")
-                            DetailRow(icon: "checklist", label: "Questions", value: "Multiple choice")
-                            DetailRow(icon: "percent", label: "Passing Score", value: "70%")
+                            DetailRow(icon: "clock", label: "Duration", value: "\(courseTest?.duration ?? config.durationMinutes) minutes")
+                            DetailRow(icon: "checklist", label: "Questions", value: formattedTestType)
+                            DetailRow(icon: "percent", label: "Passing Score", value: "\(passingScore)%")
                             DetailRow(icon: "dollarsign.circle.fill", label: "Cost", value: "Free")
                             DetailRow(icon: "arrow.clockwise", label: "Retakes", value: "Unlimited")
                         }
@@ -1944,6 +2005,26 @@ struct ProctorTestIntroView: View {
         }
     }
     
+    private func formatTestType(_ testType: String) -> String {
+        switch testType.lowercased() {
+        case "multiple_choice":
+            return "Multiple Choice"
+        case "practical":
+            return "Practical"
+        case "written":
+            return "Written"
+        case "oral":
+            return "Oral"
+        default:
+            // Capitalize first letter and replace underscores with spaces
+            return testType
+                .replacingOccurrences(of: "_", with: " ")
+                .split(separator: " ")
+                .map { $0.capitalized }
+                .joined(separator: " ")
+        }
+    }
+    
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
@@ -2014,10 +2095,10 @@ struct ProctorTestIntroView: View {
                         .padding(.horizontal)
                     
                     VStack(spacing: 12) {
-                        DetailRow(icon: "clock", label: "Duration", value: "60 minutes")
-                        DetailRow(icon: "checklist", label: "Type", value: test.testType.replacingOccurrences(of: "_", with: " ").capitalized)
+                        DetailRow(icon: "clock", label: "Duration", value: "\(test.duration ?? 60) minutes")
+                        DetailRow(icon: "checklist", label: "Type", value: formatTestType(test.testType))
                         DetailRow(icon: "percent", label: "Passing Score", value: "\(test.passingScore)%")
-                        DetailRow(icon: "person.badge.shield.checkmark", label: "Supervision", value: "Proctor Required")
+                        DetailRow(icon: "person.badge.shield.checkmark", label: "Supervision", value: test.needsProctor ? "Proctor Required" : "Not Required")
                         DetailRow(icon: "calendar.badge.clock", label: "Scheduling", value: hasScheduledAppointment ? "Scheduled" : "Required")
                     }
                 }

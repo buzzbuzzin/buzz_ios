@@ -238,6 +238,8 @@ CREATE TABLE public.course_tests (
   created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
   updated_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
   section_id uuid,
+  question_source text DEFAULT 'csv'::text CHECK (question_source = ANY (ARRAY['csv'::text, 'database'::text])),
+  needs_proctor boolean DEFAULT false,
   CONSTRAINT course_tests_pkey PRIMARY KEY (id),
   CONSTRAINT course_tests_course_id_fkey FOREIGN KEY (course_id) REFERENCES public.training_courses(id),
   CONSTRAINT course_tests_section_id_fkey FOREIGN KEY (section_id) REFERENCES public.course_sections(id)
@@ -258,6 +260,7 @@ CREATE TABLE public.course_units (
   section_id uuid,
   prerequisite_units ARRAY,
   prerequisite_tests ARRAY,
+  pdf_names jsonb,
   CONSTRAINT course_units_pkey PRIMARY KEY (id),
   CONSTRAINT course_units_course_id_fkey FOREIGN KEY (course_id) REFERENCES public.training_courses(id),
   CONSTRAINT course_units_section_id_fkey FOREIGN KEY (section_id) REFERENCES public.course_sections(id)
@@ -576,6 +579,22 @@ CREATE TABLE public.referrals (
   CONSTRAINT referrals_referrer_id_fkey FOREIGN KEY (referrer_id) REFERENCES public.profiles(id),
   CONSTRAINT referrals_referee_id_fkey FOREIGN KEY (referee_id) REFERENCES public.profiles(id)
 );
+CREATE TABLE public.test_questions (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  test_id uuid NOT NULL,
+  question_number integer NOT NULL,
+  question_area text,
+  question_text text NOT NULL,
+  options jsonb NOT NULL DEFAULT '[]'::jsonb,
+  correct_answer_index integer NOT NULL CHECK (correct_answer_index >= 0),
+  explanation text,
+  image_urls ARRAY DEFAULT '{}'::text[],
+  created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  updated_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  problem_sets ARRAY,
+  CONSTRAINT test_questions_pkey PRIMARY KEY (id),
+  CONSTRAINT test_questions_test_id_fkey FOREIGN KEY (test_id) REFERENCES public.course_tests(id)
+);
 CREATE TABLE public.test_results (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
   pilot_id uuid NOT NULL,
@@ -586,10 +605,18 @@ CREATE TABLE public.test_results (
   answers jsonb,
   attempt_number integer DEFAULT 1,
   completed_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  result_file_urls ARRAY DEFAULT '{}'::text[],
+  upload_status text DEFAULT 'not_submitted'::text CHECK (upload_status = ANY (ARRAY['not_submitted'::text, 'pending'::text, 'approved'::text, 'rejected'::text])),
+  uploaded_at timestamp with time zone,
+  reviewed_at timestamp with time zone,
+  reviewer_notes text,
+  reviewed_by uuid,
+  proctor_name text,
   CONSTRAINT test_results_pkey PRIMARY KEY (id),
   CONSTRAINT test_results_pilot_id_fkey FOREIGN KEY (pilot_id) REFERENCES public.profiles(id),
   CONSTRAINT test_results_test_id_fkey FOREIGN KEY (test_id) REFERENCES public.course_tests(id),
-  CONSTRAINT test_results_course_id_fkey FOREIGN KEY (course_id) REFERENCES public.training_courses(id)
+  CONSTRAINT test_results_course_id_fkey FOREIGN KEY (course_id) REFERENCES public.training_courses(id),
+  CONSTRAINT test_results_reviewed_by_fkey FOREIGN KEY (reviewed_by) REFERENCES public.profiles(id)
 );
 CREATE TABLE public.topgun_pilots (
   pilot_id uuid NOT NULL,
@@ -618,6 +645,8 @@ CREATE TABLE public.training_courses (
   requires_roc_a_passed boolean DEFAULT false,
   external_url text,
   cover_image_url text,
+  region text DEFAULT 'Global'::text CHECK (region = ANY (ARRAY['Canada'::text, 'USA'::text, 'UK'::text, 'Australia'::text, 'New Zealand'::text, 'South Africa'::text, 'Global'::text])),
+  active boolean DEFAULT false,
   CONSTRAINT training_courses_pkey PRIMARY KEY (id)
 );
 CREATE TABLE public.transponders (
