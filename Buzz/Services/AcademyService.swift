@@ -388,25 +388,26 @@ class AcademyService: ObservableObject {
     /// Fetch active tests only from courses the pilot is enrolled in
     func fetchTestsForEnrolledCourses(pilotId: UUID) async throws -> [CourseTest] {
         do {
-            // First, fetch the pilot's course enrollments
+            // First, fetch the pilot's course enrollments for active courses
             let enrollmentsResponse = try await supabase
                 .from("course_enrollments")
-                .select("course_id")
+                .select("course_id, training_courses!inner(active)")
                 .eq("pilot_id", value: pilotId.uuidString)
+                .eq("training_courses.active", value: true)
                 .execute()
             
             let enrollmentsData = try JSONDecoder().decode([CourseEnrollmentResponse].self, from: enrollmentsResponse.data)
             let enrolledCourseIds = enrollmentsData.map { $0.courseId.uuidString }
             
-            print("📚 [AcademyService] Pilot is enrolled in \(enrolledCourseIds.count) courses")
+            print("📚 [AcademyService] Pilot is enrolled in \(enrolledCourseIds.count) active courses")
             
             // If no enrollments, return empty array
             guard !enrolledCourseIds.isEmpty else {
-                print("⚠️ [AcademyService] No course enrollments found for pilot")
+                print("⚠️ [AcademyService] No course enrollments found for active courses")
                 return []
             }
             
-            // Fetch tests for enrolled courses only
+            // Fetch tests for enrolled courses only (test must also be active)
             let response: [CourseTest] = try await supabase
                 .from("course_tests")
                 .select()
@@ -416,7 +417,7 @@ class AcademyService: ObservableObject {
                 .execute()
                 .value
             
-            print("✅ [AcademyService] Fetched \(response.count) active tests from enrolled courses")
+            print("✅ [AcademyService] Fetched \(response.count) active tests from active enrolled courses")
             return response
         } catch {
             print("❌ [AcademyService] Error fetching tests for enrolled courses: \(error)")
