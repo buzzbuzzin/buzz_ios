@@ -586,7 +586,7 @@ struct AcademyPassSubscriptionSheet: View {
     }
     
     private var privacyPolicyURL: URL {
-        URL(string: "https://buzzbuzzin.com/legal/")!
+        URL(string: "https://www.buzzbuzzin.com/privacy")!
     }
     
     private func purchaseProduct(_ product: Product) async {
