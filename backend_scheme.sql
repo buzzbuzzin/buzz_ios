@@ -240,6 +240,8 @@ CREATE TABLE public.course_tests (
   section_id uuid,
   question_source text DEFAULT 'csv'::text CHECK (question_source = ANY (ARRAY['csv'::text, 'database'::text])),
   needs_proctor boolean DEFAULT false,
+  duration integer NOT NULL DEFAULT 60,
+  price_of_schedule integer CHECK (price_of_schedule IS NULL OR price_of_schedule >= 0 AND price_of_schedule <= 50000),
   CONSTRAINT course_tests_pkey PRIMARY KEY (id),
   CONSTRAINT course_tests_course_id_fkey FOREIGN KEY (course_id) REFERENCES public.training_courses(id),
   CONSTRAINT course_tests_section_id_fkey FOREIGN KEY (section_id) REFERENCES public.course_sections(id)
@@ -261,6 +263,9 @@ CREATE TABLE public.course_units (
   prerequisite_units ARRAY,
   prerequisite_tests ARRAY,
   pdf_names jsonb,
+  material_urls jsonb DEFAULT '[]'::jsonb,
+  material_names jsonb DEFAULT '[]'::jsonb,
+  material_types jsonb DEFAULT '[]'::jsonb,
   CONSTRAINT course_units_pkey PRIMARY KEY (id),
   CONSTRAINT course_units_course_id_fkey FOREIGN KEY (course_id) REFERENCES public.training_courses(id),
   CONSTRAINT course_units_section_id_fkey FOREIGN KEY (section_id) REFERENCES public.course_sections(id)
@@ -541,6 +546,7 @@ CREATE TABLE public.profiles (
   referral_credits numeric DEFAULT 0.0,
   referred_by uuid,
   is_beacon_volunteer boolean DEFAULT false,
+  selected_region text CHECK (selected_region IS NULL OR (selected_region = ANY (ARRAY['Canada'::text, 'USA'::text, 'UK'::text, 'Australia'::text, 'New Zealand'::text, 'South Africa'::text, 'Other'::text, 'Global'::text]))),
   CONSTRAINT profiles_pkey PRIMARY KEY (id),
   CONSTRAINT profiles_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id),
   CONSTRAINT profiles_referred_by_fkey FOREIGN KEY (referred_by) REFERENCES public.profiles(id)
