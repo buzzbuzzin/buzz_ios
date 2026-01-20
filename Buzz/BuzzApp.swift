@@ -62,7 +62,9 @@ struct BuzzApp: App {
     @StateObject private var authService = AuthService()
     @StateObject private var notificationManager = NotificationManager.shared
     @StateObject private var locationTrackingService = LocationTrackingService.shared
+    @StateObject private var updateService = AppUpdateService()
     @AppStorage("appearanceMode") private var appearanceModeString: String = "system"
+    @State private var showUpdatePopup = false
     private let isUITestMode = ProcessInfo.processInfo.arguments.contains("UI_TESTING") || ProcessInfo.processInfo.environment["UITEST_MODE"] == "1"
 
     init() {
@@ -86,19 +88,31 @@ struct BuzzApp: App {
 
     var body: some Scene {
         WindowGroup {
-            Group {
-                if authService.isAuthenticated && !authService.shouldDelayNavigation {
-                    MainTabView()
-                        .environmentObject(authService)
-                        .transition(.opacity)
-                } else {
-                    WelcomeView()
-                        .environmentObject(authService)
-                        .transition(.opacity)
+            ZStack {
+                Group {
+                    if authService.isAuthenticated && !authService.shouldDelayNavigation {
+                        MainTabView()
+                            .environmentObject(authService)
+                            .transition(.opacity)
+                    } else {
+                        WelcomeView()
+                            .environmentObject(authService)
+                            .transition(.opacity)
+                    }
+                }
+                .animation(.easeInOut(duration: 0.3), value: authService.isAuthenticated)
+                .preferredColorScheme(colorScheme)
+
+                // Update popup overlay
+                if showUpdatePopup {
+                    UpdatePopupView(updateService: updateService, isPresented: $showUpdatePopup)
                 }
             }
-            .animation(.easeInOut(duration: 0.3), value: authService.isAuthenticated)
-            .preferredColorScheme(colorScheme)
+            .onChange(of: updateService.isUpdateAvailable) { _, isAvailable in
+                if isAvailable {
+                    showUpdatePopup = true
+                }
+            }
             .onChange(of: authService.isAuthenticated) { _, isAuthenticated in
                 // Update location whenever authentication status changes
                 if isAuthenticated, let userId = authService.activeUserId {
@@ -119,11 +133,11 @@ struct BuzzApp: App {
                     // so we don't need to update UI here directly
                     // The AuthService will check authentication status separately
                 }
-                
+
                 // Request notification permissions and register for remote notifications
                 Task {
                     await notificationManager.updateAuthorizationStatus()
-                    
+
                     // Request permission if not yet determined
                     if notificationManager.authorizationStatus == .notDetermined {
                         let granted = await notificationManager.requestAuthorization()
@@ -135,7 +149,7 @@ struct BuzzApp: App {
                         // Already authorized, register for remote notifications
                         notificationManager.registerForRemoteNotifications()
                     }
-                    
+
                     // Update user location if authenticated
                     if authService.isAuthenticated, let userId = authService.activeUserId {
                         do {
@@ -144,6 +158,10 @@ struct BuzzApp: App {
                             print("Failed to update user location: \(error.localizedDescription)")
                         }
                     }
+
+                    // Check for app updates after a short delay to avoid blocking app launch
+                    try? await Task.sleep(nanoseconds: 2_000_000_000) // 2 seconds
+                    await updateService.checkForUpdate()
                 }
             }
             .onOpenURL { url in
