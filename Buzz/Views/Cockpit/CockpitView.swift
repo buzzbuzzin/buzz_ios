@@ -184,6 +184,20 @@ struct CockpitView: View {
                                     )
                                 }
                                 .buttonStyle(PlainButtonStyle())
+
+                                // Portal Card
+                                Button(action: {
+                                    if let url = URL(string: "https://buzz-portal.vercel.app") {
+                                        UIApplication.shared.open(url)
+                                    }
+                                }) {
+                                    CockpitGridCard(
+                                        title: "Portal",
+                                        icon: "link.circle.fill",
+                                        color: .cyan
+                                    )
+                                }
+                                .buttonStyle(PlainButtonStyle())
                             }
                             .padding(.horizontal, 16)
                         }
