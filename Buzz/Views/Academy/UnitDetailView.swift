@@ -18,7 +18,6 @@ struct UnitDetailView: View {
     @State private var isCompleted = false
     @State private var showTestView = false
     @State private var canTakeTest = false
-    @State private var isLoading = false
     @State private var showCompletionSuccess = false
     @State private var courseTest: CourseTest?
     @State private var showSlidePresentation = false
@@ -200,33 +199,6 @@ struct UnitDetailView: View {
                     .transition(.opacity)
                 }
                 
-                // Mark as Complete Button (for all units)
-                if !isCompleted {
-                    Button(action: {
-                        Task {
-                            await markUnitComplete()
-                        }
-                    }) {
-                        HStack {
-                            if isLoading {
-                                ProgressView()
-                                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                            } else {
-                                Image(systemName: "checkmark.circle")
-                            }
-                            Text(isLoading ? "Marking as Complete..." : "Mark as Completed")
-                                .fontWeight(.semibold)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 50)
-                        .background(isLoading ? Color.gray : Color.green)
-                        .foregroundColor(.white)
-                        .cornerRadius(12)
-                    }
-                    .disabled(isLoading)
-                    .padding(.horizontal)
-                    .padding(.bottom, 8)
-                }
                 
                 // Take Test Button (after completing units 1-3)
                 if isUASPilotCourse && isLastMandatoryUnit && isCompleted && canTakeTest {
@@ -333,9 +305,7 @@ struct UnitDetailView: View {
     
     private func markUnitComplete() async {
         guard let currentUser = authService.currentUser else { return }
-        
-        isLoading = true
-        
+
         do {
             let supabase = SupabaseClient.shared.client
             let completion: [String: AnyJSON] = [
@@ -363,8 +333,6 @@ struct UnitDetailView: View {
         } catch {
             print("Error marking unit complete: \(error)")
         }
-        
-        isLoading = false
     }
     
     private func checkIfCanTakeTest() async {
