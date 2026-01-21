@@ -98,7 +98,7 @@ struct UnitDetailView: View {
                                 Image(systemName: "play.circle.fill")
                                     .font(.title2)
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text("Start Interactive Slideshow")
+                                    Text("Start Lesson")
                                         .font(.headline)
                                     Text("\(unit.materials.count) slide\(unit.materials.count == 1 ? "" : "s")")
                                         .font(.caption)

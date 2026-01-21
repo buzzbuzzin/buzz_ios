@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import UIKit
 
 struct SlidePresentationView: View {
     let unit: CourseUnit
@@ -38,6 +39,15 @@ struct SlidePresentationView: View {
             }
         }
         .statusBar(hidden: !isPreviewMode)
+        .onChange(of: isPreviewMode) { _, newValue in
+            if !newValue {
+                // Force landscape when entering slideshow mode
+                if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                   let window = windowScene.windows.first {
+                    window.rootViewController?.setNeedsUpdateOfSupportedInterfaceOrientations()
+                }
+            }
+        }
     }
     
     // MARK: - Preview Mode
@@ -96,7 +106,7 @@ struct SlidePresentationView: View {
                 
                 // Start button
                 Button(action: startSlideshow) {
-                    Text("Start Slideshow")
+                    Text("Start")
                         .fontWeight(.semibold)
                         .frame(maxWidth: .infinity)
                         .padding()
