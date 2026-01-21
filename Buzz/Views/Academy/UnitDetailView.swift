@@ -21,6 +21,7 @@ struct UnitDetailView: View {
     @State private var isLoading = false
     @State private var showCompletionSuccess = false
     @State private var courseTest: CourseTest?
+    @State private var showSlidePresentation = false
     
     // Check if this is the UAS Pilot Course
     var isUASPilotCourse: Bool {
@@ -83,31 +84,50 @@ struct UnitDetailView: View {
                 .cornerRadius(12)
                 .padding(.horizontal)
                 
-                // Course Material Buttons (multiple modules per unit, supporting various formats)
+                // Course Material - Interactive Slideshow
                 if !unit.materials.isEmpty {
-                    VStack(spacing: 12) {
+                    VStack(spacing: 16) {
                         Text("Course Materials")
                             .font(.headline)
                             .fontWeight(.semibold)
                             .frame(maxWidth: .infinity, alignment: .leading)
-
-                        ForEach(unit.materials, id: \.index) { material in
-                            Button(action: {
-                                selectedMaterial = MaterialSelection(material: material)
-                            }) {
-                                MaterialButtonContent(material: material)
+                        
+                        Button(action: {
+                            showSlidePresentation = true
+                        }) {
+                            HStack {
+                                Image(systemName: "play.circle.fill")
+                                    .font(.title2)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Start Interactive Slideshow")
+                                        .font(.headline)
+                                    Text("\(unit.materials.count) slide\(unit.materials.count == 1 ? "" : "s")")
+                                        .font(.caption)
+                                        .foregroundColor(.white.opacity(0.8))
+                                }
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.caption)
                             }
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(Color.blue)
+                            .foregroundColor(.white)
+                            .cornerRadius(12)
                         }
                     }
                     .padding(.horizontal)
-                    .sheet(item: $selectedMaterial) { materialSelection in
-                        NavigationView {
-                            FileViewer(
-                                fileUrl: materialSelection.material.url,
-                                fileType: materialSelection.material.fileViewerTypeString == "pdf" ? .pdf : .image,
-                                bucketName: "course-materials"
-                            )
-                        }
+                    .fullScreenCover(isPresented: $showSlidePresentation) {
+                        SlidePresentationView(
+                            unit: unit,
+                            materials: unit.materials,
+                            onComplete: {
+                                Task {
+                                    await markUnitComplete()
+                                }
+                                showSlidePresentation = false
+                            }
+                        )
                     }
                 }
                 

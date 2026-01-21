@@ -146,8 +146,30 @@ struct CourseMaterial {
     let name: String
     let type: String
 
-    var isPDF: Bool { type.lowercased() == "pdf" }
-    var isImage: Bool { ["jpeg", "jpg", "png", "gif", "webp"].contains(type.lowercased()) }
+    var isPDF: Bool {
+        let lowerType = type.lowercased()
+        return lowerType == "pdf" || ["application/pdf"].contains(lowerType)
+    }
+
+    var isImage: Bool {
+        let lowerType = type.lowercased()
+        // Check for content types
+        if lowerType == "image" {
+            return true
+        }
+        // Check for file extensions
+        return ["jpeg", "jpg", "png", "gif", "webp", "bmp", "tiff", "svg"].contains(lowerType)
+    }
+
+    var isVideo: Bool {
+        let lowerType = type.lowercased()
+        // Check for content types
+        if lowerType == "video" {
+            return true
+        }
+        // Check for file extensions
+        return ["mp4", "mov", "m4v", "avi", "mkv", "wmv", "flv", "webm"].contains(lowerType)
+    }
 
     var fileViewerTypeString: String {
         if isPDF {
@@ -162,6 +184,8 @@ struct CourseMaterial {
             return "doc.fill"
         } else if isImage {
             return "photo.fill"
+        } else if isVideo {
+            return "play.circle.fill"
         } else {
             return "doc.fill" // Fallback
         }
