@@ -209,15 +209,18 @@ struct SlidePresentationView: View {
                     viewModel.markSlideCompleted(viewModel.currentSlideIndex)
                 }
             )
+            .id("\(viewModel.currentSlideIndex)-\(url)")
             
         case .image(let url, let name):
             ImageSlideView(
                 url: url,
                 name: name,
+                cachedImage: viewModel.getCachedImage(for: viewModel.currentSlideIndex),
                 onComplete: {
                     viewModel.markSlideCompleted(viewModel.currentSlideIndex)
                 }
             )
+            .id("\(viewModel.currentSlideIndex)-\(url)")
             
         case .video(let url, let name):
             VideoSlideView(
@@ -227,6 +230,7 @@ struct SlidePresentationView: View {
                     viewModel.markSlideCompleted(viewModel.currentSlideIndex)
                 }
             )
+            .id("\(viewModel.currentSlideIndex)-\(url)")
             
         case .question(let questionData):
             QuestionSlideView(
@@ -235,6 +239,7 @@ struct SlidePresentationView: View {
                     viewModel.markSlideCompleted(viewModel.currentSlideIndex)
                 }
             )
+            .id("\(viewModel.currentSlideIndex)-\(questionData.questionText)")
         }
     }
     

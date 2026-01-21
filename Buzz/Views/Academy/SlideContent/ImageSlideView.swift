@@ -12,12 +12,12 @@ import Auth
 struct ImageSlideView: View {
     let url: String
     let name: String
+    let cachedImage: UIImage?
     let onComplete: () -> Void
     
     @State private var image: UIImage?
     @State private var isLoading = true
     @State private var errorMessage: String?
-    @State private var hasAutoCompleted = false
     
     var body: some View {
         ZStack {
@@ -73,8 +73,20 @@ struct ImageSlideView: View {
     private func loadImage() async {
         isLoading = true
         errorMessage = nil
-        hasAutoCompleted = false
-        
+
+        // Check cache first
+        if let cachedImage = cachedImage {
+            await MainActor.run {
+                self.image = cachedImage
+                self.isLoading = false
+                print("✅ Image loaded from cache: \(name)")
+                
+                // Auto-complete immediately after successful load
+                onComplete()
+            }
+            return
+        }
+
         guard let fileUrl = URL(string: url) else {
             errorMessage = "Invalid image URL"
             isLoading = false
@@ -113,15 +125,8 @@ struct ImageSlideView: View {
                 self.isLoading = false
                 print("✅ Image loaded successfully: \(name)")
                 
-                // Auto-complete after successful load
-                if !hasAutoCompleted {
-                    hasAutoCompleted = true
-                    // Small delay to ensure smooth transition
-                    Task {
-                        try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
-                        onComplete()
-                    }
-                }
+                // Auto-complete immediately after successful load
+                onComplete()
             }
         } catch {
             await MainActor.run {

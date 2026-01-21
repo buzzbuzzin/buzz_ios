@@ -8,6 +8,7 @@
 import Foundation
 import SwiftUI
 import Combine
+import Supabase
 
 @MainActor
 class SlideshowViewModel: ObservableObject {
@@ -20,9 +21,10 @@ class SlideshowViewModel: ObservableObject {
     @Published var isAnswerCorrect: Bool? = nil
     
     // MARK: - Properties
-    
+
     let slideContents: [SlideContent]
     let onComplete: () -> Void
+    private var imageCache: [Int: UIImage] = [:]
     
     // MARK: - Computed Properties
     
@@ -108,16 +110,20 @@ class SlideshowViewModel: ObservableObject {
             print("⚠️ Cannot advance - current slide not completed")
             return
         }
-        
+
         guard currentSlideIndex < slideContents.count - 1 else {
             print("✅ Last slide completed - triggering completion")
             checkAndCompleteIfAllSlidesCompleted()
             return
         }
-        
+
         print("➡️ Advancing to slide \(currentSlideIndex + 2)")
         currentSlideIndex += 1
-        resetQuestionState()
+
+        // Reset question state only if the new slide is a question
+        if isQuestionSlide(at: currentSlideIndex) {
+            resetQuestionState()
+        }
     }
     
     func handlePreviousSlide() {
@@ -125,10 +131,14 @@ class SlideshowViewModel: ObservableObject {
             print("⚠️ Already at first slide")
             return
         }
-        
+
         print("⬅️ Going back to slide \(currentSlideIndex)")
         currentSlideIndex -= 1
-        resetQuestionState()
+
+        // Reset question state only if the new slide is a question
+        if isQuestionSlide(at: currentSlideIndex) {
+            resetQuestionState()
+        }
     }
     
     // MARK: - Completion Tracking
@@ -138,11 +148,14 @@ class SlideshowViewModel: ObservableObject {
             print("⚠️ Invalid slide index: \(index)")
             return
         }
-        
+
         if !completedSlides.contains(index) {
             print("✓ Slide \(index + 1) completed")
             completedSlides.insert(index)
             checkAndCompleteIfAllSlidesCompleted()
+
+            // Preload the next image slide
+            preloadNextImageSlide(from: index)
         }
     }
     
@@ -151,6 +164,56 @@ class SlideshowViewModel: ObservableObject {
             print("🎉 All slides completed - calling onComplete")
             onComplete()
         }
+    }
+
+    // MARK: - Image Preloading
+
+    private func preloadNextImageSlide(from currentIndex: Int) {
+        let nextIndex = currentIndex + 1
+        guard nextIndex < slideContents.count else { return }
+
+        if case .image(let url, _) = slideContents[nextIndex], imageCache[nextIndex] == nil {
+            Task {
+                await preloadImage(from: url, for: nextIndex)
+            }
+        }
+    }
+
+    private func preloadImage(from url: String, for index: Int) async {
+        guard let fileUrl = URL(string: url) else { return }
+
+        do {
+            var request = URLRequest(url: fileUrl)
+            request.timeoutInterval = 30.0
+
+            // Try to add auth headers if available
+            do {
+                let supabase = SupabaseClient.shared.client
+                let session = try await supabase.auth.session
+                request.setValue("Bearer \(session.accessToken)", forHTTPHeaderField: "Authorization")
+            } catch {
+                // Continue without auth for public buckets
+            }
+
+            let (data, response) = try await URLSession.shared.data(for: request)
+
+            if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode != 200 {
+                return // Silently fail for preloading
+            }
+
+            guard let uiImage = UIImage(data: data) else { return }
+
+            await MainActor.run {
+                imageCache[index] = uiImage
+                print("📦 Preloaded image for slide \(index + 1)")
+            }
+        } catch {
+            // Silently fail for preloading
+        }
+    }
+
+    func getCachedImage(for index: Int) -> UIImage? {
+        return imageCache[index]
     }
     
     // MARK: - Question Actions
