@@ -15,9 +15,11 @@ struct WeatherView: View {
     @StateObject private var weatherService = WeatherService()
     @StateObject private var bookingService = BookingService()
     @StateObject private var locationManager = WeatherLocationManager()
-    
+    @StateObject private var metarService = METARService()
+
     @State private var currentLocationName: String = "Current Location"
     @State private var upcomingBooking: Booking?
+    @State private var showMETARSection = true
     
     var body: some View {
         ScrollView {
@@ -54,6 +56,11 @@ struct WeatherView: View {
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 40)
+                }
+                
+                // Nearby METAR Reports
+                if showMETARSection {
+                    METARSectionView(metarService: metarService, userCoordinate: locationManager.currentLocation)
                 }
                 
                 // Upcoming Booking Weather
@@ -126,8 +133,11 @@ struct WeatherView: View {
             try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
         }
         
-        // Load current location weather
-        await loadCurrentLocationWeather()
+        // Load current location weather and nearby METARs in parallel
+        async let weatherTask: () = loadCurrentLocationWeather()
+        async let metarTask: () = loadNearbyMETARs()
+        
+        _ = await (weatherTask, metarTask)
         
         // Load upcoming booking
         await loadUpcomingBooking()
@@ -135,6 +145,34 @@ struct WeatherView: View {
         // Load booking location weather if available
         if let booking = upcomingBooking {
             await loadBookingLocationWeather(booking: booking)
+        }
+    }
+    
+    private func loadNearbyMETARs() async {
+        guard let userProfile = authService.userProfile,
+              userProfile.userType == .pilot else { return }
+        
+        // Wait for location if not available
+        var deviceLocation: CLLocationCoordinate2D? = locationManager.currentLocation
+        if deviceLocation == nil {
+            for _ in 0..<6 {
+                try? await Task.sleep(nanoseconds: 500_000_000)
+                deviceLocation = locationManager.currentLocation
+                if deviceLocation != nil {
+                    break
+                }
+            }
+        }
+        
+        guard let location = deviceLocation else {
+            print("Unable to get device location for METAR")
+            return
+        }
+        
+        do {
+            _ = try await metarService.fetchMETARsNearLocation(coordinate: location)
+        } catch {
+            print("Error fetching nearby METARs: \(error.localizedDescription)")
         }
     }
     
@@ -527,6 +565,324 @@ struct ConditionMetric: View {
             Text(value)
                 .font(.subheadline)
                 .fontWeight(.medium)
+        }
+    }
+}
+
+// MARK: - METAR Section View
+
+struct METARSectionView: View {
+    @ObservedObject var metarService: METARService
+    let userCoordinate: CLLocationCoordinate2D?
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            // Section Header
+            HStack {
+                Image(systemName: "airplane.departure")
+                    .font(.title3)
+                    .foregroundColor(.blue)
+                Text("Nearby METAR Reports")
+                    .font(.headline)
+                Spacer()
+            }
+            
+            if metarService.isLoading {
+                HStack {
+                    Spacer()
+                    ProgressView()
+                    Text("Loading aviation weather...")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                    Spacer()
+                }
+                .padding(.vertical, 20)
+            } else if metarService.nearbyMETARs.isEmpty {
+                VStack(spacing: 8) {
+                    Image(systemName: "airplane.circle")
+                        .font(.system(size: 32))
+                        .foregroundColor(.secondary)
+                    Text("No nearby airports found")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                    if let error = metarService.errorMessage {
+                        Text(error)
+                            .font(.caption)
+                            .foregroundColor(.red)
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 20)
+            } else {
+                ForEach(metarService.nearbyMETARs) { metar in
+                    METARCard(metar: metar, userCoordinate: userCoordinate)
+                }
+            }
+        }
+        .padding()
+        .background(Color(.systemBackground))
+        .cornerRadius(16)
+        .shadow(color: Color.black.opacity(0.06), radius: 8, x: 0, y: 2)
+    }
+}
+
+// MARK: - METAR Card
+
+struct METARCard: View {
+    let metar: METAR
+    let userCoordinate: CLLocationCoordinate2D?
+    
+    @State private var showRawMETAR = false
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            // Header with station ID and flight category
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 8) {
+                        Text(metar.stationId)
+                            .font(.headline)
+                            .fontWeight(.bold)
+                        
+                        // Flight category badge
+                        FlightCategoryBadge(category: metar.flightCategory)
+                    }
+                    
+                    if let name = metar.stationName {
+                        Text(name)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .lineLimit(1)
+                    }
+                }
+                
+                Spacer()
+                
+                // Distance from user
+                if let coordinate = userCoordinate {
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text(metar.formattedDistance(from: coordinate))
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                        Text("away")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+            }
+            
+            // Key metrics grid
+            LazyVGrid(columns: [
+                GridItem(.flexible(), alignment: .leading),
+                GridItem(.flexible(), alignment: .leading),
+                GridItem(.flexible(), alignment: .leading)
+            ], spacing: 12) {
+                // Visibility
+                METARMetric(
+                    icon: "eye.fill",
+                    label: "Visibility",
+                    value: metar.visibility.map { "\(formatVisibility($0)) SM" } ?? "N/A"
+                )
+                
+                // Wind
+                METARMetric(
+                    icon: "wind",
+                    label: "Wind",
+                    value: formatWind()
+                )
+                
+                // Altimeter
+                METARMetric(
+                    icon: "gauge",
+                    label: "Altimeter",
+                    value: metar.altimeter.map { String(format: "%.2f\"", $0) } ?? "N/A"
+                )
+                
+                // Temperature
+                METARMetric(
+                    icon: "thermometer",
+                    label: "Temp",
+                    value: metar.temperature.map { "\(Int($0))°C" } ?? "N/A"
+                )
+                
+                // Dewpoint
+                METARMetric(
+                    icon: "drop.fill",
+                    label: "Dewpoint",
+                    value: metar.dewpoint.map { "\(Int($0))°C" } ?? "N/A"
+                )
+                
+                // Ceiling
+                METARMetric(
+                    icon: "cloud.fill",
+                    label: "Ceiling",
+                    value: formatCeiling()
+                )
+            }
+            
+            // Weather phenomena if present
+            if let wx = metar.weatherPhenomena, !wx.isEmpty {
+                HStack(spacing: 4) {
+                    Image(systemName: "cloud.rain.fill")
+                        .font(.caption)
+                        .foregroundColor(.blue)
+                    Text("Weather: \(wx)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+            
+            // Observation time
+            HStack {
+                Image(systemName: "clock")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                Text("Observed: \(formatObservationTime(metar.observationTime))")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                
+                Spacer()
+                
+                // Toggle raw METAR
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        showRawMETAR.toggle()
+                    }
+                } label: {
+                    HStack(spacing: 4) {
+                        Text(showRawMETAR ? "Hide" : "Raw")
+                            .font(.caption)
+                        Image(systemName: showRawMETAR ? "chevron.up" : "chevron.down")
+                            .font(.caption)
+                    }
+                    .foregroundColor(.blue)
+                }
+            }
+            
+            // Raw METAR text (collapsible)
+            if showRawMETAR {
+                Text(metar.rawText)
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundColor(.primary)
+                    .padding(8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color(.secondarySystemBackground))
+                    .cornerRadius(8)
+            }
+        }
+        .padding()
+        .background(Color(.secondarySystemBackground))
+        .cornerRadius(12)
+    }
+    
+    private func formatVisibility(_ visibility: Double) -> String {
+        if visibility >= 10 {
+            return "10+"
+        } else if visibility == floor(visibility) {
+            return String(format: "%.0f", visibility)
+        } else {
+            return String(format: "%.1f", visibility)
+        }
+    }
+    
+    private func formatWind() -> String {
+        guard let speed = metar.windSpeed else { return "Calm" }
+        if speed == 0 { return "Calm" }
+        
+        var result = ""
+        if let dir = metar.windDirection {
+            result = String(format: "%03d°", dir)
+        } else {
+            result = "VRB"
+        }
+        result += "/\(speed)"
+        
+        if let gust = metar.windGust, gust > speed {
+            result += "G\(gust)"
+        }
+        result += "kt"
+        
+        return result
+    }
+    
+    private func formatCeiling() -> String {
+        // Find the lowest BKN or OVC layer
+        let ceilingLayers = metar.clouds.filter { 
+            $0.cover == .bkn || $0.cover == .ovc || $0.cover == .vv 
+        }
+        
+        if let lowestCeiling = ceilingLayers.compactMap({ $0.base }).min() {
+            if lowestCeiling >= 10000 {
+                return "\(lowestCeiling/1000)k ft"
+            }
+            return "\(lowestCeiling) ft"
+        }
+        
+        // If no ceiling, check if there are any clouds
+        if metar.clouds.isEmpty || metar.clouds.allSatisfy({ $0.cover == .skc || $0.cover == .clr }) {
+            return "Clear"
+        }
+        
+        return "N/A"
+    }
+    
+    private func formatObservationTime(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm 'Z'"
+        formatter.timeZone = TimeZone(identifier: "UTC")
+        return formatter.string(from: date)
+    }
+}
+
+// MARK: - Flight Category Badge
+
+struct FlightCategoryBadge: View {
+    let category: FlightCategory
+    
+    var badgeColor: Color {
+        switch category {
+        case .vfr: return .green
+        case .mvfr: return .blue
+        case .ifr: return .red
+        case .lifr: return .purple
+        case .unknown: return .gray
+        }
+    }
+    
+    var body: some View {
+        Text(category.rawValue)
+            .font(.caption)
+            .fontWeight(.bold)
+            .foregroundColor(.white)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(badgeColor)
+            .cornerRadius(4)
+    }
+}
+
+// MARK: - METAR Metric
+
+struct METARMetric: View {
+    let icon: String
+    let label: String
+    let value: String
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 4) {
+                Image(systemName: icon)
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                Text(label)
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+            Text(value)
+                .font(.subheadline)
+                .fontWeight(.medium)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
         }
     }
 }
