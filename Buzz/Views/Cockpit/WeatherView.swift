@@ -15,11 +15,9 @@ struct WeatherView: View {
     @StateObject private var weatherService = WeatherService()
     @StateObject private var bookingService = BookingService()
     @StateObject private var locationManager = WeatherLocationManager()
-    @StateObject private var metarService = METARService()
 
     @State private var currentLocationName: String = "Current Location"
     @State private var upcomingBooking: Booking?
-    @State private var showMETARSection = true
     
     var body: some View {
         ScrollView {
@@ -56,11 +54,6 @@ struct WeatherView: View {
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 40)
-                }
-                
-                // Nearby METAR Reports
-                if showMETARSection {
-                    METARSectionView(metarService: metarService, userCoordinate: locationManager.currentLocation)
                 }
                 
                 // Upcoming Booking Weather
@@ -133,11 +126,8 @@ struct WeatherView: View {
             try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
         }
         
-        // Load current location weather and nearby METARs in parallel
-        async let weatherTask: () = loadCurrentLocationWeather()
-        async let metarTask: () = loadNearbyMETARs()
-        
-        _ = await (weatherTask, metarTask)
+        // Load current location weather
+        await loadCurrentLocationWeather()
         
         // Load upcoming booking
         await loadUpcomingBooking()
@@ -145,34 +135,6 @@ struct WeatherView: View {
         // Load booking location weather if available
         if let booking = upcomingBooking {
             await loadBookingLocationWeather(booking: booking)
-        }
-    }
-    
-    private func loadNearbyMETARs() async {
-        guard let userProfile = authService.userProfile,
-              userProfile.userType == .pilot else { return }
-        
-        // Wait for location if not available
-        var deviceLocation: CLLocationCoordinate2D? = locationManager.currentLocation
-        if deviceLocation == nil {
-            for _ in 0..<6 {
-                try? await Task.sleep(nanoseconds: 500_000_000)
-                deviceLocation = locationManager.currentLocation
-                if deviceLocation != nil {
-                    break
-                }
-            }
-        }
-        
-        guard let location = deviceLocation else {
-            print("Unable to get device location for METAR")
-            return
-        }
-        
-        do {
-            _ = try await metarService.fetchMETARsNearLocation(coordinate: location)
-        } catch {
-            print("Error fetching nearby METARs: \(error.localizedDescription)")
         }
     }
     

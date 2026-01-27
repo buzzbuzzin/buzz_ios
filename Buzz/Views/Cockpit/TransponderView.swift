@@ -26,7 +26,7 @@ struct TransponderView: View {
             VStack(spacing: 24) {
                 // Header
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Transponder")
+                    Text("Remote ID")
                         .font(.largeTitle)
                         .fontWeight(.bold)
                     
@@ -108,7 +108,7 @@ struct TransponderView: View {
             }
             .padding(.bottom)
         }
-        .navigationTitle("Transponder")
+        .navigationTitle("Remote ID")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showingAddDevice) {
             SelectDroneForTransponderSheet(
