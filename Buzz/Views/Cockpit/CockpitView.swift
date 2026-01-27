@@ -8,6 +8,7 @@
 import SwiftUI
 import Auth
 import CoreLocation
+import UIKit
 
 struct CockpitView: View {
     @EnvironmentObject var authService: AuthService
@@ -15,6 +16,7 @@ struct CockpitView: View {
     @StateObject private var locationManager = BookingMapLocationManager()
     @State private var hasNearbyBeaconMissions = false
     @State private var showChecklistSelection = false
+    @State private var showPhoneOptions = false
     
     var body: some View {
         NavigationView {
@@ -96,6 +98,18 @@ struct CockpitView: View {
                                     CockpitGridCard(
                                         title: "Flight Radar",
                                         icon: "airplane.departure",
+                                        color: .red
+                                    )
+                                }
+                                .buttonStyle(PlainButtonStyle())
+
+                                // Phone Card
+                                Button(action: {
+                                    showPhoneOptions = true
+                                }) {
+                                    CockpitGridCard(
+                                        title: "Phone",
+                                        icon: "phone.fill",
                                         color: .red
                                     )
                                 }
@@ -312,6 +326,9 @@ struct CockpitView: View {
             Task {
                 await checkForNearbyBeaconMissions()
             }
+        }
+        .sheet(isPresented: $showPhoneOptions) {
+            PhoneOptionsView(showPhoneOptions: $showPhoneOptions)
         }
         // Use fullScreenCover for stable presentation - immune to parent body re-evaluations
         .fullScreenCover(isPresented: $showChecklistSelection) {
@@ -2530,5 +2547,149 @@ struct FeaturePreviewRow: View {
         .padding()
         .background(Color(.secondarySystemBackground))
         .cornerRadius(12)
+    }
+}
+
+// MARK: - Phone Options View
+
+struct PhoneOptionsView: View {
+    @Binding var showPhoneOptions: Bool
+
+    var body: some View {
+        NavigationView {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 24) {
+                    Text("Emergency & Aviation Contacts")
+                        .font(.title2)
+                        .fontWeight(.semibold)
+                        .padding(.top)
+                        .padding(.horizontal)
+
+                    // Briefing Section
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("BRIEFING")
+                            .font(.headline)
+                            .foregroundColor(.green)
+                            .padding(.horizontal)
+
+                        PhoneButton(number: "1-800-992-7433", label: "USA Briefing")
+                        PhoneButton(number: "1-866-992-7433", label: "Canada Briefing")
+                    }
+
+                    // Aviation Emergency Section
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("AVIATION EMERGENCY")
+                            .font(.headline)
+                            .foregroundColor(.red)
+                            .padding(.horizontal)
+
+                        Text("If there is a risk of an aviation hazard or of inadvertently entering controlled airspace, call the Aviation Emergency Number or enter code 7700 in the transponder.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .padding(.horizontal)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        PhoneButton(number: "1-866-835-5322", label: "Aviation Emergency")
+                    }
+
+                    // Serious Injury Section
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("SERIOUS INJURY REPORTING")
+                            .font(.headline)
+                            .foregroundColor(.red)
+                            .padding(.horizontal)
+
+                        Text("If a serious injury is sustained during an operation, report this to Transportation Safety.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .padding(.horizontal)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        PhoneButton(number: "1-844-373-9922", label: "Transportation Safety")
+                        PhoneButton(number: "1-202-314-6290", label: "Transportation Safety (Alt)")
+                    }
+
+                    // ARTCC Section
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("AIR ROUTE TRAFFIC CONTROL CENTERS (ARTCC)")
+                            .font(.headline)
+                            .foregroundColor(.blue)
+                            .padding(.horizontal)
+
+                        let artccCenters = [
+                            ("NEW YORK", "1-631-468-1001"),
+                            ("BOSTON", "1-603-879-6638"),
+                            ("MINNEAPOLIS", "1-651-463-5580"),
+                            ("ALBUQUERQUE", "1-505-856-4500"),
+                            ("CLEVELAND", "1-440-774-0300"),
+                            ("MEMPHIS", "1-901-368-8101"),
+                            ("FORT WORTH", "1-866-835-5322"),
+                            ("HOUSTON", "1-281-230-5600"),
+                            ("SALT LAKE", "1-801-575-2400"),
+                            ("WASHINGTON", "1-866-835-5322"),
+                            ("LEESBURG", "1-703-661-2800"),
+                            ("SEATTLE", "1-866-835-5322"),
+                            ("ANCHORAGE", "1-907-269-1137"),
+                            ("CHICAGO", "1-630-906-8221"),
+                            ("DENVER", "1-303-651-4100"),
+                            ("INDIANAPOLIS", "1-317-247-2234"),
+                            ("JACKSONVILLE", "1-904-845-1500"),
+                            ("KANSAS CITY", "1-913-254-8400"),
+                            ("LOS ANGELES", "1-510-745-3000"),
+                            ("MIAMI", "1-305-716-1500"),
+                            ("HONOLULU", "1-808-840-6100"),
+                            ("ATLANTA", "1-770-210-7600")
+                        ]
+
+                        ForEach(artccCenters, id: \.0) { center, number in
+                            PhoneButton(number: number, label: center)
+                        }
+                    }
+
+                    Spacer()
+                }
+            }
+            .navigationBarItems(trailing: Button("Cancel") {
+                showPhoneOptions = false
+            })
+        }
+    }
+}
+
+struct PhoneButton: View {
+    let number: String
+    let label: String
+
+    var body: some View {
+        Button(action: {
+            makePhoneCall(number: number)
+        }) {
+            HStack {
+                Image(systemName: "phone.fill")
+                    .foregroundColor(.green)
+                VStack(alignment: .leading) {
+                    Text(label)
+                        .foregroundColor(.primary)
+                    Text(number)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .foregroundColor(.secondary)
+                    .font(.caption)
+            }
+            .padding()
+            .background(Color(.secondarySystemBackground))
+            .cornerRadius(12)
+        }
+        .padding(.horizontal)
+    }
+
+    private func makePhoneCall(number: String) {
+        let cleanNumber = number.replacingOccurrences(of: "-", with: "").replacingOccurrences(of: " ", with: "")
+        if let url = URL(string: "tel://" + cleanNumber) {
+            UIApplication.shared.open(url)
+        }
     }
 }
