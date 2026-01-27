@@ -269,7 +269,7 @@ enum BeaconError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .trainingIncomplete:
-            return "Please complete all required training (CPR, Firefighting, and CERT) before enrolling as a volunteer."
+            return "Please complete all required training (First Aid/CPR, Firefighting, and Disaster Response) before enrolling as a volunteer."
         case .uploadFailed:
             return "Failed to upload certificate. Please try again."
         case .enrollmentFailed:

@@ -15,7 +15,102 @@ struct BeaconView: View {
     @State private var showOnboarding: Bool = false
     @State private var isBeaconVolunteer: Bool = false
     @State private var trainingProgress: [BeaconTrainingProgress] = []
-    @State private var showDashboard: Bool = false
+    @State private var showAboutProgram: Bool = false
+    
+    var body: some View {
+        Group {
+            if isBeaconVolunteer {
+                // Active volunteers see dashboard directly
+                BeaconVolunteerDashboardView(showAboutProgram: $showAboutProgram)
+                    .environmentObject(authService)
+            } else {
+                // Non-volunteers see the info/signup view
+                BeaconInfoView(
+                    showOnboarding: $showOnboarding,
+                    onLoadData: loadData
+                )
+            }
+        }
+        .task {
+            await loadData()
+        }
+        .sheet(isPresented: $showOnboarding) {
+            NavigationView {
+                BeaconOnboardingView(
+                    onComplete: {
+                        showOnboarding = false
+                        Task {
+                            await loadData()
+                        }
+                    }
+                )
+                .environmentObject(authService)
+            }
+        }
+        .sheet(isPresented: $showAboutProgram) {
+            NavigationView {
+                BeaconAboutProgramView()
+                    .toolbar {
+                        ToolbarItem(placement: .navigationBarTrailing) {
+                            Button("Done") {
+                                showAboutProgram = false
+                            }
+                        }
+                    }
+            }
+        }
+    }
+    
+    private func loadData() async {
+        isLoading = true
+        
+        // Check if user is a beacon volunteer
+        if let userId = authService.currentUser?.id {
+            do {
+                let beaconService = BeaconService()
+                isBeaconVolunteer = try await beaconService.isUserBeaconVolunteer(userId: userId)
+                trainingProgress = try await beaconService.getTrainingProgress(userId: userId)
+            } catch {
+                print("Error loading beacon status: \(error)")
+            }
+        }
+        
+        // Demo data - will be replaced with actual beacon missions
+        activeMissions = []
+        
+        isLoading = false
+    }
+}
+
+// MARK: - Beacon Mission Model
+
+struct BeaconMission: Identifiable {
+    let id: UUID
+    let title: String
+    let type: MissionType
+    let organization: String
+    let isPaid: Bool
+    let urgency: UrgencyLevel
+    
+    enum MissionType: String {
+        case fire = "Fire Department"
+        case police = "Police"
+        case research = "Research"
+        case pilotHelp = "Pilot Emergency"
+    }
+    
+    enum UrgencyLevel: String {
+        case high = "High"
+        case medium = "Medium"
+        case low = "Low"
+    }
+}
+
+// MARK: - Beacon Info View (for non-volunteers)
+
+struct BeaconInfoView: View {
+    @Binding var showOnboarding: Bool
+    let onLoadData: () async -> Void
     
     var body: some View {
         ScrollView {
@@ -52,87 +147,42 @@ struct BeaconView: View {
                 }
                 .padding(.horizontal)
                 
-                // Sign Up Prompt (only show if not already a volunteer)
-                if !isBeaconVolunteer {
-                    VStack(spacing: 16) {
-                        Text("Join the Emergency Response Program")
-                            .font(.title3)
-                            .fontWeight(.bold)
-                        
-                        Text("Be part of an elite group of pilots making a difference in your community")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                            .multilineTextAlignment(.center)
-                        
-                        Button(action: {
-                            showOnboarding = true
-                        }) {
-                            HStack {
-                                Image(systemName: "checkmark.circle.fill")
-                                Text("Start Onboarding")
-                                    .fontWeight(.semibold)
-                            }
-                            .foregroundColor(.white)
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(
-                                LinearGradient(
-                                    colors: [.yellow, .orange],
-                                    startPoint: .leading,
-                                    endPoint: .trailing
-                                )
-                            )
-                            .cornerRadius(12)
-                        }
-                    }
-                    .padding()
-                    .background(Color(.secondarySystemBackground))
-                    .cornerRadius(16)
-                    .padding(.horizontal)
-                } else {
-                    // Volunteer Status Card
-                    VStack(spacing: 16) {
+                // Sign Up Prompt
+                VStack(spacing: 16) {
+                    Text("Join the Emergency Response Program")
+                        .font(.title3)
+                        .fontWeight(.bold)
+                    
+                    Text("Be part of an elite group of pilots making a difference in your community")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                    
+                    Button(action: {
+                        showOnboarding = true
+                    }) {
                         HStack {
-                            Image(systemName: "checkmark.seal.fill")
-                                .font(.system(size: 40))
-                                .foregroundColor(.green)
-                            
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("Active Beacon Volunteer")
-                                    .font(.headline)
-                                    .foregroundColor(.primary)
-                                
-                                Text("You're ready to respond to emergencies")
-                                    .font(.subheadline)
-                                    .foregroundColor(.secondary)
-                            }
-                            
-                            Spacer()
+                            Image(systemName: "checkmark.circle.fill")
+                            Text("Start Onboarding")
+                                .fontWeight(.semibold)
                         }
-                        
-                        // Volunteer dashboard link - using Button + fullScreenCover to avoid
-                        // navigation pop when parent view state resets (same pattern as Checklist)
-                        Button(action: {
-                            showDashboard = true
-                        }) {
-                            HStack {
-                                Image(systemName: "square.grid.2x2")
-                                Text("View Dashboard")
-                                    .fontWeight(.semibold)
-                                Spacer()
-                                Image(systemName: "chevron.right")
-                            }
-                            .foregroundColor(.primary)
-                            .padding()
-                            .background(Color(.tertiarySystemBackground))
-                            .cornerRadius(12)
-                        }
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(
+                            LinearGradient(
+                                colors: [.yellow, .orange],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .cornerRadius(12)
                     }
-                    .padding()
-                    .background(Color(.secondarySystemBackground))
-                    .cornerRadius(16)
-                    .padding(.horizontal)
                 }
+                .padding()
+                .background(Color(.secondarySystemBackground))
+                .cornerRadius(16)
+                .padding(.horizontal)
                 
                 // Program Description
                 VStack(alignment: .leading, spacing: 16) {
@@ -246,87 +296,160 @@ struct BeaconView: View {
         }
         .navigationTitle("Beacon")
         .navigationBarTitleDisplayMode(.inline)
-        .task {
-            await loadData()
-        }
         .refreshable {
-            await loadData()
+            await onLoadData()
         }
-        .sheet(isPresented: $showOnboarding) {
-            NavigationView {
-                BeaconOnboardingView(
-                    onComplete: {
-                        showOnboarding = false
-                        Task {
-                            await loadData()
-                        }
-                    }
-                )
-                .environmentObject(authService)
-            }
-        }
-        // Use fullScreenCover for stable presentation - immune to parent body re-evaluations
-        .fullScreenCover(isPresented: $showDashboard) {
-            NavigationView {
-                BeaconVolunteerDashboardView()
-                    .environmentObject(authService)
-                    .toolbar {
-                        ToolbarItem(placement: .navigationBarLeading) {
-                            Button {
-                                showDashboard = false
-                            } label: {
-                                Image(systemName: "xmark.circle.fill")
-                                    .font(.title2)
-                                    .foregroundColor(.secondary)
-                            }
-                        }
-                    }
-            }
-        }
-    }
-    
-    private func loadData() async {
-        isLoading = true
-        
-        // Check if user is a beacon volunteer
-        if let userId = authService.currentUser?.id {
-            do {
-                let beaconService = BeaconService()
-                isBeaconVolunteer = try await beaconService.isUserBeaconVolunteer(userId: userId)
-                trainingProgress = try await beaconService.getTrainingProgress(userId: userId)
-            } catch {
-                print("Error loading beacon status: \(error)")
-            }
-        }
-        
-        // Demo data - will be replaced with actual beacon missions
-        activeMissions = []
-        
-        isLoading = false
     }
 }
 
-// MARK: - Beacon Mission Model
+// MARK: - Beacon About Program View
 
-struct BeaconMission: Identifiable {
-    let id: UUID
-    let title: String
-    let type: MissionType
-    let organization: String
-    let isPaid: Bool
-    let urgency: UrgencyLevel
-    
-    enum MissionType: String {
-        case fire = "Fire Department"
-        case police = "Police"
-        case research = "Research"
-        case pilotHelp = "Pilot Emergency"
-    }
-    
-    enum UrgencyLevel: String {
-        case high = "High"
-        case medium = "Medium"
-        case low = "Low"
+struct BeaconAboutProgramView: View {
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 24) {
+                // Header
+                VStack(spacing: 12) {
+                    ZStack {
+                        Circle()
+                            .fill(
+                                LinearGradient(
+                                    colors: [.yellow.opacity(0.8), .orange.opacity(0.6)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .frame(width: 80, height: 80)
+                            .shadow(color: .yellow.opacity(0.5), radius: 20)
+                        
+                        Image(systemName: "antenna.radiowaves.left.and.right")
+                            .font(.system(size: 40))
+                            .foregroundColor(.white)
+                    }
+                    .padding(.top)
+                    
+                    Text("About Beacon Program")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                    
+                    Text("Community Emergency Response")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+                .padding(.horizontal)
+                
+                // Program Description
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("Key Features")
+                        .font(.title3)
+                        .fontWeight(.bold)
+                    
+                    VStack(spacing: 12) {
+                        FeatureCard(
+                            icon: "building.2.fill",
+                            title: "Public Service Missions",
+                            description: "Work with local police and fire departments on rescue and research flights",
+                            color: .blue
+                        )
+                        
+                        FeatureCard(
+                            icon: "exclamationmark.triangle.fill",
+                            title: "Emergency Assistance",
+                            description: "Get help from nearby pilots when facing hazardous situations during flight",
+                            color: .red
+                        )
+                        
+                        FeatureCard(
+                            icon: "dollarsign.circle.fill",
+                            title: "Flexible Compensation",
+                            description: "Missions can be voluntary or paid, depending on individual assignments",
+                            color: .green
+                        )
+                    }
+                }
+                .padding()
+                .background(Color(.secondarySystemBackground))
+                .cornerRadius(16)
+                .padding(.horizontal)
+                
+                // How It Works Section
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("How It Works")
+                        .font(.title3)
+                        .fontWeight(.bold)
+                        .padding(.horizontal)
+                    
+                    VStack(spacing: 16) {
+                        BeaconHowItWorksStep(
+                            number: 1,
+                            title: "Register Your Availability",
+                            description: "Set your availability and the types of missions you're interested in"
+                        )
+                        
+                        BeaconHowItWorksStep(
+                            number: 2,
+                            title: "Receive Mission Alerts",
+                            description: "Get notified when emergency services or nearby pilots need assistance"
+                        )
+                        
+                        BeaconHowItWorksStep(
+                            number: 3,
+                            title: "Respond & Assist",
+                            description: "Accept missions and help your community with critical drone operations"
+                        )
+                        
+                        BeaconHowItWorksStep(
+                            number: 4,
+                            title: "Track Your Impact",
+                            description: "View your contribution history and earn recognition for your service"
+                        )
+                    }
+                    .padding(.horizontal)
+                }
+                
+                // Mission Types
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("Mission Types")
+                        .font(.title3)
+                        .fontWeight(.bold)
+                        .padding(.horizontal)
+                    
+                    VStack(spacing: 12) {
+                        MissionTypeCard(
+                            icon: "flame.fill",
+                            title: "Fire Department Support",
+                            examples: ["Thermal imaging", "Damage assessment", "Search operations"],
+                            color: .red
+                        )
+                        
+                        MissionTypeCard(
+                            icon: "shield.fill",
+                            title: "Police Assistance",
+                            examples: ["Search & rescue", "Traffic monitoring", "Event surveillance"],
+                            color: .blue
+                        )
+                        
+                        MissionTypeCard(
+                            icon: "chart.line.uptrend.xyaxis",
+                            title: "Research Flights",
+                            examples: ["Environmental monitoring", "Wildlife tracking", "Infrastructure inspection"],
+                            color: .green
+                        )
+                        
+                        MissionTypeCard(
+                            icon: "person.fill.questionmark",
+                            title: "Pilot Emergency Help",
+                            examples: ["Equipment failure support", "Navigation assistance", "Safety guidance"],
+                            color: .orange
+                        )
+                    }
+                    .padding(.horizontal)
+                }
+            }
+            .padding(.vertical)
+        }
+        .navigationTitle("About Beacon")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 
@@ -459,6 +582,7 @@ struct BeaconVolunteerDashboardView: View {
     @State private var searchRescueBookings: [Booking] = []
     @State private var myActiveMissions: [Booking] = []
     @State private var volunteerStats: BeaconVolunteer?
+    @Binding var showAboutProgram: Bool
     
     var body: some View {
         ScrollView {
@@ -492,6 +616,24 @@ struct BeaconVolunteerDashboardView: View {
                 .padding()
                 .background(Color(.secondarySystemBackground))
                 .cornerRadius(16)
+                .padding(.horizontal)
+                
+                // About Beacon Program Button
+                Button(action: {
+                    showAboutProgram = true
+                }) {
+                    HStack {
+                        Image(systemName: "info.circle.fill")
+                        Text("About Beacon Program")
+                            .fontWeight(.semibold)
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                    }
+                    .foregroundColor(.primary)
+                    .padding()
+                    .background(Color(.tertiarySystemBackground))
+                    .cornerRadius(12)
+                }
                 .padding(.horizontal)
                 
                 // Stats Section

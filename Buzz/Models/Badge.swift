@@ -105,8 +105,8 @@ struct Badge: Identifiable, Codable {
             case .flightReviewer: return "Flight Reviewer"
             case .rocaExaminer: return "ROC-A Examiner"
             case .beaconVolunteer: return "Beacon Volunteer"
-            case .cert: return "CERT"
-            case .firstAid: return "First Aid"
+            case .cert: return "Disaster Response"
+            case .firstAid: return "First Aid/CPR"
             case .basicFirefighter: return "Basic Fire Fighter"
             }
         }

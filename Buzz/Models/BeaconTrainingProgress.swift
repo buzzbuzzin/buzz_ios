@@ -17,11 +17,11 @@ enum BeaconTrainingType: String, Codable, CaseIterable {
     var displayName: String {
         switch self {
         case .cpr:
-            return "CPR Training"
+            return "First Aid/CPR Training"
         case .firefighting:
             return "Basic Firefighting Training"
         case .cert:
-            return "CERT Training"
+            return "Disaster Response Training"
         }
     }
     
@@ -39,11 +39,11 @@ enum BeaconTrainingType: String, Codable, CaseIterable {
     var description: String {
         switch self {
         case .cpr:
-            return "Learn life-saving CPR techniques to assist in emergency situations"
+            return "Learn life-saving first aid and CPR techniques to assist in emergency situations"
         case .firefighting:
             return "Basic firefighting safety and response procedures"
         case .cert:
-            return "Community Emergency Response Team training for disaster preparedness"
+            return "Disaster response and community emergency preparedness training"
         }
     }
     
@@ -124,11 +124,11 @@ enum BeaconOnboardingStep: Int, CaseIterable {
     var title: String {
         switch self {
         case .cprTraining:
-            return "CPR Training"
+            return "First Aid/CPR"
         case .firefightingTraining:
-            return "Firefighting Training"
+            return "Firefighting"
         case .certTraining:
-            return "CERT Training"
+            return "Disaster Response"
         case .badgeAward:
             return "Beacon Badge"
         }
@@ -137,11 +137,11 @@ enum BeaconOnboardingStep: Int, CaseIterable {
     var description: String {
         switch self {
         case .cprTraining:
-            return "Upload your CPR certification"
+            return "Upload your First Aid/CPR certification"
         case .firefightingTraining:
             return "Upload your firefighting certification"
         case .certTraining:
-            return "Upload your CERT certification"
+            return "Upload your disaster response certification"
         case .badgeAward:
             return "Congratulations! You're now a Beacon volunteer"
         }

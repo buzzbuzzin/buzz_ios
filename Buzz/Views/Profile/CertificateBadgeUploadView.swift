@@ -218,7 +218,7 @@ struct CertificateBadgeUploadView: View {
     private var badgeDescription: String {
         switch badgeType {
         case .firstAid:
-            return "Earn this badge by uploading your CPR/First Aid certification from an accredited provider like Red Cross."
+            return "Earn this badge by uploading your First Aid/CPR certification from an accredited provider."
         case .basicFirefighter:
             return "Earn this badge by uploading your basic firefighting training certificate from an accredited provider."
         default:
