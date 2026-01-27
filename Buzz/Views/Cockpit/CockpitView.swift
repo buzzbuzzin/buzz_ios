@@ -102,6 +102,16 @@ struct CockpitView: View {
                                     )
                                 }
                                 .buttonStyle(PlainButtonStyle())
+                                
+                                // Charts Card
+                                NavigationLink(destination: ChartsView()) {
+                                    CockpitGridCard(
+                                        title: "Charts",
+                                        icon: "map.fill",
+                                        color: .green
+                                    )
+                                }
+                                .buttonStyle(PlainButtonStyle())
 
                                 // Phone Card
                                 Button(action: {
