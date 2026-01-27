@@ -71,6 +71,16 @@ struct CockpitView: View {
                                 }
                                 .buttonStyle(PlainButtonStyle())
                                 
+                                // ATIS Card - temporarily hidden (work in progress)
+                                // NavigationLink(destination: ATISView().environmentObject(authService)) {
+                                //     CockpitGridCard(
+                                //         title: "ATIS",
+                                //         icon: "radio.fill",
+                                //         color: .purple
+                                //     )
+                                // }
+                                // .buttonStyle(PlainButtonStyle())
+                                
                                 // Remote ID Card
                                 NavigationLink(destination: TransponderView().environmentObject(authService)) {
                                     CockpitGridCard(

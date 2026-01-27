@@ -1,0 +1,1694 @@
+{
+  "openapi": "3.0.2",
+  "info": {
+    "title": "vATC Suite - Essential ATC Tools for Virtual Skies",
+    "description": "vATC Suite equips virtual air traffic controllers with tools essential for generating and delivering crucial airport information, including ATIS broadcasts, AWOS weather reports, and pre-departure clearances, all aimed at augmenting realism in online flying networks.<hr>",
+    "contact": {
+      "name": "The vATC Suite Team",
+      "url": "https://atisgenerator.com/",
+      "email": "hello@atisgenerator.com"
+    },
+    "license": {
+      "name": "CC BY-NC-SA 4.0",
+      "url": "https://creativecommons.org/licenses/by-nc-sa/4.0/"
+    },
+    "version": "v2.4.1"
+  },
+  "servers": [
+    {
+      "url": "https://atisgenerator.com",
+      "description": "Production server"
+    },
+    {
+      "url": "https://dev.atisgenerator.com",
+      "description": "Development server"
+    },
+    {
+      "url": "http://127.0.0.1:8000",
+      "description": "Local server"
+    }
+  ],
+  "paths": {
+    "/api/v1/health": {
+      "get": {
+        "tags": [
+          "Utilities"
+        ],
+        "summary": "API Health Check Endpoint.",
+        "description": "This method provides an endpoint to verify the health status of the API and its underlying infrastructure. It checks\nvarious dependencies such as the database and storage capabilities, reports on the available disk space, latency,\nand API version details. Based on these checks, it will return a status indicating the health of the API.\n\nKey Return Values:\n- 'OK': Indicates that the component or dependency is functioning correctly.\n- 'Error': Signifies that there's an issue with that particular component or dependency.",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/GetHealthCheckSuccess"
+          },
+          "503": {
+            "$ref": "#/components/responses/GetHealthCheckError"
+          }
+        }
+      }
+    },
+    "/api/v1/airports": {
+      "get": {
+        "tags": [
+          "Airport"
+        ],
+        "summary": "Fetch All Airports Endpoint.",
+        "description": "This endpoint retrieves a comprehensive list of all airports stored in the database. For improved readability\nand compactness, the timestamps (i.e., 'created_at' and 'updated_at') associated with each airport record are\nexcluded from the response.",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/GetAllAirports"
+          }
+        }
+      }
+    },
+    "/api/v1/airports/{icao}": {
+      "get": {
+        "tags": [
+          "Airport"
+        ],
+        "summary": "Airport Information Retrieval Endpoint.",
+        "description": "This method provides an endpoint to fetch detailed information about an airport based on its ICAO code. In addition\nto basic airport details, the method attempts to fetch and provide the METAR data for the given airport, which includes\ncurrent weather conditions. Additionally, based on the METAR wind data, it provides information on the relevant runways\nat the airport.",
+        "parameters": [
+          {
+            "name": "icao",
+            "in": "path",
+            "description": "ICAO code of the airport",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "KJFK"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/GetAirport"
+          },
+          "400": {
+            "$ref": "#/components/responses/ErrorValidatingIcaoResponse"
+          }
+        }
+      }
+    },
+    "/api/v1/airports/{icao}/runways": {
+      "get": {
+        "tags": [
+          "Airport"
+        ],
+        "summary": "Fetch Airport Runways Endpoint.",
+        "description": "This endpoint fetches runway information for a specified airport using its ICAO code. It makes use of METAR\ndata to assist in providing detailed runway info.\n\nNote: The METAR data is essential for fetching detailed runway information. If METAR data isn't available,\nthe response will reflect that.",
+        "parameters": [
+          {
+            "name": "icao",
+            "in": "path",
+            "description": "ICAO code of the airport",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "KJFK"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/GetAirportRunways"
+          },
+          "400": {
+            "$ref": "#/components/responses/ErrorValidatingIcaoResponse"
+          }
+        }
+      }
+    },
+    "/api/v1/airports/{icao}/atis": {
+      "post": {
+        "tags": [
+          "Airport"
+        ],
+        "summary": "Retrieve ATIS Information for the Specified Airport.",
+        "description": "This method generates and returns the ATIS (Automatic Terminal Information Service)\ninformation for an airport identified by its ICAO code. The ATIS data is provided\nin two formats: spoken and text. Input parameters, such as the airport's ICAO code\nand related request details (e.g., landing and departing runways, remarks), drive\nthe generation of the ATIS.",
+        "parameters": [
+          {
+            "name": "icao",
+            "in": "path",
+            "description": "ICAO code of the airport",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "KJFK"
+          }
+        ],
+        "requestBody": {
+          "description": "Generate ATIS text for an airport.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "ident": {
+                    "description": "The ATIS ident letter.",
+                    "type": "string",
+                    "example": "A"
+                  },
+                  "icao": {
+                    "description": "The ICAO airport code.",
+                    "type": "string",
+                    "example": "KJAX"
+                  },
+                  "remarks1": {
+                    "description": "Custom remarks.",
+                    "type": "string",
+                    "example": "Custom remarks."
+                  },
+                  "remarks2": {
+                    "description": "Array of preset remarks.",
+                    "type": "object"
+                  },
+                  "landing_runways": {
+                    "description": "Array of landing runways.",
+                    "type": "array",
+                    "example": [
+                      "08",
+                      "26"
+                    ]
+                  },
+                  "departing_runways": {
+                    "description": "Array of departing runways.",
+                    "type": "array",
+                    "example": [
+                      "08",
+                      "26"
+                    ]
+                  },
+                  "output-type": {
+                    "description": "The output type.",
+                    "enum": [
+                      "atis",
+                      "awos"
+                    ],
+                    "type": "string",
+                    "example": "atis"
+                  },
+                  "override_runways": {
+                    "description": "Disable the requirement for a runway to be selected.",
+                    "type": "boolean",
+                    "example": false
+                  },
+                  "metar": {
+                    "description": "The METAR to use.",
+                    "type": "string",
+                    "example": "KJAX 201853Z 00000KT 10SM FEW250 28/22 A3000 RMK AO2 SLP159 T02780217"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/AtisSuccess"
+          },
+          "400": {
+            "$ref": "#/components/responses/ErrorValidatingIcaoResponse"
+          }
+        }
+      }
+    },
+    "/api/v1/airports/{icao}/metar": {
+      "get": {
+        "tags": [
+          "Airport"
+        ],
+        "summary": "Retrieve METAR Data for the Specified Airport.",
+        "description": "This method fetches the METAR (Meteorological Aerodrome Report) for an airport, which provides\ncurrent weather conditions at that airport. The report is identified using the airport's ICAO code.",
+        "parameters": [
+          {
+            "name": "icao",
+            "in": "path",
+            "description": "ICAO code of the airport",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "KJFK"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/MetarResponse"
+          },
+          "400": {
+            "$ref": "#/components/responses/ErrorValidatingIcaoResponse"
+          },
+          "404": {
+            "$ref": "#/components/responses/MetarNotFoundResponse"
+          }
+        }
+      }
+    },
+    "/api/v1/tts": {
+      "get": {
+        "tags": [
+          "Text to Speech"
+        ],
+        "summary": "Retrieve the URL for an Airport TTS (Text-to-Speech) audio file.",
+        "description": "This method is responsible for fetching the URL of a TTS audio file associated with an airport.\nTo identify the correct file, it uses the provided ICAO code and ID from the HTTP request.\nIn the event the desired TTS audio file doesn't exist, an error response is returned.\nIf you need to create a new ATIS audio file, please refer to the documentation under the 'Generate an Airport TTS (Text-to-Speech) file' section.",
+        "parameters": [
+          {
+            "name": "icao",
+            "in": "query",
+            "description": "ICAO code of the airport",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "KJAX"
+          },
+          {
+            "name": "id",
+            "in": "query",
+            "description": "ID of the ATIS audio file",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "1"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/GetTextToSpeechSuccess"
+          },
+          "400": {
+            "$ref": "#/components/responses/ErrorValidatingIcaoResponse"
+          },
+          "404": {
+            "$ref": "#/components/responses/TTSError"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Text to Speech"
+        ],
+        "summary": "Generate the Airport TTS (Text-to-Speech) audio file.",
+        "description": "This method handles the creation of a TTS audio file for an airport. It requires the ICAO code, ATIS,\nand the ATIS identifier to generate the MP3 audio file. Once generated, the audio file's details are returned in a JSON response.",
+        "requestBody": {
+          "description": "Generate TTS file for an airport.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "icao": {
+                    "description": "The ATIS ICAO code.",
+                    "type": "string",
+                    "example": "KJAX"
+                  },
+                  "ident": {
+                    "description": "The ATIS ident letter.",
+                    "type": "string",
+                    "example": "A"
+                  },
+                  "atis": {
+                    "description": "The ATIS message.",
+                    "type": "string",
+                    "example": "Jacksonville International Airport, information Alpha, time 1700 Zulu, wind 180 at 10, visibility 10, sky clear, temperature 27, dew point 23, altimeter 3002, landing and departing runway 8, advise on initial contact you have information Alpha."
+                  },
+                  "options": {
+                    "description": "Additional options for TTS engine.",
+                    "type": "object",
+                    "properties": {
+                      "engine": {
+                        "description": "The TTS engine to be used (e.g., VoiceRSS, ElevenLabs).",
+                        "enum": [
+                          "VoiceRSS",
+                          "ElevenLabs"
+                        ],
+                        "type": "string",
+                        "example": "VoiceRSS"
+                      },
+                      "api_key": {
+                        "description": "The API key for the TTS engine.",
+                        "type": "string",
+                        "example": "1234567890"
+                      },
+                      "VoiceRSS": {
+                        "description": "VoiceRSS-specific options.",
+                        "type": "object",
+                        "properties": {
+                          "format": {
+                            "description": "The audio format (default is MP3).",
+                            "type": "string",
+                            "example": "MP3"
+                          },
+                          "voice": {
+                            "description": "The voice (default is John).",
+                            "type": "string",
+                            "example": "John"
+                          },
+                          "rate": {
+                            "description": "The rate (default is 16khz_16bit_stereo).",
+                            "type": "string",
+                            "example": "16khz_16bit_stereo"
+                          }
+                        }
+                      },
+                      "ElevenLabs": {
+                        "description": "ElevenLabs-specific options.",
+                        "type": "object",
+                        "properties": {
+                          "voice": {
+                            "description": "The voice (default is Adam).",
+                            "type": "string",
+                            "example": "Adam"
+                          },
+                          "model_id": {
+                            "description": "The model ID (default is eleven_monolingual_v1).",
+                            "type": "string",
+                            "example": "eleven_monolingual_v1"
+                          },
+                          "voice_settings": {
+                            "description": "Voice settings.",
+                            "type": "object",
+                            "properties": {
+                              "stability": {
+                                "description": "Stability setting (default is 0.50).",
+                                "type": "number",
+                                "example": 0.5
+                              },
+                              "similarity_boost": {
+                                "description": "Similarity boost setting (default is 0.75).",
+                                "type": "number",
+                                "example": 0.75
+                              },
+                              "style": {
+                                "description": "Style setting (default is 0).",
+                                "type": "number",
+                                "example": 0
+                              },
+                              "use_speaker_boost": {
+                                "description": "Use speaker boost (default is true).",
+                                "type": "boolean",
+                                "example": true
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/TTSSuccess"
+          },
+          "400": {
+            "$ref": "#/components/responses/ErrorValidatingIcaoResponse"
+          },
+          "409": {
+            "$ref": "#/components/responses/ErrorRequestConflictResponse"
+          },
+          "422": {
+            "$ref": "#/components/responses/ErrorGeneratingResponse"
+          },
+          "424": {
+            "$ref": "#/components/responses/VoiceAPIConfigurationDependencyFailed"
+          },
+          "500": {
+            "$ref": "#/components/responses/ErrorWithVoiceAPI"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Text to Speech"
+        ],
+        "summary": "Delete a specific Airport TTS (Text-to-Speech) audio file.",
+        "description": "This method facilitates the removal of a TTS audio file linked to an airport. The file to be deleted\nis identified using its unique ID, and if the file is password-protected, the correct password must also be provided.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "description": "The ID of the ATIS audio file.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "password",
+            "in": "query",
+            "description": "The password for the ATIS audio file if it is protected.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/DeleteTTSSuccess"
+          },
+          "400": {
+            "$ref": "#/components/responses/TTSErrorMissingId"
+          },
+          "401": {
+            "$ref": "#/components/responses/ErrorPasswordProtectedResponse"
+          },
+          "404": {
+            "$ref": "#/components/responses/TTSErrorNotFound"
+          }
+        }
+      }
+    },
+    "/api/v1/pdc": {
+      "post": {
+        "tags": [
+          "Miscellaneous"
+        ],
+        "summary": "Generate a Pre-Departure Clearance (PDC) for a flight.",
+        "description": "This endpoint generates a PDC for a flight based on the provided parameters.",
+        "requestBody": {
+          "description": "Generate a Pre-Departure Clearance (PDC) for a flight.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "callsign": {
+                    "description": "The callsign of the flight.",
+                    "type": "string",
+                    "example": "AAL123"
+                  },
+                  "departure": {
+                    "description": "The departure airport ICAO code.",
+                    "type": "string",
+                    "example": "KJAX"
+                  },
+                  "arrival": {
+                    "description": "The arrival airport ICAO code.",
+                    "type": "string",
+                    "example": "KDFW"
+                  },
+                  "route": {
+                    "description": "The route of the flight.",
+                    "type": "string",
+                    "example": "JAX5 J14 MEI J17 MEM J6 PLESS J180 CYN"
+                  },
+                  "aircraft": {
+                    "description": "The aircraft type.",
+                    "type": "string",
+                    "example": "B737"
+                  },
+                  "altitude": {
+                    "description": "The altitude of the flight.",
+                    "type": "string",
+                    "example": "FL350"
+                  },
+                  "squawk": {
+                    "description": "The squawk code of the flight.",
+                    "type": "string",
+                    "example": "1234"
+                  },
+                  "departure_time": {
+                    "description": "The departure time of the flight in ISO 8601 format.",
+                    "type": "string",
+                    "example": "2023-09-15T14:00:00Z"
+                  },
+                  "remarks": {
+                    "description": "Any remarks for the flight.",
+                    "type": "string",
+                    "example": "VIP onboard, special meal requests"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/GeneratePDC"
+          },
+          "400": {
+            "$ref": "#/components/responses/FailedGeneratePDC"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "responses": {
+      "GetHealthCheckSuccess": {
+        "description": "Get API Health Check status.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "description": "Status of the api",
+                  "enum": [
+                    "ok",
+                    "error"
+                  ],
+                  "type": "string",
+                  "example": "ok"
+                },
+                "message": {
+                  "description": "Message of the response",
+                  "type": "string",
+                  "example": "API v1 is up and running!"
+                },
+                "code": {
+                  "description": "Code of the response",
+                  "type": "integer",
+                  "example": 200
+                },
+                "data": {
+                  "description": "Data containing information about the api and server",
+                  "type": "object",
+                  "properties": {
+                    "uptime": {
+                      "description": "Uptime of the api",
+                      "type": "string",
+                      "example": "3 days 2 hours"
+                    },
+                    "timestamp": {
+                      "description": "Current timestamp",
+                      "type": "string",
+                      "example": "2021-01-01 00:00:00"
+                    },
+                    "app_version": {
+                      "description": "Version of the app",
+                      "type": "string",
+                      "example": "1.0.0"
+                    },
+                    "api_version": {
+                      "description": "Version of the api",
+                      "type": "string",
+                      "example": "v1"
+                    },
+                    "diskspace": {
+                      "description": "How much diskspace is available on the server",
+                      "type": "number",
+                      "example": 50
+                    },
+                    "latency": {
+                      "description": "Latency of the api",
+                      "type": "number",
+                      "example": 0.123
+                    }
+                  }
+                },
+                "dependencies": {
+                  "description": "Status of the dependencies",
+                  "type": "object",
+                  "properties": {
+                    "database": {
+                      "description": "Status of the database",
+                      "enum": [
+                        "OK",
+                        "Error"
+                      ],
+                      "type": "string",
+                      "example": "OK"
+                    },
+                    "storage": {
+                      "description": "Status of the storage",
+                      "enum": [
+                        "OK",
+                        "Error"
+                      ],
+                      "type": "string",
+                      "example": "OK"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "GetHealthCheckError": {
+        "description": "Get API Health Check status.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "description": "Status of the response",
+                  "enum": [
+                    "ok",
+                    "error"
+                  ],
+                  "type": "string",
+                  "example": "error"
+                },
+                "message": {
+                  "description": "Message of the response",
+                  "type": "string",
+                  "example": "API v1 is having issues."
+                },
+                "code": {
+                  "description": "Code of the response",
+                  "type": "integer",
+                  "example": 503
+                },
+                "data": {
+                  "description": "Data containing information about the api and server",
+                  "type": "object",
+                  "properties": {
+                    "uptime": {
+                      "description": "Uptime of the api",
+                      "type": "string",
+                      "example": "3 days 2 hours"
+                    },
+                    "timestamp": {
+                      "description": "Current timestamp",
+                      "type": "string",
+                      "example": "2021-01-01 00:00:00"
+                    },
+                    "app_version": {
+                      "description": "Version of the app",
+                      "type": "string",
+                      "example": "1.0.0"
+                    },
+                    "api_version": {
+                      "description": "Version of the api",
+                      "type": "string",
+                      "example": "v1"
+                    },
+                    "diskspace": {
+                      "description": "How much diskspace is available on the server",
+                      "type": "number",
+                      "example": 50
+                    },
+                    "latency": {
+                      "description": "Latency of the api",
+                      "type": "number",
+                      "example": 0.123
+                    }
+                  }
+                },
+                "dependencies": {
+                  "description": "Status of the dependencies",
+                  "type": "object",
+                  "properties": {
+                    "database": {
+                      "description": "Status of the database",
+                      "enum": [
+                        "OK",
+                        "Error"
+                      ],
+                      "type": "string",
+                      "example": "Error"
+                    },
+                    "storage": {
+                      "description": "Status of the storage",
+                      "enum": [
+                        "OK",
+                        "Error"
+                      ],
+                      "type": "string",
+                      "example": "OK"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "VoiceAPIConfigurationDependencyFailed": {
+        "description": "A server voice API configuration error occurred.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "description": "The status of the response indicating the error condition.",
+                  "type": "string",
+                  "example": "error"
+                },
+                "message": {
+                  "description": "A human-readable message providing additional information about the error.",
+                  "type": "string",
+                  "example": "Server voice API configuration error."
+                },
+                "code": {
+                  "description": "An optional status code for the response. It typically indicates the HTTP status code.",
+                  "type": "integer",
+                  "example": 424
+                },
+                "data": {
+                  "description": "An optional field for additional data related to the error. It can be null when no data is present.",
+                  "type": "object",
+                  "nullable": true
+                }
+              }
+            }
+          }
+        }
+      },
+      "ErrorValidatingIcaoResponse": {
+        "description": "Information provided in the request was invalid.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "description": "The status of the response indicating the error condition.",
+                  "type": "string",
+                  "example": "error"
+                },
+                "message": {
+                  "description": "A human-readable message providing additional information about the error.",
+                  "type": "string",
+                  "example": "Invalid ICAO code."
+                },
+                "code": {
+                  "description": "An optional status code for the response. It typically indicates the HTTP status code.",
+                  "type": "integer",
+                  "example": 400
+                },
+                "data": {
+                  "description": "An optional field for additional data related to the error. It can be null when no data is present.",
+                  "type": "object",
+                  "nullable": true
+                }
+              }
+            }
+          }
+        }
+      },
+      "TTSSuccess": {
+        "description": "Successful TTS file generation.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "description": "The status of the response indicating the success or failure of the operation.",
+                  "type": "string",
+                  "example": "success"
+                },
+                "message": {
+                  "description": "A human-readable message providing additional information about the status.",
+                  "type": "string",
+                  "example": "Successfully generated TTS file."
+                },
+                "code": {
+                  "description": "An optional status code for the response. It typically indicates the HTTP status code.",
+                  "type": "integer",
+                  "example": 200
+                },
+                "data": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "description": "The ID of the generated TTS file.",
+                      "type": "string",
+                      "example": "6"
+                    },
+                    "name": {
+                      "description": "The filename of the generated TTS file.",
+                      "type": "string",
+                      "example": "KJAX_ATIS_A_261700Z.mp3"
+                    },
+                    "url": {
+                      "description": "The URL where the generated TTS file can be accessed.",
+                      "type": "string",
+                      "example": "/storage/atis/6/KJAX_ATIS_A_261700Z.mp3"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "TTSError": {
+        "description": "Error getting TTS file.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "description": "The status of the response indicating the success or failure of the operation.",
+                  "enum": [
+                    "success",
+                    "error"
+                  ],
+                  "type": "string",
+                  "example": "error"
+                },
+                "message": {
+                  "description": "A human-readable message providing additional information about the status.",
+                  "type": "string",
+                  "example": "ATIS audio file not found."
+                },
+                "code": {
+                  "description": "An optional status code for the response. It typically indicates the HTTP status code.",
+                  "type": "integer",
+                  "example": 404
+                },
+                "data": {
+                  "description": "The data returned by the request.",
+                  "type": "object",
+                  "nullable": true
+                }
+              }
+            }
+          }
+        }
+      },
+      "GetTextToSpeechSuccess": {
+        "description": "Successful TTS file retrieval.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "description": "The status of the response indicating the success or failure of the operation.",
+                  "enum": [
+                    "success",
+                    "error"
+                  ],
+                  "type": "string",
+                  "example": "success"
+                },
+                "message": {
+                  "description": "A human-readable message providing additional information about the status.",
+                  "type": "string",
+                  "example": "ATIS audio file found."
+                },
+                "code": {
+                  "description": "An optional status code for the response. It typically indicates the HTTP status code.",
+                  "type": "integer",
+                  "example": 200
+                },
+                "data": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "description": "The ID of the generated TTS file.",
+                      "type": "string",
+                      "example": "1"
+                    },
+                    "name": {
+                      "description": "The filename of the generated TTS file.",
+                      "type": "string",
+                      "example": "KJAX_ATIS_A_261700Z.mp3"
+                    },
+                    "url": {
+                      "description": "The URL where the generated TTS file can be accessed.",
+                      "type": "string",
+                      "example": "/storage/atis/1/KJAX_ATIS_A_261700Z.mp3"
+                    },
+                    "expires_at": {
+                      "description": "The date and time when the TTS file will expire and be deleted.",
+                      "type": "string",
+                      "example": "2021-01-01 00:00:00"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "ErrorWithVoiceAPI": {
+        "description": "An error associated with the ATIS voice generation API or the ATIS voice generation process.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "description": "The status of the response indicating the error condition.",
+                  "type": "string",
+                  "example": "error"
+                },
+                "message": {
+                  "description": "A human-readable message providing additional information about the error.",
+                  "type": "string",
+                  "example": "There was an error generating the ATIS audio file."
+                },
+                "code": {
+                  "description": "An optional status code for the response. It typically indicates the HTTP status code.",
+                  "type": "integer",
+                  "example": 500
+                },
+                "data": {
+                  "description": "An optional field for additional data related to the error. It can be null when no data is present.",
+                  "type": "object",
+                  "nullable": true
+                }
+              }
+            }
+          }
+        }
+      },
+      "ErrorRequestConflictResponse": {
+        "description": "Request Conflict Errors",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "message": {
+                  "description": "A human-readable message providing additional information about the error.",
+                  "type": "string",
+                  "example": "This ATIS audio file already exists."
+                },
+                "code": {
+                  "description": "An optional status code for the response. It typically indicates the HTTP status code.",
+                  "type": "integer",
+                  "example": 409
+                },
+                "status": {
+                  "description": "The status of the response indicating the error condition.",
+                  "type": "string",
+                  "example": "error"
+                },
+                "data": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "description": "The ID of the existing ATIS audio file.",
+                      "type": "string",
+                      "example": "5"
+                    },
+                    "name": {
+                      "description": "The filename of the existing ATIS audio file.",
+                      "type": "string",
+                      "example": "KJAX_ATIS_A_260346Z.mp3"
+                    },
+                    "url": {
+                      "description": "The URL where the existing ATIS audio file can be accessed.",
+                      "type": "string",
+                      "example": "/storage/atis/5/KJAX_ATIS_A_260346Z.mp3"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "TTSErrorMissingId": {
+        "description": "Response for missing ATIS ID.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "description": "Status of the response indicating the error condition. Can be either \"success\" or \"error\".",
+                  "enum": [
+                    "success",
+                    "error"
+                  ],
+                  "type": "string",
+                  "example": "error"
+                },
+                "message": {
+                  "description": "A human-readable message providing additional information about the error.",
+                  "type": "string",
+                  "example": "You must provide an ATIS ID."
+                },
+                "code": {
+                  "description": "An optional status code for the response. It typically indicates the HTTP status code.",
+                  "type": "integer",
+                  "example": 400
+                },
+                "data": {
+                  "description": "An optional field for additional data related to the error. It can be null when no data is present.",
+                  "type": "object",
+                  "nullable": true
+                }
+              }
+            }
+          }
+        }
+      },
+      "DeleteTTSSuccess": {
+        "description": "Response for successful ATIS audio file deletion.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "description": "Status of the response. Can be either \"success\" or \"error\".",
+                  "enum": [
+                    "success",
+                    "error"
+                  ],
+                  "type": "string",
+                  "example": "success"
+                },
+                "message": {
+                  "description": "A human-readable message providing additional information about the response.",
+                  "type": "string",
+                  "example": "ATIS audio file deleted successfully."
+                },
+                "code": {
+                  "description": "An optional status code for the response. It typically indicates the HTTP status code.",
+                  "type": "integer",
+                  "example": 200
+                },
+                "data": {
+                  "description": "The data returned by the request.",
+                  "type": "object",
+                  "nullable": true
+                }
+              }
+            }
+          }
+        }
+      },
+      "TTSErrorNotFound": {
+        "description": "Response for ATIS audio file not found.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "description": "Status of the response indicating the error condition.",
+                  "type": "string",
+                  "example": "error"
+                },
+                "message": {
+                  "description": "A human-readable message providing additional information about the error.",
+                  "type": "string",
+                  "example": "ATIS audio file not found."
+                },
+                "code": {
+                  "description": "An optional status code for the response. It typically indicates the HTTP status code.",
+                  "type": "integer",
+                  "example": 404
+                },
+                "data": {
+                  "description": "An optional field for additional data related to the error. It can be null when no data is present.",
+                  "type": "object",
+                  "nullable": true
+                }
+              }
+            }
+          }
+        }
+      },
+      "ErrorPasswordProtectedResponse": {
+        "description": "Response for ATIS audio file deletion failure due to password protection.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "description": "Status of the response. Can be either \"success\" or \"error\".",
+                  "enum": [
+                    "success",
+                    "error"
+                  ],
+                  "type": "string",
+                  "example": "error"
+                },
+                "message": {
+                  "description": "A human-readable message providing additional information about the response.",
+                  "type": "string",
+                  "example": "Password is missing or incorrect."
+                },
+                "code": {
+                  "description": "An optional status code for the response. It typically indicates the HTTP status code.",
+                  "type": "integer",
+                  "example": 401
+                },
+                "data": {
+                  "description": "The data returned by the request.",
+                  "type": "object",
+                  "nullable": true
+                }
+              }
+            }
+          }
+        }
+      },
+      "ErrorGeneratingResponse": {
+        "description": "Could not generate ATIS audio file.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "description": "The status of the response indicating the error condition.",
+                  "type": "string",
+                  "example": "error"
+                },
+                "message": {
+                  "description": "A human-readable message providing additional information about the error.",
+                  "type": "string",
+                  "example": "Could not generate ATIS audio file."
+                },
+                "code": {
+                  "description": "An optional status code for the response. It typically indicates the HTTP status code.",
+                  "type": "integer",
+                  "example": 422
+                },
+                "data": {
+                  "description": "An optional field for additional data related to the error. It can be null when no data is present.",
+                  "type": "object",
+                  "nullable": true
+                }
+              }
+            }
+          }
+        }
+      },
+      "GeneratePDC": {
+        "description": "Generate a Pre-Departure Clearance (PDC) for a flight.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "description": "The status of the response indicating the success or failure of the operation.",
+                  "enum": [
+                    "success",
+                    "error"
+                  ],
+                  "type": "string",
+                  "example": "success"
+                },
+                "message": {
+                  "description": "A human-readable message providing additional information about the status.",
+                  "type": "string",
+                  "example": "PDC generated successfully"
+                },
+                "code": {
+                  "description": "An optional status code for the response. It typically indicates the HTTP status code.",
+                  "type": "integer",
+                  "example": 200
+                },
+                "data": {
+                  "type": "object",
+                  "properties": {
+                    "pdc": {
+                      "description": "The generated PDC.",
+                      "type": "string",
+                      "example": "PDC FOR AAL123\\nDEPARTING KJAX\\nARRIVING KDFW\\nVIA JAX5 J14 MEI J17 MEM J6 PLESS J180 CYN\\nAIRCRAFT B737\\nALTITUDE FL350\\nSQUAWK 1234\\nDEPARTURE TIME 2023-09-15T14:00:00Z\\nREMARKS VIP onboard, special meal requests\\nEND PDC"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "FailedGeneratePDC": {
+        "description": "Failed to generate a Pre-Departure Clearance (PDC) for a flight.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "description": "The status of the response indicating the success or failure of the operation.",
+                  "enum": [
+                    "success",
+                    "error"
+                  ],
+                  "type": "string",
+                  "example": "error"
+                },
+                "message": {
+                  "description": "A human-readable message providing additional information about the status.",
+                  "type": "string",
+                  "example": "Validation failed"
+                },
+                "code": {
+                  "description": "An optional status code for the response. It typically indicates the HTTP status code.",
+                  "type": "integer",
+                  "example": 200
+                },
+                "data": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "callsign": {
+                          "description": "The error message for the callsign field.",
+                          "type": "string",
+                          "example": "The callsign field is required."
+                        },
+                        "departure": {
+                          "description": "The error message for the departure field.",
+                          "type": "string",
+                          "example": "The departure field is required."
+                        },
+                        "arrival": {
+                          "description": "The error message for the arrival field.",
+                          "type": "string",
+                          "example": "The arrival field is required."
+                        },
+                        "route": {
+                          "description": "The error message for the route field.",
+                          "type": "string",
+                          "example": "The route field is required."
+                        },
+                        "aircraft": {
+                          "description": "The error message for the aircraft field.",
+                          "type": "string",
+                          "example": "The aircraft field is required."
+                        },
+                        "altitude": {
+                          "description": "The error message for the altitude field.",
+                          "type": "string",
+                          "example": "The altitude field is required."
+                        },
+                        "squawk": {
+                          "description": "The error message for the squawk field.",
+                          "type": "string",
+                          "example": "The squawk field is required."
+                        },
+                        "departure_time": {
+                          "description": "The error message for the departure time field.",
+                          "type": "string",
+                          "example": "The departure time field is required."
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "GetAirportRunways": {
+        "description": "Response for successful retrieval of an airport runways.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "description": "Status of the response",
+                  "enum": [
+                    "success",
+                    "error"
+                  ],
+                  "type": "string",
+                  "example": "success"
+                },
+                "message": {
+                  "description": "Message of the response",
+                  "type": "string",
+                  "example": "Runways retrieved successfully."
+                },
+                "code": {
+                  "description": "Code of the response",
+                  "type": "integer",
+                  "example": 200
+                },
+                "data": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "runway": {
+                        "description": "Runway number",
+                        "type": "string",
+                        "example": "32"
+                      },
+                      "runway_hdg": {
+                        "description": "Runway heading",
+                        "type": "string",
+                        "example": "320"
+                      },
+                      "wind_dir": {
+                        "description": "Wind direction",
+                        "type": "string",
+                        "example": "300"
+                      },
+                      "wind_diff": {
+                        "description": "Wind difference over runway",
+                        "type": "string",
+                        "example": "20"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "MetarNotFoundResponse": {
+        "description": "Could not find METAR data for the requested airport.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "description": "Status of the response. Can be either \"success\" or \"error\".",
+                  "enum": [
+                    "success",
+                    "error"
+                  ],
+                  "type": "string",
+                  "example": "error"
+                },
+                "message": {
+                  "description": "A human-readable message providing additional information about the response.",
+                  "type": "string",
+                  "example": "Could not find METAR data for the requested airport."
+                },
+                "code": {
+                  "description": "An optional status code for the response. It typically indicates the HTTP status code.",
+                  "type": "integer",
+                  "example": 404
+                },
+                "data": {
+                  "description": "An optional field for additional data related to the error. It can be null when no data is present.",
+                  "type": "object",
+                  "nullable": true
+                }
+              }
+            }
+          }
+        }
+      },
+      "GetAirport": {
+        "description": "Response for successful retrieval of an airport.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "description": "Status of the response",
+                  "enum": [
+                    "success",
+                    "error"
+                  ],
+                  "type": "string",
+                  "example": "success"
+                },
+                "message": {
+                  "description": "Message of the response",
+                  "type": "string",
+                  "example": "Airport retrieved successfully."
+                },
+                "code": {
+                  "description": "Code of the response",
+                  "type": "integer",
+                  "example": 200
+                },
+                "data": {
+                  "type": "object",
+                  "properties": {
+                    "airport": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "description": "Id of the airport",
+                          "type": "string",
+                          "example": "3649"
+                        },
+                        "icao": {
+                          "description": "ICAO of the airport",
+                          "type": "string",
+                          "example": "KJAX"
+                        },
+                        "name": {
+                          "description": "Name of the airport",
+                          "type": "string",
+                          "example": "Jacksonville International Airport"
+                        },
+                        "runways": {
+                          "description": "Runways of the airport",
+                          "type": "string",
+                          "example": "26,08,32,14"
+                        },
+                        "created_at": {
+                          "type": "string",
+                          "example": "2023-05-28T20:25:09.000000Z"
+                        },
+                        "updated_at": {
+                          "type": "string",
+                          "example": "2023-05-28T20:25:09.000000Z"
+                        }
+                      }
+                    },
+                    "metar": {
+                      "description": "METAR of the airport",
+                      "type": "string",
+                      "example": "KJAX 291556Z 30008KT 10SM FEW050 BKN250 29/14 A2992 RMK AO2 SLP131 T02890144"
+                    },
+                    "wind": {
+                      "type": "object",
+                      "properties": {
+                        "dir": {
+                          "description": "Wind direction of the airport",
+                          "type": "string",
+                          "example": "300"
+                        },
+                        "speed": {
+                          "description": "Wind speed of the airport",
+                          "type": "string",
+                          "example": "08"
+                        },
+                        "gust_speed": {
+                          "description": "Wind gust speed of the airport",
+                          "type": "string",
+                          "nullable": true,
+                          "example": "12"
+                        }
+                      }
+                    },
+                    "runways": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "runway": {
+                            "description": "Runway number",
+                            "type": "string",
+                            "example": "32"
+                          },
+                          "runway_hdg": {
+                            "description": "Runway heading",
+                            "type": "string",
+                            "example": "320"
+                          },
+                          "wind_dir": {
+                            "description": "Wind direction",
+                            "type": "string",
+                            "example": "300"
+                          },
+                          "wind_diff": {
+                            "description": "Wind difference over runway",
+                            "type": "string",
+                            "example": "20"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "MetarResponse": {
+        "description": "The METAR data for the requested airport.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "description": "Status of the response. Can be either \"success\" or \"error\".",
+                  "enum": [
+                    "success",
+                    "error"
+                  ],
+                  "type": "string",
+                  "example": "success"
+                },
+                "message": {
+                  "description": "A human-readable message providing additional information about the response.",
+                  "type": "string",
+                  "example": "METAR data retrieved successfully."
+                },
+                "code": {
+                  "description": "An optional status code for the response. It typically indicates the HTTP status code.",
+                  "type": "integer",
+                  "example": 200
+                },
+                "data": {
+                  "type": "object",
+                  "properties": {
+                    "metar": {
+                      "description": "The METAR data for the requested airport.",
+                      "type": "string",
+                      "example": "KJAX 031556Z 05011KT 10SM SCT034 SCT050 29\\/21 A3010 RMK AO2 SLP192 T02890206"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "AtisSuccess": {
+        "description": "Response for successful ATIS text generation.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "description": "Status of the response. Can be either \"success\" or \"error\".",
+                  "enum": [
+                    "success",
+                    "error"
+                  ],
+                  "type": "string",
+                  "example": "success"
+                },
+                "message": {
+                  "description": "A human-readable message providing additional information about the response.",
+                  "type": "string",
+                  "example": "ATIS generated successfully."
+                },
+                "code": {
+                  "description": "An optional status code for the response. It typically indicates the HTTP status code.",
+                  "type": "integer",
+                  "example": 200
+                },
+                "data": {
+                  "type": "object",
+                  "properties": {
+                    "spoken": {
+                      "description": "Spoken ATIS text.",
+                      "type": "string",
+                      "example": "JACKSONVILLE INTERNATIONAL AIRPORT INFORMATION ALPHA..."
+                    },
+                    "text": {
+                      "description": "Raw ATIS text, without any formatting or converting of letters to words.",
+                      "type": "string",
+                      "example": "JACKSONVILLE INTERNATIONAL AIRPORT INFORMATION A..."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "GetAllAirports": {
+        "description": "Response for successful retrieval of all airports.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "description": "Status of the response",
+                  "enum": [
+                    "success",
+                    "error"
+                  ],
+                  "type": "string",
+                  "example": "success"
+                },
+                "message": {
+                  "description": "Message of the response",
+                  "type": "string",
+                  "example": "Airports retrieved successfully."
+                },
+                "code": {
+                  "description": "Code of the response",
+                  "type": "integer",
+                  "example": 200
+                },
+                "data": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "description": "Id of the airport",
+                        "type": "integer",
+                        "example": 1
+                      },
+                      "icao": {
+                        "description": "ICAO of the airport",
+                        "type": "string",
+                        "example": "AGEV"
+                      },
+                      "name": {
+                        "description": "Name of the airport",
+                        "type": "string",
+                        "example": "Geva Airport"
+                      },
+                      "runways": {
+                        "description": "Runways of the airport",
+                        "type": "string",
+                        "example": "33,15"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "BearerToken": {
+        "type": "http",
+        "description": "Authentication using API token (Bearer scheme). Include the \"api_token\" in the \"Authorization\" header to access protected endpoints.",
+        "scheme": "bearer",
+        "bearerFormat": "api_token"
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "Airport",
+      "description": "Endpoints related to airport functionalities. This includes retrieving METAR data, ATIS information, runway details, and more."
+    },
+    {
+      "name": "Text to Speech",
+      "description": "Endpoints dedicated to converting text inputs into spoken word audio files, facilitating audible content for users."
+    },
+    {
+      "name": "Utilities",
+      "description": "Endpoints providing insights and diagnostic details about the API, its health, version, and other utility functions."
+    },
+    {
+      "name": "Miscellaneous",
+      "description": "A collection of endpoints serving varied purposes, which don't particularly belong to the predefined categories."
+    }
+  ]
+}
