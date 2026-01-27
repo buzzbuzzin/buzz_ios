@@ -18,6 +18,7 @@ struct ChartsView: View {
         span: MKCoordinateSpan(latitudeDelta: 0.5, longitudeDelta: 0.5)
     )
     @State private var currentZoomLevel: Int = 10
+    @State private var centerRequestCount: Int = 0  // Increment to request centering
     
     var body: some View {
         ZStack {
@@ -25,6 +26,7 @@ struct ChartsView: View {
             VFRMapView(
                 region: $region,
                 currentZoomLevel: $currentZoomLevel,
+                centerRequestCount: $centerRequestCount,
                 userLocation: locationManager.currentLocation
             )
             .ignoresSafeArea(edges: .top)
@@ -88,7 +90,7 @@ struct ChartsView: View {
                 .background(Color(.systemBackground).opacity(0.95))
                 
                 // Zoom Warning (when outside valid range)
-                if currentZoomLevel < 8 || currentZoomLevel > 12 {
+                if currentZoomLevel < 8 || currentZoomLevel > 11 {
                     ZoomWarningCard(currentZoom: currentZoomLevel)
                         .padding(.horizontal)
                         .transition(.move(edge: .top).combined(with: .opacity))
@@ -132,7 +134,7 @@ struct ChartsView: View {
     }
     
     private var zoomLevelColor: Color {
-        if currentZoomLevel >= 8 && currentZoomLevel <= 12 {
+        if currentZoomLevel >= 8 && currentZoomLevel <= 11 {
             return .green
         } else {
             return .orange
@@ -141,12 +143,12 @@ struct ChartsView: View {
     
     private func centerOnUserLocation() {
         if let userLocation = locationManager.currentLocation {
-            withAnimation(.easeInOut(duration: 0.5)) {
-                region = MKCoordinateRegion(
-                    center: userLocation,
-                    span: MKCoordinateSpan(latitudeDelta: 0.2, longitudeDelta: 0.2)
-                )
-            }
+            // Update region and request centering
+            region = MKCoordinateRegion(
+                center: userLocation,
+                span: MKCoordinateSpan(latitudeDelta: 0.2, longitudeDelta: 0.2)
+            )
+            centerRequestCount += 1  // Trigger explicit centering
             return
         }
         
@@ -165,7 +167,17 @@ struct ChartsView: View {
 struct VFRMapView: UIViewRepresentable {
     @Binding var region: MKCoordinateRegion
     @Binding var currentZoomLevel: Int
+    @Binding var centerRequestCount: Int  // Increment to explicitly request centering
     var userLocation: CLLocationCoordinate2D?
+    
+    // Zoom level constraints for FAA VFR Sectional tiles
+    static let minZoom = 8
+    static let maxZoom = 11
+    
+    // Corresponding span deltas for zoom levels
+    // Formula: longitudeDelta = 360.0 / pow(2, zoomLevel)
+    static let minSpanDelta: Double = 360.0 / pow(2, Double(maxZoom)) // ~0.176 for Z11
+    static let maxSpanDelta: Double = 360.0 / pow(2, Double(minZoom)) // ~1.406 for Z8
     
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
@@ -185,22 +197,43 @@ struct VFRMapView: UIViewRepresentable {
         // Set initial region
         mapView.setRegion(region, animated: false)
         
+        // Store reference for programmatic updates
+        context.coordinator.mapView = mapView
+        
         return mapView
     }
     
     func updateUIView(_ mapView: MKMapView, context: Context) {
-        // Only update region if significantly different to avoid jitter
+        // Check if user explicitly requested centering (via "My Location" button)
+        if centerRequestCount > context.coordinator.lastCenterRequestCount {
+            context.coordinator.lastCenterRequestCount = centerRequestCount
+            context.coordinator.hasUserInteracted = false  // Reset to allow this center
+            context.coordinator.isProgrammaticChange = true
+            mapView.setRegion(region, animated: true)
+            return
+        }
+        
+        // Skip if user has already interacted with the map (panning/zooming)
+        // This prevents GPS updates from resetting the map position
+        guard context.coordinator.shouldAcceptProgrammaticUpdate && !context.coordinator.hasUserInteracted else { return }
+        
         let centerDelta = abs(mapView.region.center.latitude - region.center.latitude) +
                           abs(mapView.region.center.longitude - region.center.longitude)
-        let spanDelta = abs(mapView.region.span.latitudeDelta - region.span.latitudeDelta)
         
-        if centerDelta > 0.001 || spanDelta > 0.01 {
+        if centerDelta > 0.01 {
+            context.coordinator.isProgrammaticChange = true
             mapView.setRegion(region, animated: true)
         }
     }
     
     class Coordinator: NSObject, MKMapViewDelegate {
         var parent: VFRMapView
+        weak var mapView: MKMapView?
+        var isProgrammaticChange = false
+        var shouldAcceptProgrammaticUpdate = true
+        private var isConstrainingZoom = false
+        var hasUserInteracted = false  // Track if user has panned/zoomed
+        var lastCenterRequestCount = 0  // Track explicit center requests
         
         init(_ parent: VFRMapView) {
             self.parent = parent
@@ -213,11 +246,71 @@ struct VFRMapView: UIViewRepresentable {
             return MKOverlayRenderer(overlay: overlay)
         }
         
+        func mapView(_ mapView: MKMapView, regionWillChangeAnimated animated: Bool) {
+            // Disable programmatic updates while user is interacting
+            if !isProgrammaticChange {
+                shouldAcceptProgrammaticUpdate = false
+            }
+        }
+        
         func mapView(_ mapView: MKMapView, regionDidChangeAnimated animated: Bool) {
-            // Update the binding when user pans/zooms
+            // Re-enable programmatic updates
+            shouldAcceptProgrammaticUpdate = true
+            
+            // Reset programmatic change flag
+            let wasProgrammatic = isProgrammaticChange
+            isProgrammaticChange = false
+            
+            // Mark that user has interacted with the map (panning/zooming)
+            if !wasProgrammatic && !isConstrainingZoom {
+                hasUserInteracted = true
+            }
+            
+            // Calculate current zoom level
+            let currentZoom = calculateZoomLevel(for: mapView)
+            
+            // Update zoom level display
             DispatchQueue.main.async {
-                self.parent.region = mapView.region
-                self.parent.currentZoomLevel = self.calculateZoomLevel(for: mapView)
+                self.parent.currentZoomLevel = currentZoom
+            }
+            
+            // Constrain zoom if outside valid range (and not already constraining to avoid loop)
+            if !isConstrainingZoom && !wasProgrammatic {
+                let spanDelta = mapView.region.span.longitudeDelta
+                
+                if spanDelta < VFRMapView.minSpanDelta {
+                    // User zoomed in too much (beyond Z11) - snap back to Z11
+                    isConstrainingZoom = true
+                    let constrainedRegion = MKCoordinateRegion(
+                        center: mapView.region.center,
+                        span: MKCoordinateSpan(
+                            latitudeDelta: VFRMapView.minSpanDelta,
+                            longitudeDelta: VFRMapView.minSpanDelta
+                        )
+                    )
+                    mapView.setRegion(constrainedRegion, animated: true)
+                    
+                    // Reset flag after animation completes
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        self.isConstrainingZoom = false
+                    }
+                } else if spanDelta > VFRMapView.maxSpanDelta {
+                    // User zoomed out too much (beyond Z8) - snap back to Z8
+                    isConstrainingZoom = true
+                    let constrainedRegion = MKCoordinateRegion(
+                        center: mapView.region.center,
+                        span: MKCoordinateSpan(
+                            latitudeDelta: VFRMapView.maxSpanDelta,
+                            longitudeDelta: VFRMapView.maxSpanDelta
+                        )
+                    )
+                    mapView.setRegion(constrainedRegion, animated: true)
+                    
+                    // Reset flag after animation completes
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        self.isConstrainingZoom = false
+                    }
+                }
             }
         }
         
@@ -241,8 +334,8 @@ class VFRTileOverlay: MKTileOverlay {
         super.init(urlTemplate: template)
         
         // Configure tile overlay
-        self.minimumZ = 8  // Valid zoom range per service metadata
-        self.maximumZ = 12
+        self.minimumZ = 8  // Valid zoom range for reliable tile loading
+        self.maximumZ = 11 // Limit to Z11 to ensure tiles are always available
         self.tileSize = CGSize(width: 256, height: 256)
         self.canReplaceMapContent = false // Show base map underneath
     }
@@ -264,7 +357,7 @@ struct ZoomWarningCard: View {
                     .font(.headline)
                     .foregroundColor(.white)
                 
-                Text(currentZoom < 8 ? "Zoom in to see chart details (Z8-12)" : "Zoom out for better coverage (Z8-12)")
+                Text(currentZoom < 8 ? "Zoom in to see chart details (Z8-11)" : "Zoom out for better coverage (Z8-11)")
                     .font(.subheadline)
                     .foregroundColor(.white.opacity(0.9))
             }
