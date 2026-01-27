@@ -61,10 +61,20 @@ struct CockpitView: View {
                                 }
                                 .buttonStyle(PlainButtonStyle())
                                 
-                                // Transponder Card
+                                // METAR Card
+                                NavigationLink(destination: METARView().environmentObject(authService)) {
+                                    CockpitGridCard(
+                                        title: "METAR",
+                                        icon: "airplane.departure",
+                                        color: .blue
+                                    )
+                                }
+                                .buttonStyle(PlainButtonStyle())
+                                
+                                // Remote ID Card
                                 NavigationLink(destination: TransponderView().environmentObject(authService)) {
                                     CockpitGridCard(
-                                        title: "Transponder",
+                                        title: "Remote ID",
                                         icon: "antenna.radiowaves.left.and.right",
                                         color: .teal
                                     )
@@ -80,7 +90,18 @@ struct CockpitView: View {
                                     )
                                 }
                                 .buttonStyle(PlainButtonStyle())
-                                
+                            }
+                            .padding(.horizontal, 16)
+                        }
+                        
+                        // Operations Section
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Operations")
+                                .font(.title2)
+                                .fontWeight(.semibold)
+                                .padding(.horizontal, 16)
+                            
+                            LazyVGrid(columns: columns, spacing: 12) {
                                 // SOP Card
                                 NavigationLink(destination: SOPView()) {
                                     CockpitGridCard(
