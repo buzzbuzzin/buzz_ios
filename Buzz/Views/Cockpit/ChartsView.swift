@@ -11,6 +11,7 @@ import CoreLocation
 import Combine
 
 struct ChartsView: View {
+    @Binding var isPresented: Bool
     @StateObject private var locationManager = ChartsLocationManager()
     @State private var region = MKCoordinateRegion(
         center: LocationHelper.shared.defaultSimulatorLocation,
@@ -32,6 +33,19 @@ struct ChartsView: View {
             VStack {
                 // Header
                 HStack {
+                    // Dismiss Button
+                    Button {
+                        isPresented = false
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.title2)
+                            .foregroundColor(.secondary)
+                            .padding(8)
+                            .background(Color(.systemBackground))
+                            .clipShape(Circle())
+                            .shadow(radius: 2)
+                    }
+                    
                     VStack(alignment: .leading, spacing: 4) {
                         Text("VFR Sectional Charts")
                             .font(.title2)
@@ -370,7 +384,5 @@ class ChartsLocationManager: NSObject, ObservableObject, CLLocationManagerDelega
 }
 
 #Preview {
-    NavigationView {
-        ChartsView()
-    }
+    ChartsView(isPresented: .constant(true))
 }

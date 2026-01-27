@@ -17,6 +17,7 @@ struct CockpitView: View {
     @State private var hasNearbyBeaconMissions = false
     @State private var showChecklistSelection = false
     @State private var showPhoneOptions = false
+    @State private var showCharts = false
     
     var body: some View {
         NavigationView {
@@ -103,8 +104,10 @@ struct CockpitView: View {
                                 }
                                 .buttonStyle(PlainButtonStyle())
                                 
-                                // Charts Card
-                                NavigationLink(destination: ChartsView()) {
+                                // Charts Card - Using fullScreenCover for stable presentation
+                                Button {
+                                    showCharts = true
+                                } label: {
                                     CockpitGridCard(
                                         title: "Charts",
                                         icon: "map.fill",
@@ -357,6 +360,10 @@ struct CockpitView: View {
                         }
                     }
             }
+        }
+        // Charts fullScreenCover for stable presentation
+        .fullScreenCover(isPresented: $showCharts) {
+            ChartsView(isPresented: $showCharts)
         }
     }
     
