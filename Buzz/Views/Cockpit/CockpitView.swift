@@ -68,7 +68,7 @@ struct CockpitView: View {
                                 NavigationLink(destination: METARView().environmentObject(authService)) {
                                     CockpitGridCard(
                                         title: "METAR",
-                                        image: Image("METARIcon"),
+                                        icon: "cloud.moon.bolt.circle.fill",
                                         color: .blue
                                     )
                                 }
