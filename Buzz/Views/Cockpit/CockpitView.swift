@@ -68,7 +68,7 @@ struct CockpitView: View {
                                 NavigationLink(destination: METARView().environmentObject(authService)) {
                                     CockpitGridCard(
                                         title: "METAR",
-                                        icon: "airplane.departure",
+                                        image: Image("METARIcon"),
                                         color: .blue
                                     )
                                 }
@@ -419,7 +419,22 @@ struct CockpitGridCard: View {
     let title: String
     let icon: String
     let color: Color
-    
+    let image: Image?
+
+    init(title: String, icon: String, color: Color) {
+        self.title = title
+        self.icon = icon
+        self.color = color
+        self.image = nil
+    }
+
+    init(title: String, image: Image, color: Color) {
+        self.title = title
+        self.icon = ""
+        self.color = color
+        self.image = image
+    }
+
     var body: some View {
         VStack(spacing: 8) {
             // Icon
@@ -427,10 +442,18 @@ struct CockpitGridCard: View {
                 Circle()
                     .fill(color.opacity(0.15))
                     .frame(width: 50, height: 50)
-                
-                Image(systemName: icon)
-                    .font(.system(size: 24, weight: .medium))
-                    .foregroundColor(color)
+
+                if let image = image {
+                    image
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 24, height: 24)
+                        .foregroundColor(color)
+                } else {
+                    Image(systemName: icon)
+                        .font(.system(size: 24, weight: .medium))
+                        .foregroundColor(color)
+                }
             }
             
             // Title

@@ -90,7 +90,7 @@ struct ChartsView: View {
                 .background(Color(.systemBackground).opacity(0.95))
                 
                 // Zoom Warning (when outside valid range)
-                if currentZoomLevel < 8 || currentZoomLevel > 11 {
+                if currentZoomLevel < 8 || currentZoomLevel > 10 {
                     ZoomWarningCard(currentZoom: currentZoomLevel)
                         .padding(.horizontal)
                         .transition(.move(edge: .top).combined(with: .opacity))
@@ -134,7 +134,7 @@ struct ChartsView: View {
     }
     
     private var zoomLevelColor: Color {
-        if currentZoomLevel >= 8 && currentZoomLevel <= 11 {
+        if currentZoomLevel >= 8 && currentZoomLevel <= 10 {
             return .green
         } else {
             return .orange
@@ -172,11 +172,11 @@ struct VFRMapView: UIViewRepresentable {
     
     // Zoom level constraints for FAA VFR Sectional tiles
     static let minZoom = 8
-    static let maxZoom = 11
+    static let maxZoom = 10
     
     // Corresponding span deltas for zoom levels
     // Formula: longitudeDelta = 360.0 / pow(2, zoomLevel)
-    static let minSpanDelta: Double = 360.0 / pow(2, Double(maxZoom)) // ~0.176 for Z11
+    static let minSpanDelta: Double = 360.0 / pow(2, Double(maxZoom)) // ~0.352 for Z10
     static let maxSpanDelta: Double = 360.0 / pow(2, Double(minZoom)) // ~1.406 for Z8
     
     func makeCoordinator() -> Coordinator {
@@ -279,7 +279,7 @@ struct VFRMapView: UIViewRepresentable {
                 let spanDelta = mapView.region.span.longitudeDelta
                 
                 if spanDelta < VFRMapView.minSpanDelta {
-                    // User zoomed in too much (beyond Z11) - snap back to Z11
+                    // User zoomed in too much (beyond Z10) - snap back to Z10
                     isConstrainingZoom = true
                     let constrainedRegion = MKCoordinateRegion(
                         center: mapView.region.center,
@@ -335,7 +335,7 @@ class VFRTileOverlay: MKTileOverlay {
         
         // Configure tile overlay
         self.minimumZ = 8  // Valid zoom range for reliable tile loading
-        self.maximumZ = 11 // Limit to Z11 to ensure tiles are always available
+        self.maximumZ = 10 // Limit to Z10 to ensure tiles are always available
         self.tileSize = CGSize(width: 256, height: 256)
         self.canReplaceMapContent = false // Show base map underneath
     }
@@ -357,7 +357,7 @@ struct ZoomWarningCard: View {
                     .font(.headline)
                     .foregroundColor(.white)
                 
-                Text(currentZoom < 8 ? "Zoom in to see chart details (Z8-11)" : "Zoom out for better coverage (Z8-11)")
+                Text(currentZoom < 8 ? "Zoom in to see chart details (Z8-10)" : "Zoom out for better coverage (Z8-10)")
                     .font(.subheadline)
                     .foregroundColor(.white.opacity(0.9))
             }
