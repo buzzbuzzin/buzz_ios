@@ -74,6 +74,28 @@ struct CockpitView: View {
                                 }
                                 .buttonStyle(PlainButtonStyle())
                                 
+                                // NOTAMs Card
+                                NavigationLink(destination: NOTAMView()) {
+                                    CockpitGridCard(
+                                        title: "NOTAMs",
+                                        icon: "bell.badge.fill",
+                                        color: .orange
+                                    )
+                                }
+                                .buttonStyle(PlainButtonStyle())
+                                
+                                // Charts Card - Using fullScreenCover for stable presentation
+                                Button {
+                                    showCharts = true
+                                } label: {
+                                    CockpitGridCard(
+                                        title: "Charts",
+                                        icon: "map.fill",
+                                        color: .green
+                                    )
+                                }
+                                .buttonStyle(PlainButtonStyle())
+                                
                                 // ATIS Card - temporarily hidden (work in progress)
                                 // NavigationLink(destination: ATISView().environmentObject(authService)) {
                                 //     CockpitGridCard(
@@ -83,6 +105,18 @@ struct CockpitView: View {
                                 //     )
                                 // }
                                 // .buttonStyle(PlainButtonStyle())
+
+                                // Phone Card
+                                Button(action: {
+                                    showPhoneOptions = true
+                                }) {
+                                    CockpitGridCard(
+                                        title: "Phone",
+                                        icon: "phone.down",
+                                        color: .red
+                                    )
+                                }
+                                .buttonStyle(PlainButtonStyle())
                                 
                                 // Remote ID Card
                                 NavigationLink(destination: TransponderView().environmentObject(authService)) {
@@ -103,30 +137,6 @@ struct CockpitView: View {
                                     )
                                 }
                                 .buttonStyle(PlainButtonStyle())
-                                
-                                // Charts Card - Using fullScreenCover for stable presentation
-                                Button {
-                                    showCharts = true
-                                } label: {
-                                    CockpitGridCard(
-                                        title: "Charts",
-                                        icon: "map.fill",
-                                        color: .green
-                                    )
-                                }
-                                .buttonStyle(PlainButtonStyle())
-
-                                // Phone Card
-                                Button(action: {
-                                    showPhoneOptions = true
-                                }) {
-                                    CockpitGridCard(
-                                        title: "Phone",
-                                        icon: "phone.fill",
-                                        color: .red
-                                    )
-                                }
-                                .buttonStyle(PlainButtonStyle())
                             }
                             .padding(.horizontal, 16)
                         }
@@ -139,16 +149,6 @@ struct CockpitView: View {
                                 .padding(.horizontal, 16)
                             
                             LazyVGrid(columns: columns, spacing: 12) {
-                                // SOP Card
-                                NavigationLink(destination: SOPView()) {
-                                    CockpitGridCard(
-                                        title: "SOP",
-                                        icon: "book.fill",
-                                        color: .blue
-                                    )
-                                }
-                                .buttonStyle(PlainButtonStyle())
-                                
                                 // Checklist Card - Using fullScreenCover for stable presentation
                                 // NavigationLink(isActive:) has a known bug where it resets on parent body re-evaluation
                                 Button {
@@ -168,6 +168,30 @@ struct CockpitView: View {
                                         title: "Logs",
                                         icon: "note.text",
                                         color: .purple
+                                    )
+                                }
+                                .buttonStyle(PlainButtonStyle())
+                                
+                                // SOP Card
+                                NavigationLink(destination: SOPView()) {
+                                    CockpitGridCard(
+                                        title: "SOP",
+                                        icon: "book.fill",
+                                        color: .blue
+                                    )
+                                }
+                                .buttonStyle(PlainButtonStyle())
+                                
+                                // Portal Card
+                                Button(action: {
+                                    if let url = URL(string: "https://buzz-portal.vercel.app") {
+                                        UIApplication.shared.open(url)
+                                    }
+                                }) {
+                                    CockpitGridCard(
+                                        title: "Portal",
+                                        icon: "link.circle.fill",
+                                        color: .cyan
                                     )
                                 }
                                 .buttonStyle(PlainButtonStyle())
@@ -239,20 +263,6 @@ struct CockpitView: View {
                                         title: "Shop",
                                         icon: "bag.fill",
                                         color: .pink
-                                    )
-                                }
-                                .buttonStyle(PlainButtonStyle())
-
-                                // Portal Card
-                                Button(action: {
-                                    if let url = URL(string: "https://buzz-portal.vercel.app") {
-                                        UIApplication.shared.open(url)
-                                    }
-                                }) {
-                                    CockpitGridCard(
-                                        title: "Portal",
-                                        icon: "link.circle.fill",
-                                        color: .cyan
                                     )
                                 }
                                 .buttonStyle(PlainButtonStyle())
