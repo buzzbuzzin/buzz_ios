@@ -179,6 +179,23 @@ CREATE TABLE public.contact_submissions (
   error_message text,
   CONSTRAINT contact_submissions_pkey PRIMARY KEY (id)
 );
+CREATE TABLE public.course_discussions (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  course_id uuid NOT NULL,
+  unit_id uuid,
+  parent_id uuid,
+  author_id uuid NOT NULL,
+  title text,
+  content text NOT NULL,
+  reply_count integer NOT NULL DEFAULT 0,
+  created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  updated_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  CONSTRAINT course_discussions_pkey PRIMARY KEY (id),
+  CONSTRAINT course_discussions_course_id_fkey FOREIGN KEY (course_id) REFERENCES public.training_courses(id),
+  CONSTRAINT course_discussions_unit_id_fkey FOREIGN KEY (unit_id) REFERENCES public.course_units(id),
+  CONSTRAINT course_discussions_parent_id_fkey FOREIGN KEY (parent_id) REFERENCES public.course_discussions(id),
+  CONSTRAINT course_discussions_author_id_fkey FOREIGN KEY (author_id) REFERENCES public.profiles(id)
+);
 CREATE TABLE public.course_enrollments (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
   pilot_id uuid NOT NULL,
@@ -204,9 +221,12 @@ CREATE TABLE public.course_sections (
   created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
   updated_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
   exam_type text CHECK (exam_type IS NULL OR (exam_type = ANY (ARRAY['flight_review'::text, 'roc_a'::text]))),
+  deleted_at timestamp with time zone,
+  deleted_by uuid,
   CONSTRAINT course_sections_pkey PRIMARY KEY (id),
   CONSTRAINT course_sections_course_id_fkey FOREIGN KEY (course_id) REFERENCES public.training_courses(id),
-  CONSTRAINT course_sections_prerequisite_fkey FOREIGN KEY (prerequisite_section_id) REFERENCES public.course_sections(id)
+  CONSTRAINT course_sections_prerequisite_fkey FOREIGN KEY (prerequisite_section_id) REFERENCES public.course_sections(id),
+  CONSTRAINT course_sections_deleted_by_fkey FOREIGN KEY (deleted_by) REFERENCES public.profiles(id)
 );
 CREATE TABLE public.course_subscriptions (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
@@ -242,9 +262,12 @@ CREATE TABLE public.course_tests (
   needs_proctor boolean DEFAULT false,
   duration integer NOT NULL DEFAULT 60,
   price_of_schedule integer CHECK (price_of_schedule IS NULL OR price_of_schedule >= 0 AND price_of_schedule <= 50000),
+  deleted_at timestamp with time zone,
+  deleted_by uuid,
   CONSTRAINT course_tests_pkey PRIMARY KEY (id),
   CONSTRAINT course_tests_course_id_fkey FOREIGN KEY (course_id) REFERENCES public.training_courses(id),
-  CONSTRAINT course_tests_section_id_fkey FOREIGN KEY (section_id) REFERENCES public.course_sections(id)
+  CONSTRAINT course_tests_section_id_fkey FOREIGN KEY (section_id) REFERENCES public.course_sections(id),
+  CONSTRAINT course_tests_deleted_by_fkey FOREIGN KEY (deleted_by) REFERENCES public.profiles(id)
 );
 CREATE TABLE public.course_units (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
@@ -266,9 +289,26 @@ CREATE TABLE public.course_units (
   material_urls jsonb DEFAULT '[]'::jsonb,
   material_names jsonb DEFAULT '[]'::jsonb,
   material_types jsonb DEFAULT '[]'::jsonb,
+  material_part_names jsonb DEFAULT '[]'::jsonb,
+  material_parts jsonb DEFAULT '[]'::jsonb,
+  deleted_at timestamp with time zone,
+  deleted_by uuid,
   CONSTRAINT course_units_pkey PRIMARY KEY (id),
   CONSTRAINT course_units_course_id_fkey FOREIGN KEY (course_id) REFERENCES public.training_courses(id),
-  CONSTRAINT course_units_section_id_fkey FOREIGN KEY (section_id) REFERENCES public.course_sections(id)
+  CONSTRAINT course_units_section_id_fkey FOREIGN KEY (section_id) REFERENCES public.course_sections(id),
+  CONSTRAINT course_units_deleted_by_fkey FOREIGN KEY (deleted_by) REFERENCES public.profiles(id)
+);
+CREATE TABLE public.deleted_storage_files (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  bucket_name text NOT NULL,
+  original_path text NOT NULL,
+  deleted_path text NOT NULL,
+  entity_type text NOT NULL CHECK (entity_type = ANY (ARRAY['course'::text, 'unit'::text, 'test'::text, 'section'::text, 'question'::text])),
+  entity_id uuid NOT NULL,
+  deleted_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  deleted_by uuid,
+  CONSTRAINT deleted_storage_files_pkey PRIMARY KEY (id),
+  CONSTRAINT deleted_storage_files_deleted_by_fkey FOREIGN KEY (deleted_by) REFERENCES public.profiles(id)
 );
 CREATE TABLE public.device_tokens (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
@@ -335,7 +375,7 @@ CREATE TABLE public.employee_profiles (
 CREATE TABLE public.exam_appointments (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
   pilot_id uuid NOT NULL,
-  exam_type text NOT NULL CHECK (exam_type = ANY (ARRAY['flight_review'::text, 'roc_a'::text])),
+  exam_type text NOT NULL CHECK (exam_type = ANY (ARRAY['flight_review'::text, 'roc_a'::text, 'ground_school_test'::text])),
   scheduled_date timestamp with time zone NOT NULL,
   duration_minutes integer NOT NULL DEFAULT 15,
   location_type text NOT NULL CHECK (location_type = ANY (ARRAY['in_person'::text, 'online'::text])),
@@ -356,7 +396,7 @@ CREATE TABLE public.exam_appointments (
   CONSTRAINT exam_appointments_examiner_id_fkey FOREIGN KEY (examiner_id) REFERENCES public.profiles(id)
 );
 CREATE TABLE public.exam_type_config (
-  exam_type text NOT NULL CHECK (exam_type = ANY (ARRAY['flight_review'::text, 'roc_a'::text])),
+  exam_type text NOT NULL CHECK (exam_type = ANY (ARRAY['flight_review'::text, 'roc_a'::text, 'ground_school_test'::text])),
   display_name text NOT NULL,
   short_description text NOT NULL,
   full_description text NOT NULL,
@@ -598,8 +638,11 @@ CREATE TABLE public.test_questions (
   created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
   updated_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
   problem_sets ARRAY,
+  deleted_at timestamp with time zone,
+  deleted_by uuid,
   CONSTRAINT test_questions_pkey PRIMARY KEY (id),
-  CONSTRAINT test_questions_test_id_fkey FOREIGN KEY (test_id) REFERENCES public.course_tests(id)
+  CONSTRAINT test_questions_test_id_fkey FOREIGN KEY (test_id) REFERENCES public.course_tests(id),
+  CONSTRAINT test_questions_deleted_by_fkey FOREIGN KEY (deleted_by) REFERENCES public.profiles(id)
 );
 CREATE TABLE public.test_results (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
@@ -653,7 +696,10 @@ CREATE TABLE public.training_courses (
   cover_image_url text,
   region text DEFAULT 'Global'::text CHECK (region = ANY (ARRAY['Canada'::text, 'USA'::text, 'UK'::text, 'Australia'::text, 'New Zealand'::text, 'South Africa'::text, 'Global'::text])),
   active boolean DEFAULT false,
-  CONSTRAINT training_courses_pkey PRIMARY KEY (id)
+  deleted_at timestamp with time zone,
+  deleted_by uuid,
+  CONSTRAINT training_courses_pkey PRIMARY KEY (id),
+  CONSTRAINT training_courses_deleted_by_fkey FOREIGN KEY (deleted_by) REFERENCES public.profiles(id)
 );
 CREATE TABLE public.transponders (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),

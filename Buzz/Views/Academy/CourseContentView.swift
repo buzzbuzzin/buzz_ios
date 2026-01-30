@@ -120,7 +120,7 @@ struct CourseContentView: View {
                             pilotId: currentUser.id,
                             testName: test.testName,
                             passingScore: test.passingScore,
-                            durationMinutes: 60 // Default duration, can be fetched from backend
+                            durationMinutes: test.duration ?? 60
                         )
                         .navigationBarBackButtonHidden(true)
                         .onDisappear {
@@ -183,7 +183,10 @@ struct CourseContentView: View {
         }
     }
     
+    /// Loads completed unit IDs and unit numbers from the backend for prerequisite checking
     private func loadCompletedUnits(pilotId: UUID) async {
+        print("🔍 [CourseContentView] Loading completed units for pilot: \(pilotId), course: \(course.id)")
+        
         do {
             let supabase = SupabaseClient.shared.client
             let response: [UnitCompletion] = try await supabase
@@ -195,6 +198,7 @@ struct CourseContentView: View {
                 .value
             
             completedUnitIds = Set(response.map { $0.unitId })
+            print("📊 [CourseContentView] Fetched \(response.count) unit completions from backend")
             
             // Also load completed unit numbers for prerequisite checking
             let unitCompletionsWithNumbers = try await supabase
@@ -219,6 +223,9 @@ struct CourseContentView: View {
             print("✅ [CourseContentView] Loaded \(completedUnitIds.count) completed units, unit numbers: \(completedUnitNumbers.sorted())")
         } catch {
             print("❌ [CourseContentView] Error loading completed units: \(error)")
+            // Reset to empty sets on error to avoid stale data
+            completedUnitIds = []
+            completedUnitNumbers = []
         }
     }
     
@@ -329,12 +336,17 @@ struct CourseContentView: View {
         isLoading = false
     }
     
-    /// Creates legacy sections based on step_number and is_mandatory fields for courses without database sections
+    /// Creates legacy sections based on step_number and is_mandatory fields for courses without database sections.
+    /// This is a FALLBACK mechanism for backward compatibility with courses that haven't been migrated
+    /// to use the course_sections table. New courses should always have sections defined in the database.
+    /// TODO: Remove this fallback once all courses have been migrated to use course_sections table.
     private func createLegacySections(from units: [CourseUnit]) -> ([CourseSection], [UUID: [CourseUnit]]) {
+        print("⚠️ [CourseContentView] LEGACY FALLBACK: Creating sections from unit fields (course should be migrated to use course_sections table)")
+        
         var sections: [LegacySection] = []
         var grouped: [UUID: [CourseUnit]] = [:]
         
-        // Separate units by legacy fields
+        // Separate units by legacy fields (is_mandatory and step_number)
         let mandatoryUnits = units.filter { $0.isMandatory }
         let step1Units = units.filter { !$0.isMandatory && $0.stepNumber == 1 }
         let step2Units = units.filter { !$0.isMandatory && $0.stepNumber == 2 }
@@ -419,6 +431,7 @@ struct CourseContentView: View {
 }
 
 // MARK: - Legacy Section Helper (for courses without database sections)
+// TODO: Remove this once all courses have been migrated to use course_sections table
 
 private struct LegacySection {
     let id: UUID = UUID()
@@ -738,7 +751,7 @@ struct TestCardContent: View {
                         Image(systemName: "clock")
                             .foregroundColor(.secondary)
                             .font(.caption)
-                        Text("60 min")
+                        Text("\(test.duration ?? 60) min")
                             .font(.caption)
                             .foregroundColor(.secondary)
                         

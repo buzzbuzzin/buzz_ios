@@ -21,18 +21,11 @@ struct UnitDetailView: View {
     @State private var showCompletionSuccess = false
     @State private var courseTest: CourseTest?
     @State private var showSlidePresentation = false
+    @State private var isLastMandatoryUnit = false
     
-    // Check if this is the UAS Pilot Course
+    // Check if this is the UAS Pilot Course (by title instead of hardcoded ID)
     var isUASPilotCourse: Bool {
-        course.id.uuidString == "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
-    }
-    
-    // Ground School Test UUID (fixed)
-    private let groundSchoolTestId = UUID(uuidString: "a1b2c3d4-e5f6-7890-abcd-000000000001")!
-    
-    // Check if this is unit 3 (last mandatory unit)
-    var isLastMandatoryUnit: Bool {
-        isUASPilotCourse && unit.unitNumber == 3 && unit.isMandatory
+        course.title == "UAS Pilot"
     }
     
     var body: some View {
@@ -200,14 +193,14 @@ struct UnitDetailView: View {
                 }
                 
                 
-                // Take Test Button (after completing units 1-3)
-                if isUASPilotCourse && isLastMandatoryUnit && isCompleted && canTakeTest {
+                // Take Test Button (after completing required units)
+                if isLastMandatoryUnit && isCompleted && canTakeTest, let test = courseTest {
                     Button(action: {
                         showTestView = true
                     }) {
                         HStack {
                             Image(systemName: "doc.text.fill")
-                            Text("Take Ground School Test")
+                            Text("Take \(test.testName)")
                                 .fontWeight(.semibold)
                         }
                         .frame(maxWidth: .infinity)
@@ -250,19 +243,22 @@ struct UnitDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .task {
             await checkCompletionStatus()
-            if isUASPilotCourse {
+            await loadCourseTest()
+            await checkIfLastMandatoryUnit()
+            if isLastMandatoryUnit {
                 await checkIfCanTakeTest()
             }
         }
         .fullScreenCover(isPresented: $showTestView) {
-            if let currentUser = authService.currentUser {
+            if let currentUser = authService.currentUser,
+               let test = courseTest {
                 MultipleChoiceTestView(
-                    testId: groundSchoolTestId,
+                    testId: test.id,
                     course: course,
                     pilotId: currentUser.id,
-                    testName: courseTest?.testName ?? "Ground School Test",
-                    passingScore: courseTest?.passingScore ?? 70,
-                    durationMinutes: 60,
+                    testName: test.testName,
+                    passingScore: test.passingScore,
+                    durationMinutes: test.duration ?? 60,
                     onDismiss: {
                         showTestView = false
                     }
@@ -270,18 +266,39 @@ struct UnitDetailView: View {
                 .environmentObject(authService)
             }
         }
-        .task {
-            await loadCourseTest()
-        }
     }
     
     private func loadCourseTest() async {
         do {
             let tests = try await academyService.fetchCourseTests(courseId: course.id)
             courseTest = tests.first { $0.testType == "multiple_choice" }
+            print("✅ [UnitDetailView] Loaded course test: \(courseTest?.testName ?? "none")")
         } catch {
             print("Error loading course test: \(error)")
         }
+    }
+    
+    /// Determines if this unit is the last mandatory unit before a test
+    /// by checking if this unit is the highest numbered required unit for any test
+    private func checkIfLastMandatoryUnit() async {
+        guard let test = courseTest else {
+            isLastMandatoryUnit = false
+            return
+        }
+        
+        // Get the required units from the test
+        let requiredUnits = test.requiredUnits
+        
+        if requiredUnits.isEmpty {
+            // Legacy behavior: check if this is the last mandatory unit (unit 3 for UAS Pilot)
+            isLastMandatoryUnit = isUASPilotCourse && unit.isMandatory && unit.unitNumber == 3
+        } else {
+            // Check if this unit number is the highest in the required units list
+            let maxRequiredUnit = requiredUnits.max() ?? 0
+            isLastMandatoryUnit = unit.unitNumber == maxRequiredUnit
+        }
+        
+        print("✅ [UnitDetailView] Is last mandatory unit: \(isLastMandatoryUnit) (unit \(unit.unitNumber), required: \(test.requiredUnits))")
     }
     
     private func checkCompletionStatus() async {
@@ -337,24 +354,16 @@ struct UnitDetailView: View {
     
     private func checkIfCanTakeTest() async {
         guard let currentUser = authService.currentUser else { return }
-        guard isUASPilotCourse else { return }
+        guard let test = courseTest else {
+            canTakeTest = false
+            return
+        }
         
         do {
             let supabase = SupabaseClient.shared.client
-            let academyService = AcademyService()
             
-            // Fetch the Ground School Test for this course
-            let courseTests = try await academyService.fetchCourseTests(courseId: course.id)
-            
-            // Find the Ground School Test (assuming it's the first test or has a specific name)
-            guard let groundSchoolTest = courseTests.first else {
-                print("No Ground School Test found for this course")
-                canTakeTest = false
-                return
-            }
-            
-            // Get the required units from the test
-            let requiredUnitNumbers = groundSchoolTest.requiredUnits
+            // Get the required units from the test (fetched from backend)
+            let requiredUnitNumbers = test.requiredUnits
             
             if requiredUnitNumbers.isEmpty {
                 // If no required units specified, default to checking mandatory units (legacy behavior)
@@ -379,7 +388,7 @@ struct UnitDetailView: View {
                 }
                 canTakeTest = allCompleted
             } else {
-                // Check if all required units (by unit number) are completed
+                // Check if all required units (by unit number) are completed (fetched from backend)
                 let completedUnitNumbers = await academyService.checkUnitCompletionsByNumber(
                     pilotId: currentUser.id,
                     courseId: course.id,

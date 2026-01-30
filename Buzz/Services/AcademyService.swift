@@ -17,6 +17,114 @@ class AcademyService: ObservableObject {
     
     private let supabase = SupabaseClient.shared.client
     
+    // MARK: - Course ID Cache
+    
+    /// Cache for frequently accessed course IDs by title
+    /// This avoids repeated database lookups for known course titles
+    private static var cachedCourseIds: [String: UUID] = [:]
+    
+    // MARK: - Well-known Course Titles
+    
+    /// Well-known course titles used for prerequisite checking
+    enum WellKnownCourse: String {
+        case uasPilot = "UAS Pilot"
+        case flightReview = "Flight Review"
+        case rocA = "ROC-A"
+    }
+    
+    // MARK: - Fetch Course by Title
+    
+    /// Fetches a course from the database by its title
+    /// - Parameter title: The exact title of the course to find
+    /// - Returns: The TrainingCourse if found, nil otherwise
+    func fetchCourseByTitle(_ title: String) async throws -> TrainingCourse? {
+        print("🔍 [AcademyService] Fetching course by title: \(title)")
+        
+        do {
+            let response: [TrainingCourseResponse] = try await supabase
+                .from("training_courses")
+                .select()
+                .eq("title", value: title)
+                .limit(1)
+                .execute()
+                .value
+            
+            guard let courseResponse = response.first else {
+                print("⚠️ [AcademyService] No course found with title: \(title)")
+                return nil
+            }
+            
+            let course = TrainingCourse(
+                id: courseResponse.id,
+                title: courseResponse.title,
+                description: courseResponse.description,
+                duration: courseResponse.duration,
+                level: TrainingCourse.CourseLevel(rawValue: courseResponse.level) ?? .beginner,
+                category: TrainingCourse.CourseCategory(rawValue: courseResponse.category) ?? .mandatory,
+                instructor: courseResponse.instructor,
+                instructorPictureUrl: courseResponse.instructorPictureUrl,
+                rating: courseResponse.rating,
+                studentsCount: courseResponse.studentsCount,
+                isEnrolled: false,
+                provider: TrainingCourse.CourseProvider(rawValue: courseResponse.provider ?? "Buzz") ?? .buzz,
+                badgeId: nil,
+                isRecurrent: false,
+                recurrentDueDate: nil,
+                requiresUasGroundSchool: courseResponse.requiresUasGroundSchool ?? false,
+                requiresFlightReviewPassed: courseResponse.requiresFlightReviewPassed ?? false,
+                requiresRocAPassed: courseResponse.requiresRocAPassed ?? false,
+                externalUrl: courseResponse.externalUrl,
+                coverImageUrl: courseResponse.coverImageUrl,
+                region: TrainingCourse.CourseRegion(rawValue: courseResponse.region ?? "Global") ?? .global,
+                active: courseResponse.active ?? false
+            )
+            
+            // Cache the course ID
+            AcademyService.cachedCourseIds[title] = course.id
+            print("✅ [AcademyService] Found course '\(title)' with ID: \(course.id)")
+            
+            return course
+        } catch {
+            print("❌ [AcademyService] Error fetching course by title: \(error)")
+            throw error
+        }
+    }
+    
+    /// Gets a course ID by title, using cache if available
+    /// - Parameter title: The title of the course
+    /// - Returns: The course UUID if found, nil otherwise
+    func getCourseId(forTitle title: String) async -> UUID? {
+        // Check cache first
+        if let cachedId = AcademyService.cachedCourseIds[title] {
+            print("📦 [AcademyService] Using cached course ID for '\(title)': \(cachedId)")
+            return cachedId
+        }
+        
+        // Fetch from database
+        do {
+            if let course = try await fetchCourseByTitle(title) {
+                return course.id
+            }
+        } catch {
+            print("❌ [AcademyService] Error getting course ID for '\(title)': \(error)")
+        }
+        
+        return nil
+    }
+    
+    /// Gets the course ID for a well-known course
+    /// - Parameter wellKnownCourse: The well-known course type
+    /// - Returns: The course UUID if found, nil otherwise
+    func getCourseId(for wellKnownCourse: WellKnownCourse) async -> UUID? {
+        return await getCourseId(forTitle: wellKnownCourse.rawValue)
+    }
+    
+    /// Clears the course ID cache (useful for testing or after course updates)
+    static func clearCourseIdCache() {
+        cachedCourseIds.removeAll()
+        print("🗑️ [AcademyService] Course ID cache cleared")
+    }
+    
     // MARK: - Fetch All Courses
     
     func fetchCourses() async throws {
@@ -176,11 +284,13 @@ class AcademyService: ObservableObject {
                 .from("course_sections")
                 .select()
                 .eq("course_id", value: courseId.uuidString)
+                .eq("is_active", value: true)
+                .is("deleted_at", value: nil)
                 .order("display_order", ascending: true)
                 .execute()
                 .value
             
-            print("✅ [AcademyService] Fetched \(response.count) sections for course")
+            print("✅ [AcademyService] Fetched \(response.count) active sections for course")
             return response
         } catch {
             print("Error fetching course sections: \(error)")
@@ -196,10 +306,12 @@ class AcademyService: ObservableObject {
                 .from("course_units")
                 .select()
                 .eq("course_id", value: courseId.uuidString)
+                .is("deleted_at", value: nil)
                 .order("order_index", ascending: true)
                 .execute()
                 .value
             
+            print("✅ [AcademyService] Fetched \(response.count) units for course")
             return response
         } catch {
             print("Error fetching course units: \(error)")
@@ -215,6 +327,7 @@ class AcademyService: ObservableObject {
                 .from("course_units")
                 .select()
                 .eq("section_id", value: sectionId.uuidString)
+                .is("deleted_at", value: nil)
                 .order("order_index", ascending: true)
                 .execute()
                 .value
@@ -267,8 +380,13 @@ class AcademyService: ObservableObject {
     /// - Parameter pilotId: The pilot's UUID
     /// - Returns: true if the pilot has passed the Flight Review test
     func checkFlightReviewTestStatus(pilotId: UUID) async throws -> Bool {
-        let flightReviewCourseId = UUID(uuidString: "b2c3d4e5-f6a7-8901-bcde-f23456789012")!
         print("🔍 [AcademyService] Checking Flight Review test status for pilot: \(pilotId)")
+        
+        // Fetch the Flight Review course ID dynamically
+        guard let flightReviewCourseId = await getCourseId(for: .flightReview) else {
+            print("⚠️ [AcademyService] Flight Review course not found in database")
+            return false
+        }
         
         do {
             let response = try await supabase
@@ -301,8 +419,13 @@ class AcademyService: ObservableObject {
     /// - Parameter pilotId: The pilot's UUID
     /// - Returns: true if the pilot has passed the ROC-A test
     func checkRocATestStatus(pilotId: UUID) async throws -> Bool {
-        let rocACourseId = UUID(uuidString: "c3d4e5f6-a7b8-9012-cdef-345678901234")!
         print("🔍 [AcademyService] Checking ROC-A test status for pilot: \(pilotId)")
+        
+        // Fetch the ROC-A course ID dynamically
+        guard let rocACourseId = await getCourseId(for: .rocA) else {
+            print("⚠️ [AcademyService] ROC-A course not found in database")
+            return false
+        }
         
         do {
             let response = try await supabase
@@ -335,15 +458,20 @@ class AcademyService: ObservableObject {
     /// - Parameter pilotId: The pilot's UUID
     /// - Returns: A tuple containing the status of all three prerequisites
     func checkAllPrerequisites(pilotId: UUID) async -> (groundSchool: Bool, flightReview: Bool, rocA: Bool) {
-        let uasPilotCourseId = UUID(uuidString: "a1b2c3d4-e5f6-7890-abcd-ef1234567890")!
+        // Fetch UAS Pilot course ID dynamically
+        let uasPilotCourseId = await getCourseId(for: .uasPilot)
         
-        async let groundSchoolStatus = (try? checkGroundSchoolTestStatus(pilotId: pilotId, courseId: uasPilotCourseId)) ?? false
+        var groundSchoolStatus = false
+        if let courseId = uasPilotCourseId {
+            groundSchoolStatus = (try? await checkGroundSchoolTestStatus(pilotId: pilotId, courseId: courseId)) ?? false
+        }
+        
         async let flightReviewStatus = (try? checkFlightReviewTestStatus(pilotId: pilotId)) ?? false
         async let rocAStatus = (try? checkRocATestStatus(pilotId: pilotId)) ?? false
         
-        let results = await (groundSchoolStatus, flightReviewStatus, rocAStatus)
-        print("📋 [AcademyService] All prerequisites - Ground School: \(results.0), Flight Review: \(results.1), ROC-A: \(results.2)")
-        return results
+        let (flightReview, rocA) = await (flightReviewStatus, rocAStatus)
+        print("📋 [AcademyService] All prerequisites - Ground School: \(groundSchoolStatus), Flight Review: \(flightReview), ROC-A: \(rocA)")
+        return (groundSchoolStatus, flightReview, rocA)
     }
     
     // MARK: - Fetch Course Tests
@@ -633,13 +761,17 @@ class AcademyService: ObservableObject {
             
             // Check Ground School prerequisite
             if course.requiresUasGroundSchool {
-                let uasPilotCourseId = UUID(uuidString: "a1b2c3d4-e5f6-7890-abcd-ef1234567890")!
-                let hasPassedGroundSchool = try await checkGroundSchoolTestStatus(
-                    pilotId: pilotId,
-                    courseId: uasPilotCourseId
-                )
-                if !hasPassedGroundSchool {
-                    missingPrerequisites.append("UAS Pilot Ground School Test")
+                // Fetch UAS Pilot course ID dynamically
+                if let uasPilotCourseId = await getCourseId(for: .uasPilot) {
+                    let hasPassedGroundSchool = try await checkGroundSchoolTestStatus(
+                        pilotId: pilotId,
+                        courseId: uasPilotCourseId
+                    )
+                    if !hasPassedGroundSchool {
+                        missingPrerequisites.append("UAS Pilot Ground School Test")
+                    }
+                } else {
+                    print("⚠️ [AcademyService] UAS Pilot course not found, skipping ground school prerequisite check")
                 }
             }
             

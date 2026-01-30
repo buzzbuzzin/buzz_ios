@@ -1725,8 +1725,8 @@ struct DatabaseTestCard: View {
                 // Bottom info row
                 HStack(spacing: 12) {
                     if !test.needsProctor {
-                        // Duration for non-proctored tests
-                        Label("60 min", systemImage: "clock")
+                        // Duration for non-proctored tests (fetched from backend)
+                        Label("\(test.duration ?? 60) min", systemImage: "clock")
                             .font(.caption)
                             .foregroundColor(.secondary)
                         
@@ -1851,7 +1851,7 @@ struct TestIntroView: View {
                         .padding(.horizontal)
                     
                     VStack(spacing: 12) {
-                        DetailRow(icon: "clock", label: "Duration", value: "60 minutes")
+                        DetailRow(icon: "clock", label: "Duration", value: "\(test.duration ?? 60) minutes")
                         DetailRow(icon: "checklist", label: "Questions", value: "Multiple choice")
                         DetailRow(icon: "percent", label: "Passing Score", value: "\(test.passingScore)%")
                         DetailRow(icon: "dollarsign.circle.fill", label: "Cost", value: "Free")
