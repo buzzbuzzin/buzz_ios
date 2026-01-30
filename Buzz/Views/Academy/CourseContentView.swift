@@ -127,7 +127,7 @@ struct CourseContentView: View {
                             Task {
                                 if let user = authService.currentUser {
                                     do {
-                                        hasPassedGroundSchoolTest = try await academyService.checkGroundSchoolTestStatus(pilotId: user.id, courseId: course.id)
+                                        hasPassedGroundSchoolTest = try await academyService.checkGroundSchoolTestStatus(pilotId: user.id)
                                     } catch {
                                         print("Error refreshing test status: \(error)")
                                     }
@@ -160,7 +160,7 @@ struct CourseContentView: View {
             
             do {
                 print("🔄 [CourseContentView] Checking Ground School Test status...")
-                hasPassedGroundSchoolTest = try await academyService.checkGroundSchoolTestStatus(pilotId: currentUser.id, courseId: course.id)
+                hasPassedGroundSchoolTest = try await academyService.checkGroundSchoolTestStatus(pilotId: currentUser.id)
                 print("📋 [CourseContentView] Ground School Test passed: \(hasPassedGroundSchoolTest)")
             } catch {
                 print("❌ [CourseContentView] Error checking test status: \(error)")

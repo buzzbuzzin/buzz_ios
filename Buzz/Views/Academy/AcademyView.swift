@@ -838,11 +838,6 @@ struct CourseDetailView: View {
     @StateObject private var badgeService = BadgeService()
     @StateObject private var academyService = AcademyService()
     
-    // Check if this is the UAS Pilot Course
-    private var isUASPilotCourse: Bool {
-        course.id.uuidString.lowercased() == "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
-    }
-    
     init(course: TrainingCourse, onEnrollmentChange: @escaping () -> Void) {
         self.course = course
         self.onEnrollmentChange = onEnrollmentChange

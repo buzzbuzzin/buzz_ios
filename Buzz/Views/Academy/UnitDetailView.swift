@@ -23,11 +23,6 @@ struct UnitDetailView: View {
     @State private var showSlidePresentation = false
     @State private var isLastMandatoryUnit = false
     
-    // Check if this is the UAS Pilot Course (by title instead of hardcoded ID)
-    var isUASPilotCourse: Bool {
-        course.title == "UAS Pilot"
-    }
-    
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
@@ -279,26 +274,26 @@ struct UnitDetailView: View {
     }
     
     /// Determines if this unit is the last mandatory unit before a test
-    /// by checking if this unit is the highest numbered required unit for any test
+    /// by checking if this unit is the highest numbered required unit for the test
     private func checkIfLastMandatoryUnit() async {
         guard let test = courseTest else {
             isLastMandatoryUnit = false
             return
         }
         
-        // Get the required units from the test
+        // Get the required units from the test (fetched from backend)
         let requiredUnits = test.requiredUnits
         
         if requiredUnits.isEmpty {
-            // Legacy behavior: check if this is the last mandatory unit (unit 3 for UAS Pilot)
-            isLastMandatoryUnit = isUASPilotCourse && unit.isMandatory && unit.unitNumber == 3
+            // If no required units specified, this unit cannot trigger the test button
+            isLastMandatoryUnit = false
         } else {
             // Check if this unit number is the highest in the required units list
             let maxRequiredUnit = requiredUnits.max() ?? 0
             isLastMandatoryUnit = unit.unitNumber == maxRequiredUnit
         }
         
-        print("✅ [UnitDetailView] Is last mandatory unit: \(isLastMandatoryUnit) (unit \(unit.unitNumber), required: \(test.requiredUnits))")
+        print("✅ [UnitDetailView] Is last mandatory unit: \(isLastMandatoryUnit) (unit \(unit.unitNumber), required: \(requiredUnits))")
     }
     
     private func checkCompletionStatus() async {

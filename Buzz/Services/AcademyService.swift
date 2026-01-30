@@ -17,114 +17,6 @@ class AcademyService: ObservableObject {
     
     private let supabase = SupabaseClient.shared.client
     
-    // MARK: - Course ID Cache
-    
-    /// Cache for frequently accessed course IDs by title
-    /// This avoids repeated database lookups for known course titles
-    private static var cachedCourseIds: [String: UUID] = [:]
-    
-    // MARK: - Well-known Course Titles
-    
-    /// Well-known course titles used for prerequisite checking
-    enum WellKnownCourse: String {
-        case uasPilot = "UAS Pilot"
-        case flightReview = "Flight Review"
-        case rocA = "ROC-A"
-    }
-    
-    // MARK: - Fetch Course by Title
-    
-    /// Fetches a course from the database by its title
-    /// - Parameter title: The exact title of the course to find
-    /// - Returns: The TrainingCourse if found, nil otherwise
-    func fetchCourseByTitle(_ title: String) async throws -> TrainingCourse? {
-        print("🔍 [AcademyService] Fetching course by title: \(title)")
-        
-        do {
-            let response: [TrainingCourseResponse] = try await supabase
-                .from("training_courses")
-                .select()
-                .eq("title", value: title)
-                .limit(1)
-                .execute()
-                .value
-            
-            guard let courseResponse = response.first else {
-                print("⚠️ [AcademyService] No course found with title: \(title)")
-                return nil
-            }
-            
-            let course = TrainingCourse(
-                id: courseResponse.id,
-                title: courseResponse.title,
-                description: courseResponse.description,
-                duration: courseResponse.duration,
-                level: TrainingCourse.CourseLevel(rawValue: courseResponse.level) ?? .beginner,
-                category: TrainingCourse.CourseCategory(rawValue: courseResponse.category) ?? .mandatory,
-                instructor: courseResponse.instructor,
-                instructorPictureUrl: courseResponse.instructorPictureUrl,
-                rating: courseResponse.rating,
-                studentsCount: courseResponse.studentsCount,
-                isEnrolled: false,
-                provider: TrainingCourse.CourseProvider(rawValue: courseResponse.provider ?? "Buzz") ?? .buzz,
-                badgeId: nil,
-                isRecurrent: false,
-                recurrentDueDate: nil,
-                requiresUasGroundSchool: courseResponse.requiresUasGroundSchool ?? false,
-                requiresFlightReviewPassed: courseResponse.requiresFlightReviewPassed ?? false,
-                requiresRocAPassed: courseResponse.requiresRocAPassed ?? false,
-                externalUrl: courseResponse.externalUrl,
-                coverImageUrl: courseResponse.coverImageUrl,
-                region: TrainingCourse.CourseRegion(rawValue: courseResponse.region ?? "Global") ?? .global,
-                active: courseResponse.active ?? false
-            )
-            
-            // Cache the course ID
-            AcademyService.cachedCourseIds[title] = course.id
-            print("✅ [AcademyService] Found course '\(title)' with ID: \(course.id)")
-            
-            return course
-        } catch {
-            print("❌ [AcademyService] Error fetching course by title: \(error)")
-            throw error
-        }
-    }
-    
-    /// Gets a course ID by title, using cache if available
-    /// - Parameter title: The title of the course
-    /// - Returns: The course UUID if found, nil otherwise
-    func getCourseId(forTitle title: String) async -> UUID? {
-        // Check cache first
-        if let cachedId = AcademyService.cachedCourseIds[title] {
-            print("📦 [AcademyService] Using cached course ID for '\(title)': \(cachedId)")
-            return cachedId
-        }
-        
-        // Fetch from database
-        do {
-            if let course = try await fetchCourseByTitle(title) {
-                return course.id
-            }
-        } catch {
-            print("❌ [AcademyService] Error getting course ID for '\(title)': \(error)")
-        }
-        
-        return nil
-    }
-    
-    /// Gets the course ID for a well-known course
-    /// - Parameter wellKnownCourse: The well-known course type
-    /// - Returns: The course UUID if found, nil otherwise
-    func getCourseId(for wellKnownCourse: WellKnownCourse) async -> UUID? {
-        return await getCourseId(forTitle: wellKnownCourse.rawValue)
-    }
-    
-    /// Clears the course ID cache (useful for testing or after course updates)
-    static func clearCourseIdCache() {
-        cachedCourseIds.removeAll()
-        print("🗑️ [AcademyService] Course ID cache cleared")
-    }
-    
     // MARK: - Fetch All Courses
     
     func fetchCourses() async throws {
@@ -339,139 +231,86 @@ class AcademyService: ObservableObject {
         }
     }
     
-    // MARK: - Check Ground School Test Status
+    // MARK: - Check Ground School Test Status (via RPC)
     
-    func checkGroundSchoolTestStatus(pilotId: UUID, courseId: UUID) async throws -> Bool {
-        print("🔍 [AcademyService] Checking ground school test status for pilot: \(pilotId)")
+    /// Check if pilot has passed the Ground School test using backend RPC function
+    /// - Parameter pilotId: The pilot's UUID
+    /// - Returns: true if the pilot has passed the Ground School test
+    func checkGroundSchoolTestStatus(pilotId: UUID) async throws -> Bool {
+        print("🔍 [AcademyService] Checking Ground School test status via RPC for pilot: \(pilotId)")
         
         do {
-            // Check test_results table for passed ground school test
             let response = try await supabase
-                .from("test_results")
-                .select("passed")
-                .eq("pilot_id", value: pilotId.uuidString)
-                .eq("course_id", value: courseId.uuidString)
+                .rpc("has_passed_ground_school_test", params: ["p_pilot_id": pilotId.uuidString])
                 .execute()
             
-            let data = response.data
-            
-            guard let jsonArray = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
-                print("⚠️ [AcademyService] No test results found")
-                return false
-            }
-            
-            guard let firstResult = jsonArray.first,
-                  let passed = firstResult["passed"] as? Bool else {
-                print("⚠️ [AcademyService] No test record found or invalid format")
-                return false
-            }
-            
-            print("✅ [AcademyService] Ground school test status: \(passed ? "PASSED" : "NOT PASSED")")
-            return passed
+            let hasPassed = try JSONDecoder().decode(Bool.self, from: response.data)
+            print("✅ [AcademyService] Ground School test status (RPC): \(hasPassed ? "PASSED" : "NOT PASSED")")
+            return hasPassed
         } catch {
-            print("❌ [AcademyService] Error checking ground school test status: \(error)")
+            print("❌ [AcademyService] Error checking Ground School test status via RPC: \(error)")
             return false
         }
     }
     
-    // MARK: - Check Flight Review Test Status
+    // MARK: - Check Flight Review Test Status (via RPC)
     
-    /// Check if pilot has passed the Flight Review test
+    /// Check if pilot has passed the Flight Review test using backend RPC function
     /// - Parameter pilotId: The pilot's UUID
     /// - Returns: true if the pilot has passed the Flight Review test
     func checkFlightReviewTestStatus(pilotId: UUID) async throws -> Bool {
-        print("🔍 [AcademyService] Checking Flight Review test status for pilot: \(pilotId)")
-        
-        // Fetch the Flight Review course ID dynamically
-        guard let flightReviewCourseId = await getCourseId(for: .flightReview) else {
-            print("⚠️ [AcademyService] Flight Review course not found in database")
-            return false
-        }
+        print("🔍 [AcademyService] Checking Flight Review test status via RPC for pilot: \(pilotId)")
         
         do {
             let response = try await supabase
-                .from("test_results")
-                .select("passed")
-                .eq("pilot_id", value: pilotId.uuidString)
-                .eq("course_id", value: flightReviewCourseId.uuidString)
-                .eq("passed", value: true)
+                .rpc("has_passed_flight_review", params: ["p_pilot_id": pilotId.uuidString])
                 .execute()
             
-            let data = response.data
-            
-            guard let jsonArray = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
-                print("⚠️ [AcademyService] No Flight Review test results found")
-                return false
-            }
-            
-            let hasPassed = !jsonArray.isEmpty
-            print("✅ [AcademyService] Flight Review test status: \(hasPassed ? "PASSED" : "NOT PASSED")")
+            let hasPassed = try JSONDecoder().decode(Bool.self, from: response.data)
+            print("✅ [AcademyService] Flight Review test status (RPC): \(hasPassed ? "PASSED" : "NOT PASSED")")
             return hasPassed
         } catch {
-            print("❌ [AcademyService] Error checking Flight Review test status: \(error)")
+            print("❌ [AcademyService] Error checking Flight Review test status via RPC: \(error)")
             return false
         }
     }
     
-    // MARK: - Check ROC-A Test Status
+    // MARK: - Check ROC-A Test Status (via RPC)
     
-    /// Check if pilot has passed the ROC-A test
+    /// Check if pilot has passed the ROC-A test using backend RPC function
     /// - Parameter pilotId: The pilot's UUID
     /// - Returns: true if the pilot has passed the ROC-A test
     func checkRocATestStatus(pilotId: UUID) async throws -> Bool {
-        print("🔍 [AcademyService] Checking ROC-A test status for pilot: \(pilotId)")
-        
-        // Fetch the ROC-A course ID dynamically
-        guard let rocACourseId = await getCourseId(for: .rocA) else {
-            print("⚠️ [AcademyService] ROC-A course not found in database")
-            return false
-        }
+        print("🔍 [AcademyService] Checking ROC-A test status via RPC for pilot: \(pilotId)")
         
         do {
             let response = try await supabase
-                .from("test_results")
-                .select("passed")
-                .eq("pilot_id", value: pilotId.uuidString)
-                .eq("course_id", value: rocACourseId.uuidString)
-                .eq("passed", value: true)
+                .rpc("has_passed_roc_a", params: ["p_pilot_id": pilotId.uuidString])
                 .execute()
             
-            let data = response.data
-            
-            guard let jsonArray = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
-                print("⚠️ [AcademyService] No ROC-A test results found")
-                return false
-            }
-            
-            let hasPassed = !jsonArray.isEmpty
-            print("✅ [AcademyService] ROC-A test status: \(hasPassed ? "PASSED" : "NOT PASSED")")
+            let hasPassed = try JSONDecoder().decode(Bool.self, from: response.data)
+            print("✅ [AcademyService] ROC-A test status (RPC): \(hasPassed ? "PASSED" : "NOT PASSED")")
             return hasPassed
         } catch {
-            print("❌ [AcademyService] Error checking ROC-A test status: \(error)")
+            print("❌ [AcademyService] Error checking ROC-A test status via RPC: \(error)")
             return false
         }
     }
     
-    // MARK: - Check All Prerequisites Status
+    // MARK: - Check All Prerequisites Status (via RPC)
     
-    /// Check all prerequisite test statuses for a pilot
+    /// Check all prerequisite test statuses for a pilot using backend RPC functions
     /// - Parameter pilotId: The pilot's UUID
     /// - Returns: A tuple containing the status of all three prerequisites
     func checkAllPrerequisites(pilotId: UUID) async -> (groundSchool: Bool, flightReview: Bool, rocA: Bool) {
-        // Fetch UAS Pilot course ID dynamically
-        let uasPilotCourseId = await getCourseId(for: .uasPilot)
-        
-        var groundSchoolStatus = false
-        if let courseId = uasPilotCourseId {
-            groundSchoolStatus = (try? await checkGroundSchoolTestStatus(pilotId: pilotId, courseId: courseId)) ?? false
-        }
-        
+        // Call all RPC functions in parallel
+        async let groundSchoolStatus = (try? checkGroundSchoolTestStatus(pilotId: pilotId)) ?? false
         async let flightReviewStatus = (try? checkFlightReviewTestStatus(pilotId: pilotId)) ?? false
         async let rocAStatus = (try? checkRocATestStatus(pilotId: pilotId)) ?? false
         
-        let (flightReview, rocA) = await (flightReviewStatus, rocAStatus)
-        print("📋 [AcademyService] All prerequisites - Ground School: \(groundSchoolStatus), Flight Review: \(flightReview), ROC-A: \(rocA)")
-        return (groundSchoolStatus, flightReview, rocA)
+        let (groundSchool, flightReview, rocA) = await (groundSchoolStatus, flightReviewStatus, rocAStatus)
+        print("📋 [AcademyService] All prerequisites (RPC) - Ground School: \(groundSchool), Flight Review: \(flightReview), ROC-A: \(rocA)")
+        return (groundSchool, flightReview, rocA)
     }
     
     // MARK: - Fetch Course Tests
@@ -755,27 +594,19 @@ class AcademyService: ObservableObject {
     // MARK: - Enroll in Course
     
     func enrollInCourse(pilotId: UUID, courseId: UUID) async throws {
-        // Check all prerequisite requirements for the course
+        // Check all prerequisite requirements for the course using RPC functions
         if let course = courses.first(where: { $0.id == courseId }) {
             var missingPrerequisites: [String] = []
             
-            // Check Ground School prerequisite
+            // Check Ground School prerequisite via RPC
             if course.requiresUasGroundSchool {
-                // Fetch UAS Pilot course ID dynamically
-                if let uasPilotCourseId = await getCourseId(for: .uasPilot) {
-                    let hasPassedGroundSchool = try await checkGroundSchoolTestStatus(
-                        pilotId: pilotId,
-                        courseId: uasPilotCourseId
-                    )
-                    if !hasPassedGroundSchool {
-                        missingPrerequisites.append("UAS Pilot Ground School Test")
-                    }
-                } else {
-                    print("⚠️ [AcademyService] UAS Pilot course not found, skipping ground school prerequisite check")
+                let hasPassedGroundSchool = try await checkGroundSchoolTestStatus(pilotId: pilotId)
+                if !hasPassedGroundSchool {
+                    missingPrerequisites.append("UAS Pilot Ground School Test")
                 }
             }
             
-            // Check Flight Review prerequisite
+            // Check Flight Review prerequisite via RPC
             if course.requiresFlightReviewPassed {
                 let hasPassedFlightReview = try await checkFlightReviewTestStatus(pilotId: pilotId)
                 if !hasPassedFlightReview {
@@ -783,7 +614,7 @@ class AcademyService: ObservableObject {
                 }
             }
             
-            // Check ROC-A prerequisite
+            // Check ROC-A prerequisite via RPC
             if course.requiresRocAPassed {
                 let hasPassedRocA = try await checkRocATestStatus(pilotId: pilotId)
                 if !hasPassedRocA {
