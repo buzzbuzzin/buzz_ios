@@ -202,7 +202,7 @@ struct CurrentStatusCard: View {
     private var statusColor: Color {
         switch hour.safetyStatus {
         case .good: return .green
-        case .marginal: return .red
+        case .marginal: return .orange
         case .poor: return .red
         case .unknown: return .gray
         }
@@ -377,7 +377,7 @@ struct HourlyForecastCell: View {
     private var statusColor: Color {
         switch hour.safetyStatus {
         case .good: return .green
-        case .marginal: return .red
+        case .marginal: return .orange
         case .poor: return .red
         case .unknown: return .gray
         }

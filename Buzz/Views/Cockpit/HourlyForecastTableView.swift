@@ -76,7 +76,7 @@ struct HourlyForecastTableView: View {
 
                     // Day sections with hours
                     ForEach(dayGroups) { dayGroup in
-                        DaySectionView(dayGroup: dayGroup)
+                        DaySectionView(dayGroup: dayGroup, thresholds: thresholds)
                     }
                 }
                 .frame(minWidth: totalTableWidth)
@@ -112,6 +112,7 @@ struct ForecastTableHeaderRow: View {
 
 struct DaySectionView: View {
     let dayGroup: SafeFlyDayGroup
+    let thresholds: FlyingThresholds
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -120,7 +121,7 @@ struct DaySectionView: View {
 
             // Hourly rows
             ForEach(Array(dayGroup.hours.enumerated()), id: \.element.id) { index, hour in
-                ForecastTableRow(hour: hour, isAlternate: index % 2 == 1)
+                ForecastTableRow(hour: hour, thresholds: thresholds, isAlternate: index % 2 == 1)
 
                 if index < dayGroup.hours.count - 1 {
                     Divider()
@@ -187,20 +188,30 @@ struct DaySectionHeaderView: View {
     }
 }
 
+// MARK: - Cell Status for Threshold Comparison
+
+enum CellThresholdStatus {
+    case safe       // Within threshold - green
+    case caution    // Close to threshold (80-100%) - orange
+    case exceeded   // Exceeds threshold - red
+    case neutral    // No threshold applies or no data
+    
+    var backgroundColor: Color {
+        switch self {
+        case .safe: return Color.green.opacity(0.15)
+        case .caution: return Color.orange.opacity(0.20)
+        case .exceeded: return Color.red.opacity(0.20)
+        case .neutral: return Color.clear
+        }
+    }
+}
+
 // MARK: - Hourly Data Row
 
 struct ForecastTableRow: View {
     let hour: SafeFlyHour
+    let thresholds: FlyingThresholds
     let isAlternate: Bool
-
-    private var rowBackgroundColor: Color {
-        switch hour.safetyStatus {
-        case .good: return Color.green.opacity(0.12)
-        case .marginal: return Color.red.opacity(0.12)
-        case .poor: return Color.red.opacity(0.12)
-        case .unknown: return Color.gray.opacity(0.08)
-        }
-    }
 
     private var timeString: String {
         let formatter = DateFormatter()
@@ -212,10 +223,76 @@ struct ForecastTableRow: View {
         let hourComponent = Calendar.current.component(.hour, from: hour.time)
         return hourComponent >= 6 && hourComponent < 20
     }
+    
+    // MARK: - Threshold Status Calculations
+    
+    /// Wind speed: exceeded if > max, caution if > 80% of max
+    private var windStatus: CellThresholdStatus {
+        let value = hour.forecast.windSpeed
+        let max = thresholds.maxWindSpeed
+        if value > max { return .exceeded }
+        if value > max * 0.8 { return .caution }
+        return .safe
+    }
+    
+    /// Wind gusts: exceeded if > max, caution if > 80% of max
+    private var gustStatus: CellThresholdStatus {
+        guard let gust = hour.forecast.windGust else { return .neutral }
+        let max = thresholds.maxWindGust
+        if gust > max { return .exceeded }
+        if gust > max * 0.8 { return .caution }
+        return .safe
+    }
+    
+    /// Temperature: exceeded if < min or > max, caution if within 5°F of limits
+    private var tempStatus: CellThresholdStatus {
+        let temp = hour.forecast.temperature
+        let min = thresholds.minTemperature
+        let max = thresholds.maxTemperature
+        if temp < min || temp > max { return .exceeded }
+        if temp < min + 5 || temp > max - 5 { return .caution }
+        return .safe
+    }
+    
+    /// Precipitation: exceeded if > max, caution if > 80% of max
+    private var precipStatus: CellThresholdStatus {
+        let value = hour.forecast.precipitation
+        let max = thresholds.maxPrecipitation
+        if value > max { return .exceeded }
+        if value > Int(Double(max) * 0.8) { return .caution }
+        return .safe
+    }
+    
+    /// Visibility: exceeded if < min, caution if < 150% of min
+    private var visibilityStatus: CellThresholdStatus {
+        guard let vis = hour.visibility else { return .neutral }
+        let min = thresholds.minVisibility
+        if vis < min { return .exceeded }
+        if vis < min * 1.5 { return .caution }
+        return .safe
+    }
+    
+    /// KP Index: exceeded if > max, caution if > 80% of max
+    private var kpStatus: CellThresholdStatus {
+        guard let kp = hour.kpIndex else { return .neutral }
+        let max = thresholds.maxKPIndex
+        if kp > max { return .exceeded }
+        if kp > max * 0.8 { return .caution }
+        return .safe
+    }
+    
+    /// Cloud cover: exceeded if > max, caution if > 80% of max
+    private var cloudStatus: CellThresholdStatus {
+        guard let cloud = hour.forecast.cloudCover else { return .neutral }
+        let max = thresholds.maxCloudCover
+        if cloud > max { return .exceeded }
+        if cloud > Int(Double(max) * 0.8) { return .caution }
+        return .safe
+    }
 
     var body: some View {
         HStack(spacing: 0) {
-            // Time column with day/night icon
+            // Time column with day/night icon (no threshold)
             HStack(spacing: 2) {
                 Text(timeString)
                     .font(.caption)
@@ -224,59 +301,64 @@ struct ForecastTableRow: View {
                     .font(.system(size: 8))
                     .foregroundColor(isDaytime ? .orange : .indigo)
             }
-            .frame(width: ForecastTableColumn.time.width)
+            .frame(width: ForecastTableColumn.time.width, height: 32)
 
-            // Status column (moved to second position)
+            // Status column
             SafetyStatusCell(status: hour.safetyStatus)
-                .frame(width: ForecastTableColumn.status.width)
+                .frame(width: ForecastTableColumn.status.width, height: 32)
 
-            // Wind column
+            // Wind column with threshold background
             WindCell(speed: hour.forecast.windSpeed, direction: hour.forecast.windDirection)
-                .frame(width: ForecastTableColumn.wind.width)
+                .frame(width: ForecastTableColumn.wind.width, height: 32)
+                .background(windStatus.backgroundColor)
 
-            // Gusts column with arrow indicator
+            // Gusts column with threshold background
             GustCell(gust: hour.forecast.windGust, direction: hour.forecast.windDirection)
-                .frame(width: ForecastTableColumn.gusts.width)
+                .frame(width: ForecastTableColumn.gusts.width, height: 32)
+                .background(gustStatus.backgroundColor)
 
-            // Temperature column
+            // Temperature column with threshold background
             Text("\(Int(hour.forecast.temperature))°")
                 .font(.caption)
                 .monospacedDigit()
-                .frame(width: ForecastTableColumn.temp.width)
+                .frame(width: ForecastTableColumn.temp.width, height: 32)
+                .background(tempStatus.backgroundColor)
 
-            // Humidity column
+            // Humidity column (no threshold in settings, so neutral)
             Text(hour.forecast.humidity.map { "\($0)" } ?? "-")
                 .font(.caption)
                 .monospacedDigit()
-                .frame(width: ForecastTableColumn.humidity.width)
+                .frame(width: ForecastTableColumn.humidity.width, height: 32)
 
-            // Precipitation column
+            // Precipitation column with threshold background
             Text(hour.forecast.precipitation > 0 ? "\(hour.forecast.precipitation)" : "-")
                 .font(.caption)
                 .monospacedDigit()
-                .foregroundColor(hour.forecast.precipitation > 20 ? .blue : .primary)
-                .frame(width: ForecastTableColumn.precip.width)
+                .frame(width: ForecastTableColumn.precip.width, height: 32)
+                .background(precipStatus.backgroundColor)
 
-            // Cloud Cover column
+            // Cloud Cover column with threshold background
             Text(hour.forecast.cloudCover.map { "\($0)" } ?? "-")
                 .font(.caption)
                 .monospacedDigit()
-                .frame(width: ForecastTableColumn.cloudCover.width)
+                .frame(width: ForecastTableColumn.cloudCover.width, height: 32)
+                .background(cloudStatus.backgroundColor)
 
-            // Visibility column
+            // Visibility column with threshold background
             Text(hour.visibility.map { String(format: "%.0f", $0) } ?? "-")
                 .font(.caption)
                 .monospacedDigit()
-                .frame(width: ForecastTableColumn.visibility.width)
+                .frame(width: ForecastTableColumn.visibility.width, height: 32)
+                .background(visibilityStatus.backgroundColor)
 
-            // KP Index column
+            // KP Index column with threshold background
             Text(hour.kpIndex.map { String(format: "%.1f", $0) } ?? "-")
                 .font(.caption)
                 .monospacedDigit()
-                .frame(width: ForecastTableColumn.kpIndex.width)
+                .frame(width: ForecastTableColumn.kpIndex.width, height: 32)
+                .background(kpStatus.backgroundColor)
         }
-        .padding(.vertical, 8)
-        .background(rowBackgroundColor)
+        .padding(.vertical, 4)
     }
 }
 
@@ -361,7 +443,7 @@ struct SafetyStatusCell: View {
     private var statusColor: Color {
         switch status {
         case .good: return .green
-        case .marginal: return .red
+        case .marginal: return .orange
         case .poor: return .red
         case .unknown: return .gray
         }
