@@ -22,7 +22,11 @@ struct SafeFlyView: View {
             VStack(spacing: 24) {
                 // Current Status Summary
                 if let firstHour = safeFlyService.hourlyForecasts.first {
-                    CurrentStatusCard(hour: firstHour, locationString: safeFlyService.currentLocationString)
+                    CurrentStatusCard(
+                        hour: firstHour,
+                        locationString: safeFlyService.currentLocationString,
+                        thresholds: safeFlyService.thresholds
+                    )
                 }
 
                 // KP Index Card (if available)
@@ -198,34 +202,76 @@ class SafeFlyLocationManager: NSObject, ObservableObject, CLLocationManagerDeleg
 struct CurrentStatusCard: View {
     let hour: SafeFlyHour
     let locationString: String?
+    let thresholds: FlyingThresholds
 
-    private var statusColor: Color {
-        switch hour.safetyStatus {
-        case .good: return .green
-        case .marginal: return .orange
-        case .poor: return .red
-        case .unknown: return .gray
-        }
+    // MARK: - Threshold Status Calculations (same logic as table)
+    
+    private var windExceeded: Bool {
+        hour.forecast.windSpeed > thresholds.maxWindSpeed
+    }
+    
+    private var gustExceeded: Bool {
+        guard let gust = hour.forecast.windGust else { return false }
+        return gust > thresholds.maxWindGust
+    }
+    
+    private var tempExceeded: Bool {
+        hour.forecast.temperature < thresholds.minTemperature || hour.forecast.temperature > thresholds.maxTemperature
+    }
+    
+    private var precipExceeded: Bool {
+        hour.forecast.precipitation > thresholds.maxPrecipitation
+    }
+    
+    private var visibilityExceeded: Bool {
+        guard let vis = hour.visibility else { return false }
+        return vis < thresholds.minVisibility
+    }
+    
+    private var kpExceeded: Bool {
+        guard let kp = hour.kpIndex else { return false }
+        return kp > thresholds.maxKPIndex
+    }
+    
+    private var cloudExceeded: Bool {
+        guard let cloud = hour.forecast.cloudCover else { return false }
+        return cloud > thresholds.maxCloudCover
+    }
+    
+    /// Returns true if ALL thresholds are within safe limits
+    private var isSafeToFly: Bool {
+        !windExceeded && !gustExceeded && !tempExceeded && !precipExceeded && !visibilityExceeded && !kpExceeded && !cloudExceeded
     }
 
     var body: some View {
         VStack(spacing: 16) {
-            // Status indicator
+            // Status indicator with Fly? prominently displayed
             HStack {
-                Image(systemName: hour.safetyStatus.icon)
-                    .font(.system(size: 48))
-                    .foregroundColor(statusColor)
+                // Large Fly? status
+                VStack(spacing: 4) {
+                    Text("Fly?")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Text(isSafeToFly ? "Yes" : "No")
+                        .font(.system(size: 36, weight: .bold))
+                        .foregroundColor(isSafeToFly ? .green : .red)
+                }
+                .frame(width: 70)
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(locationString.map { "Current Conditions (\($0))" } ?? "Current Conditions")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
-                    Text(hour.safetyStatus.rawValue)
-                        .font(.title2)
-                        .fontWeight(.bold)
-                        .foregroundColor(statusColor)
+                    Text(isSafeToFly ? "Good to Fly" : "Not Recommended")
+                        .font(.title3)
+                        .fontWeight(.semibold)
+                        .foregroundColor(isSafeToFly ? .green : .red)
                 }
                 Spacer()
+                
+                Image(systemName: isSafeToFly ? "checkmark.circle.fill" : "xmark.circle.fill")
+                    .font(.system(size: 40))
+                    .foregroundColor(isSafeToFly ? .green : .red)
             }
 
             // Quick stats row
@@ -254,26 +300,63 @@ struct CurrentStatusCard: View {
                 )
             }
 
-            // Violations (if any)
-            if !hour.violations.isEmpty {
+            // Show which thresholds are exceeded (if any)
+            if !isSafeToFly {
                 Divider()
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Warnings")
+                    Text("Thresholds Exceeded")
                         .font(.caption)
                         .fontWeight(.semibold)
                         .foregroundColor(.secondary)
-                    ForEach(hour.violations) { violation in
-                        HStack {
-                            Image(systemName: violation.severity == .critical ? "xmark.circle.fill" : "exclamationmark.triangle.fill")
-                                .foregroundColor(violation.severity == .critical ? .red : .yellow)
-                                .font(.subheadline)
-                            Text("\(violation.parameter): \(violation.currentValue)")
-                                .font(.subheadline)
-                            Spacer()
-                            Text("Limit: \(violation.threshold)")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
+                    
+                    if windExceeded {
+                        ThresholdExceededRow(
+                            parameter: "Wind Speed",
+                            currentValue: "\(Int(hour.forecast.windSpeed)) mph",
+                            threshold: "\(Int(thresholds.maxWindSpeed)) mph"
+                        )
+                    }
+                    if gustExceeded, let gust = hour.forecast.windGust {
+                        ThresholdExceededRow(
+                            parameter: "Wind Gusts",
+                            currentValue: "\(Int(gust)) mph",
+                            threshold: "\(Int(thresholds.maxWindGust)) mph"
+                        )
+                    }
+                    if tempExceeded {
+                        ThresholdExceededRow(
+                            parameter: "Temperature",
+                            currentValue: "\(Int(hour.forecast.temperature))°F",
+                            threshold: "\(Int(thresholds.minTemperature))°F - \(Int(thresholds.maxTemperature))°F"
+                        )
+                    }
+                    if precipExceeded {
+                        ThresholdExceededRow(
+                            parameter: "Precipitation",
+                            currentValue: "\(hour.forecast.precipitation)%",
+                            threshold: "\(thresholds.maxPrecipitation)%"
+                        )
+                    }
+                    if visibilityExceeded, let vis = hour.visibility {
+                        ThresholdExceededRow(
+                            parameter: "Visibility",
+                            currentValue: String(format: "%.1f mi", vis),
+                            threshold: String(format: "%.1f mi", thresholds.minVisibility)
+                        )
+                    }
+                    if kpExceeded, let kp = hour.kpIndex {
+                        ThresholdExceededRow(
+                            parameter: "KP Index",
+                            currentValue: String(format: "%.1f", kp),
+                            threshold: String(format: "%.1f", thresholds.maxKPIndex)
+                        )
+                    }
+                    if cloudExceeded, let cloud = hour.forecast.cloudCover {
+                        ThresholdExceededRow(
+                            parameter: "Cloud Cover",
+                            currentValue: "\(cloud)%",
+                            threshold: "\(thresholds.maxCloudCover)%"
+                        )
                     }
                 }
             }
@@ -282,6 +365,28 @@ struct CurrentStatusCard: View {
         .background(Color(.systemBackground))
         .cornerRadius(16)
         .shadow(color: Color.black.opacity(0.06), radius: 8, x: 0, y: 2)
+    }
+}
+
+// MARK: - Threshold Exceeded Row
+
+struct ThresholdExceededRow: View {
+    let parameter: String
+    let currentValue: String
+    let threshold: String
+    
+    var body: some View {
+        HStack {
+            Image(systemName: "xmark.circle.fill")
+                .foregroundColor(.red)
+                .font(.subheadline)
+            Text("\(parameter): \(currentValue)")
+                .font(.subheadline)
+            Spacer()
+            Text("Limit: \(threshold)")
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
     }
 }
 

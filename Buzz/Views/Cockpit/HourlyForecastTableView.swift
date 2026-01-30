@@ -58,6 +58,8 @@ enum ForecastTableColumn: String, CaseIterable {
 struct HourlyForecastTableView: View {
     let dayGroups: [SafeFlyDayGroup]
     let thresholds: FlyingThresholds
+    
+    @State private var showLegend = false
 
     private var totalTableWidth: CGFloat {
         ForecastTableColumn.allCases.reduce(0) { $0 + $1.width }
@@ -65,9 +67,24 @@ struct HourlyForecastTableView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Detailed Forecast")
-                .font(.headline)
-                .padding(.horizontal)
+            HStack {
+                Text("Detailed Forecast")
+                    .font(.headline)
+                
+                Button {
+                    showLegend = true
+                } label: {
+                    Image(systemName: "info.circle")
+                        .font(.subheadline)
+                        .foregroundColor(.blue)
+                }
+                .sheet(isPresented: $showLegend) {
+                    ThresholdLegendView(thresholds: thresholds)
+                }
+                
+                Spacer()
+            }
+            .padding(.horizontal)
 
             ScrollView(.horizontal, showsIndicators: true) {
                 VStack(alignment: .leading, spacing: 0) {
@@ -289,6 +306,12 @@ struct ForecastTableRow: View {
         if cloud > Int(Double(max) * 0.8) { return .caution }
         return .safe
     }
+    
+    /// Returns true if ALL thresholds are within safe limits (no exceeded status)
+    var isSafeToFly: Bool {
+        let statuses = [windStatus, gustStatus, tempStatus, precipStatus, visibilityStatus, kpStatus, cloudStatus]
+        return !statuses.contains(.exceeded)
+    }
 
     var body: some View {
         HStack(spacing: 0) {
@@ -303,8 +326,8 @@ struct ForecastTableRow: View {
             }
             .frame(width: ForecastTableColumn.time.width, height: 32)
 
-            // Status column
-            SafetyStatusCell(status: hour.safetyStatus)
+            // Status column - Yes if all within threshold, No if any exceeded
+            SafetyStatusCell(isSafeToFly: isSafeToFly)
                 .frame(width: ForecastTableColumn.status.width, height: 32)
 
             // Wind column with threshold background
@@ -438,31 +461,194 @@ private func getDirectionArrow(for direction: String) -> String {
 // MARK: - Safety Status Cell
 
 struct SafetyStatusCell: View {
-    let status: FlyingSafetyStatus
-
-    private var statusColor: Color {
-        switch status {
-        case .good: return .green
-        case .marginal: return .orange
-        case .poor: return .red
-        case .unknown: return .gray
-        }
-    }
-
-    private var statusText: String {
-        switch status {
-        case .good: return "yes"
-        case .marginal: return "?"
-        case .poor: return "no"
-        case .unknown: return "-"
-        }
-    }
+    let isSafeToFly: Bool
 
     var body: some View {
-        Text(statusText)
+        Text(isSafeToFly ? "Yes" : "No")
             .font(.caption)
             .fontWeight(.semibold)
-            .foregroundColor(statusColor)
+            .foregroundColor(isSafeToFly ? .green : .red)
+    }
+}
+
+// MARK: - Threshold Legend View
+
+struct ThresholdLegendView: View {
+    let thresholds: FlyingThresholds
+    @Environment(\.dismiss) private var dismiss
+    
+    var body: some View {
+        NavigationView {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    // Color Legend Section
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Color Legend")
+                            .font(.headline)
+                        
+                        HStack(spacing: 12) {
+                            ColorLegendItem(color: .green.opacity(0.15), label: "Safe", description: "Within threshold")
+                            ColorLegendItem(color: .orange.opacity(0.20), label: "Caution", description: "Approaching threshold")
+                            ColorLegendItem(color: .red.opacity(0.20), label: "Exceeded", description: "Above threshold")
+                        }
+                    }
+                    .padding()
+                    .background(Color(.secondarySystemBackground))
+                    .cornerRadius(12)
+                    
+                    // Fly? Column Explanation
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Fly? Column")
+                            .font(.headline)
+                        
+                        HStack(spacing: 16) {
+                            HStack(spacing: 4) {
+                                Text("Yes")
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(.green)
+                                Text("- All values within thresholds")
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        
+                        HStack(spacing: 16) {
+                            HStack(spacing: 4) {
+                                Text("No")
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(.red)
+                                Text("- One or more values exceed thresholds")
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    }
+                    .padding()
+                    .background(Color(.secondarySystemBackground))
+                    .cornerRadius(12)
+                    
+                    // Threshold Details Section
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Your Thresholds")
+                            .font(.headline)
+                        
+                        ThresholdDetailRow(
+                            column: "Wind",
+                            threshold: "\(Int(thresholds.maxWindSpeed)) mph max",
+                            cautionRange: ">\(Int(thresholds.maxWindSpeed * 0.8)) mph"
+                        )
+                        
+                        ThresholdDetailRow(
+                            column: "Gusts",
+                            threshold: "\(Int(thresholds.maxWindGust)) mph max",
+                            cautionRange: ">\(Int(thresholds.maxWindGust * 0.8)) mph"
+                        )
+                        
+                        ThresholdDetailRow(
+                            column: "Temp",
+                            threshold: "\(Int(thresholds.minTemperature))°F - \(Int(thresholds.maxTemperature))°F",
+                            cautionRange: "Within 5°F of limits"
+                        )
+                        
+                        ThresholdDetailRow(
+                            column: "Precip",
+                            threshold: "\(thresholds.maxPrecipitation)% max",
+                            cautionRange: ">\(Int(Double(thresholds.maxPrecipitation) * 0.8))%"
+                        )
+                        
+                        ThresholdDetailRow(
+                            column: "Cloud",
+                            threshold: "\(thresholds.maxCloudCover)% max",
+                            cautionRange: ">\(Int(Double(thresholds.maxCloudCover) * 0.8))%"
+                        )
+                        
+                        ThresholdDetailRow(
+                            column: "Visibility",
+                            threshold: "\(String(format: "%.1f", thresholds.minVisibility)) mi min",
+                            cautionRange: "<\(String(format: "%.1f", thresholds.minVisibility * 1.5)) mi"
+                        )
+                        
+                        ThresholdDetailRow(
+                            column: "KP Index",
+                            threshold: "\(String(format: "%.1f", thresholds.maxKPIndex)) max",
+                            cautionRange: ">\(String(format: "%.1f", thresholds.maxKPIndex * 0.8))"
+                        )
+                    }
+                    .padding()
+                    .background(Color(.secondarySystemBackground))
+                    .cornerRadius(12)
+                    
+                    Spacer()
+                }
+                .padding()
+            }
+            .navigationTitle("Forecast Legend")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Color Legend Item
+
+struct ColorLegendItem: View {
+    let color: Color
+    let label: String
+    let description: String
+    
+    var body: some View {
+        VStack(spacing: 4) {
+            RoundedRectangle(cornerRadius: 6)
+                .fill(color)
+                .frame(width: 50, height: 30)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6)
+                        .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                )
+            Text(label)
+                .font(.caption)
+                .fontWeight(.semibold)
+            Text(description)
+                .font(.caption2)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+    }
+}
+
+// MARK: - Threshold Detail Row
+
+struct ThresholdDetailRow: View {
+    let column: String
+    let threshold: String
+    let cautionRange: String
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(column)
+                .font(.subheadline)
+                .fontWeight(.medium)
+            
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Threshold: \(threshold)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Text("Caution: \(cautionRange)")
+                        .font(.caption)
+                        .foregroundColor(.orange)
+                }
+                Spacer()
+            }
+        }
+        .padding(.vertical, 4)
+        
+        Divider()
     }
 }
 
