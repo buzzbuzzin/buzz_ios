@@ -17,6 +17,7 @@ class SafeFlyService: ObservableObject {
     @Published var isLoading = false
     @Published var errorMessage: String?
     @Published var thresholds: FlyingThresholds = .default
+    @Published var currentLocationString: String?
 
     private var currentCoordinate: CLLocationCoordinate2D?
 
@@ -33,6 +34,34 @@ class SafeFlyService: ObservableObject {
 
     init() {
         loadThresholds()
+    }
+
+    // MARK: - Reverse Geocoding
+
+    private func reverseGeocodeLocation(_ coordinate: CLLocationCoordinate2D) async {
+        let geocoder = CLGeocoder()
+        let location = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
+
+        do {
+            let placemarks = try await geocoder.reverseGeocodeLocation(location)
+            if let placemark = placemarks.first {
+                var locationParts: [String] = []
+
+                if let city = placemark.locality {
+                    locationParts.append(city)
+                }
+
+                if let state = placemark.administrativeArea {
+                    locationParts.append(state)
+                }
+
+                currentLocationString = locationParts.isEmpty ? nil : locationParts.joined(separator: ", ")
+            }
+        } catch {
+            // Reverse geocoding failed, but don't fail the whole request
+            print("Reverse geocoding failed: \(error.localizedDescription)")
+            currentLocationString = nil
+        }
     }
 
     // MARK: - Fetch Combined Safe Fly Data
@@ -67,6 +96,9 @@ class SafeFlyService: ObservableObject {
 
             // Group hours by day with sunrise/sunset
             dayGroups = groupHoursByDay(hourlyForecasts, coordinate: coordinate)
+
+            // Reverse geocode the location for display
+            await reverseGeocodeLocation(coordinate)
 
             lastFetchTime = Date()
             lastFetchCoordinate = coordinate

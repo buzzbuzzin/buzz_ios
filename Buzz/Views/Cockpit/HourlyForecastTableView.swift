@@ -196,7 +196,7 @@ struct ForecastTableRow: View {
     private var rowBackgroundColor: Color {
         switch hour.safetyStatus {
         case .good: return Color.green.opacity(0.12)
-        case .marginal: return Color.yellow.opacity(0.18)
+        case .marginal: return Color.red.opacity(0.12)
         case .poor: return Color.red.opacity(0.12)
         case .unknown: return Color.gray.opacity(0.08)
         }
@@ -361,7 +361,7 @@ struct SafetyStatusCell: View {
     private var statusColor: Color {
         switch status {
         case .good: return .green
-        case .marginal: return .orange
+        case .marginal: return .red
         case .poor: return .red
         case .unknown: return .gray
         }

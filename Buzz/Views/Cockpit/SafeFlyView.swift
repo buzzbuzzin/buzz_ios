@@ -22,7 +22,7 @@ struct SafeFlyView: View {
             VStack(spacing: 24) {
                 // Current Status Summary
                 if let firstHour = safeFlyService.hourlyForecasts.first {
-                    CurrentStatusCard(hour: firstHour)
+                    CurrentStatusCard(hour: firstHour, locationString: safeFlyService.currentLocationString)
                 }
 
                 // KP Index Card (if available)
@@ -197,11 +197,12 @@ class SafeFlyLocationManager: NSObject, ObservableObject, CLLocationManagerDeleg
 
 struct CurrentStatusCard: View {
     let hour: SafeFlyHour
+    let locationString: String?
 
     private var statusColor: Color {
         switch hour.safetyStatus {
         case .good: return .green
-        case .marginal: return .yellow
+        case .marginal: return .red
         case .poor: return .red
         case .unknown: return .gray
         }
@@ -216,7 +217,7 @@ struct CurrentStatusCard: View {
                     .foregroundColor(statusColor)
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Current Conditions")
+                    Text(locationString.map { "Current Conditions (\($0))" } ?? "Current Conditions")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                     Text(hour.safetyStatus.rawValue)
@@ -376,7 +377,7 @@ struct HourlyForecastCell: View {
     private var statusColor: Color {
         switch hour.safetyStatus {
         case .good: return .green
-        case .marginal: return .yellow
+        case .marginal: return .red
         case .poor: return .red
         case .unknown: return .gray
         }
