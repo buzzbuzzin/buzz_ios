@@ -1380,15 +1380,7 @@ struct GroundSchoolTestIntroSheetView: View {
                     .padding(.top, 20)
                     
                     // Description
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("About This Test")
-                            .font(.headline)
-                        
-                        Text(testDescription)
-                            .font(.body)
-                            .foregroundColor(.secondary)
-                    }
-                    .padding(.horizontal)
+                    ExpandableDescriptionView(description: testDescription)
                     
                     // Test Details
                     VStack(alignment: .leading, spacing: 16) {
@@ -1829,19 +1821,7 @@ struct TestIntroView: View {
                 
                 // About This Test
                 if let description = test.testDescription {
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("About This Test")
-                            .font(.headline)
-                        
-                        Text(description)
-                            .font(.body)
-                            .foregroundColor(.secondary)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding()
-                    .background(Color(.systemGray6))
-                    .cornerRadius(12)
-                    .padding(.horizontal)
+                    ExpandableDescriptionView(description: description)
                 }
                 
                 // Test Details
@@ -2090,19 +2070,7 @@ struct ProctorTestIntroView: View {
                 
                 // About This Test
                 if let description = test.testDescription {
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("About This Test")
-                            .font(.headline)
-                        
-                        Text(description)
-                            .font(.body)
-                            .foregroundColor(.secondary)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding()
-                    .background(Color(.systemGray6))
-                    .cornerRadius(12)
-                    .padding(.horizontal)
+                    ExpandableDescriptionView(description: description)
                 }
                 
                 // Test Details
@@ -2651,5 +2619,80 @@ struct GenericExamSchedulingView: View {
             errorMessage = "Please enter the location address for your in-person exam."
         }
         showError = true
+    }
+}
+
+// MARK: - Expandable Description View
+
+/// A view that shows a description with an expandable "Read More" button for long text
+struct ExpandableDescriptionView: View {
+    let title: String
+    let description: String
+    let lineLimit: Int
+    
+    @State private var isExpanded = false
+    @State private var isTruncated = false
+    
+    init(title: String = "About This Test", description: String, lineLimit: Int = 4) {
+        self.title = title
+        self.description = description
+        self.lineLimit = lineLimit
+    }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(title)
+                .font(.headline)
+            
+            VStack(alignment: .leading, spacing: 8) {
+                Text(description)
+                    .font(.body)
+                    .foregroundColor(.secondary)
+                    .lineLimit(isExpanded ? nil : lineLimit)
+                    .background(
+                        // Measure if text is truncated
+                        GeometryReader { geometry in
+                            Color.clear.onAppear {
+                                // Calculate if text would be truncated
+                                let font = UIFont.preferredFont(forTextStyle: .body)
+                                let textHeight = description.boundingRect(
+                                    with: CGSize(width: geometry.size.width, height: .infinity),
+                                    options: .usesLineFragmentOrigin,
+                                    attributes: [.font: font],
+                                    context: nil
+                                ).height
+                                
+                                let lineHeight = font.lineHeight
+                                let maxLines = CGFloat(lineLimit)
+                                let maxHeight = lineHeight * maxLines
+                                
+                                isTruncated = textHeight > maxHeight + 5 // Add small buffer
+                            }
+                        }
+                    )
+                
+                if isTruncated {
+                    Button(action: {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            isExpanded.toggle()
+                        }
+                    }) {
+                        HStack(spacing: 4) {
+                            Text(isExpanded ? "Show Less" : "Read More")
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                            Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                                .font(.caption)
+                        }
+                        .foregroundColor(.blue)
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding()
+        .background(Color(.systemGray6))
+        .cornerRadius(12)
+        .padding(.horizontal)
     }
 }
