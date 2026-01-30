@@ -7,6 +7,7 @@
 
 import SwiftUI
 import CoreLocation
+import Combine
 import Auth
 
 struct SafeFlyView: View {
