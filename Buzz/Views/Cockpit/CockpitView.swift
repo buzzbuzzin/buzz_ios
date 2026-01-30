@@ -137,10 +137,20 @@ struct CockpitView: View {
                                     )
                                 }
                                 .buttonStyle(PlainButtonStyle())
+
+                                // Safe Fly Card
+                                NavigationLink(destination: SafeFlyView().environmentObject(authService)) {
+                                    CockpitGridCard(
+                                        title: "Safe Fly",
+                                        icon: "checkmark.shield.fill",
+                                        color: .green
+                                    )
+                                }
+                                .buttonStyle(PlainButtonStyle())
                             }
                             .padding(.horizontal, 16)
                         }
-                        
+
                         // Operations Section
                         VStack(alignment: .leading, spacing: 12) {
                             Text("Operations")
