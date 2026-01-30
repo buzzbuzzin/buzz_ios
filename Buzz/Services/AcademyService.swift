@@ -555,7 +555,7 @@ class AcademyService: ObservableObject {
     }
     
     // MARK: - Check Multiple Unit Completions by Unit Number
-    
+
     /// Check if pilot has completed all specified units (by unit number)
     /// - Parameters:
     ///   - pilotId: The pilot's UUID
@@ -570,12 +570,12 @@ class AcademyService: ObservableObject {
                 .eq("pilot_id", value: pilotId.uuidString)
                 .eq("course_id", value: courseId.uuidString)
                 .execute()
-            
+
             let data = response.data
             guard let jsonArray = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
                 return []
             }
-            
+
             var completedNumbers: Set<Int> = []
             for item in jsonArray {
                 if let courseUnits = item["course_units"] as? [String: Any],
@@ -583,10 +583,47 @@ class AcademyService: ObservableObject {
                     completedNumbers.insert(unitNumber)
                 }
             }
-            
+
             return completedNumbers
         } catch {
             print("Error checking unit completions by number: \(error)")
+            return []
+        }
+    }
+
+    // MARK: - Check Multiple Unit Completions by Unit UUID
+
+    /// Check if pilot has completed all specified units (by unit UUID)
+    /// - Parameters:
+    ///   - pilotId: The pilot's UUID
+    ///   - courseId: The course UUID
+    ///   - unitIds: Array of unit UUIDs to check
+    /// - Returns: Set of completed unit UUIDs
+    func checkUnitCompletionsByUUID(pilotId: UUID, courseId: UUID, unitIds: [UUID]) async -> Set<UUID> {
+        do {
+            let response = try await supabase
+                .from("unit_completions")
+                .select("unit_id")
+                .eq("pilot_id", value: pilotId.uuidString)
+                .eq("course_id", value: courseId.uuidString)
+                .execute()
+
+            let data = response.data
+            guard let jsonArray = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+                return []
+            }
+
+            var completedUnitIds: Set<UUID> = []
+            for item in jsonArray {
+                if let unitIdString = item["unit_id"] as? String,
+                   let unitId = UUID(uuidString: unitIdString) {
+                    completedUnitIds.insert(unitId)
+                }
+            }
+
+            return completedUnitIds
+        } catch {
+            print("Error checking unit completions by UUID: \(error)")
             return []
         }
     }

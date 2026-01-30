@@ -283,14 +283,14 @@ struct UnitDetailView: View {
         
         // Get the required units from the test (fetched from backend)
         let requiredUnits = test.requiredUnits
-        
+
         if requiredUnits.isEmpty {
             // If no required units specified, this unit cannot trigger the test button
             isLastMandatoryUnit = false
         } else {
-            // Check if this unit number is the highest in the required units list
-            let maxRequiredUnit = requiredUnits.max() ?? 0
-            isLastMandatoryUnit = unit.unitNumber == maxRequiredUnit
+            // Check if this unit's UUID is in the required units list
+            let isRequiredUnit = requiredUnits.contains(unit.id)
+            isLastMandatoryUnit = isRequiredUnit
         }
         
         print("✅ [UnitDetailView] Is last mandatory unit: \(isLastMandatoryUnit) (unit \(unit.unitNumber), required: \(requiredUnits))")
@@ -358,9 +358,9 @@ struct UnitDetailView: View {
             let supabase = SupabaseClient.shared.client
             
             // Get the required units from the test (fetched from backend)
-            let requiredUnitNumbers = test.requiredUnits
+            let requiredUnitIds = test.requiredUnits
             
-            if requiredUnitNumbers.isEmpty {
+            if requiredUnitIds.isEmpty {
                 // If no required units specified, default to checking mandatory units (legacy behavior)
                 let allUnits = try await academyService.fetchCourseUnits(courseId: course.id)
                 let mandatoryUnits = allUnits.filter { $0.isMandatory }
@@ -383,15 +383,15 @@ struct UnitDetailView: View {
                 }
                 canTakeTest = allCompleted
             } else {
-                // Check if all required units (by unit number) are completed (fetched from backend)
-                let completedUnitNumbers = await academyService.checkUnitCompletionsByNumber(
+                // Check if all required units (by UUID) are completed (fetched from backend)
+                let completedUnitIds = await academyService.checkUnitCompletionsByUUID(
                     pilotId: currentUser.id,
                     courseId: course.id,
-                    unitNumbers: requiredUnitNumbers
+                    unitIds: requiredUnitIds
                 )
-                
+
                 // Check if all required units are in the completed set
-                canTakeTest = requiredUnitNumbers.allSatisfy { completedUnitNumbers.contains($0) }
+                canTakeTest = requiredUnitIds.allSatisfy { completedUnitIds.contains($0) }
             }
             
             print("✅ [UnitDetailView] Can take test: \(canTakeTest)")

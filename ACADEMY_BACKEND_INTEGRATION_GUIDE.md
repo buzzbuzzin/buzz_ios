@@ -615,7 +615,7 @@ interface CourseTest {
   passingScore: number;
   duration?: number; // minutes
   requiredForProgression: boolean;
-  requiredUnits: number[];
+  requiredUnits: string[]; // UUID array
   orderIndex: number;
   isActive: boolean;
   sectionId?: string;

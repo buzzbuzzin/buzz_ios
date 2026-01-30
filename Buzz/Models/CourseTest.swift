@@ -17,7 +17,7 @@ struct CourseTest: Identifiable, Codable {
     let passingScore: Int
     let duration: Int? // Duration in minutes
     let requiredForProgression: Bool
-    let requiredUnits: [Int]
+    let requiredUnits: [UUID]
     let orderIndex: Int
     let isActive: Bool
     let sectionId: UUID?
