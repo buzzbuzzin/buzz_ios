@@ -151,6 +151,49 @@ struct HourlyHumidityPercentage: Codable {
     let value: Int?
 }
 
+// MARK: - Day Group for Table Display
+
+struct SafeFlyDayGroup: Identifiable {
+    let id = UUID()
+    let date: Date
+    let sunrise: Date?
+    let sunset: Date?
+    let solarNoon: Date?
+    let hours: [SafeFlyHour]
+
+    var dateString: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEEE yyyy-MM-dd"
+        return formatter.string(from: date)
+    }
+
+    var shortDateString: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEE, MMM d"
+        return formatter.string(from: date)
+    }
+}
+
+// MARK: - Dewpoint Extension
+
+extension HourlyForecast {
+    /// Approximate dewpoint from temperature and humidity using Magnus formula
+    var dewpoint: Double? {
+        guard let humidity = humidity, humidity > 0 else { return nil }
+        // Convert Fahrenheit to Celsius
+        let tempC = (temperature - 32) * 5.0 / 9.0
+        let rh = Double(humidity)
+
+        let a = 17.27
+        let b = 237.7
+        let alpha = ((a * tempC) / (b + tempC)) + log(rh / 100.0)
+        let dewpointC = (b * alpha) / (a - alpha)
+
+        // Convert back to Fahrenheit
+        return dewpointC * 9.0 / 5.0 + 32
+    }
+}
+
 // MARK: - NWS Grid Point Response (for hourly forecast URL)
 
 struct SafeFlyGridPointResponse: Codable {

@@ -15,6 +15,7 @@ struct SafeFlyView: View {
     @StateObject private var safeFlyService = SafeFlyService()
     @StateObject private var locationManager = SafeFlyLocationManager()
     @State private var showSettings = false
+    @State private var showDetailedTable = true
 
     var body: some View {
         ScrollView {
@@ -29,9 +30,25 @@ struct SafeFlyView: View {
                     KPIndexCard(kpData: kpIndex)
                 }
 
-                // Hourly Forecast
+                // View Toggle
                 if !safeFlyService.hourlyForecasts.isEmpty {
-                    HourlyForecastSection(hours: safeFlyService.hourlyForecasts)
+                    Picker("View Mode", selection: $showDetailedTable) {
+                        Text("Table").tag(true)
+                        Text("Cards").tag(false)
+                    }
+                    .pickerStyle(.segmented)
+                }
+
+                // Hourly Forecast - Conditional View
+                if !safeFlyService.hourlyForecasts.isEmpty {
+                    if showDetailedTable {
+                        HourlyForecastTableView(
+                            dayGroups: safeFlyService.dayGroups,
+                            thresholds: safeFlyService.thresholds
+                        )
+                    } else {
+                        HourlyForecastSection(hours: safeFlyService.hourlyForecasts)
+                    }
                 } else if safeFlyService.isLoading {
                     LoadingSection()
                 } else if safeFlyService.errorMessage != nil {

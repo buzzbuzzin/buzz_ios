@@ -12,10 +12,13 @@ import Combine
 @MainActor
 class SafeFlyService: ObservableObject {
     @Published var hourlyForecasts: [SafeFlyHour] = []
+    @Published var dayGroups: [SafeFlyDayGroup] = []
     @Published var currentKPIndex: KPIndexData?
     @Published var isLoading = false
     @Published var errorMessage: String?
     @Published var thresholds: FlyingThresholds = .default
+
+    private var currentCoordinate: CLLocationCoordinate2D?
 
     private let baseURL = "https://api.weather.gov"
     private let noaaSpaceWeatherURL = "https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json"
@@ -58,6 +61,10 @@ class SafeFlyService: ObservableObject {
             // Combine and evaluate safety
             hourlyForecasts = evaluateSafety(hourly: hourlyData, kpIndex: kpData)
             currentKPIndex = kpData
+            currentCoordinate = coordinate
+
+            // Group hours by day with sunrise/sunset
+            dayGroups = groupHoursByDay(hourlyForecasts, coordinate: coordinate)
 
             lastFetchTime = Date()
             lastFetchCoordinate = coordinate
@@ -108,8 +115,8 @@ class SafeFlyService: ObservableObject {
 
         let forecast = try JSONDecoder().decode(HourlyForecastResponse.self, from: hourlyData)
 
-        // Parse to model (limit to 24 hours)
-        return parseHourlyForecast(Array(forecast.properties.periods.prefix(24)))
+        // Parse to model (extend to 48 hours for 2-day forecast)
+        return parseHourlyForecast(Array(forecast.properties.periods.prefix(48)))
     }
 
     // MARK: - Fetch KP Index from NOAA
@@ -237,6 +244,11 @@ class SafeFlyService: ObservableObject {
         if !hourlyForecasts.isEmpty {
             let forecasts = hourlyForecasts.map { $0.forecast }
             hourlyForecasts = evaluateSafety(hourly: forecasts, kpIndex: currentKPIndex)
+
+            // Re-group days with updated safety statuses
+            if let coordinate = currentCoordinate {
+                dayGroups = groupHoursByDay(hourlyForecasts, coordinate: coordinate)
+            }
         }
     }
 
@@ -256,6 +268,85 @@ class SafeFlyService: ObservableObject {
         lastFetchTime = nil
         lastFetchCoordinate = nil
         hourlyForecasts = []
+        dayGroups = []
+    }
+
+    // MARK: - Day Grouping
+
+    private func groupHoursByDay(_ hours: [SafeFlyHour], coordinate: CLLocationCoordinate2D) -> [SafeFlyDayGroup] {
+        let calendar = Calendar.current
+
+        // Group hours by day
+        let grouped = Dictionary(grouping: hours) { hour in
+            calendar.startOfDay(for: hour.time)
+        }
+
+        return grouped.sorted { $0.key < $1.key }.map { date, dayHours in
+            let sunTimes = calculateSunTimes(for: date, coordinate: coordinate)
+            return SafeFlyDayGroup(
+                date: date,
+                sunrise: sunTimes.sunrise,
+                sunset: sunTimes.sunset,
+                solarNoon: sunTimes.solarNoon,
+                hours: dayHours.sorted { $0.time < $1.time }
+            )
+        }
+    }
+
+    // MARK: - Sunrise/Sunset Calculation
+
+    /// Calculate sunrise, sunset, and solar noon for a given date and location
+    /// Uses simplified solar position algorithm
+    private func calculateSunTimes(for date: Date, coordinate: CLLocationCoordinate2D) -> (sunrise: Date?, sunset: Date?, solarNoon: Date?) {
+        let calendar = Calendar.current
+        let dayOfYear = calendar.ordinality(of: .day, in: .year, for: date) ?? 1
+        let lat = coordinate.latitude
+        let lon = coordinate.longitude
+
+        // Fractional year in radians
+        let gamma = 2 * Double.pi / 365 * (Double(dayOfYear) - 1 + 0.5)
+
+        // Equation of time (minutes)
+        let eqtime = 229.18 * (0.000075 + 0.001868 * cos(gamma) - 0.032077 * sin(gamma)
+                              - 0.014615 * cos(2 * gamma) - 0.040849 * sin(2 * gamma))
+
+        // Solar declination (radians)
+        let decl = 0.006918 - 0.399912 * cos(gamma) + 0.070257 * sin(gamma)
+                 - 0.006758 * cos(2 * gamma) + 0.000907 * sin(2 * gamma)
+                 - 0.002697 * cos(3 * gamma) + 0.00148 * sin(3 * gamma)
+
+        // Hour angle at sunrise/sunset
+        let latRad = lat * Double.pi / 180
+        let zenith = 90.833 * Double.pi / 180 // Official sunrise/sunset zenith
+
+        let cosHA = (cos(zenith) / (cos(latRad) * cos(decl))) - tan(latRad) * tan(decl)
+
+        // Check for polar day/night
+        guard cosHA >= -1 && cosHA <= 1 else {
+            return (nil, nil, nil)
+        }
+
+        let ha = acos(cosHA) * 180 / Double.pi // Hour angle in degrees
+
+        // Solar noon (minutes from midnight UTC)
+        let solarNoonMinutes = 720 - 4 * lon - eqtime
+
+        // Sunrise and sunset times (minutes from midnight UTC)
+        let sunriseMinutes = solarNoonMinutes - ha * 4
+        let sunsetMinutes = solarNoonMinutes + ha * 4
+
+        // Convert to local time
+        let startOfDay = calendar.startOfDay(for: date)
+
+        // Get timezone offset
+        let timezone = TimeZone.current
+        let offsetSeconds = timezone.secondsFromGMT(for: date)
+
+        let sunrise = startOfDay.addingTimeInterval(sunriseMinutes * 60 + Double(offsetSeconds))
+        let sunset = startOfDay.addingTimeInterval(sunsetMinutes * 60 + Double(offsetSeconds))
+        let solarNoon = startOfDay.addingTimeInterval(solarNoonMinutes * 60 + Double(offsetSeconds))
+
+        return (sunrise, sunset, solarNoon)
     }
 
     // MARK: - Parsing Helpers
