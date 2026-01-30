@@ -14,11 +14,13 @@ class SafeFlyService: ObservableObject {
     @Published var hourlyForecasts: [SafeFlyHour] = []
     @Published var dayGroups: [SafeFlyDayGroup] = []
     @Published var currentKPIndex: KPIndexData?
+    @Published var currentVisibility: Double?  // From nearest METAR (statute miles)
     @Published var isLoading = false
     @Published var errorMessage: String?
     @Published var thresholds: FlyingThresholds = .default
 
     private var currentCoordinate: CLLocationCoordinate2D?
+    private let metarService = METARService()
 
     private let baseURL = "https://api.weather.gov"
     private let noaaSpaceWeatherURL = "https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json"
@@ -52,14 +54,18 @@ class SafeFlyService: ObservableObject {
         errorMessage = nil
 
         do {
-            // Fetch in parallel
+            // Fetch in parallel: weather, KP index, and METAR for visibility
             async let hourlyResult = fetchHourlyForecast(coordinate: coordinate)
             async let kpResult = fetchKPIndex()
+            async let metarResult = fetchNearestMETAR(coordinate: coordinate)
 
-            let (hourlyData, kpData) = try await (hourlyResult, kpResult)
+            let (hourlyData, kpData, metarData) = try await (hourlyResult, kpResult, metarResult)
 
-            // Combine and evaluate safety
-            hourlyForecasts = evaluateSafety(hourly: hourlyData, kpIndex: kpData)
+            // Get visibility from nearest METAR
+            currentVisibility = metarData?.visibility
+
+            // Combine and evaluate safety (apply METAR visibility to forecasts)
+            hourlyForecasts = evaluateSafety(hourly: hourlyData, kpIndex: kpData, metarVisibility: currentVisibility)
             currentKPIndex = kpData
             currentCoordinate = coordinate
 
@@ -119,6 +125,20 @@ class SafeFlyService: ObservableObject {
         return parseHourlyForecast(Array(forecast.properties.periods.prefix(48)))
     }
 
+    // MARK: - Fetch Nearest METAR for Visibility
+
+    private func fetchNearestMETAR(coordinate: CLLocationCoordinate2D) async throws -> METAR? {
+        do {
+            let metars = try await metarService.fetchMETARsNearLocation(coordinate: coordinate)
+            // Return the closest METAR (already sorted by distance)
+            return metars.first
+        } catch {
+            // METAR is optional, don't fail the whole request
+            print("Could not fetch METAR: \(error.localizedDescription)")
+            return nil
+        }
+    }
+
     // MARK: - Fetch KP Index from NOAA
 
     private func fetchKPIndex() async throws -> KPIndexData? {
@@ -143,10 +163,13 @@ class SafeFlyService: ObservableObject {
 
     // MARK: - Safety Evaluation
 
-    private func evaluateSafety(hourly: [HourlyForecast], kpIndex: KPIndexData?) -> [SafeFlyHour] {
+    private func evaluateSafety(hourly: [HourlyForecast], kpIndex: KPIndexData?, metarVisibility: Double? = nil) -> [SafeFlyHour] {
         return hourly.map { forecast in
             var violations: [SafetyViolation] = []
             var severity: FlyingSafetyStatus = .good
+
+            // Use METAR visibility if available, otherwise use forecast visibility
+            let effectiveVisibility = metarVisibility ?? forecast.visibility
 
             // Wind speed check
             if forecast.windSpeed > thresholds.maxWindSpeed {
@@ -196,8 +219,8 @@ class SafeFlyService: ObservableObject {
                 ))
             }
 
-            // Visibility check (if available)
-            if let vis = forecast.visibility, vis < thresholds.minVisibility {
+            // Visibility check (using METAR visibility if available)
+            if let vis = effectiveVisibility, vis < thresholds.minVisibility {
                 violations.append(SafetyViolation(
                     parameter: "Visibility",
                     currentValue: String(format: "%.1f mi", vis),
@@ -227,7 +250,7 @@ class SafeFlyService: ObservableObject {
                 time: forecast.time,
                 forecast: forecast,
                 kpIndex: kpIndex?.kpValue,
-                visibility: forecast.visibility,
+                visibility: effectiveVisibility,  // Use METAR visibility if available
                 safetyStatus: severity,
                 violations: violations
             )
@@ -243,7 +266,7 @@ class SafeFlyService: ObservableObject {
         // Re-evaluate safety with new thresholds
         if !hourlyForecasts.isEmpty {
             let forecasts = hourlyForecasts.map { $0.forecast }
-            hourlyForecasts = evaluateSafety(hourly: forecasts, kpIndex: currentKPIndex)
+            hourlyForecasts = evaluateSafety(hourly: forecasts, kpIndex: currentKPIndex, metarVisibility: currentVisibility)
 
             // Re-group days with updated safety statuses
             if let coordinate = currentCoordinate {
@@ -362,13 +385,14 @@ class SafeFlyService: ObservableObject {
 
             // Parse wind speed (e.g., "10 mph" or "5 to 10 mph")
             var windSpeed: Double = 0
-            var windGust: Double? = nil
+            var windGust: Double = 0
             if let windString = period.windSpeed {
                 let components = windString.components(separatedBy: " ")
                 if let first = components.first, let speed = Double(first) {
                     windSpeed = speed
+                    windGust = speed // Default gust to same as wind speed
                 }
-                // Check for "to" pattern for range - use higher value as potential gust
+                // Check for "to" pattern for range - use higher value as gust
                 if windString.contains("to"), components.count >= 3 {
                     if let highSpeed = Double(components[2]) {
                         windGust = highSpeed
@@ -376,39 +400,79 @@ class SafeFlyService: ObservableObject {
                 }
             }
 
-            // Estimate cloud cover from forecast
+            // Estimate cloud cover from forecast text
             let cloudCover = estimateCloudCover(from: period.shortForecast)
 
             return HourlyForecast(
                 time: time,
                 temperature: Double(period.temperature ?? 0),
                 windSpeed: windSpeed,
-                windGust: windGust,
+                windGust: windGust > 0 ? windGust : nil,
                 windDirection: period.windDirection ?? "N",
                 windDirectionDegrees: nil,
                 precipitation: period.probabilityOfPrecipitation?.value ?? 0,
-                cloudCover: cloudCover,
+                cloudCover: cloudCover,  // Now always returns a value
                 humidity: period.relativeHumidity?.value,
                 shortForecast: period.shortForecast,
-                visibility: nil
+                visibility: nil  // Will be populated from METAR
             )
         }
     }
 
-    private func estimateCloudCover(from forecast: String) -> Int? {
+    private func estimateCloudCover(from forecast: String) -> Int {
         let lowercased = forecast.lowercased()
-        if lowercased.contains("clear") || lowercased.contains("sunny") {
+
+        // Check from most specific to least specific patterns
+        // Clear conditions (0-10%)
+        if lowercased.contains("sunny") && !lowercased.contains("partly") && !lowercased.contains("mostly") {
             return 0
-        } else if lowercased.contains("mostly clear") || lowercased.contains("mostly sunny") {
-            return 25
-        } else if lowercased.contains("partly cloudy") || lowercased.contains("partly sunny") {
-            return 50
-        } else if lowercased.contains("mostly cloudy") {
-            return 75
-        } else if lowercased.contains("cloudy") || lowercased.contains("overcast") {
-            return 100
         }
-        return nil
+        if lowercased.contains("clear") && !lowercased.contains("partly") && !lowercased.contains("mostly") {
+            return 0
+        }
+
+        // Mostly clear/sunny (10-25%)
+        if lowercased.contains("mostly clear") || lowercased.contains("mostly sunny") {
+            return 20
+        }
+
+        // Partly cloudy/sunny (25-50%)
+        if lowercased.contains("partly cloudy") || lowercased.contains("partly sunny") ||
+           lowercased.contains("a few clouds") || lowercased.contains("scattered clouds") {
+            return 40
+        }
+
+        // Mostly cloudy (50-75%)
+        if lowercased.contains("mostly cloudy") || lowercased.contains("considerable cloudiness") {
+            return 70
+        }
+
+        // Overcast/Cloudy (75-100%)
+        if lowercased.contains("overcast") || lowercased.contains("cloudy") {
+            return 90
+        }
+
+        // Weather conditions that imply high cloud cover
+        if lowercased.contains("rain") || lowercased.contains("shower") ||
+           lowercased.contains("storm") || lowercased.contains("thunder") ||
+           lowercased.contains("snow") || lowercased.contains("sleet") ||
+           lowercased.contains("drizzle") || lowercased.contains("freezing") {
+            return 85
+        }
+
+        // Fog/mist conditions
+        if lowercased.contains("fog") || lowercased.contains("mist") ||
+           lowercased.contains("haze") || lowercased.contains("smoke") {
+            return 80
+        }
+
+        // Patchy conditions
+        if lowercased.contains("patchy") {
+            return 50
+        }
+
+        // Default to partly cloudy if we can't determine
+        return 50
     }
 
     private func parseKPIndexResponse(_ data: Data) -> KPIndexData? {
