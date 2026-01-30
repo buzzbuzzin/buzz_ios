@@ -15,7 +15,7 @@ struct HourlyForecast: Identifiable {
     let time: Date
     let temperature: Double           // Fahrenheit
     let windSpeed: Double             // mph
-    let windGust: Double?             // mph
+    var windGust: Double?             // mph
     let windDirection: String         // Cardinal direction
     let windDirectionDegrees: Int?    // 0-360
     let precipitation: Int            // percentage probability
@@ -204,4 +204,22 @@ struct SafeFlyGridPointProperties: Codable {
     let forecast: String?
     let forecastHourly: String?
     let observationStations: String?
+}
+
+// MARK: - Open-Meteo Response
+
+struct OpenMeteoResponse: Codable {
+    let hourly: OpenMeteoHourlyData
+}
+
+struct OpenMeteoHourlyData: Codable {
+    let time: [String]
+    let windGusts10m: [Double?]
+    let visibility: [Double?]
+
+    enum CodingKeys: String, CodingKey {
+        case time
+        case windGusts10m = "wind_gusts_10m"
+        case visibility
+    }
 }

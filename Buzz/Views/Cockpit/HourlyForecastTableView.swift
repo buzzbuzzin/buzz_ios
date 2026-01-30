@@ -11,6 +11,7 @@ import SwiftUI
 
 enum ForecastTableColumn: String, CaseIterable {
     case time = "Time"
+    case status = "Fly?"
     case wind = "Wind"
     case gusts = "Gusts"
     case temp = "Temp"
@@ -19,20 +20,35 @@ enum ForecastTableColumn: String, CaseIterable {
     case cloudCover = "Cloud"
     case visibility = "Vis"
     case kpIndex = "Kp"
-    case status = "Fly?"
 
     var width: CGFloat {
         switch self {
         case .time: return 70
+        case .status: return 45
         case .wind: return 70
-        case .gusts: return 60
+        case .gusts: return 70
         case .temp: return 50
         case .humidity: return 55
         case .precip: return 50
         case .cloudCover: return 50
         case .visibility: return 55
         case .kpIndex: return 45
-        case .status: return 45
+        }
+    }
+    
+    /// Column header with units where applicable
+    var headerWithUnit: String {
+        switch self {
+        case .time: return "Time"
+        case .status: return "Fly?"
+        case .wind: return "Wind\n(mph)"
+        case .gusts: return "Gusts\n(mph)"
+        case .temp: return "Temp\n(°F)"
+        case .humidity: return "Hum\n(%)"
+        case .precip: return "Precip\n(%)"
+        case .cloudCover: return "Cloud\n(%)"
+        case .visibility: return "Vis\n(mi)"
+        case .kpIndex: return "Kp"
         }
     }
 }
@@ -79,10 +95,11 @@ struct ForecastTableHeaderRow: View {
     var body: some View {
         HStack(spacing: 0) {
             ForEach(ForecastTableColumn.allCases, id: \.self) { column in
-                Text(column.rawValue)
+                Text(column.headerWithUnit)
                     .font(.caption2)
                     .fontWeight(.semibold)
                     .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
                     .frame(width: column.width)
                     .padding(.vertical, 8)
             }
@@ -209,14 +226,16 @@ struct ForecastTableRow: View {
             }
             .frame(width: ForecastTableColumn.time.width)
 
+            // Status column (moved to second position)
+            SafetyStatusCell(status: hour.safetyStatus)
+                .frame(width: ForecastTableColumn.status.width)
+
             // Wind column
             WindCell(speed: hour.forecast.windSpeed, direction: hour.forecast.windDirection)
                 .frame(width: ForecastTableColumn.wind.width)
 
-            // Gusts column
-            Text(hour.forecast.windGust.map { "\(Int($0))" } ?? "-")
-                .font(.caption)
-                .monospacedDigit()
+            // Gusts column with arrow indicator
+            GustCell(gust: hour.forecast.windGust, direction: hour.forecast.windDirection)
                 .frame(width: ForecastTableColumn.gusts.width)
 
             // Temperature column
@@ -226,20 +245,20 @@ struct ForecastTableRow: View {
                 .frame(width: ForecastTableColumn.temp.width)
 
             // Humidity column
-            Text(hour.forecast.humidity.map { "\($0)%" } ?? "-")
+            Text(hour.forecast.humidity.map { "\($0)" } ?? "-")
                 .font(.caption)
                 .monospacedDigit()
                 .frame(width: ForecastTableColumn.humidity.width)
 
             // Precipitation column
-            Text(hour.forecast.precipitation > 0 ? "\(hour.forecast.precipitation)%" : "-")
+            Text(hour.forecast.precipitation > 0 ? "\(hour.forecast.precipitation)" : "-")
                 .font(.caption)
                 .monospacedDigit()
                 .foregroundColor(hour.forecast.precipitation > 20 ? .blue : .primary)
                 .frame(width: ForecastTableColumn.precip.width)
 
             // Cloud Cover column
-            Text(hour.forecast.cloudCover.map { "\($0)%" } ?? "-")
+            Text(hour.forecast.cloudCover.map { "\($0)" } ?? "-")
                 .font(.caption)
                 .monospacedDigit()
                 .frame(width: ForecastTableColumn.cloudCover.width)
@@ -255,10 +274,6 @@ struct ForecastTableRow: View {
                 .font(.caption)
                 .monospacedDigit()
                 .frame(width: ForecastTableColumn.kpIndex.width)
-
-            // Status column
-            SafetyStatusCell(status: hour.safetyStatus)
-                .frame(width: ForecastTableColumn.status.width)
         }
         .padding(.vertical, 8)
         .background(rowBackgroundColor)
@@ -272,23 +287,7 @@ struct WindCell: View {
     let direction: String
 
     private var directionArrow: String {
-        // Wind direction indicates where wind is coming FROM
-        // Arrow should point in the direction wind is blowing TO
-        switch direction.uppercased() {
-        case "N": return "arrow.down"
-        case "S": return "arrow.up"
-        case "E": return "arrow.left"
-        case "W": return "arrow.right"
-        case "NE": return "arrow.down.left"
-        case "NW": return "arrow.down.right"
-        case "SE": return "arrow.up.left"
-        case "SW": return "arrow.up.right"
-        case "NNE", "ENE": return "arrow.down.left"
-        case "NNW", "WNW": return "arrow.down.right"
-        case "SSE", "ESE": return "arrow.up.left"
-        case "SSW", "WSW": return "arrow.up.right"
-        default: return "arrow.down"
-        }
+        getDirectionArrow(for: direction)
     }
 
     var body: some View {
@@ -300,6 +299,57 @@ struct WindCell: View {
                 .font(.system(size: 9))
                 .foregroundColor(.secondary)
         }
+    }
+}
+
+// MARK: - Gust Cell
+
+struct GustCell: View {
+    let gust: Double?
+    let direction: String
+
+    private var directionArrow: String {
+        getDirectionArrow(for: direction)
+    }
+
+    var body: some View {
+        if let gustValue = gust {
+            HStack(spacing: 2) {
+                Text("\(Int(gustValue))")
+                    .font(.caption)
+                    .monospacedDigit()
+                Image(systemName: directionArrow)
+                    .font(.system(size: 9))
+                    .foregroundColor(.secondary)
+            }
+        } else {
+            Text("-")
+                .font(.caption)
+                .monospacedDigit()
+        }
+    }
+}
+
+// MARK: - Direction Arrow Helper
+
+/// Get SF Symbol arrow name for wind direction
+/// Wind direction indicates where wind is coming FROM
+/// Arrow should point in the direction wind is blowing TO
+private func getDirectionArrow(for direction: String) -> String {
+    switch direction.uppercased() {
+    case "N": return "arrow.down"
+    case "S": return "arrow.up"
+    case "E": return "arrow.left"
+    case "W": return "arrow.right"
+    case "NE": return "arrow.down.left"
+    case "NW": return "arrow.down.right"
+    case "SE": return "arrow.up.left"
+    case "SW": return "arrow.up.right"
+    case "NNE", "ENE": return "arrow.down.left"
+    case "NNW", "WNW": return "arrow.down.right"
+    case "SSE", "ESE": return "arrow.up.left"
+    case "SSW", "WSW": return "arrow.up.right"
+    default: return "arrow.down"
     }
 }
 
