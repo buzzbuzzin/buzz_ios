@@ -422,7 +422,8 @@ struct FlightPlanFormView: View {
         }
         .sheet(isPresented: $showShareSheet) {
             if let pdfData = generatedPDFData {
-                ShareSheet(items: [pdfData])
+                let pdfItem = PDFShareItem(data: pdfData, pilotName: pilotName, takeoffDateTime: takeoffDateTime)
+                ShareSheet(items: [pdfItem])
             }
         }
         .task {
@@ -681,6 +682,51 @@ class AddressSearchDebouncer: ObservableObject {
 
         workItem = newWorkItem
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: newWorkItem)
+    }
+}
+
+// MARK: - PDF Share Item
+
+class PDFShareItem: NSObject, UIActivityItemSource {
+    let pdfData: Data
+    let filename: String
+
+    init(data: Data, pilotName: String, takeoffDateTime: Date) {
+        self.pdfData = data
+
+        // Format pilot name: replace spaces with underscores
+        let formattedPilotName = pilotName.replacingOccurrences(of: " ", with: "_")
+
+        // Format date: MMDDYY
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "MMddyy"
+        let dateString = dateFormatter.string(from: takeoffDateTime)
+
+        // Format time: HHMMSS
+        dateFormatter.dateFormat = "HHmmss"
+        let timeString = dateFormatter.string(from: takeoffDateTime)
+
+        self.filename = "flight_plan_\(formattedPilotName)_\(dateString)_\(timeString).pdf"
+    }
+
+    func activityViewControllerPlaceholderItem(_ activityViewController: UIActivityViewController) -> Any {
+        return pdfData
+    }
+
+    func activityViewController(_ activityViewController: UIActivityViewController, itemForActivityType activityType: UIActivity.ActivityType?) -> Any? {
+        return pdfData
+    }
+
+    func activityViewController(_ activityViewController: UIActivityViewController, subjectForActivityType activityType: UIActivity.ActivityType?) -> String {
+        return "Flight Plan & Site Survey"
+    }
+
+    func activityViewController(_ activityViewController: UIActivityViewController, dataTypeIdentifierForActivityType activityType: UIActivity.ActivityType?) -> String {
+        return "com.adobe.pdf"
+    }
+
+    func activityViewController(_ activityViewController: UIActivityViewController, filenameForActivityType activityType: UIActivity.ActivityType?) -> String {
+        return filename
     }
 }
 
