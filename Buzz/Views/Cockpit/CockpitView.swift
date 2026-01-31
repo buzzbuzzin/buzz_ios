@@ -54,16 +54,16 @@ struct CockpitView: View {
                                 .padding(.horizontal, 16)
                             
                             LazyVGrid(columns: columns, spacing: 12) {
-                                // Weather Card
-                                NavigationLink(destination: WeatherView().environmentObject(authService)) {
+                                // Fly Safe Card (first position)
+                                NavigationLink(destination: SafeFlyView().environmentObject(authService)) {
                                     CockpitGridCard(
-                                        title: "Weather",
-                                        icon: "cloud.sun.fill",
-                                        color: .cyan
+                                        title: "Fly Safe",
+                                        icon: "checkmark.shield.fill",
+                                        color: .green
                                     )
                                 }
                                 .buttonStyle(PlainButtonStyle())
-                                
+
                                 // METAR Card
                                 NavigationLink(destination: METARView().environmentObject(authService)) {
                                     CockpitGridCard(
@@ -73,7 +73,7 @@ struct CockpitView: View {
                                     )
                                 }
                                 .buttonStyle(PlainButtonStyle())
-                                
+
                                 // NOTAMs Card
                                 NavigationLink(destination: NOTAMView()) {
                                     CockpitGridCard(
@@ -83,7 +83,7 @@ struct CockpitView: View {
                                     )
                                 }
                                 .buttonStyle(PlainButtonStyle())
-                                
+
                                 // Charts Card - Using fullScreenCover for stable presentation
                                 Button {
                                     showCharts = true
@@ -91,11 +91,11 @@ struct CockpitView: View {
                                     CockpitGridCard(
                                         title: "Charts",
                                         icon: "map.fill",
-                                        color: .green
+                                        color: .purple
                                     )
                                 }
                                 .buttonStyle(PlainButtonStyle())
-                                
+
                                 // ATIS Card - temporarily hidden (work in progress)
                                 // NavigationLink(destination: ATISView().environmentObject(authService)) {
                                 //     CockpitGridCard(
@@ -117,7 +117,7 @@ struct CockpitView: View {
                                     )
                                 }
                                 .buttonStyle(PlainButtonStyle())
-                                
+
                                 // Remote ID Card
                                 NavigationLink(destination: TransponderView().environmentObject(authService)) {
                                     CockpitGridCard(
@@ -127,7 +127,7 @@ struct CockpitView: View {
                                     )
                                 }
                                 .buttonStyle(PlainButtonStyle())
-                                
+
                                 // Flight Radar Card
                                 NavigationLink(destination: FlightRadarView().environmentObject(authService)) {
                                     CockpitGridCard(
@@ -138,12 +138,12 @@ struct CockpitView: View {
                                 }
                                 .buttonStyle(PlainButtonStyle())
 
-                                // Safe Fly Card
-                                NavigationLink(destination: SafeFlyView().environmentObject(authService)) {
+                                // Weather Card (last position)
+                                NavigationLink(destination: WeatherView().environmentObject(authService)) {
                                     CockpitGridCard(
-                                        title: "Safe Fly",
-                                        icon: "checkmark.shield.fill",
-                                        color: .green
+                                        title: "Weather",
+                                        icon: "cloud.sun.fill",
+                                        color: .cyan
                                     )
                                 }
                                 .buttonStyle(PlainButtonStyle())

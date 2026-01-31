@@ -68,7 +68,7 @@ struct SafeFlyView: View {
             }
             .padding()
         }
-        .navigationTitle("Safe Fly")
+        .navigationTitle("Fly Safe")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
