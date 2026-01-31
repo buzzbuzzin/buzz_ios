@@ -15,27 +15,30 @@ enum ForecastTableColumn: String, CaseIterable {
     case wind = "Wind"
     case gusts = "Gusts"
     case temp = "Temp"
-    case humidity = "Humidity"
     case precip = "Precip"
-    case cloudCover = "Cloud"
     case visibility = "Vis"
     case kpIndex = "Kp"
 
-    var width: CGFloat {
+    /// Relative weight for proportional column sizing
+    var weight: CGFloat {
         switch self {
-        case .time: return 70
-        case .status: return 45
-        case .wind: return 70
-        case .gusts: return 70
-        case .temp: return 50
-        case .humidity: return 55
-        case .precip: return 50
-        case .cloudCover: return 50
-        case .visibility: return 55
-        case .kpIndex: return 45
+        case .time: return 1.4      // Needs space for time + icon
+        case .status: return 0.9    // Yes/No
+        case .wind: return 1.1      // Number + arrow
+        case .gusts: return 1.1     // Number + arrow
+        case .temp: return 0.9      // Temperature
+        case .precip: return 0.9    // Percentage
+        case .visibility: return 0.9 // Miles
+        case .kpIndex: return 0.8   // KP value
         }
     }
-    
+
+    /// Calculate actual width based on available space
+    func width(for totalWidth: CGFloat) -> CGFloat {
+        let totalWeight = ForecastTableColumn.allCases.reduce(0) { $0 + $1.weight }
+        return (totalWidth / totalWeight) * weight
+    }
+
     /// Column header with units where applicable
     var headerWithUnit: String {
         switch self {
@@ -44,9 +47,7 @@ enum ForecastTableColumn: String, CaseIterable {
         case .wind: return "Wind\n(mph)"
         case .gusts: return "Gusts\n(mph)"
         case .temp: return "Temp\n(°F)"
-        case .humidity: return "Hum\n(%)"
         case .precip: return "Precip\n(%)"
-        case .cloudCover: return "Cloud\n(%)"
         case .visibility: return "Vis\n(mi)"
         case .kpIndex: return "Kp"
         }
@@ -58,19 +59,15 @@ enum ForecastTableColumn: String, CaseIterable {
 struct HourlyForecastTableView: View {
     let dayGroups: [SafeFlyDayGroup]
     let thresholds: FlyingThresholds
-    
-    @State private var showLegend = false
 
-    private var totalTableWidth: CGFloat {
-        ForecastTableColumn.allCases.reduce(0) { $0 + $1.width }
-    }
+    @State private var showLegend = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Text("Detailed Forecast")
                     .font(.headline)
-                
+
                 Button {
                     showLegend = true
                 } label: {
@@ -81,34 +78,55 @@ struct HourlyForecastTableView: View {
                 .sheet(isPresented: $showLegend) {
                     ThresholdLegendView(thresholds: thresholds)
                 }
-                
+
                 Spacer()
             }
             .padding(.horizontal)
 
-            ScrollView(.horizontal, showsIndicators: true) {
+            // Table content without internal scroll - uses page scroll
+            GeometryReader { geometry in
+                let tableWidth = geometry.size.width
                 VStack(alignment: .leading, spacing: 0) {
                     // Table Header
-                    ForecastTableHeaderRow()
+                    ForecastTableHeaderRow(tableWidth: tableWidth)
 
                     // Day sections with hours
                     ForEach(dayGroups) { dayGroup in
-                        DaySectionView(dayGroup: dayGroup, thresholds: thresholds)
+                        DaySectionView(dayGroup: dayGroup, thresholds: thresholds, tableWidth: tableWidth)
                     }
                 }
-                .frame(minWidth: totalTableWidth)
             }
+            // Calculate height based on content
+            .frame(height: calculateTableHeight())
         }
         .padding(.vertical)
         .background(Color(.systemBackground))
         .cornerRadius(16)
         .shadow(color: Color.black.opacity(0.06), radius: 8, x: 0, y: 2)
     }
+
+    /// Calculate the total height needed for the table content
+    private func calculateTableHeight() -> CGFloat {
+        let headerHeight: CGFloat = 44 // Header row height
+        let daySectionHeaderHeight: CGFloat = 40 // Day header height
+        let rowHeight: CGFloat = 40 // Each hour row height (32 + 8 padding)
+
+        var totalHeight = headerHeight
+
+        for dayGroup in dayGroups {
+            totalHeight += daySectionHeaderHeight
+            totalHeight += CGFloat(dayGroup.hours.count) * rowHeight
+        }
+
+        return max(totalHeight, 300) // Minimum height
+    }
 }
 
 // MARK: - Table Header Row
 
 struct ForecastTableHeaderRow: View {
+    let tableWidth: CGFloat
+
     var body: some View {
         HStack(spacing: 0) {
             ForEach(ForecastTableColumn.allCases, id: \.self) { column in
@@ -117,7 +135,7 @@ struct ForecastTableHeaderRow: View {
                     .fontWeight(.semibold)
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
-                    .frame(width: column.width)
+                    .frame(width: column.width(for: tableWidth))
                     .padding(.vertical, 8)
             }
         }
@@ -130,6 +148,7 @@ struct ForecastTableHeaderRow: View {
 struct DaySectionView: View {
     let dayGroup: SafeFlyDayGroup
     let thresholds: FlyingThresholds
+    let tableWidth: CGFloat
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -138,7 +157,14 @@ struct DaySectionView: View {
 
             // Hourly rows
             ForEach(Array(dayGroup.hours.enumerated()), id: \.element.id) { index, hour in
-                ForecastTableRow(hour: hour, thresholds: thresholds, isAlternate: index % 2 == 1)
+                ForecastTableRow(
+                    hour: hour,
+                    thresholds: thresholds,
+                    isAlternate: index % 2 == 1,
+                    tableWidth: tableWidth,
+                    sunrise: dayGroup.sunrise,
+                    sunset: dayGroup.sunset
+                )
 
                 if index < dayGroup.hours.count - 1 {
                     Divider()
@@ -229,6 +255,9 @@ struct ForecastTableRow: View {
     let hour: SafeFlyHour
     let thresholds: FlyingThresholds
     let isAlternate: Bool
+    let tableWidth: CGFloat
+    let sunrise: Date?
+    let sunset: Date?
 
     private var timeString: String {
         let formatter = DateFormatter()
@@ -236,7 +265,13 @@ struct ForecastTableRow: View {
         return formatter.string(from: hour.time)
     }
 
+    /// Determines if the hour is during daytime based on actual sunrise/sunset times
     private var isDaytime: Bool {
+        // Use actual sunrise/sunset if available
+        if let sunrise = sunrise, let sunset = sunset {
+            return hour.time >= sunrise && hour.time < sunset
+        }
+        // Fallback to default 6:00-20:00 if sun times unavailable
         let hourComponent = Calendar.current.component(.hour, from: hour.time)
         return hourComponent >= 6 && hourComponent < 20
     }
@@ -324,61 +359,48 @@ struct ForecastTableRow: View {
                     .font(.system(size: 8))
                     .foregroundColor(isDaytime ? .orange : .indigo)
             }
-            .frame(width: ForecastTableColumn.time.width, height: 32)
+            .frame(width: ForecastTableColumn.time.width(for: tableWidth), height: 32)
 
             // Status column - Yes if all within threshold, No if any exceeded
             SafetyStatusCell(isSafeToFly: isSafeToFly)
-                .frame(width: ForecastTableColumn.status.width, height: 32)
+                .frame(width: ForecastTableColumn.status.width(for: tableWidth), height: 32)
 
             // Wind column with threshold background
             WindCell(speed: hour.forecast.windSpeed, direction: hour.forecast.windDirection)
-                .frame(width: ForecastTableColumn.wind.width, height: 32)
+                .frame(width: ForecastTableColumn.wind.width(for: tableWidth), height: 32)
                 .background(windStatus.backgroundColor)
 
             // Gusts column with threshold background
             GustCell(gust: hour.forecast.windGust, direction: hour.forecast.windDirection)
-                .frame(width: ForecastTableColumn.gusts.width, height: 32)
+                .frame(width: ForecastTableColumn.gusts.width(for: tableWidth), height: 32)
                 .background(gustStatus.backgroundColor)
 
             // Temperature column with threshold background
             Text("\(Int(hour.forecast.temperature))°")
                 .font(.caption)
                 .monospacedDigit()
-                .frame(width: ForecastTableColumn.temp.width, height: 32)
+                .frame(width: ForecastTableColumn.temp.width(for: tableWidth), height: 32)
                 .background(tempStatus.backgroundColor)
-
-            // Humidity column (no threshold in settings, so neutral)
-            Text(hour.forecast.humidity.map { "\($0)" } ?? "-")
-                .font(.caption)
-                .monospacedDigit()
-                .frame(width: ForecastTableColumn.humidity.width, height: 32)
 
             // Precipitation column with threshold background
             Text(hour.forecast.precipitation > 0 ? "\(hour.forecast.precipitation)" : "-")
                 .font(.caption)
                 .monospacedDigit()
-                .frame(width: ForecastTableColumn.precip.width, height: 32)
+                .frame(width: ForecastTableColumn.precip.width(for: tableWidth), height: 32)
                 .background(precipStatus.backgroundColor)
-
-            // Cloud Cover column with threshold background
-            Text(hour.forecast.cloudCover.map { "\($0)" } ?? "-")
-                .font(.caption)
-                .monospacedDigit()
-                .frame(width: ForecastTableColumn.cloudCover.width, height: 32)
-                .background(cloudStatus.backgroundColor)
 
             // Visibility column with threshold background
             Text(hour.visibility.map { String(format: "%.0f", $0) } ?? "-")
                 .font(.caption)
                 .monospacedDigit()
-                .frame(width: ForecastTableColumn.visibility.width, height: 32)
+                .frame(width: ForecastTableColumn.visibility.width(for: tableWidth), height: 32)
                 .background(visibilityStatus.backgroundColor)
 
             // KP Index column with threshold background
             Text(hour.kpIndex.map { String(format: "%.1f", $0) } ?? "-")
                 .font(.caption)
                 .monospacedDigit()
-                .frame(width: ForecastTableColumn.kpIndex.width, height: 32)
+                .frame(width: ForecastTableColumn.kpIndex.width(for: tableWidth), height: 32)
                 .background(kpStatus.backgroundColor)
         }
         .padding(.vertical, 4)
@@ -553,13 +575,7 @@ struct ThresholdLegendView: View {
                             threshold: "\(thresholds.maxPrecipitation)% max",
                             cautionRange: ">\(Int(Double(thresholds.maxPrecipitation) * 0.8))%"
                         )
-                        
-                        ThresholdDetailRow(
-                            column: "Cloud",
-                            threshold: "\(thresholds.maxCloudCover)% max",
-                            cautionRange: ">\(Int(Double(thresholds.maxCloudCover) * 0.8))%"
-                        )
-                        
+
                         ThresholdDetailRow(
                             column: "Visibility",
                             threshold: "\(String(format: "%.1f", thresholds.minVisibility)) mi min",

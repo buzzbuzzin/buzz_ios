@@ -25,7 +25,9 @@ struct SafeFlyView: View {
                     CurrentStatusCard(
                         hour: firstHour,
                         locationString: safeFlyService.currentLocationString,
-                        thresholds: safeFlyService.thresholds
+                        thresholds: safeFlyService.thresholds,
+                        sunrise: safeFlyService.dayGroups.first?.sunrise,
+                        sunset: safeFlyService.dayGroups.first?.sunset
                     )
                 }
 
@@ -203,215 +205,463 @@ struct CurrentStatusCard: View {
     let hour: SafeFlyHour
     let locationString: String?
     let thresholds: FlyingThresholds
+    let sunrise: Date?
+    let sunset: Date?
 
-    // MARK: - Threshold Status Calculations (same logic as table)
-    
-    private var windExceeded: Bool {
-        hour.forecast.windSpeed > thresholds.maxWindSpeed
+    // MARK: - Threshold Status Calculations
+
+    private var windStatus: WeatherBoxStatus {
+        let value = hour.forecast.windSpeed
+        let max = thresholds.maxWindSpeed
+        if value > max { return .exceeded }
+        if value > max * 0.8 { return .caution }
+        return .safe
     }
-    
-    private var gustExceeded: Bool {
-        guard let gust = hour.forecast.windGust else { return false }
-        return gust > thresholds.maxWindGust
+
+    private var gustStatus: WeatherBoxStatus {
+        guard let gust = hour.forecast.windGust else { return .safe }
+        let max = thresholds.maxWindGust
+        if gust > max { return .exceeded }
+        if gust > max * 0.8 { return .caution }
+        return .safe
     }
-    
-    private var tempExceeded: Bool {
-        hour.forecast.temperature < thresholds.minTemperature || hour.forecast.temperature > thresholds.maxTemperature
+
+    private var tempStatus: WeatherBoxStatus {
+        let temp = hour.forecast.temperature
+        let min = thresholds.minTemperature
+        let max = thresholds.maxTemperature
+        if temp < min || temp > max { return .exceeded }
+        if temp < min + 5 || temp > max - 5 { return .caution }
+        return .safe
     }
-    
-    private var precipExceeded: Bool {
-        hour.forecast.precipitation > thresholds.maxPrecipitation
+
+    private var precipStatus: WeatherBoxStatus {
+        let value = hour.forecast.precipitation
+        let max = thresholds.maxPrecipitation
+        if value > max { return .exceeded }
+        if value > Int(Double(max) * 0.8) { return .caution }
+        return .safe
     }
-    
-    private var visibilityExceeded: Bool {
-        guard let vis = hour.visibility else { return false }
-        return vis < thresholds.minVisibility
+
+    private var visibilityStatus: WeatherBoxStatus {
+        guard let vis = hour.visibility else { return .safe }
+        let min = thresholds.minVisibility
+        if vis < min { return .exceeded }
+        if vis < min * 1.5 { return .caution }
+        return .safe
     }
-    
-    private var kpExceeded: Bool {
-        guard let kp = hour.kpIndex else { return false }
-        return kp > thresholds.maxKPIndex
+
+    private var kpStatus: WeatherBoxStatus {
+        guard let kp = hour.kpIndex else { return .safe }
+        let max = thresholds.maxKPIndex
+        if kp > max { return .exceeded }
+        if kp > max * 0.8 { return .caution }
+        return .safe
     }
-    
-    private var cloudExceeded: Bool {
-        guard let cloud = hour.forecast.cloudCover else { return false }
-        return cloud > thresholds.maxCloudCover
-    }
-    
-    /// Returns true if ALL thresholds are within safe limits
+
+    /// Returns true if ALL thresholds are within safe limits (no exceeded status)
     private var isSafeToFly: Bool {
-        !windExceeded && !gustExceeded && !tempExceeded && !precipExceeded && !visibilityExceeded && !kpExceeded && !cloudExceeded
+        let statuses = [windStatus, gustStatus, tempStatus, precipStatus, visibilityStatus, kpStatus]
+        return !statuses.contains(.exceeded)
+    }
+
+    /// Returns a list of exceeded thresholds with parameter name, current value, and limit
+    private var exceededThresholds: [(parameter: String, current: String, limit: String)] {
+        var exceeded: [(String, String, String)] = []
+
+        if tempStatus == .exceeded {
+            exceeded.append(("Temperature", "\(Int(hour.forecast.temperature))°F", "\(Int(thresholds.minTemperature))°F - \(Int(thresholds.maxTemperature))°F"))
+        }
+        if windStatus == .exceeded {
+            exceeded.append(("Wind Speed", "\(Int(hour.forecast.windSpeed)) mph", "\(Int(thresholds.maxWindSpeed)) mph"))
+        }
+        if gustStatus == .exceeded, let gust = hour.forecast.windGust {
+            exceeded.append(("Wind Gusts", "\(Int(gust)) mph", "\(Int(thresholds.maxWindGust)) mph"))
+        }
+        if precipStatus == .exceeded {
+            exceeded.append(("Precipitation", "\(hour.forecast.precipitation)%", "\(thresholds.maxPrecipitation)%"))
+        }
+        if visibilityStatus == .exceeded, let vis = hour.visibility {
+            exceeded.append(("Visibility", String(format: "%.1f mi", vis), String(format: "%.1f mi", thresholds.minVisibility)))
+        }
+        if kpStatus == .exceeded, let kp = hour.kpIndex {
+            exceeded.append(("KP Index", String(format: "%.1f", kp), String(format: "%.1f", thresholds.maxKPIndex)))
+        }
+
+        return exceeded
+    }
+
+    /// Format time for display
+    private func timeString(_ date: Date?) -> String {
+        guard let date = date else { return "--:--" }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+        return formatter.string(from: date)
     }
 
     var body: some View {
-        VStack(spacing: 16) {
-            // Status indicator with Fly? prominently displayed
+        VStack(spacing: 0) {
+            // Top status banner
             HStack {
-                // Large Fly? status
-                VStack(spacing: 4) {
+                VStack(alignment: .leading, spacing: 2) {
                     Text("Fly?")
                         .font(.caption)
-                        .foregroundColor(.secondary)
-                    Text(isSafeToFly ? "Yes" : "No")
-                        .font(.system(size: 36, weight: .bold))
-                        .foregroundColor(isSafeToFly ? .green : .red)
-                }
-                .frame(width: 70)
-
-                VStack(alignment: .leading, spacing: 4) {
+                        .foregroundColor(.white.opacity(0.8))
                     Text(locationString.map { "Current Conditions (\($0))" } ?? "Current Conditions")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                    Text(isSafeToFly ? "Good to Fly" : "Not Recommended")
-                        .font(.title3)
-                        .fontWeight(.semibold)
-                        .foregroundColor(isSafeToFly ? .green : .red)
+                        .font(.caption)
+                        .foregroundColor(.white.opacity(0.8))
                 }
+
                 Spacer()
-                
-                Image(systemName: isSafeToFly ? "checkmark.circle.fill" : "xmark.circle.fill")
-                    .font(.system(size: 40))
-                    .foregroundColor(isSafeToFly ? .green : .red)
-            }
 
-            // Quick stats row
-            HStack(spacing: 16) {
-                QuickStatView(
-                    icon: "thermometer",
-                    value: "\(Int(hour.forecast.temperature))°F",
-                    label: "Temp"
-                )
-                QuickStatView(
-                    icon: "wind",
-                    value: "\(Int(hour.forecast.windSpeed)) mph",
-                    label: "Wind"
-                )
-                if let gust = hour.forecast.windGust {
-                    QuickStatView(
-                        icon: "wind",
-                        value: "\(Int(gust)) mph",
-                        label: "Gusts"
-                    )
+                // Large Yes/No with status text
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text(isSafeToFly ? "Yes" : "No")
+                        .font(.system(size: 32, weight: .bold))
+                        .foregroundColor(.white)
+                    Text(isSafeToFly ? "Good to Fly" : "Not Recommended")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .foregroundColor(.white.opacity(0.9))
                 }
-                QuickStatView(
-                    icon: "drop.fill",
-                    value: "\(hour.forecast.precipitation)%",
-                    label: "Precip"
-                )
-            }
 
-            // Show which thresholds are exceeded (if any)
-            if !isSafeToFly {
-                Divider()
+                Image(systemName: isSafeToFly ? "checkmark.circle.fill" : "xmark.circle.fill")
+                    .font(.system(size: 36))
+                    .foregroundColor(.white)
+                    .padding(.leading, 8)
+            }
+            .padding()
+            .background(isSafeToFly ? Color.green.opacity(0.85) : Color.red.opacity(0.85))
+
+            // Thresholds exceeded section (if any)
+            if !exceededThresholds.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Thresholds Exceeded")
                         .font(.caption)
                         .fontWeight(.semibold)
                         .foregroundColor(.secondary)
-                    
-                    if windExceeded {
-                        ThresholdExceededRow(
-                            parameter: "Wind Speed",
-                            currentValue: "\(Int(hour.forecast.windSpeed)) mph",
-                            threshold: "\(Int(thresholds.maxWindSpeed)) mph"
-                        )
-                    }
-                    if gustExceeded, let gust = hour.forecast.windGust {
-                        ThresholdExceededRow(
-                            parameter: "Wind Gusts",
-                            currentValue: "\(Int(gust)) mph",
-                            threshold: "\(Int(thresholds.maxWindGust)) mph"
-                        )
-                    }
-                    if tempExceeded {
-                        ThresholdExceededRow(
-                            parameter: "Temperature",
-                            currentValue: "\(Int(hour.forecast.temperature))°F",
-                            threshold: "\(Int(thresholds.minTemperature))°F - \(Int(thresholds.maxTemperature))°F"
-                        )
-                    }
-                    if precipExceeded {
-                        ThresholdExceededRow(
-                            parameter: "Precipitation",
-                            currentValue: "\(hour.forecast.precipitation)%",
-                            threshold: "\(thresholds.maxPrecipitation)%"
-                        )
-                    }
-                    if visibilityExceeded, let vis = hour.visibility {
-                        ThresholdExceededRow(
-                            parameter: "Visibility",
-                            currentValue: String(format: "%.1f mi", vis),
-                            threshold: String(format: "%.1f mi", thresholds.minVisibility)
-                        )
-                    }
-                    if kpExceeded, let kp = hour.kpIndex {
-                        ThresholdExceededRow(
-                            parameter: "KP Index",
-                            currentValue: String(format: "%.1f", kp),
-                            threshold: String(format: "%.1f", thresholds.maxKPIndex)
-                        )
-                    }
-                    if cloudExceeded, let cloud = hour.forecast.cloudCover {
-                        ThresholdExceededRow(
-                            parameter: "Cloud Cover",
-                            currentValue: "\(cloud)%",
-                            threshold: "\(thresholds.maxCloudCover)%"
-                        )
+
+                    ForEach(exceededThresholds, id: \.parameter) { threshold in
+                        HStack {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundColor(.red)
+                                .font(.subheadline)
+                            Text("\(threshold.parameter): \(threshold.current)")
+                                .font(.subheadline)
+                            Spacer()
+                            Text("Limit: \(threshold.limit)")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
                     }
                 }
+                .padding(.horizontal)
+                .padding(.vertical, 12)
             }
+
+            // Weather boxes grid (3x3)
+            VStack(spacing: 8) {
+                // First row: Weather, Sun Times, Temp
+                HStack(spacing: 8) {
+                    WeatherConditionBox(
+                        shortForecast: hour.forecast.shortForecast
+                    )
+                    SunTimesBox(
+                        sunrise: sunrise,
+                        sunset: sunset
+                    )
+                    WeatherBox(
+                        label: "Temp",
+                        value: "\(Int(hour.forecast.temperature))°F",
+                        status: tempStatus
+                    )
+                }
+
+                // Second row: Wind, Gusts, Wind Dir
+                HStack(spacing: 8) {
+                    WeatherBox(
+                        label: "Wind",
+                        value: "\(Int(hour.forecast.windSpeed)) mph",
+                        status: windStatus
+                    )
+                    WeatherBox(
+                        label: "Gusts",
+                        value: hour.forecast.windGust.map { "\(Int($0)) mph" } ?? "-",
+                        status: gustStatus
+                    )
+                    WindDirectionBox(
+                        direction: hour.forecast.windDirection,
+                        degrees: hour.forecast.windDirectionDegrees
+                    )
+                }
+
+                // Third row: Precip, Visibility, Kp Index
+                HStack(spacing: 8) {
+                    WeatherBox(
+                        label: "Precip",
+                        value: "\(hour.forecast.precipitation)%",
+                        status: precipStatus
+                    )
+                    WeatherBox(
+                        label: "Visibility",
+                        value: hour.visibility.map { String(format: "%.0f mi", $0) } ?? "-",
+                        status: visibilityStatus
+                    )
+                    WeatherBox(
+                        label: "Kp Index",
+                        value: hour.kpIndex.map { String(format: "%.1f", $0) } ?? "-",
+                        status: kpStatus
+                    )
+                }
+            }
+            .padding()
         }
-        .padding()
         .background(Color(.systemBackground))
         .cornerRadius(16)
         .shadow(color: Color.black.opacity(0.06), radius: 8, x: 0, y: 2)
     }
 }
 
-// MARK: - Threshold Exceeded Row
+// MARK: - Weather Box Status
 
-struct ThresholdExceededRow: View {
-    let parameter: String
-    let currentValue: String
-    let threshold: String
-    
-    var body: some View {
-        HStack {
-            Image(systemName: "xmark.circle.fill")
-                .foregroundColor(.red)
-                .font(.subheadline)
-            Text("\(parameter): \(currentValue)")
-                .font(.subheadline)
-            Spacer()
-            Text("Limit: \(threshold)")
-                .font(.caption)
-                .foregroundColor(.secondary)
+enum WeatherBoxStatus {
+    case safe
+    case caution
+    case exceeded
+
+    /// Background color matching table cell colors for consistency
+    var backgroundColor: Color {
+        switch self {
+        case .safe: return Color.green.opacity(0.15)
+        case .caution: return Color.orange.opacity(0.20)
+        case .exceeded: return Color.red.opacity(0.20)
         }
+    }
+
+    /// Text color for the value (darker for readability on light backgrounds)
+    var textColor: Color {
+        switch self {
+        case .safe: return Color.green
+        case .caution: return Color.orange
+        case .exceeded: return Color.red
+        }
+    }
+
+    /// Label text color
+    var labelColor: Color {
+        return .primary
     }
 }
 
-// MARK: - Quick Stat View
+// MARK: - Weather Box
 
-struct QuickStatView: View {
-    let icon: String
-    let value: String
+struct WeatherBox: View {
     let label: String
+    let value: String
+    let status: WeatherBoxStatus
 
     var body: some View {
         VStack(spacing: 4) {
-            Image(systemName: icon)
-                .font(.caption)
-                .foregroundColor(.secondary)
-            Text(value)
+            Text(label)
                 .font(.subheadline)
                 .fontWeight(.semibold)
-            Text(label)
-                .font(.caption2)
-                .foregroundColor(.secondary)
+                .foregroundColor(status.labelColor)
+            Text(value)
+                .font(.title3)
+                .fontWeight(.bold)
+                .foregroundColor(status.textColor)
+                .minimumScaleFactor(0.6)
+                .lineLimit(1)
         }
         .frame(maxWidth: .infinity)
+        .padding(.vertical, 12)
+        .background(status.backgroundColor)
+        .cornerRadius(8)
     }
 }
+
+// MARK: - Wind Direction Box with Compass
+
+struct WindDirectionBox: View {
+    let direction: String
+    let degrees: Int?
+
+    /// Convert cardinal direction to degrees if degrees not provided
+    private var rotationDegrees: Double {
+        if let deg = degrees {
+            // Wind direction indicates where wind comes FROM
+            // Arrow should point in the direction wind blows TO (opposite direction)
+            return Double(deg) + 180
+        }
+        // Fallback based on cardinal direction
+        let directionMap: [String: Double] = [
+            "N": 180, "NNE": 202.5, "NE": 225, "ENE": 247.5,
+            "E": 270, "ESE": 292.5, "SE": 315, "SSE": 337.5,
+            "S": 0, "SSW": 22.5, "SW": 45, "WSW": 67.5,
+            "W": 90, "WNW": 112.5, "NW": 135, "NNW": 157.5
+        ]
+        return directionMap[direction.uppercased()] ?? 0
+    }
+
+    var body: some View {
+        VStack(spacing: 4) {
+            Text("Wind Dir.")
+                .font(.subheadline)
+                .fontWeight(.semibold)
+                .foregroundColor(.primary)
+
+            ZStack {
+                // Compass circle
+                Circle()
+                    .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                    .frame(width: 36, height: 36)
+
+                // Cardinal direction labels
+                Text("N")
+                    .font(.system(size: 8))
+                    .foregroundColor(.secondary)
+                    .offset(y: -20)
+                Text("S")
+                    .font(.system(size: 8))
+                    .foregroundColor(.secondary)
+                    .offset(y: 20)
+                Text("E")
+                    .font(.system(size: 8))
+                    .foregroundColor(.secondary)
+                    .offset(x: 20)
+                Text("W")
+                    .font(.system(size: 8))
+                    .foregroundColor(.secondary)
+                    .offset(x: -20)
+
+                // Wind direction arrow
+                Image(systemName: "arrow.up")
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundColor(.blue)
+                    .rotationEffect(.degrees(rotationDegrees))
+            }
+            .frame(height: 44)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 8)
+        .background(Color.green.opacity(0.15))
+        .cornerRadius(8)
+    }
+}
+
+// MARK: - Sun Times Box
+
+struct SunTimesBox: View {
+    let sunrise: Date?
+    let sunset: Date?
+
+    private func timeString(_ date: Date?) -> String {
+        guard let date = date else { return "--:--" }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+        return formatter.string(from: date)
+    }
+
+    var body: some View {
+        VStack(spacing: 4) {
+            Text("Sun Times")
+                .font(.subheadline)
+                .fontWeight(.semibold)
+                .foregroundColor(.primary)
+
+            VStack(spacing: 2) {
+                HStack(spacing: 4) {
+                    Image(systemName: "sunrise.fill")
+                        .font(.system(size: 10))
+                        .foregroundColor(.orange)
+                    Text(timeString(sunrise))
+                        .font(.caption)
+                        .monospacedDigit()
+                }
+
+                HStack(spacing: 4) {
+                    Image(systemName: "sunset.fill")
+                        .font(.system(size: 10))
+                        .foregroundColor(.orange)
+                    Text(timeString(sunset))
+                        .font(.caption)
+                        .monospacedDigit()
+                }
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 8)
+        .background(Color.yellow.opacity(0.20))
+        .cornerRadius(8)
+    }
+}
+
+// MARK: - Weather Condition Box
+
+struct WeatherConditionBox: View {
+    let shortForecast: String
+
+    /// Get appropriate weather icon based on forecast description
+    private var weatherIcon: String {
+        let forecast = shortForecast.lowercased()
+        if forecast.contains("sunny") || forecast.contains("clear") {
+            return "sun.max.fill"
+        } else if forecast.contains("partly cloudy") || forecast.contains("partly sunny") {
+            return "cloud.sun.fill"
+        } else if forecast.contains("mostly cloudy") {
+            return "cloud.fill"
+        } else if forecast.contains("cloudy") || forecast.contains("overcast") {
+            return "smoke.fill"
+        } else if forecast.contains("rain") || forecast.contains("showers") {
+            return "cloud.rain.fill"
+        } else if forecast.contains("thunderstorm") || forecast.contains("storm") {
+            return "cloud.bolt.rain.fill"
+        } else if forecast.contains("snow") {
+            return "cloud.snow.fill"
+        } else if forecast.contains("fog") || forecast.contains("mist") {
+            return "cloud.fog.fill"
+        } else if forecast.contains("wind") {
+            return "wind"
+        } else {
+            return "cloud.fill"
+        }
+    }
+
+    /// Get icon color based on weather type
+    private var iconColor: Color {
+        let forecast = shortForecast.lowercased()
+        if forecast.contains("sunny") || forecast.contains("clear") {
+            return .yellow
+        } else if forecast.contains("rain") || forecast.contains("showers") {
+            return .blue
+        } else if forecast.contains("thunderstorm") || forecast.contains("storm") {
+            return .purple
+        } else if forecast.contains("snow") {
+            return .cyan
+        } else {
+            return .gray
+        }
+    }
+
+    var body: some View {
+        VStack(spacing: 4) {
+            Text("Weather")
+                .font(.subheadline)
+                .fontWeight(.semibold)
+                .foregroundColor(.primary)
+
+            Image(systemName: weatherIcon)
+                .font(.system(size: 28))
+                .foregroundColor(iconColor)
+                .frame(height: 32)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 8)
+        .background(Color.gray.opacity(0.10))
+        .cornerRadius(8)
+    }
+}
+
 
 // MARK: - KP Index Card
 
