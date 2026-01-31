@@ -242,6 +242,7 @@ struct FlightPlanFormView: View {
                                             .stroke(FlightPlanColors.border, lineWidth: 1)
                                     )
                                 }
+                                .frame(maxWidth: .infinity, alignment: .leading)
 
                                 // Takeoff Time and Zulu Time
                                 VStack(alignment: .leading, spacing: 8) {
@@ -272,6 +273,7 @@ struct FlightPlanFormView: View {
                                         .foregroundColor(FlightPlanColors.textSecondary)
                                         .padding(.leading, 12)
                                 }
+                                .frame(maxWidth: .infinity, alignment: .leading)
                             }
 
                             // Location with address autocomplete
