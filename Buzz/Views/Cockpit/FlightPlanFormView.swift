@@ -10,6 +10,20 @@ import CoreLocation
 import Combine
 import Auth
 
+// MARK: - Design System Colors
+private struct FlightPlanColors {
+    static let primary = Color(red: 0.02, green: 0.59, blue: 0.92) // sky-500
+    static let primaryHover = Color(red: 0.14, green: 0.68, blue: 0.94) // sky-400
+    static let textPrimary = Color(red: 0.13, green: 0.16, blue: 0.19) // slate-800
+    static let textSecondary = Color(red: 0.58, green: 0.64, blue: 0.69) // slate-400
+    static let textMuted = Color(red: 0.71, green: 0.75, blue: 0.79) // slate-300
+    static let border = Color(red: 0.89, green: 0.91, blue: 0.93).opacity(0.6) // slate-200/60
+    static let borderLight = Color(red: 0.95, green: 0.96, blue: 0.97) // slate-100
+    static let background = Color(red: 0.98, green: 0.98, blue: 0.99) // slate-50
+    static let cardBackground = Color.white.opacity(0.7)
+    static let fieldBackground = Color(red: 0.97, green: 0.98, blue: 0.99).opacity(0.8) // slate-50/80
+}
+
 struct FlightPlanFormView: View {
     @EnvironmentObject var authService: AuthService
     @StateObject private var flightPlanService = FlightPlanService()
@@ -58,355 +72,451 @@ struct FlightPlanFormView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 28) {
-                // Header
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("Flight Plan & Site Survey")
-                        .font(.title2)
-                        .fontWeight(.bold)
-
-                    Text("Complete the flight plan details and site survey information. Weather conditions will be automatically populated based on your selected date and time.")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                        .lineSpacing(2)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 20)
-                .padding(.top, 8)
-
-                // Flight Plan Section
-                FlightPlanFormSection(title: "Flight Plan", icon: "calendar") {
-                    VStack(spacing: 16) {
-                        // Pilot Name - Read-only, auto-filled
-                        ReadOnlyFormField(
-                            title: "Pilot Name",
-                            value: pilotName
-                        )
-
-                        // Callsign - Read-only, auto-filled
-                        ReadOnlyFormField(
-                            title: "Callsign",
-                            value: pilotCallSign
-                        )
-
-                        // Drone Picker
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Drone *")
-                                .font(.subheadline)
-                                .fontWeight(.medium)
-
-                            if flightPlanService.isLoading {
-                                HStack {
-                                    ProgressView()
-                                        .scaleEffect(0.8)
-                                    Text("Loading drones...")
-                                        .font(.subheadline)
-                                        .foregroundColor(.secondary)
-                                }
-                            } else if flightPlanService.registrations.isEmpty {
-                                Text("No drones registered. Please register a drone first.")
-                                    .font(.subheadline)
-                                    .foregroundColor(.orange)
-                            } else {
-                                Menu {
-                                    ForEach(flightPlanService.registrations) { drone in
-                                        Button {
-                                            selectedDrone = drone
-                                        } label: {
-                                            Text(droneDisplayName(drone))
-                                        }
-                                    }
-                                } label: {
-                                    HStack {
-                                        if let drone = selectedDrone {
-                                            Text(droneDisplayName(drone))
-                                                .foregroundColor(.primary)
-                                        } else {
-                                            Text("Select a drone")
-                                                .foregroundColor(.secondary)
-                                        }
-                                        Spacer()
-                                        Image(systemName: "chevron.down")
-                                            .foregroundColor(.secondary)
-                                            .font(.caption)
-                                    }
-                                    .padding(.horizontal, 16)
-                                    .padding(.vertical, 14)
-                                    .background(Color(.systemBackground))
-                                    .cornerRadius(10)
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 10)
-                                            .stroke(Color.gray.opacity(0.2), lineWidth: 1)
-                                    )
-                                }
-                            }
-                        }
-
-                        // Takeoff Date
-                        FlightPlanDatePicker(
-                            title: "Takeoff Date *",
-                            date: $takeoffDate
-                        )
-
-                        // Takeoff Time with Zulu time display
-                        VStack(alignment: .leading, spacing: 4) {
-                            FlightPlanTimePicker(
-                                title: "Takeoff Time *",
-                                time: $takeoffTime
-                            )
-
-                            Text(zuluTimeString)
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-
-                        // Location with address autocomplete
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Location *")
-                                .font(.subheadline)
-                                .fontWeight(.medium)
-
-                            HStack(spacing: 12) {
-                                TextField("Enter address", text: $location)
-                                    .padding(.horizontal, 16)
-                                    .padding(.vertical, 12)
-                                    .background(Color(.systemBackground))
-                                    .cornerRadius(10)
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 10)
-                                            .stroke(Color.gray.opacity(0.2), lineWidth: 1)
-                                    )
-                                    .onChange(of: location) { newValue in
-                                        addressSearchDebouncer.search(query: newValue) { query in
-                                            searchAddresses(query: query)
-                                        }
-                                    }
-                                    .onTapGesture {
-                                        if !addressSuggestions.isEmpty {
-                                            showAddressSuggestions = true
-                                        }
-                                    }
-
-                                Button(action: useCurrentLocation) {
-                                    if isGeocoding {
-                                        ProgressView()
-                                            .scaleEffect(0.8)
-                                    } else {
-                                        Image(systemName: "location.fill")
-                                            .foregroundColor(.blue)
-                                    }
-                                }
-                                .disabled(isGeocoding)
-                                .frame(width: 44, height: 44)
-                            }
-
-                            // Address suggestions dropdown
-                            if showAddressSuggestions && !addressSuggestions.isEmpty {
-                                VStack(alignment: .leading, spacing: 0) {
-                                    ForEach(addressSuggestions) { suggestion in
-                                        Button {
-                                            selectAddress(suggestion)
-                                        } label: {
-                                            VStack(alignment: .leading, spacing: 4) {
-                                                Text(suggestion.title)
-                                                    .font(.subheadline)
-                                                    .foregroundColor(.primary)
-                                                if let subtitle = suggestion.subtitle {
-                                                    Text(subtitle)
-                                                        .font(.caption)
-                                                        .foregroundColor(.secondary)
-                                                }
-                                            }
-                                            .frame(maxWidth: .infinity, alignment: .leading)
-                                            .padding(.horizontal, 16)
-                                            .padding(.vertical, 12)
-                                        }
-                                        if suggestion.id != addressSuggestions.last?.id {
-                                            Divider()
-                                                .padding(.horizontal, 12)
-                                        }
-                                    }
-                                }
-                                .background(Color(.systemBackground))
-                                .cornerRadius(12)
-                                .shadow(color: Color.black.opacity(0.08), radius: 8, x: 0, y: 4)
+        ZStack {
+            // Clean white background
+            Color.white
+                .ignoresSafeArea()
+            
+            ScrollView {
+                VStack(spacing: 24) {
+                    // Custom Header
+                    HStack {
+                        Button {
+                            dismiss()
+                        } label: {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 16, weight: .medium))
+                                .foregroundColor(FlightPlanColors.textSecondary)
+                                .frame(width: 40, height: 40)
+                                .background(
+                                    Circle()
+                                        .fill(Color.white.opacity(0.8))
+                                        .shadow(color: .black.opacity(0.06), radius: 4, x: 0, y: 2)
+                                )
                                 .overlay(
-                                    RoundedRectangle(cornerRadius: 12)
-                                        .stroke(Color.gray.opacity(0.1), lineWidth: 1)
+                                    Circle()
+                                        .stroke(FlightPlanColors.border, lineWidth: 1)
+                                )
+                        }
+                        
+                        Spacer()
+                        
+                        Text("Flight Plan")
+                            .font(.system(size: 18, weight: .semibold))
+                            .tracking(0.3)
+                            .foregroundColor(FlightPlanColors.textPrimary)
+                        
+                        Spacer()
+                        
+                        // Spacer for centering
+                        Color.clear
+                            .frame(width: 40, height: 40)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 8)
+
+                    // Flight Details Section
+                    GlassCard(title: "Flight Details", icon: "airplane") {
+                        VStack(spacing: 20) {
+                            // Pilot & Callsign Grid
+                            HStack(spacing: 16) {
+                                GlassReadOnlyField(
+                                    label: "Pilot Name",
+                                    value: pilotName
+                                )
+                                
+                                GlassReadOnlyField(
+                                    label: "Callsign",
+                                    value: pilotCallSign,
+                                    icon: "antenna.radiowaves.left.and.right"
                                 )
                             }
 
-                            if isSearchingAddress {
-                                HStack {
-                                    ProgressView()
-                                        .scaleEffect(0.7)
-                                    Text("Searching...")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
+                            // Drone Picker
+                            VStack(alignment: .leading, spacing: 8) {
+                                GlassLabel(text: "Drone", required: true)
+
+                                if flightPlanService.isLoading {
+                                    HStack {
+                                        ProgressView()
+                                            .scaleEffect(0.8)
+                                        Text("Loading drones...")
+                                            .font(.subheadline)
+                                            .foregroundColor(FlightPlanColors.textSecondary)
+                                    }
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 14)
+                                } else if flightPlanService.registrations.isEmpty {
+                                    Text("No drones registered. Please register a drone first.")
+                                        .font(.subheadline)
+                                        .foregroundColor(.orange)
+                                        .padding(.horizontal, 16)
+                                        .padding(.vertical, 14)
+                                } else {
+                                    Menu {
+                                        ForEach(flightPlanService.registrations) { drone in
+                                            Button {
+                                                selectedDrone = drone
+                                            } label: {
+                                                Text(droneDisplayName(drone))
+                                            }
+                                        }
+                                    } label: {
+                                        HStack {
+                                            if let drone = selectedDrone {
+                                                Text(droneDisplayName(drone))
+                                                    .foregroundColor(FlightPlanColors.textPrimary)
+                                            } else {
+                                                Text("Select a drone")
+                                                    .foregroundColor(FlightPlanColors.textMuted)
+                                            }
+                                            Spacer()
+                                            Image(systemName: "chevron.down")
+                                                .foregroundColor(FlightPlanColors.textSecondary)
+                                                .font(.system(size: 14, weight: .medium))
+                                        }
+                                        .padding(.horizontal, 16)
+                                        .padding(.vertical, 14)
+                                        .background(Color.white.opacity(0.8))
+                                        .cornerRadius(12)
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 12)
+                                                .stroke(FlightPlanColors.border, lineWidth: 1)
+                                        )
+                                    }
                                 }
                             }
 
-                            if let coords = locationCoordinates {
-                                Text("Coordinates: \(String(format: "%.6f", coords.latitude)), \(String(format: "%.6f", coords.longitude))")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
+                            // Date & Time Grid
+                            HStack(spacing: 16) {
+                                // Takeoff Date
+                                VStack(alignment: .leading, spacing: 8) {
+                                    GlassLabel(text: "Takeoff Date", required: true)
+                                    
+                                    HStack(spacing: 8) {
+                                        Image(systemName: "calendar")
+                                            .font(.system(size: 14))
+                                            .foregroundColor(FlightPlanColors.primary)
+                                        
+                                        DatePicker("", selection: $takeoffDate, displayedComponents: [.date])
+                                            .labelsHidden()
+                                            .datePickerStyle(.compact)
+                                    }
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 10)
+                                    .background(Color.white.opacity(0.8))
+                                    .cornerRadius(12)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 12)
+                                            .stroke(FlightPlanColors.border, lineWidth: 1)
+                                    )
+                                }
+                                
+                                // Takeoff Time
+                                VStack(alignment: .leading, spacing: 8) {
+                                    GlassLabel(text: "Takeoff Time", required: true)
+                                    
+                                    HStack(spacing: 8) {
+                                        Image(systemName: "clock")
+                                            .font(.system(size: 14))
+                                            .foregroundColor(FlightPlanColors.primary)
+                                        
+                                        DatePicker("", selection: $takeoffTime, displayedComponents: [.hourAndMinute])
+                                            .labelsHidden()
+                                            .datePickerStyle(.compact)
+                                    }
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 10)
+                                    .background(Color.white.opacity(0.8))
+                                    .cornerRadius(12)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 12)
+                                            .stroke(FlightPlanColors.border, lineWidth: 1)
+                                    )
+                                    
+                                    HStack {
+                                        Spacer()
+                                        Text(zuluTimeString.uppercased())
+                                            .font(.system(size: 10, weight: .medium))
+                                            .tracking(0.5)
+                                            .foregroundColor(FlightPlanColors.textSecondary)
+                                    }
+                                }
                             }
-                        }
-                    }
-                }
 
-                // Site Survey Section
-                FlightPlanFormSection(title: "Site Survey", icon: "doc.text") {
-                    VStack(spacing: 16) {
-                        FlightPlanTextEditor(
-                            title: "1. Operation Boundaries *",
-                            text: $operationBoundaries,
-                            placeholder: "Define the geographic boundaries of your operation area"
-                        )
+                            // Location with address autocomplete
+                            VStack(alignment: .leading, spacing: 8) {
+                                GlassLabel(text: "Location", required: true)
 
-                        FlightPlanTextEditor(
-                            title: "2. Airspace and Requirements *",
-                            text: $airspaceAndRequirements,
-                            placeholder: "Describe airspace classification and any authorization requirements"
-                        )
+                                HStack(spacing: 0) {
+                                    Image(systemName: "mappin.circle.fill")
+                                        .font(.system(size: 18))
+                                        .foregroundColor(FlightPlanColors.textSecondary)
+                                        .padding(.leading, 14)
+                                    
+                                    TextField("Enter address or coordinates", text: $location)
+                                        .font(.system(size: 15))
+                                        .foregroundColor(FlightPlanColors.textPrimary)
+                                        .padding(.horizontal, 12)
+                                        .padding(.vertical, 14)
+                                        .onChange(of: location) { newValue in
+                                            addressSearchDebouncer.search(query: newValue) { query in
+                                                searchAddresses(query: query)
+                                            }
+                                        }
+                                        .onTapGesture {
+                                            if !addressSuggestions.isEmpty {
+                                                showAddressSuggestions = true
+                                            }
+                                        }
+                                    
+                                    Button(action: useCurrentLocation) {
+                                        if isGeocoding {
+                                            ProgressView()
+                                                .scaleEffect(0.7)
+                                        } else {
+                                            Image(systemName: "location.fill")
+                                                .font(.system(size: 14))
+                                                .foregroundColor(FlightPlanColors.primary)
+                                        }
+                                    }
+                                    .disabled(isGeocoding)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 8)
+                                    .background(FlightPlanColors.primary.opacity(0.1))
+                                    .cornerRadius(8)
+                                    .padding(.trailing, 8)
+                                }
+                                .background(Color.white.opacity(0.8))
+                                .cornerRadius(12)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .stroke(FlightPlanColors.border, lineWidth: 1)
+                                )
 
-                        FlightPlanTextEditor(
-                            title: "3. Altitudes and Routes *",
-                            text: $altitudesAndRoutes,
-                            placeholder: "Specify planned flight altitudes and routes"
-                        )
+                                // Address suggestions dropdown
+                                if showAddressSuggestions && !addressSuggestions.isEmpty {
+                                    VStack(alignment: .leading, spacing: 0) {
+                                        ForEach(addressSuggestions) { suggestion in
+                                            Button {
+                                                selectAddress(suggestion)
+                                            } label: {
+                                                VStack(alignment: .leading, spacing: 4) {
+                                                    Text(suggestion.title)
+                                                        .font(.subheadline)
+                                                        .foregroundColor(FlightPlanColors.textPrimary)
+                                                    if let subtitle = suggestion.subtitle {
+                                                        Text(subtitle)
+                                                            .font(.caption)
+                                                            .foregroundColor(FlightPlanColors.textSecondary)
+                                                    }
+                                                }
+                                                .frame(maxWidth: .infinity, alignment: .leading)
+                                                .padding(.horizontal, 16)
+                                                .padding(.vertical, 12)
+                                            }
+                                            if suggestion.id != addressSuggestions.last?.id {
+                                                Divider()
+                                                    .padding(.horizontal, 12)
+                                            }
+                                        }
+                                    }
+                                    .background(Color.white)
+                                    .cornerRadius(12)
+                                    .shadow(color: Color.black.opacity(0.08), radius: 8, x: 0, y: 4)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 12)
+                                            .stroke(FlightPlanColors.border, lineWidth: 1)
+                                    )
+                                }
 
-                        FlightPlanTextEditor(
-                            title: "4. Proximity of Manned Aircraft Operations *",
-                            text: $proximityMannedAircraft,
-                            placeholder: "Identify nearby manned aircraft activity and mitigations"
-                        )
-
-                        FlightPlanTextEditor(
-                            title: "5. Proximity of Aerodromes and Helicopters *",
-                            text: $proximityAerodromes,
-                            placeholder: "List nearby airports, heliports, and associated considerations"
-                        )
-
-                        FlightPlanTextEditor(
-                            title: "6. Obstacle Locations and Heights *",
-                            text: $obstacleLocationsHeights,
-                            placeholder: "Document obstacles such as towers, buildings, power lines"
-                        )
-
-                        // Weather Conditions - Auto-populated
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack {
-                                Text("7. Weather Conditions")
-                                    .font(.subheadline)
-                                    .fontWeight(.medium)
-
-                                Spacer()
-
-                                switch weatherLoadingState {
-                                case .loading:
-                                    HStack(spacing: 4) {
+                                if isSearchingAddress {
+                                    HStack {
                                         ProgressView()
                                             .scaleEffect(0.7)
-                                        Text("Loading...")
+                                        Text("Searching...")
                                             .font(.caption)
-                                            .foregroundColor(.secondary)
+                                            .foregroundColor(FlightPlanColors.textSecondary)
                                     }
-                                case .loaded:
-                                    HStack(spacing: 4) {
-                                        Image(systemName: "checkmark.circle.fill")
-                                            .foregroundColor(.green)
-                                            .font(.caption)
-                                        Text("Auto-populated")
-                                            .font(.caption)
-                                            .foregroundColor(.green)
+                                }
+
+                                if let coords = locationCoordinates {
+                                    Text("Coordinates: \(String(format: "%.6f", coords.latitude)), \(String(format: "%.6f", coords.longitude))")
+                                        .font(.caption)
+                                        .foregroundColor(FlightPlanColors.textSecondary)
+                                }
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 16)
+
+                    // Site Survey Section
+                    GlassCard(title: "Site Survey", icon: "doc.text") {
+                        VStack(spacing: 20) {
+                            GlassTextEditor(
+                                title: "1. Operation Boundaries",
+                                text: $operationBoundaries,
+                                placeholder: "Define the geographic boundaries of your operation area...",
+                                required: true
+                            )
+
+                            GlassTextEditor(
+                                title: "2. Airspace and Requirements",
+                                text: $airspaceAndRequirements,
+                                placeholder: "Describe airspace classification and any authorization requirements...",
+                                required: true
+                            )
+
+                            GlassTextEditor(
+                                title: "3. Altitudes and Routes",
+                                text: $altitudesAndRoutes,
+                                placeholder: "Specify planned flight altitudes and routes...",
+                                required: true
+                            )
+
+                            GlassTextEditor(
+                                title: "4. Proximity of Manned Aircraft Operations",
+                                text: $proximityMannedAircraft,
+                                placeholder: "Identify nearby manned aircraft activity and mitigations...",
+                                required: true
+                            )
+
+                            GlassTextEditor(
+                                title: "5. Proximity of Aerodromes and Helicopters",
+                                text: $proximityAerodromes,
+                                placeholder: "List nearby airports, heliports, and associated considerations...",
+                                required: true
+                            )
+
+                            GlassTextEditor(
+                                title: "6. Obstacle Locations and Heights",
+                                text: $obstacleLocationsHeights,
+                                placeholder: "Document obstacles such as towers, buildings, power lines...",
+                                required: true
+                            )
+
+                            // Weather Conditions - Auto-populated
+                            VStack(alignment: .leading, spacing: 8) {
+                                HStack {
+                                    GlassLabel(text: "7. Weather Conditions", required: false)
+
+                                    Spacer()
+
+                                    switch weatherLoadingState {
+                                    case .loading:
+                                        HStack(spacing: 4) {
+                                            ProgressView()
+                                                .scaleEffect(0.6)
+                                            Text("Loading...")
+                                                .font(.system(size: 10, weight: .medium))
+                                                .foregroundColor(FlightPlanColors.textSecondary)
+                                        }
+                                    case .loaded:
+                                        HStack(spacing: 4) {
+                                            Image(systemName: "checkmark.circle.fill")
+                                                .foregroundColor(.green)
+                                                .font(.system(size: 12))
+                                            Text("Auto-populated")
+                                                .font(.system(size: 10, weight: .medium))
+                                                .foregroundColor(.green)
+                                        }
+                                    case .unavailable:
+                                        HStack(spacing: 4) {
+                                            Image(systemName: "exclamationmark.triangle.fill")
+                                                .foregroundColor(.orange)
+                                                .font(.system(size: 12))
+                                            Text("Beyond range")
+                                                .font(.system(size: 10, weight: .medium))
+                                                .foregroundColor(.orange)
+                                        }
+                                    case .notLoaded:
+                                        EmptyView()
                                     }
-                                case .unavailable:
-                                    HStack(spacing: 4) {
-                                        Image(systemName: "exclamationmark.triangle.fill")
-                                            .foregroundColor(.orange)
-                                            .font(.caption)
-                                        Text("Beyond forecast range")
-                                            .font(.caption)
-                                            .foregroundColor(.orange)
-                                    }
-                                case .notLoaded:
-                                    EmptyView()
+                                }
+
+                                if weatherConditions.isEmpty {
+                                    Text("Weather will be populated when location and date/time are set")
+                                        .font(.system(size: 14))
+                                        .foregroundColor(FlightPlanColors.textMuted)
+                                        .padding(.horizontal, 16)
+                                        .padding(.vertical, 14)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .background(Color.white.opacity(0.8))
+                                        .cornerRadius(12)
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 12)
+                                                .stroke(FlightPlanColors.border, lineWidth: 1)
+                                        )
+                                } else {
+                                    Text(weatherConditions)
+                                        .font(.system(size: 14))
+                                        .foregroundColor(FlightPlanColors.textPrimary)
+                                        .padding(.horizontal, 16)
+                                        .padding(.vertical, 14)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .background(Color.white.opacity(0.8))
+                                        .cornerRadius(12)
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 12)
+                                                .stroke(FlightPlanColors.border, lineWidth: 1)
+                                        )
                                 }
                             }
 
-                            if weatherConditions.isEmpty {
-                                Text("Weather will be populated when location and date/time are set")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                                    .padding(.horizontal, 16)
-                                    .padding(.vertical, 14)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .background(Color(.systemBackground))
-                                    .cornerRadius(10)
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 10)
-                                            .stroke(Color.gray.opacity(0.2), lineWidth: 1)
-                                    )
+                            GlassTextEditor(
+                                title: "8. Horizontal Distance and Bystanders",
+                                text: $horizontalDistanceBystanders,
+                                placeholder: "Describe minimum distances to people and property...",
+                                required: true
+                            )
+
+                            GlassTextEditor(
+                                title: "9. Notes (Optional)",
+                                text: $notes,
+                                placeholder: "Any additional notes or considerations...",
+                                required: false
+                            )
+                        }
+                    }
+                    .padding(.horizontal, 16)
+
+                    // Submit Button
+                    Button(action: {
+                        showGenerateConfirmation = true
+                    }) {
+                        ZStack {
+                            if flightPlanService.isGeneratingPDF {
+                                ProgressView()
+                                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
                             } else {
-                                Text(weatherConditions)
-                                    .font(.subheadline)
-                                    .padding(.horizontal, 16)
-                                    .padding(.vertical, 14)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .background(Color(.systemBackground))
-                                    .cornerRadius(10)
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 10)
-                                            .stroke(Color.gray.opacity(0.2), lineWidth: 1)
-                                    )
+                                Text("SUBMIT FLIGHT PLAN")
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .tracking(1.5)
                             }
                         }
-
-                        FlightPlanTextEditor(
-                            title: "8. Horizontal Distance and Bystanders *",
-                            text: $horizontalDistanceBystanders,
-                            placeholder: "Describe minimum distances to people and property"
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 16)
+                        .background(
+                            Group {
+                                if canSubmit {
+                                    FlightPlanColors.primary
+                                } else {
+                                    Color.gray.opacity(0.5)
+                                }
+                            }
                         )
-
-                        FlightPlanTextEditor(
-                            title: "9. Notes (Optional)",
-                            text: $notes,
-                            placeholder: "Any additional notes or considerations"
-                        )
+                        .cornerRadius(12)
+                        .shadow(color: canSubmit ? FlightPlanColors.primary.opacity(0.25) : .clear, radius: 12, x: 0, y: 4)
                     }
+                    .disabled(!canSubmit || flightPlanService.isGeneratingPDF)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 8)
+                    .padding(.bottom, 32)
                 }
-
-                // Generate Form Button
-                Button(action: {
-                    showGenerateConfirmation = true
-                }) {
-                    HStack(spacing: 8) {
-                        if flightPlanService.isGeneratingPDF {
-                            ProgressView()
-                                .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                        } else {
-                            Image(systemName: "doc.fill")
-                            Text("Generate Form")
-                                .fontWeight(.semibold)
-                        }
-                    }
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 16)
-                    .background(canSubmit ? Color.indigo : Color.gray)
-                    .cornerRadius(12)
-                    .shadow(color: (canSubmit ? Color.indigo : Color.gray).opacity(0.3), radius: 8, x: 0, y: 4)
-                }
-                .disabled(!canSubmit || flightPlanService.isGeneratingPDF)
-                .padding(.horizontal, 20)
-                .padding(.bottom, 32)
             }
         }
-        .navigationTitle("Flight Plan")
-        .navigationBarTitleDisplayMode(.inline)
-        .background(Color(.systemGroupedBackground))
+        .navigationBarHidden(true)
         .confirmationDialog("Generate Flight Plan", isPresented: $showGenerateConfirmation) {
             Button("Generate PDF") {
                 generatePDF()
@@ -463,6 +573,22 @@ struct FlightPlanFormView: View {
 
     private var pilotCallSign: String {
         authService.userProfile?.callSign ?? "N/A"
+    }
+
+    private var takeoffDateTime: Date {
+        // Combine date and time
+        let calendar = Calendar.current
+        let dateComponents = calendar.dateComponents([.year, .month, .day], from: takeoffDate)
+        let timeComponents = calendar.dateComponents([.hour, .minute], from: takeoffTime)
+
+        var combined = DateComponents()
+        combined.year = dateComponents.year
+        combined.month = dateComponents.month
+        combined.day = dateComponents.day
+        combined.hour = timeComponents.hour
+        combined.minute = timeComponents.minute
+
+        return calendar.date(from: combined) ?? Date()
     }
 
     private var zuluTimeString: String {
@@ -730,139 +856,159 @@ class PDFShareItem: NSObject, UIActivityItemSource {
     }
 }
 
-// MARK: - Form Components
+// MARK: - Glass Design Components
 
-private struct FlightPlanFormSection<Content: View>: View {
+private struct GlassCard<Content: View>: View {
     let title: String
-    let icon: String?
+    let icon: String
     let content: Content
 
-    init(title: String, icon: String? = nil, @ViewBuilder content: () -> Content) {
+    init(title: String, icon: String, @ViewBuilder content: () -> Content) {
         self.title = title
         self.icon = icon
         self.content = content()
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack(spacing: 8) {
-                if let icon = icon {
-                    Image(systemName: icon)
-                        .foregroundColor(.primary)
-                        .font(.headline)
-                }
+        VStack(alignment: .leading, spacing: 0) {
+            // Card Header
+            HStack(spacing: 12) {
+                Image(systemName: icon)
+                    .font(.system(size: 18, weight: .medium))
+                    .foregroundColor(FlightPlanColors.primary)
+                
                 Text(title)
-                    .font(.headline)
-                    .fontWeight(.semibold)
+                    .font(.system(size: 17, weight: .semibold))
+                    .tracking(0.3)
+                    .foregroundColor(FlightPlanColors.textPrimary)
             }
-            .padding(.horizontal, 20)
-
+            .padding(.horizontal, 24)
+            .padding(.vertical, 16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                Rectangle()
+                    .fill(Color.white.opacity(0.5))
+            )
+            .overlay(
+                Rectangle()
+                    .fill(FlightPlanColors.borderLight)
+                    .frame(height: 1),
+                alignment: .bottom
+            )
+            
+            // Card Content
             VStack(spacing: 0) {
                 content
             }
-            .padding(20)
-            .background(Color(.systemBackground))
-            .cornerRadius(16)
-            .shadow(color: .black.opacity(0.06), radius: 10, x: 0, y: 4)
-            .overlay(
-                RoundedRectangle(cornerRadius: 16)
-                    .stroke(Color.gray.opacity(0.1), lineWidth: 1)
-            )
-            .padding(.horizontal)
+            .padding(24)
+        }
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(FlightPlanColors.cardBackground)
+                .shadow(color: .black.opacity(0.04), radius: 16, x: 0, y: 4)
+                .shadow(color: .black.opacity(0.02), radius: 2, x: 0, y: 1)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(FlightPlanColors.border, lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+}
+
+private struct GlassLabel: View {
+    let text: String
+    let required: Bool
+    
+    init(text: String, required: Bool = false) {
+        self.text = text
+        self.required = required
+    }
+
+    var body: some View {
+        HStack(spacing: 2) {
+            Text(text.uppercased())
+                .font(.system(size: 14, weight: .medium))
+                .tracking(1.2)
+                .foregroundColor(FlightPlanColors.textPrimary)
+            
+            if required {
+                Text("*")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundColor(FlightPlanColors.primary)
+            }
         }
     }
 }
 
-private struct ReadOnlyFormField: View {
-    let title: String
+private struct GlassReadOnlyField: View {
+    let label: String
     let value: String
+    var icon: String? = nil
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(title)
-                .font(.subheadline)
-                .fontWeight(.medium)
-
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text(label.uppercased())
+                    .font(.system(size: 10, weight: .medium))
+                    .tracking(1.2)
+                    .foregroundColor(FlightPlanColors.textSecondary)
+                
+                Spacer()
+                
+                if let icon = icon {
+                    Image(systemName: icon)
+                        .font(.system(size: 12))
+                        .foregroundColor(FlightPlanColors.textMuted)
+                }
+            }
+            
             Text(value)
-                .font(.body)
-                .foregroundColor(.primary)
-                .padding(.vertical, 4)
+                .font(.system(size: 15, weight: .medium))
+                .foregroundColor(FlightPlanColors.textPrimary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 16)
-        .padding(.vertical, 14)
-        .background(Color(.systemBackground))
-        .cornerRadius(10)
+        .padding(16)
+        .background(FlightPlanColors.fieldBackground)
+        .cornerRadius(12)
         .overlay(
-            RoundedRectangle(cornerRadius: 10)
-                .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(FlightPlanColors.borderLight, lineWidth: 1)
         )
     }
 }
 
-private struct FlightPlanDatePicker: View {
-    let title: String
-    @Binding var date: Date
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(title)
-                .font(.subheadline)
-                .fontWeight(.medium)
-
-            DatePicker("", selection: $date, displayedComponents: [.date])
-                .labelsHidden()
-                .frame(maxWidth: .infinity, alignment: .leading)
-        }
-    }
-}
-
-private struct FlightPlanTimePicker: View {
-    let title: String
-    @Binding var time: Date
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(title)
-                .font(.subheadline)
-                .fontWeight(.medium)
-
-            DatePicker("", selection: $time, displayedComponents: [.hourAndMinute])
-                .labelsHidden()
-                .frame(maxWidth: .infinity, alignment: .leading)
-        }
-    }
-}
-
-private struct FlightPlanTextEditor: View {
+private struct GlassTextEditor: View {
     let title: String
     @Binding var text: String
     let placeholder: String
+    let required: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(title)
-                .font(.subheadline)
-                .fontWeight(.medium)
+            GlassLabel(text: title, required: required)
 
             ZStack(alignment: .topLeading) {
                 if text.isEmpty {
                     Text(placeholder)
-                        .foregroundColor(Color(.placeholderText))
+                        .font(.system(size: 14))
+                        .foregroundColor(FlightPlanColors.textMuted)
                         .padding(.horizontal, 16)
                         .padding(.vertical, 14)
                 }
 
                 TextEditor(text: $text)
+                    .font(.system(size: 14))
+                    .foregroundColor(FlightPlanColors.textPrimary)
                     .frame(minHeight: 100)
                     .padding(12)
                     .scrollContentBackground(.hidden)
             }
-            .background(Color(.systemBackground))
-            .cornerRadius(10)
+            .background(Color.white.opacity(0.8))
+            .cornerRadius(12)
             .overlay(
-                RoundedRectangle(cornerRadius: 10)
-                    .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(FlightPlanColors.border, lineWidth: 1)
             )
         }
     }

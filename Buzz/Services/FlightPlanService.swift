@@ -124,6 +124,15 @@ class FlightPlanService: ObservableObject {
                 }
             }
 
+            // Draw logo at top center
+            if let logoImage = UIImage(named: "buzz_logo") {
+                let logoSize = CGSize(width: 120, height: 60) // Adjust size as needed
+                let logoX = (pageRect.width - logoSize.width) / 2
+                let logoRect = CGRect(x: logoX, y: yOffset, width: logoSize.width, height: logoSize.height)
+                logoImage.draw(in: logoRect)
+                yOffset += logoSize.height + 20 // Add space after logo
+            }
+
             // Title
             let titleFont = UIFont.boldSystemFont(ofSize: 24)
             let titleAttributes: [NSAttributedString.Key: Any] = [
