@@ -125,7 +125,7 @@ class FlightPlanService: ObservableObject {
             }
 
             // Draw logo at top center
-            if let logoImage = UIImage(named: "buzz_logo") {
+            if let logoImage = UIImage(named: "Logo") {
                 let logoSize = CGSize(width: 120, height: 60) // Adjust size as needed
                 let logoX = (pageRect.width - logoSize.width) / 2
                 let logoRect = CGRect(x: logoX, y: yOffset, width: logoSize.width, height: logoSize.height)

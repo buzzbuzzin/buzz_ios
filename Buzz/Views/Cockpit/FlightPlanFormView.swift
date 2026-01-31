@@ -848,6 +848,7 @@ class AddressSearchDebouncer: ObservableObject {
 class PDFShareItem: NSObject, UIActivityItemSource {
     let pdfData: Data
     let filename: String
+    let fileURL: URL
 
     init(data: Data, pilotName: String, takeoffDateTime: Date) {
         self.pdfData = data
@@ -865,14 +866,19 @@ class PDFShareItem: NSObject, UIActivityItemSource {
         let timeString = dateFormatter.string(from: takeoffDateTime)
 
         self.filename = "flight_plan_\(formattedPilotName)_\(dateString)_\(timeString).pdf"
+
+        // Write PDF to temporary file with the correct filename
+        let tempDir = FileManager.default.temporaryDirectory
+        self.fileURL = tempDir.appendingPathComponent(self.filename)
+        try? data.write(to: self.fileURL)
     }
 
     func activityViewControllerPlaceholderItem(_ activityViewController: UIActivityViewController) -> Any {
-        return pdfData
+        return fileURL
     }
 
     func activityViewController(_ activityViewController: UIActivityViewController, itemForActivityType activityType: UIActivity.ActivityType?) -> Any? {
-        return pdfData
+        return fileURL
     }
 
     func activityViewController(_ activityViewController: UIActivityViewController, subjectForActivityType activityType: UIActivity.ActivityType?) -> String {
@@ -881,10 +887,6 @@ class PDFShareItem: NSObject, UIActivityItemSource {
 
     func activityViewController(_ activityViewController: UIActivityViewController, dataTypeIdentifierForActivityType activityType: UIActivity.ActivityType?) -> String {
         return "com.adobe.pdf"
-    }
-
-    func activityViewController(_ activityViewController: UIActivityViewController, filenameForActivityType activityType: UIActivity.ActivityType?) -> String {
-        return filename
     }
 }
 
