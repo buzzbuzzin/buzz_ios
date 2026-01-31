@@ -11,6 +11,7 @@ import UIKit
 import CoreLocation
 import Combine
 import SwiftUI
+import MapKit
 
 @MainActor
 class FlightPlanService: ObservableObject {
@@ -94,9 +95,6 @@ class FlightPlanService: ObservableObject {
 
         // Conditions description
         conditions.append("Conditions: \(hour.forecast.shortForecast)")
-
-        // Safety status
-        conditions.append("Flight Safety: \(hour.safetyStatus.rawValue)")
 
         return conditions.joined(separator: "\n")
     }
@@ -335,5 +333,74 @@ class FlightPlanService: ObservableObject {
         }
 
         return nil
+    }
+
+    // MARK: - Address Search
+
+    func searchAddresses(query: String) async -> [AddressSuggestion] {
+        let request = MKLocalSearch.Request()
+        request.naturalLanguageQuery = query
+        request.resultTypes = .address
+
+        let search = MKLocalSearch(request: request)
+
+        do {
+            let response = try await search.start()
+            return response.mapItems.prefix(5).map { item in
+                let placemark = item.placemark
+
+                // Build title (street address)
+                var titleParts: [String] = []
+                if let subThoroughfare = placemark.subThoroughfare {
+                    titleParts.append(subThoroughfare)
+                }
+                if let thoroughfare = placemark.thoroughfare {
+                    titleParts.append(thoroughfare)
+                }
+                let title = titleParts.isEmpty ? (placemark.name ?? "Unknown") : titleParts.joined(separator: " ")
+
+                // Build subtitle (city, state)
+                var subtitleParts: [String] = []
+                if let city = placemark.locality {
+                    subtitleParts.append(city)
+                }
+                if let state = placemark.administrativeArea {
+                    subtitleParts.append(state)
+                }
+                if let postalCode = placemark.postalCode {
+                    subtitleParts.append(postalCode)
+                }
+                let subtitle = subtitleParts.isEmpty ? nil : subtitleParts.joined(separator: ", ")
+
+                // Build full address
+                var fullParts: [String] = []
+                if !title.isEmpty && title != "Unknown" {
+                    fullParts.append(title)
+                }
+                if let city = placemark.locality {
+                    fullParts.append(city)
+                }
+                if let state = placemark.administrativeArea {
+                    fullParts.append(state)
+                }
+                if let postalCode = placemark.postalCode {
+                    fullParts.append(postalCode)
+                }
+                if let country = placemark.country {
+                    fullParts.append(country)
+                }
+                let fullAddress = fullParts.joined(separator: ", ")
+
+                return AddressSuggestion(
+                    title: title,
+                    subtitle: subtitle,
+                    fullAddress: fullAddress,
+                    coordinate: placemark.location?.coordinate
+                )
+            }
+        } catch {
+            print("Address search failed: \(error.localizedDescription)")
+            return []
+        }
     }
 }

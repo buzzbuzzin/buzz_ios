@@ -44,6 +44,12 @@ struct FlightPlanFormView: View {
     @State private var isGeocoding = false
     @State private var weatherLoadingState: WeatherLoadingState = .notLoaded
 
+    // Address autocomplete
+    @State private var addressSuggestions: [AddressSuggestion] = []
+    @State private var isSearchingAddress = false
+    @State private var showAddressSuggestions = false
+    @StateObject private var addressSearchDebouncer = AddressSearchDebouncer()
+
     enum WeatherLoadingState {
         case notLoaded
         case loading
@@ -137,21 +143,37 @@ struct FlightPlanFormView: View {
                             date: $takeoffDate
                         )
 
-                        // Takeoff Time
-                        FlightPlanTimePicker(
-                            title: "Takeoff Time *",
-                            time: $takeoffTime
-                        )
+                        // Takeoff Time with Zulu time display
+                        VStack(alignment: .leading, spacing: 4) {
+                            FlightPlanTimePicker(
+                                title: "Takeoff Time *",
+                                time: $takeoffTime
+                            )
 
-                        // Location with current location button
+                            Text(zuluTimeString)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+
+                        // Location with address autocomplete
                         VStack(alignment: .leading, spacing: 8) {
                             Text("Location *")
                                 .font(.subheadline)
                                 .fontWeight(.medium)
 
                             HStack {
-                                TextField("Enter location or use current", text: $location)
+                                TextField("Enter address", text: $location)
                                     .textFieldStyle(RoundedBorderTextFieldStyle())
+                                    .onChange(of: location) { newValue in
+                                        addressSearchDebouncer.search(query: newValue) { query in
+                                            searchAddresses(query: query)
+                                        }
+                                    }
+                                    .onTapGesture {
+                                        if !addressSuggestions.isEmpty {
+                                            showAddressSuggestions = true
+                                        }
+                                    }
 
                                 Button(action: useCurrentLocation) {
                                     if isGeocoding {
@@ -164,6 +186,45 @@ struct FlightPlanFormView: View {
                                 }
                                 .disabled(isGeocoding)
                                 .frame(width: 40, height: 40)
+                            }
+
+                            // Address suggestions dropdown
+                            if showAddressSuggestions && !addressSuggestions.isEmpty {
+                                VStack(alignment: .leading, spacing: 0) {
+                                    ForEach(addressSuggestions) { suggestion in
+                                        Button {
+                                            selectAddress(suggestion)
+                                        } label: {
+                                            VStack(alignment: .leading, spacing: 2) {
+                                                Text(suggestion.title)
+                                                    .font(.subheadline)
+                                                    .foregroundColor(.primary)
+                                                if let subtitle = suggestion.subtitle {
+                                                    Text(subtitle)
+                                                        .font(.caption)
+                                                        .foregroundColor(.secondary)
+                                                }
+                                            }
+                                            .frame(maxWidth: .infinity, alignment: .leading)
+                                            .padding(.horizontal, 12)
+                                            .padding(.vertical, 8)
+                                        }
+                                        Divider()
+                                    }
+                                }
+                                .background(Color(.systemBackground))
+                                .cornerRadius(8)
+                                .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
+                            }
+
+                            if isSearchingAddress {
+                                HStack {
+                                    ProgressView()
+                                        .scaleEffect(0.7)
+                                    Text("Searching...")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
                             }
 
                             if let coords = locationCoordinates {
@@ -374,6 +435,30 @@ struct FlightPlanFormView: View {
         authService.userProfile?.callSign ?? "N/A"
     }
 
+    private var zuluTimeString: String {
+        // Combine date and time
+        let calendar = Calendar.current
+        let dateComponents = calendar.dateComponents([.year, .month, .day], from: takeoffDate)
+        let timeComponents = calendar.dateComponents([.hour, .minute], from: takeoffTime)
+
+        var combined = DateComponents()
+        combined.year = dateComponents.year
+        combined.month = dateComponents.month
+        combined.day = dateComponents.day
+        combined.hour = timeComponents.hour
+        combined.minute = timeComponents.minute
+
+        guard let localDateTime = calendar.date(from: combined) else {
+            return "Zulu: --:--Z"
+        }
+
+        let zuluFormatter = DateFormatter()
+        zuluFormatter.dateFormat = "HHmm"
+        zuluFormatter.timeZone = TimeZone(identifier: "UTC")
+
+        return "Zulu: \(zuluFormatter.string(from: localDateTime))Z"
+    }
+
     private var canSubmit: Bool {
         selectedDrone != nil &&
         !location.isEmpty &&
@@ -506,6 +591,67 @@ struct FlightPlanFormView: View {
             errorMessage = "Failed to generate PDF. Please try again."
             showErrorAlert = true
         }
+    }
+
+    // MARK: - Address Search
+
+    private func searchAddresses(query: String) {
+        guard query.count >= 3 else {
+            addressSuggestions = []
+            showAddressSuggestions = false
+            return
+        }
+
+        isSearchingAddress = true
+
+        Task {
+            let suggestions = await flightPlanService.searchAddresses(query: query)
+            await MainActor.run {
+                addressSuggestions = suggestions
+                showAddressSuggestions = !suggestions.isEmpty
+                isSearchingAddress = false
+            }
+        }
+    }
+
+    private func selectAddress(_ suggestion: AddressSuggestion) {
+        location = suggestion.fullAddress
+        locationCoordinates = suggestion.coordinate
+        showAddressSuggestions = false
+        addressSuggestions = []
+
+        // Fetch weather for this location if we have coordinates
+        if let coordinate = suggestion.coordinate {
+            Task {
+                await safeFlyService.fetchSafeFlyData(coordinate: coordinate)
+                updateWeatherForSelectedDateTime()
+            }
+        }
+    }
+}
+
+// MARK: - Address Search Models
+
+struct AddressSuggestion: Identifiable {
+    let id = UUID()
+    let title: String
+    let subtitle: String?
+    let fullAddress: String
+    let coordinate: CLLocationCoordinate2D?
+}
+
+class AddressSearchDebouncer: ObservableObject {
+    private var workItem: DispatchWorkItem?
+
+    func search(query: String, action: @escaping (String) -> Void) {
+        workItem?.cancel()
+
+        let newWorkItem = DispatchWorkItem {
+            action(query)
+        }
+
+        workItem = newWorkItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: newWorkItem)
     }
 }
 
