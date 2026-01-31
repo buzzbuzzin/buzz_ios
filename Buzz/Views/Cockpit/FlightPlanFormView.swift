@@ -59,9 +59,9 @@ struct FlightPlanFormView: View {
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 24) {
+            VStack(spacing: 28) {
                 // Header
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: 10) {
                     Text("Flight Plan & Site Survey")
                         .font(.title2)
                         .fontWeight(.bold)
@@ -69,13 +69,14 @@ struct FlightPlanFormView: View {
                     Text("Complete the flight plan details and site survey information. Weather conditions will be automatically populated based on your selected date and time.")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
+                        .lineSpacing(2)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal)
-                .padding(.top)
+                .padding(.horizontal, 20)
+                .padding(.top, 8)
 
                 // Flight Plan Section
-                FlightPlanFormSection(title: "Flight Plan") {
+                FlightPlanFormSection(title: "Flight Plan", icon: "calendar") {
                     VStack(spacing: 16) {
                         // Pilot Name - Read-only, auto-filled
                         ReadOnlyFormField(
@@ -128,11 +129,16 @@ struct FlightPlanFormView: View {
                                         Spacer()
                                         Image(systemName: "chevron.down")
                                             .foregroundColor(.secondary)
+                                            .font(.caption)
                                     }
-                                    .padding(.horizontal, 12)
-                                    .padding(.vertical, 10)
-                                    .background(Color(.secondarySystemBackground))
-                                    .cornerRadius(8)
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 14)
+                                    .background(Color(.systemBackground))
+                                    .cornerRadius(10)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 10)
+                                            .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                                    )
                                 }
                             }
                         }
@@ -161,9 +167,16 @@ struct FlightPlanFormView: View {
                                 .font(.subheadline)
                                 .fontWeight(.medium)
 
-                            HStack {
+                            HStack(spacing: 12) {
                                 TextField("Enter address", text: $location)
-                                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 12)
+                                    .background(Color(.systemBackground))
+                                    .cornerRadius(10)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 10)
+                                            .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                                    )
                                     .onChange(of: location) { newValue in
                                         addressSearchDebouncer.search(query: newValue) { query in
                                             searchAddresses(query: query)
@@ -185,7 +198,7 @@ struct FlightPlanFormView: View {
                                     }
                                 }
                                 .disabled(isGeocoding)
-                                .frame(width: 40, height: 40)
+                                .frame(width: 44, height: 44)
                             }
 
                             // Address suggestions dropdown
@@ -195,7 +208,7 @@ struct FlightPlanFormView: View {
                                         Button {
                                             selectAddress(suggestion)
                                         } label: {
-                                            VStack(alignment: .leading, spacing: 2) {
+                                            VStack(alignment: .leading, spacing: 4) {
                                                 Text(suggestion.title)
                                                     .font(.subheadline)
                                                     .foregroundColor(.primary)
@@ -206,15 +219,22 @@ struct FlightPlanFormView: View {
                                                 }
                                             }
                                             .frame(maxWidth: .infinity, alignment: .leading)
-                                            .padding(.horizontal, 12)
-                                            .padding(.vertical, 8)
+                                            .padding(.horizontal, 16)
+                                            .padding(.vertical, 12)
                                         }
-                                        Divider()
+                                        if suggestion.id != addressSuggestions.last?.id {
+                                            Divider()
+                                                .padding(.horizontal, 12)
+                                        }
                                     }
                                 }
                                 .background(Color(.systemBackground))
-                                .cornerRadius(8)
-                                .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
+                                .cornerRadius(12)
+                                .shadow(color: Color.black.opacity(0.08), radius: 8, x: 0, y: 4)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .stroke(Color.gray.opacity(0.1), lineWidth: 1)
+                                )
                             }
 
                             if isSearchingAddress {
@@ -237,7 +257,7 @@ struct FlightPlanFormView: View {
                 }
 
                 // Site Survey Section
-                FlightPlanFormSection(title: "Site Survey") {
+                FlightPlanFormSection(title: "Site Survey", icon: "doc.text") {
                     VStack(spacing: 16) {
                         FlightPlanTextEditor(
                             title: "1. Operation Boundaries *",
@@ -320,19 +340,27 @@ struct FlightPlanFormView: View {
                                 Text("Weather will be populated when location and date/time are set")
                                     .font(.caption)
                                     .foregroundColor(.secondary)
-                                    .padding(.horizontal, 12)
-                                    .padding(.vertical, 10)
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 14)
                                     .frame(maxWidth: .infinity, alignment: .leading)
-                                    .background(Color(.secondarySystemBackground))
-                                    .cornerRadius(8)
+                                    .background(Color(.systemBackground))
+                                    .cornerRadius(10)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 10)
+                                            .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                                    )
                             } else {
                                 Text(weatherConditions)
                                     .font(.subheadline)
-                                    .padding(.horizontal, 12)
-                                    .padding(.vertical, 10)
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 14)
                                     .frame(maxWidth: .infinity, alignment: .leading)
-                                    .background(Color(.secondarySystemBackground))
-                                    .cornerRadius(8)
+                                    .background(Color(.systemBackground))
+                                    .cornerRadius(10)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 10)
+                                            .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                                    )
                             }
                         }
 
@@ -354,7 +382,7 @@ struct FlightPlanFormView: View {
                 Button(action: {
                     showGenerateConfirmation = true
                 }) {
-                    HStack {
+                    HStack(spacing: 8) {
                         if flightPlanService.isGeneratingPDF {
                             ProgressView()
                                 .progressViewStyle(CircularProgressViewStyle(tint: .white))
@@ -369,9 +397,10 @@ struct FlightPlanFormView: View {
                     .padding(.vertical, 16)
                     .background(canSubmit ? Color.indigo : Color.gray)
                     .cornerRadius(12)
+                    .shadow(color: (canSubmit ? Color.indigo : Color.gray).opacity(0.3), radius: 8, x: 0, y: 4)
                 }
                 .disabled(!canSubmit || flightPlanService.isGeneratingPDF)
-                .padding(.horizontal)
+                .padding(.horizontal, 20)
                 .padding(.bottom, 32)
             }
         }
@@ -659,25 +688,40 @@ class AddressSearchDebouncer: ObservableObject {
 
 private struct FlightPlanFormSection<Content: View>: View {
     let title: String
+    let icon: String?
     let content: Content
 
-    init(title: String, @ViewBuilder content: () -> Content) {
+    init(title: String, icon: String? = nil, @ViewBuilder content: () -> Content) {
         self.title = title
+        self.icon = icon
         self.content = content()
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(title)
-                .font(.headline)
-                .padding(.horizontal)
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(spacing: 8) {
+                if let icon = icon {
+                    Image(systemName: icon)
+                        .foregroundColor(.primary)
+                        .font(.headline)
+                }
+                Text(title)
+                    .font(.headline)
+                    .fontWeight(.semibold)
+            }
+            .padding(.horizontal, 20)
 
             VStack(spacing: 0) {
                 content
             }
-            .padding()
+            .padding(20)
             .background(Color(.systemBackground))
-            .cornerRadius(12)
+            .cornerRadius(16)
+            .shadow(color: .black.opacity(0.06), radius: 10, x: 0, y: 4)
+            .overlay(
+                RoundedRectangle(cornerRadius: 16)
+                    .stroke(Color.gray.opacity(0.1), lineWidth: 1)
+            )
             .padding(.horizontal)
         }
     }
@@ -694,14 +738,19 @@ private struct ReadOnlyFormField: View {
                 .fontWeight(.medium)
 
             Text(value)
-                .font(.subheadline)
+                .font(.body)
                 .foregroundColor(.primary)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 10)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color(.tertiarySystemBackground))
-                .cornerRadius(8)
+                .padding(.vertical, 4)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .background(Color(.systemBackground))
+        .cornerRadius(10)
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+        )
     }
 }
 
@@ -754,19 +803,21 @@ private struct FlightPlanTextEditor: View {
                 if text.isEmpty {
                     Text(placeholder)
                         .foregroundColor(Color(.placeholderText))
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 12)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 14)
                 }
 
                 TextEditor(text: $text)
-                    .frame(minHeight: 80)
-                    .padding(4)
+                    .frame(minHeight: 100)
+                    .padding(12)
                     .scrollContentBackground(.hidden)
-                    .background(Color(.secondarySystemBackground))
-                    .cornerRadius(8)
             }
-            .background(Color(.secondarySystemBackground))
-            .cornerRadius(8)
+            .background(Color(.systemBackground))
+            .cornerRadius(10)
+            .overlay(
+                RoundedRectangle(cornerRadius: 10)
+                    .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+            )
         }
     }
 }
