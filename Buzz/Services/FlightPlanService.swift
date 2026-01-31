@@ -148,7 +148,7 @@ class FlightPlanService: ObservableObject {
             yOffset = drawSeparatorLine(at: yOffset, pageRect: pageRect, context: context.cgContext)
 
             // Flight Plan Section
-            yOffset = drawSectionHeader("FLIGHT INFORMATION", at: yOffset, pageRect: pageRect)
+            yOffset = drawSectionHeader("FLIGHT Plan", at: yOffset, pageRect: pageRect)
 
             yOffset = drawField("Pilot Name:", data.pilotName, at: yOffset, pageRect: pageRect)
             yOffset = drawField("Callsign:", data.callSign, at: yOffset, pageRect: pageRect)
