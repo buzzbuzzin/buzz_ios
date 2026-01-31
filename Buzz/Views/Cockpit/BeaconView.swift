@@ -19,7 +19,10 @@ struct BeaconView: View {
     
     var body: some View {
         Group {
-            if isBeaconVolunteer {
+            if isLoading {
+                // Show nothing while loading to prevent flash
+                Color.clear
+            } else if isBeaconVolunteer {
                 // Active volunteers see dashboard directly
                 BeaconVolunteerDashboardView(showAboutProgram: $showAboutProgram)
                     .environmentObject(authService)
