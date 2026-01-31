@@ -18,6 +18,26 @@ struct CockpitView: View {
     @State private var showChecklistSelection = false
     @State private var showPhoneOptions = false
     @State private var showCharts = false
+
+    // fullScreenCover states for all cards
+    @State private var showSafeFly = false
+    @State private var showMETAR = false
+    @State private var showNOTAM = false
+    @State private var showRemoteID = false
+    @State private var showFlightRadar = false
+    @State private var showWeather = false
+    @State private var showLogs = false
+    @State private var showSOP = false
+    @State private var showLeaderboard = false
+    @State private var showRevenue = false
+    @State private var showNews = false
+    @State private var showAvailability = false
+    @State private var showProgress = false
+    @State private var showShop = false
+    @State private var showBeacon = false
+    @State private var showTopGun = false
+    @State private var showRacer = false
+    @State private var showGames = false
     
     var body: some View {
         NavigationView {
@@ -54,8 +74,10 @@ struct CockpitView: View {
                                 .padding(.horizontal, 16)
                             
                             LazyVGrid(columns: columns, spacing: 12) {
-                                // Fly Safe Card (first position)
-                                NavigationLink(destination: SafeFlyView().environmentObject(authService)) {
+                                // Fly Safe Card - Using fullScreenCover for stable presentation
+                                Button {
+                                    showSafeFly = true
+                                } label: {
                                     CockpitGridCard(
                                         title: "Fly Safe",
                                         icon: "checkmark.shield.fill",
@@ -64,8 +86,10 @@ struct CockpitView: View {
                                 }
                                 .buttonStyle(PlainButtonStyle())
 
-                                // METAR Card
-                                NavigationLink(destination: METARView().environmentObject(authService)) {
+                                // METAR Card - Using fullScreenCover for stable presentation
+                                Button {
+                                    showMETAR = true
+                                } label: {
                                     CockpitGridCard(
                                         title: "METAR",
                                         icon: "cloud.moon.bolt.circle.fill",
@@ -74,8 +98,10 @@ struct CockpitView: View {
                                 }
                                 .buttonStyle(PlainButtonStyle())
 
-                                // NOTAMs Card
-                                NavigationLink(destination: NOTAMView()) {
+                                // NOTAMs Card - Using fullScreenCover for stable presentation
+                                Button {
+                                    showNOTAM = true
+                                } label: {
                                     CockpitGridCard(
                                         title: "NOTAMs",
                                         icon: "bell.badge.fill",
@@ -118,8 +144,10 @@ struct CockpitView: View {
                                 }
                                 .buttonStyle(PlainButtonStyle())
 
-                                // Remote ID Card
-                                NavigationLink(destination: TransponderView().environmentObject(authService)) {
+                                // Remote ID Card - Using fullScreenCover for stable presentation
+                                Button {
+                                    showRemoteID = true
+                                } label: {
                                     CockpitGridCard(
                                         title: "Remote ID",
                                         icon: "antenna.radiowaves.left.and.right",
@@ -128,8 +156,10 @@ struct CockpitView: View {
                                 }
                                 .buttonStyle(PlainButtonStyle())
 
-                                // Flight Radar Card
-                                NavigationLink(destination: FlightRadarView().environmentObject(authService)) {
+                                // Flight Radar Card - Using fullScreenCover for stable presentation
+                                Button {
+                                    showFlightRadar = true
+                                } label: {
                                     CockpitGridCard(
                                         title: "Flight Radar",
                                         icon: "airplane.departure",
@@ -138,8 +168,10 @@ struct CockpitView: View {
                                 }
                                 .buttonStyle(PlainButtonStyle())
 
-                                // Weather Card (last position)
-                                NavigationLink(destination: WeatherView().environmentObject(authService)) {
+                                // Weather Card - Using fullScreenCover for stable presentation
+                                Button {
+                                    showWeather = true
+                                } label: {
                                     CockpitGridCard(
                                         title: "Weather",
                                         icon: "cloud.sun.fill",
@@ -171,9 +203,11 @@ struct CockpitView: View {
                                     )
                                 }
                                 .buttonStyle(PlainButtonStyle())
-                                
-                                // Logs Card
-                                NavigationLink(destination: LogsView()) {
+
+                                // Logs Card - Using fullScreenCover for stable presentation
+                                Button {
+                                    showLogs = true
+                                } label: {
                                     CockpitGridCard(
                                         title: "Logs",
                                         icon: "note.text",
@@ -181,9 +215,11 @@ struct CockpitView: View {
                                     )
                                 }
                                 .buttonStyle(PlainButtonStyle())
-                                
-                                // SOP Card
-                                NavigationLink(destination: SOPView()) {
+
+                                // SOP Card - Using fullScreenCover for stable presentation
+                                Button {
+                                    showSOP = true
+                                } label: {
                                     CockpitGridCard(
                                         title: "SOP",
                                         icon: "book.fill",
@@ -191,8 +227,8 @@ struct CockpitView: View {
                                     )
                                 }
                                 .buttonStyle(PlainButtonStyle())
-                                
-                                // Portal Card
+
+                                // Portal Card - Opens external browser
                                 Button(action: {
                                     if let url = URL(string: "https://buzz-portal.vercel.app") {
                                         UIApplication.shared.open(url)
@@ -217,8 +253,10 @@ struct CockpitView: View {
                                 .padding(.horizontal, 16)
                             
                             LazyVGrid(columns: columns, spacing: 12) {
-                                // Leaderboard Card
-                                NavigationLink(destination: LeaderboardView()) {
+                                // Leaderboard Card - Using fullScreenCover for stable presentation
+                                Button {
+                                    showLeaderboard = true
+                                } label: {
                                     CockpitGridCard(
                                         title: "Leaderboard",
                                         icon: "chart.bar.fill",
@@ -226,9 +264,11 @@ struct CockpitView: View {
                                     )
                                 }
                                 .buttonStyle(PlainButtonStyle())
-                                
-                                // Revenue Card
-                                NavigationLink(destination: RevenueDetailsView().environmentObject(authService)) {
+
+                                // Revenue Card - Using fullScreenCover for stable presentation
+                                Button {
+                                    showRevenue = true
+                                } label: {
                                     CockpitGridCard(
                                         title: "Revenue",
                                         icon: "dollarsign.circle.fill",
@@ -236,9 +276,11 @@ struct CockpitView: View {
                                     )
                                 }
                                 .buttonStyle(PlainButtonStyle())
-                                
-                                // Industry News Card
-                                NavigationLink(destination: IndustryNewsView()) {
+
+                                // Industry News Card - Using fullScreenCover for stable presentation
+                                Button {
+                                    showNews = true
+                                } label: {
                                     CockpitGridCard(
                                         title: "News",
                                         icon: "newspaper.fill",
@@ -246,9 +288,11 @@ struct CockpitView: View {
                                     )
                                 }
                                 .buttonStyle(PlainButtonStyle())
-                                
-                                // Availability Card
-                                NavigationLink(destination: AvailabilityView().environmentObject(authService)) {
+
+                                // Availability Card - Using fullScreenCover for stable presentation
+                                Button {
+                                    showAvailability = true
+                                } label: {
                                     CockpitGridCard(
                                         title: "Availability",
                                         icon: "calendar",
@@ -256,9 +300,11 @@ struct CockpitView: View {
                                     )
                                 }
                                 .buttonStyle(PlainButtonStyle())
-                                
-                                // Progress Card
-                                NavigationLink(destination: PilotProgressView().environmentObject(authService)) {
+
+                                // Progress Card - Using fullScreenCover for stable presentation
+                                Button {
+                                    showProgress = true
+                                } label: {
                                     CockpitGridCard(
                                         title: "Progress",
                                         icon: "chart.line.uptrend.xyaxis",
@@ -266,9 +312,11 @@ struct CockpitView: View {
                                     )
                                 }
                                 .buttonStyle(PlainButtonStyle())
-                                
-                                // Shop Card
-                                NavigationLink(destination: ShopView()) {
+
+                                // Shop Card - Using fullScreenCover for stable presentation
+                                Button {
+                                    showShop = true
+                                } label: {
                                     CockpitGridCard(
                                         title: "Shop",
                                         icon: "bag.fill",
@@ -288,15 +336,17 @@ struct CockpitView: View {
                                 .padding(.horizontal, 16)
                             
                             LazyVGrid(columns: columns, spacing: 12) {
-                                // Beacon Card
-                                NavigationLink(destination: BeaconView().environmentObject(authService)) {
+                                // Beacon Card - Using fullScreenCover for stable presentation
+                                Button {
+                                    showBeacon = true
+                                } label: {
                                     ZStack(alignment: .topTrailing) {
                                         CockpitGridCard(
                                             title: "Beacon",
                                             icon: "antenna.radiowaves.left.and.right",
                                             color: .yellow
                                         )
-                                        
+
                                         if hasNearbyBeaconMissions {
                                             Circle()
                                                 .fill(Color.red)
@@ -310,9 +360,11 @@ struct CockpitView: View {
                                     }
                                 }
                                 .buttonStyle(PlainButtonStyle())
-                                
-                                // TopGun Card
-                                NavigationLink(destination: TopGunView().environmentObject(authService)) {
+
+                                // TopGun Card - Using fullScreenCover for stable presentation
+                                Button {
+                                    showTopGun = true
+                                } label: {
                                     CockpitGridCard(
                                         title: "TopGun",
                                         icon: "airplane.circle.fill",
@@ -320,9 +372,11 @@ struct CockpitView: View {
                                     )
                                 }
                                 .buttonStyle(PlainButtonStyle())
-                                
-                                // Racer Card
-                                NavigationLink(destination: RacerView().environmentObject(authService)) {
+
+                                // Racer Card - Using fullScreenCover for stable presentation
+                                Button {
+                                    showRacer = true
+                                } label: {
                                     CockpitGridCard(
                                         title: "Racer",
                                         icon: "flag.checkered",
@@ -330,9 +384,11 @@ struct CockpitView: View {
                                     )
                                 }
                                 .buttonStyle(PlainButtonStyle())
-                                
-                                // Games Card
-                                NavigationLink(destination: GamesView().environmentObject(authService)) {
+
+                                // Games Card - Using fullScreenCover for stable presentation
+                                Button {
+                                    showGames = true
+                                } label: {
                                     CockpitGridCard(
                                         title: "Games",
                                         icon: "gamecontroller.fill",
@@ -384,6 +440,310 @@ struct CockpitView: View {
         // Charts fullScreenCover for stable presentation
         .fullScreenCover(isPresented: $showCharts) {
             ChartsView(isPresented: $showCharts)
+        }
+        // Flight section fullScreenCovers
+        .fullScreenCover(isPresented: $showSafeFly) {
+            NavigationView {
+                SafeFlyView()
+                    .environmentObject(authService)
+                    .toolbar {
+                        ToolbarItem(placement: .navigationBarLeading) {
+                            Button {
+                                showSafeFly = false
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.title2)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    }
+            }
+        }
+        .fullScreenCover(isPresented: $showMETAR) {
+            NavigationView {
+                METARView()
+                    .environmentObject(authService)
+                    .toolbar {
+                        ToolbarItem(placement: .navigationBarLeading) {
+                            Button {
+                                showMETAR = false
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.title2)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    }
+            }
+        }
+        .fullScreenCover(isPresented: $showNOTAM) {
+            NavigationView {
+                NOTAMView()
+                    .toolbar {
+                        ToolbarItem(placement: .navigationBarLeading) {
+                            Button {
+                                showNOTAM = false
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.title2)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    }
+            }
+        }
+        .fullScreenCover(isPresented: $showRemoteID) {
+            NavigationView {
+                TransponderView()
+                    .environmentObject(authService)
+                    .toolbar {
+                        ToolbarItem(placement: .navigationBarLeading) {
+                            Button {
+                                showRemoteID = false
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.title2)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    }
+            }
+        }
+        .fullScreenCover(isPresented: $showFlightRadar) {
+            NavigationView {
+                FlightRadarView()
+                    .environmentObject(authService)
+                    .toolbar {
+                        ToolbarItem(placement: .navigationBarLeading) {
+                            Button {
+                                showFlightRadar = false
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.title2)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    }
+            }
+        }
+        .fullScreenCover(isPresented: $showWeather) {
+            NavigationView {
+                WeatherView()
+                    .environmentObject(authService)
+                    .toolbar {
+                        ToolbarItem(placement: .navigationBarLeading) {
+                            Button {
+                                showWeather = false
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.title2)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    }
+            }
+        }
+        // Operations section fullScreenCovers
+        .fullScreenCover(isPresented: $showLogs) {
+            NavigationView {
+                LogsView()
+                    .toolbar {
+                        ToolbarItem(placement: .navigationBarLeading) {
+                            Button {
+                                showLogs = false
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.title2)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    }
+            }
+        }
+        .fullScreenCover(isPresented: $showSOP) {
+            NavigationView {
+                SOPView()
+                    .toolbar {
+                        ToolbarItem(placement: .navigationBarLeading) {
+                            Button {
+                                showSOP = false
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.title2)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    }
+            }
+        }
+        // General section fullScreenCovers
+        .fullScreenCover(isPresented: $showLeaderboard) {
+            NavigationView {
+                LeaderboardView()
+                    .toolbar {
+                        ToolbarItem(placement: .navigationBarLeading) {
+                            Button {
+                                showLeaderboard = false
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.title2)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    }
+            }
+        }
+        .fullScreenCover(isPresented: $showRevenue) {
+            NavigationView {
+                RevenueDetailsView()
+                    .environmentObject(authService)
+                    .toolbar {
+                        ToolbarItem(placement: .navigationBarLeading) {
+                            Button {
+                                showRevenue = false
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.title2)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    }
+            }
+        }
+        .fullScreenCover(isPresented: $showNews) {
+            NavigationView {
+                IndustryNewsView()
+                    .toolbar {
+                        ToolbarItem(placement: .navigationBarLeading) {
+                            Button {
+                                showNews = false
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.title2)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    }
+            }
+        }
+        .fullScreenCover(isPresented: $showAvailability) {
+            NavigationView {
+                AvailabilityView()
+                    .environmentObject(authService)
+                    .toolbar {
+                        ToolbarItem(placement: .navigationBarLeading) {
+                            Button {
+                                showAvailability = false
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.title2)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    }
+            }
+        }
+        .fullScreenCover(isPresented: $showProgress) {
+            NavigationView {
+                PilotProgressView()
+                    .environmentObject(authService)
+                    .toolbar {
+                        ToolbarItem(placement: .navigationBarLeading) {
+                            Button {
+                                showProgress = false
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.title2)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    }
+            }
+        }
+        .fullScreenCover(isPresented: $showShop) {
+            NavigationView {
+                ShopView()
+                    .toolbar {
+                        ToolbarItem(placement: .navigationBarLeading) {
+                            Button {
+                                showShop = false
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.title2)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    }
+            }
+        }
+        // Community section fullScreenCovers
+        .fullScreenCover(isPresented: $showBeacon) {
+            NavigationView {
+                BeaconView()
+                    .environmentObject(authService)
+                    .toolbar {
+                        ToolbarItem(placement: .navigationBarLeading) {
+                            Button {
+                                showBeacon = false
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.title2)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    }
+            }
+        }
+        .fullScreenCover(isPresented: $showTopGun) {
+            NavigationView {
+                TopGunView()
+                    .environmentObject(authService)
+                    .toolbar {
+                        ToolbarItem(placement: .navigationBarLeading) {
+                            Button {
+                                showTopGun = false
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.title2)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    }
+            }
+        }
+        .fullScreenCover(isPresented: $showRacer) {
+            NavigationView {
+                RacerView()
+                    .environmentObject(authService)
+                    .toolbar {
+                        ToolbarItem(placement: .navigationBarLeading) {
+                            Button {
+                                showRacer = false
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.title2)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    }
+            }
+        }
+        .fullScreenCover(isPresented: $showGames) {
+            NavigationView {
+                GamesView()
+                    .environmentObject(authService)
+                    .toolbar {
+                        ToolbarItem(placement: .navigationBarLeading) {
+                            Button {
+                                showGames = false
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.title2)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    }
+            }
         }
     }
     
