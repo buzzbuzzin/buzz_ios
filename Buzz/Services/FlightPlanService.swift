@@ -124,13 +124,16 @@ class FlightPlanService: ObservableObject {
                 }
             }
 
-            // Draw logo at top center
+            // Draw logo at top center (preserve aspect ratio)
             if let logoImage = UIImage(named: "Logo") {
-                let logoSize = CGSize(width: 120, height: 60) // Adjust size as needed
-                let logoX = (pageRect.width - logoSize.width) / 2
-                let logoRect = CGRect(x: logoX, y: yOffset, width: logoSize.width, height: logoSize.height)
+                let maxLogoHeight: CGFloat = 80
+                let aspectRatio = logoImage.size.width / logoImage.size.height
+                let logoHeight = maxLogoHeight
+                let logoWidth = logoHeight * aspectRatio
+                let logoX = (pageRect.width - logoWidth) / 2
+                let logoRect = CGRect(x: logoX, y: yOffset, width: logoWidth, height: logoHeight)
                 logoImage.draw(in: logoRect)
-                yOffset += logoSize.height + 20 // Add space after logo
+                yOffset += logoHeight + 20 // Add space after logo
             }
 
             // Title

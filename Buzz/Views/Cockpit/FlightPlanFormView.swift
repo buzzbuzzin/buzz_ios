@@ -9,6 +9,7 @@ import SwiftUI
 import CoreLocation
 import Combine
 import Auth
+import PDFKit
 
 // MARK: - Design System Colors
 private struct FlightPlanColors {
@@ -52,6 +53,7 @@ struct FlightPlanFormView: View {
     // UI State
     @State private var showGenerateConfirmation = false
     @State private var showShareSheet = false
+    @State private var showPDFPreview = false
     @State private var generatedPDFData: Data?
     @State private var showErrorAlert = false
     @State private var errorMessage = ""
@@ -562,6 +564,22 @@ struct FlightPlanFormView: View {
         } message: {
             Text(errorMessage)
         }
+        .fullScreenCover(isPresented: $showPDFPreview) {
+            if let pdfData = generatedPDFData {
+                PDFPreviewView(
+                    pdfData: pdfData,
+                    pilotName: pilotName,
+                    takeoffDateTime: takeoffDateTime,
+                    onDismiss: { showPDFPreview = false },
+                    onShare: {
+                        showPDFPreview = false
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                            showShareSheet = true
+                        }
+                    }
+                )
+            }
+        }
         .sheet(isPresented: $showShareSheet) {
             if let pdfData = generatedPDFData {
                 let pdfItem = PDFShareItem(data: pdfData, pilotName: pilotName, takeoffDateTime: takeoffDateTime)
@@ -774,7 +792,7 @@ struct FlightPlanFormView: View {
 
         if let pdfData = flightPlanService.generatePDF(from: formData) {
             generatedPDFData = pdfData
-            showShareSheet = true
+            showPDFPreview = true
         } else {
             errorMessage = "Failed to generate PDF. Please try again."
             showErrorAlert = true
@@ -887,6 +905,55 @@ class PDFShareItem: NSObject, UIActivityItemSource {
 
     func activityViewController(_ activityViewController: UIActivityViewController, dataTypeIdentifierForActivityType activityType: UIActivity.ActivityType?) -> String {
         return "com.adobe.pdf"
+    }
+}
+
+// MARK: - PDF Preview View
+
+struct PDFPreviewView: View {
+    let pdfData: Data
+    let pilotName: String
+    let takeoffDateTime: Date
+    let onDismiss: () -> Void
+    let onShare: () -> Void
+
+    var body: some View {
+        NavigationView {
+            PDFKitView(data: pdfData)
+                .navigationTitle("Flight Plan Preview")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarLeading) {
+                        Button("Close") {
+                            onDismiss()
+                        }
+                    }
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Button {
+                            onShare()
+                        } label: {
+                            Image(systemName: "square.and.arrow.up")
+                        }
+                    }
+                }
+        }
+    }
+}
+
+struct PDFKitView: UIViewRepresentable {
+    let data: Data
+
+    func makeUIView(context: Context) -> PDFView {
+        let pdfView = PDFView()
+        pdfView.autoScales = true
+        pdfView.displayMode = .singlePageContinuous
+        pdfView.displayDirection = .vertical
+        pdfView.document = PDFDocument(data: data)
+        return pdfView
+    }
+
+    func updateUIView(_ uiView: PDFView, context: Context) {
+        uiView.document = PDFDocument(data: data)
     }
 }
 
