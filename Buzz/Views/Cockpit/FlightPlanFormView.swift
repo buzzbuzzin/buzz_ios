@@ -184,20 +184,51 @@ struct FlightPlanFormView: View {
                                                 .stroke(FlightPlanColors.border, lineWidth: 1)
                                         )
                                     }
+
+                                    // Display selected drone details
+                                    if let drone = selectedDrone {
+                                        VStack(alignment: .leading, spacing: 6) {
+                                            if let serialNumber = drone.serialNumber {
+                                                HStack {
+                                                    Text("Serial Number:")
+                                                        .font(.system(size: 12, weight: .medium))
+                                                        .foregroundColor(FlightPlanColors.textSecondary)
+                                                    Spacer()
+                                                    Text(serialNumber)
+                                                        .font(.system(size: 12, weight: .medium))
+                                                        .foregroundColor(FlightPlanColors.textPrimary)
+                                                }
+                                            }
+
+                                            if let registrationNumber = drone.registrationNumber {
+                                                HStack {
+                                                    Text("Registration #:")
+                                                        .font(.system(size: 12, weight: .medium))
+                                                        .foregroundColor(FlightPlanColors.textSecondary)
+                                                    Spacer()
+                                                    Text(registrationNumber)
+                                                        .font(.system(size: 12, weight: .medium))
+                                                        .foregroundColor(FlightPlanColors.textPrimary)
+                                                }
+                                            }
+                                        }
+                                        .padding(.horizontal, 16)
+                                        .padding(.top, 8)
+                                    }
                                 }
                             }
 
                             // Date & Time Grid
-                            HStack(spacing: 16) {
+                            HStack(alignment: .top, spacing: 16) {
                                 // Takeoff Date
                                 VStack(alignment: .leading, spacing: 8) {
                                     GlassLabel(text: "Takeoff Date", required: true)
-                                    
+
                                     HStack(spacing: 8) {
                                         Image(systemName: "calendar")
                                             .font(.system(size: 14))
                                             .foregroundColor(FlightPlanColors.primary)
-                                        
+
                                         DatePicker("", selection: $takeoffDate, displayedComponents: [.date])
                                             .labelsHidden()
                                             .datePickerStyle(.compact)
@@ -211,16 +242,16 @@ struct FlightPlanFormView: View {
                                             .stroke(FlightPlanColors.border, lineWidth: 1)
                                     )
                                 }
-                                
-                                // Takeoff Time
+
+                                // Takeoff Time and Zulu Time
                                 VStack(alignment: .leading, spacing: 8) {
                                     GlassLabel(text: "Takeoff Time", required: true)
-                                    
+
                                     HStack(spacing: 8) {
                                         Image(systemName: "clock")
                                             .font(.system(size: 14))
                                             .foregroundColor(FlightPlanColors.primary)
-                                        
+
                                         DatePicker("", selection: $takeoffTime, displayedComponents: [.hourAndMinute])
                                             .labelsHidden()
                                             .datePickerStyle(.compact)
@@ -233,14 +264,13 @@ struct FlightPlanFormView: View {
                                         RoundedRectangle(cornerRadius: 12)
                                             .stroke(FlightPlanColors.border, lineWidth: 1)
                                     )
-                                    
-                                    HStack {
-                                        Spacer()
-                                        Text(zuluTimeString.uppercased())
-                                            .font(.system(size: 10, weight: .medium))
-                                            .tracking(0.5)
-                                            .foregroundColor(FlightPlanColors.textSecondary)
-                                    }
+
+                                    // Zulu time aligned to the left
+                                    Text(zuluTimeString.uppercased())
+                                        .font(.system(size: 10, weight: .medium))
+                                        .tracking(0.5)
+                                        .foregroundColor(FlightPlanColors.textSecondary)
+                                        .padding(.leading, 12)
                                 }
                             }
 
@@ -605,11 +635,11 @@ struct FlightPlanFormView: View {
         combined.minute = timeComponents.minute
 
         guard let localDateTime = calendar.date(from: combined) else {
-            return "Zulu: --:--Z"
+            return "Zulu: ----Z"
         }
 
         let zuluFormatter = DateFormatter()
-        zuluFormatter.dateFormat = "HHmm"
+        zuluFormatter.dateFormat = "ddHHmm"
         zuluFormatter.timeZone = TimeZone(identifier: "UTC")
 
         return "Zulu: \(zuluFormatter.string(from: localDateTime))Z"
