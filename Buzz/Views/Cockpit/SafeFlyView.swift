@@ -31,11 +31,6 @@ struct SafeFlyView: View {
                     )
                 }
 
-                // KP Index Card (if available)
-                if let kpIndex = safeFlyService.currentKPIndex {
-                    KPIndexCard(kpData: kpIndex)
-                }
-
                 // View Toggle
                 if !safeFlyService.hourlyForecasts.isEmpty {
                     Picker("View Mode", selection: $showDetailedTable) {
@@ -303,61 +298,30 @@ struct CurrentStatusCard: View {
         VStack(spacing: 0) {
             // Top status banner
             HStack {
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: 4) {
                     Text("Fly?")
-                        .font(.caption)
-                        .foregroundColor(.white.opacity(0.8))
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.white)
                     Text(locationString.map { "Current Conditions (\($0))" } ?? "Current Conditions")
-                        .font(.caption)
-                        .foregroundColor(.white.opacity(0.8))
+                        .font(.subheadline)
+                        .foregroundColor(.white.opacity(0.9))
                 }
 
                 Spacer()
 
-                // Large Yes/No with status text
-                VStack(alignment: .trailing, spacing: 2) {
-                    Text(isSafeToFly ? "Yes" : "No")
-                        .font(.system(size: 32, weight: .bold))
-                        .foregroundColor(.white)
-                    Text(isSafeToFly ? "Good to Fly" : "Not Recommended")
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                        .foregroundColor(.white.opacity(0.9))
-                }
+                // Large Yes/No
+                Text(isSafeToFly ? "Yes" : "No")
+                    .font(.system(size: 36, weight: .bold))
+                    .foregroundColor(.white)
 
                 Image(systemName: isSafeToFly ? "checkmark.circle.fill" : "xmark.circle.fill")
-                    .font(.system(size: 36))
+                    .font(.system(size: 40))
                     .foregroundColor(.white)
                     .padding(.leading, 8)
             }
             .padding()
             .background(isSafeToFly ? Color.green.opacity(0.85) : Color.red.opacity(0.85))
-
-            // Thresholds exceeded section (if any)
-            if !exceededThresholds.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Thresholds Exceeded")
-                        .font(.caption)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.secondary)
-
-                    ForEach(exceededThresholds, id: \.parameter) { threshold in
-                        HStack {
-                            Image(systemName: "xmark.circle.fill")
-                                .foregroundColor(.red)
-                                .font(.subheadline)
-                            Text("\(threshold.parameter): \(threshold.current)")
-                                .font(.subheadline)
-                            Spacer()
-                            Text("Limit: \(threshold.limit)")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                }
-                .padding(.horizontal)
-                .padding(.vertical, 12)
-            }
 
             // Weather boxes grid (3x3)
             VStack(spacing: 8) {
@@ -453,6 +417,9 @@ enum WeatherBoxStatus {
     }
 }
 
+// MARK: - Uniform Box Height
+private let uniformBoxHeight: CGFloat = 70
+
 // MARK: - Weather Box
 
 struct WeatherBox: View {
@@ -474,7 +441,7 @@ struct WeatherBox: View {
                 .lineLimit(1)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 12)
+        .frame(height: uniformBoxHeight)
         .background(status.backgroundColor)
         .cornerRadius(8)
     }
@@ -514,36 +481,35 @@ struct WindDirectionBox: View {
                 // Compass circle
                 Circle()
                     .stroke(Color.gray.opacity(0.3), lineWidth: 1)
-                    .frame(width: 36, height: 36)
+                    .frame(width: 32, height: 32)
 
                 // Cardinal direction labels
                 Text("N")
-                    .font(.system(size: 8))
+                    .font(.system(size: 7))
                     .foregroundColor(.secondary)
-                    .offset(y: -20)
+                    .offset(y: -18)
                 Text("S")
-                    .font(.system(size: 8))
+                    .font(.system(size: 7))
                     .foregroundColor(.secondary)
-                    .offset(y: 20)
+                    .offset(y: 18)
                 Text("E")
-                    .font(.system(size: 8))
+                    .font(.system(size: 7))
                     .foregroundColor(.secondary)
-                    .offset(x: 20)
+                    .offset(x: 18)
                 Text("W")
-                    .font(.system(size: 8))
+                    .font(.system(size: 7))
                     .foregroundColor(.secondary)
-                    .offset(x: -20)
+                    .offset(x: -18)
 
                 // Wind direction arrow
                 Image(systemName: "arrow.up")
-                    .font(.system(size: 16, weight: .bold))
+                    .font(.system(size: 14, weight: .bold))
                     .foregroundColor(.blue)
                     .rotationEffect(.degrees(rotationDegrees))
             }
-            .frame(height: 44)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 8)
+        .frame(height: uniformBoxHeight)
         .background(Color.green.opacity(0.15))
         .cornerRadius(8)
     }
@@ -590,7 +556,7 @@ struct SunTimesBox: View {
             }
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 8)
+        .frame(height: uniformBoxHeight)
         .background(Color.yellow.opacity(0.20))
         .cornerRadius(8)
     }
@@ -653,10 +619,9 @@ struct WeatherConditionBox: View {
             Image(systemName: weatherIcon)
                 .font(.system(size: 28))
                 .foregroundColor(iconColor)
-                .frame(height: 32)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 8)
+        .frame(height: uniformBoxHeight)
         .background(Color.gray.opacity(0.10))
         .cornerRadius(8)
     }
@@ -729,13 +694,13 @@ struct HourlyForecastSection: View {
 struct HourlyForecastCell: View {
     let hour: SafeFlyHour
 
+    /// Simplified status: only green (safe) or red (not safe)
+    private var isSafe: Bool {
+        hour.safetyStatus == .good
+    }
+
     private var statusColor: Color {
-        switch hour.safetyStatus {
-        case .good: return .green
-        case .marginal: return .orange
-        case .poor: return .red
-        case .unknown: return .gray
-        }
+        isSafe ? .green : .red
     }
 
     private var timeString: String {
@@ -751,13 +716,12 @@ struct HourlyForecastCell: View {
                 .font(.caption)
                 .foregroundColor(.secondary)
 
-            // Status indicator
+            // Status indicator - only checkmark (green) or xmark (red)
             Circle()
                 .fill(statusColor)
                 .frame(width: 32, height: 32)
                 .overlay(
-                    Image(systemName: hour.safetyStatus == .good ? "checkmark" :
-                          hour.safetyStatus == .marginal ? "exclamationmark" : "xmark")
+                    Image(systemName: isSafe ? "checkmark" : "xmark")
                         .font(.system(size: 14, weight: .bold))
                         .foregroundColor(.white)
                 )
