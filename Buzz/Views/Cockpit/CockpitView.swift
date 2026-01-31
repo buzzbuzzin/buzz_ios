@@ -38,7 +38,8 @@ struct CockpitView: View {
     @State private var showTopGun = false
     @State private var showRacer = false
     @State private var showGames = false
-    
+    @State private var showFlightPlan = false
+
     var body: some View {
         NavigationView {
             ScrollView {
@@ -224,6 +225,18 @@ struct CockpitView: View {
                                         title: "SOP",
                                         icon: "book.fill",
                                         color: .blue
+                                    )
+                                }
+                                .buttonStyle(PlainButtonStyle())
+
+                                // Flight Plan Card - Using fullScreenCover for stable presentation
+                                Button {
+                                    showFlightPlan = true
+                                } label: {
+                                    CockpitGridCard(
+                                        title: "Flight Plan",
+                                        icon: "doc.text.fill",
+                                        color: .indigo
                                     )
                                 }
                                 .buttonStyle(PlainButtonStyle())
@@ -567,6 +580,23 @@ struct CockpitView: View {
                         ToolbarItem(placement: .navigationBarLeading) {
                             Button {
                                 showSOP = false
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.title2)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    }
+            }
+        }
+        .fullScreenCover(isPresented: $showFlightPlan) {
+            NavigationView {
+                FlightPlanFormView()
+                    .environmentObject(authService)
+                    .toolbar {
+                        ToolbarItem(placement: .navigationBarLeading) {
+                            Button {
+                                showFlightPlan = false
                             } label: {
                                 Image(systemName: "xmark.circle.fill")
                                     .font(.title2)
