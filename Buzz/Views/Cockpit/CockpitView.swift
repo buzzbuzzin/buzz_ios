@@ -133,14 +133,14 @@ struct CockpitView: View {
                                 // }
                                 // .buttonStyle(PlainButtonStyle())
 
-                                // Phone Card
-                                Button(action: {
-                                    showPhoneOptions = true
-                                }) {
+                                // Flight Plan Card - Using fullScreenCover for stable presentation
+                                Button {
+                                    showFlightPlan = true
+                                } label: {
                                     CockpitGridCard(
-                                        title: "Phone",
-                                        icon: "phone.down",
-                                        color: .red
+                                        title: "Flight Plan",
+                                        icon: "doc.text.fill",
+                                        color: .indigo
                                     )
                                 }
                                 .buttonStyle(PlainButtonStyle())
@@ -192,14 +192,14 @@ struct CockpitView: View {
                                 .padding(.horizontal, 16)
 
                             LazyVGrid(columns: columns, spacing: 12) {
-                                // Flight Plan Card - Using fullScreenCover for stable presentation
-                                Button {
-                                    showFlightPlan = true
-                                } label: {
+                                // Phone Card
+                                Button(action: {
+                                    showPhoneOptions = true
+                                }) {
                                     CockpitGridCard(
-                                        title: "Flight Plan",
-                                        icon: "doc.text.fill",
-                                        color: .indigo
+                                        title: "Phone",
+                                        icon: "phone.down",
+                                        color: .red
                                     )
                                 }
                                 .buttonStyle(PlainButtonStyle())
