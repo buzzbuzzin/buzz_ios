@@ -18,9 +18,11 @@ class FlightPlanService: ObservableObject {
     @Published var registrations: [DroneRegistration] = []
     @Published var isLoading = false
     @Published var isGeneratingPDF = false
+    @Published var isUploading = false
     @Published var errorMessage: String?
 
     private let supabase = SupabaseClient.shared.client
+    private let storageBucket = "flight-plans"
 
     // MARK: - Fetch Drone Registrations
 
@@ -152,6 +154,124 @@ class FlightPlanService: ObservableObject {
         }
 
         return pdfData
+    }
+
+    // MARK: - Upload Flight Plan to Backend
+
+    /// Uploads the flight plan PDF to storage and saves the flight plan data to the database
+    /// - Parameters:
+    ///   - pdfData: The generated PDF data
+    ///   - formData: The flight plan form data
+    ///   - pilotId: The pilot's UUID
+    ///   - bookingId: The booking's UUID
+    /// - Returns: The URL of the uploaded PDF
+    func uploadFlightPlan(
+        pdfData: Data,
+        formData: FlightPlanFormData,
+        pilotId: UUID,
+        bookingId: UUID
+    ) async throws -> String {
+        isUploading = true
+        errorMessage = nil
+
+        defer { isUploading = false }
+
+        do {
+            // Verify authentication session
+            let session = try await supabase.auth.session
+            guard session.user.id == pilotId else {
+                throw NSError(
+                    domain: "FlightPlanService",
+                    code: -1,
+                    userInfo: [NSLocalizedDescriptionKey: "Authentication mismatch. Please sign in again."]
+                )
+            }
+
+            // Generate unique file path: {pilot_id}/{booking_id}/{timestamp}_flight_plan.pdf
+            // Use lowercased UUID to match PostgreSQL auth.uid()::text format
+            let timestamp = Int(Date().timeIntervalSince1970)
+            let filePath = "\(pilotId.uuidString.lowercased())/\(bookingId.uuidString.lowercased())/\(timestamp)_flight_plan.pdf"
+
+            // Upload PDF to Supabase Storage
+            do {
+                let _ = try await supabase.storage
+                    .from(storageBucket)
+                    .upload(
+                        filePath,
+                        data: pdfData,
+                        options: FileOptions(contentType: "application/pdf")
+                    )
+                print("DEBUG FlightPlan: Storage upload successful to path: \(filePath)")
+            } catch {
+                print("DEBUG FlightPlan: Storage upload failed: \(error.localizedDescription)")
+                throw NSError(
+                    domain: "FlightPlanService",
+                    code: -2,
+                    userInfo: [NSLocalizedDescriptionKey: "Failed to upload PDF: \(error.localizedDescription)"]
+                )
+            }
+
+            // Get the storage URL (private bucket, so we store the path)
+            let pdfUrl = "\(storageBucket)/\(filePath)"
+
+            // Prepare the flight plan record for database
+            let flightPlanRecord: [String: AnyJSON] = [
+                "id": .string(UUID().uuidString),
+                "pilot_id": .string(pilotId.uuidString),
+                "booking_id": .string(bookingId.uuidString),
+                "pilot_name": .string(formData.pilotName),
+                "pilot_license_number": formData.pilotLicenseNumber.map { .string($0) } ?? .null,
+                "call_sign": .string(formData.callSign),
+                "drone_manufacturer": formData.droneManufacturer.map { .string($0) } ?? .null,
+                "drone_model": formData.droneModel.map { .string($0) } ?? .null,
+                "drone_serial_number": formData.droneSerialNumber.map { .string($0) } ?? .null,
+                "drone_registration_number": formData.droneRegistrationNumber.map { .string($0) } ?? .null,
+                "takeoff_date_time": .string(ISO8601DateFormatter().string(from: formData.takeoffDateTime)),
+                "location": .string(formData.location),
+                "latitude": formData.latitude.flatMap { Double($0) }.map { .double($0) } ?? .null,
+                "longitude": formData.longitude.flatMap { Double($0) }.map { .double($0) } ?? .null,
+                "regulatory_authority": .string(formData.regulatoryAuthority.rawValue),
+                "max_altitude_feet": .integer(formData.maxAltitudeFeet),
+                "airspace_class": .string(formData.airspaceClass.rawValue),
+                "laanc_grid_ceiling": formData.laancGridCeiling.map { .integer($0) } ?? .null,
+                "laanc_authorization_status": .string(formData.laancAuthorizationStatus.rawValue),
+                "flight_over_people": .bool(formData.flightOverPeople),
+                "flight_over_people_explanation": formData.flightOverPeopleExplanation.map { .string($0) } ?? .null,
+                "vlos_type": .string(formData.vlosType.rawValue),
+                "part107_compliant": .bool(formData.part107Compliant),
+                "part107_non_compliance_explanation": formData.part107NonComplianceExplanation.map { .string($0) } ?? .null,
+                "requires_waiver": .bool(formData.requiresWaiver),
+                "waiver_safety_mitigations": formData.waiverSafetyMitigations.map { .string($0) } ?? .null,
+                "waiver_operational_procedures": formData.waiverOperationalProcedures.map { .string($0) } ?? .null,
+                "waiver_risk_analysis": formData.waiverRiskAnalysis.map { .string($0) } ?? .null,
+                "certification_regulation": .string(formData.certificationRegulation.rawValue),
+                "signature_date": formData.signatureDate.map { .string(ISO8601DateFormatter().string(from: $0)) } ?? .null,
+                "pdf_url": .string(pdfUrl),
+                "generated_at": .string(ISO8601DateFormatter().string(from: formData.generatedAt))
+            ]
+
+            // Insert into database
+            do {
+                try await supabase
+                    .from("flight_plans")
+                    .insert(flightPlanRecord)
+                    .execute()
+                print("DEBUG FlightPlan: Database insert successful")
+            } catch {
+                print("DEBUG FlightPlan: Database insert failed: \(error.localizedDescription)")
+                throw NSError(
+                    domain: "FlightPlanService",
+                    code: -3,
+                    userInfo: [NSLocalizedDescriptionKey: "Failed to save flight plan: \(error.localizedDescription)"]
+                )
+            }
+
+            return pdfUrl
+
+        } catch {
+            self.errorMessage = error.localizedDescription
+            throw error
+        }
     }
 
     // MARK: - PDF Drawing Helpers

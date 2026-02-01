@@ -84,6 +84,8 @@ struct FlightPlanFormView: View {
     @State private var hasInitializedFromBooking = false
     @State private var showZuluTimeInfo = false
     @State private var showLAANCInfoSheet = false
+    @State private var isUploadingFlightPlan = false
+    @State private var lastGeneratedFormData: FlightPlanFormData?
 
     // Address autocomplete
     @State private var addressSuggestions: [AddressSuggestion] = []
@@ -1157,11 +1159,44 @@ struct FlightPlanFormView: View {
 
         if let pdfData = flightPlanService.generatePDF(from: formData) {
             generatedPDFData = pdfData
+            lastGeneratedFormData = formData
+            
+            // Upload to backend
+            Task {
+                await uploadFlightPlanToBackend(pdfData: pdfData, formData: formData)
+            }
+            
             showPDFPreview = true
         } else {
             errorMessage = "Failed to generate PDF. Please try again."
             showErrorAlert = true
         }
+    }
+
+    private func uploadFlightPlanToBackend(pdfData: Data, formData: FlightPlanFormData) async {
+        guard let pilotId = authService.currentUser?.id else {
+            print("DEBUG FlightPlan: No pilot ID available for upload")
+            return
+        }
+
+        isUploadingFlightPlan = true
+
+        do {
+            let _ = try await flightPlanService.uploadFlightPlan(
+                pdfData: pdfData,
+                formData: formData,
+                pilotId: pilotId,
+                bookingId: booking.id
+            )
+            print("DEBUG FlightPlan: Flight plan uploaded successfully")
+        } catch {
+            print("DEBUG FlightPlan: Upload failed: \(error.localizedDescription)")
+            // Note: We don't show an error to the user here since the PDF was already generated
+            // and shown. The upload failure is logged but doesn't block the user experience.
+            // In production, you might want to implement retry logic or queue failed uploads.
+        }
+
+        isUploadingFlightPlan = false
     }
 
     private func initializeFromBooking() {
