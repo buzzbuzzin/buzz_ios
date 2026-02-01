@@ -470,7 +470,7 @@ struct FlightPlanFormView: View {
         }
 
         let zuluFormatter = DateFormatter()
-        zuluFormatter.dateFormat = "HH:mm:ss"
+        zuluFormatter.dateFormat = "HH:mm"
         zuluFormatter.timeZone = TimeZone(identifier: "UTC")
 
         return zuluFormatter.string(from: localDateTime)
