@@ -300,15 +300,15 @@ class FlightPlanService: ObservableObject {
         // Row heights (reduced to fit on one page)
         let standardRowHeight: CGFloat = 42
 
-        // Row 1: TYPE, DRONE ID, DRONE TYPE, CALLSIGN
-        let row1Widths: [CGFloat] = [80, 150, 160, 150] // Total: 540
+        // Row 1: TYPE (REGULATION), DRONE ID, DRONE TYPE, CALLSIGN
+        let row1Widths: [CGFloat] = [120, 140, 160, 120] // Total: 540 - increased TYPE, decreased CALLSIGN
         var xOffset = leftMargin
 
-        // Cell 1: TYPE
+        // Cell 1: TYPE (uses certification regulation selected by pilot)
         drawCell(
             number: 1,
-            label: "TYPE",
-            value: "PART 107",
+            label: "REGULATION",
+            value: data.certificationRegulation.displayName,
             rect: CGRect(x: xOffset, y: yOffset, width: row1Widths[0], height: standardRowHeight),
             context: context
         )
@@ -475,7 +475,7 @@ class FlightPlanService: ObservableObject {
         // Cell 15: LAANC STATUS
         drawCell(
             number: 15,
-            label: "LAANC STATUS",
+            label: "Authorization STATUS",
             value: data.laancAuthorizationStatus.rawValue,
             rect: CGRect(x: xOffset, y: yOffset, width: row4Widths[3], height: standardRowHeight),
             context: context
@@ -507,10 +507,10 @@ class FlightPlanService: ObservableObject {
         )
         xOffset += row5Widths[1]
 
-        // Cell 18: PART 107 COMPLIANT (with checkbox options)
+        // Cell 18: Civil Regulation Compliance (with checkbox options)
         drawCheckboxCell(
             number: 18,
-            label: "PART 107 COMPLIANT",
+            label: "Civil Regulation Compliance",
             options: [("Yes", data.part107Compliant), ("No", !data.part107Compliant)],
             rect: CGRect(x: xOffset, y: yOffset, width: row5Widths[2], height: standardRowHeight),
             context: context

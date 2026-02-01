@@ -42,7 +42,7 @@ struct FlightPlanFormView: View {
     @State private var locationCoordinates: CLLocationCoordinate2D?
 
     // Certification Section Fields
-    @State private var certificationRegulation: CertificationRegulation = .part107
+    @State private var certificationRegulation: CertificationRegulation? = nil
     @State private var signatureImage: UIImage?
     @State private var signatureDate: Date?
     @State private var showSignaturePad = false
@@ -360,18 +360,19 @@ struct FlightPlanFormView: View {
                                 .font(.system(size: 12))
                                 .foregroundColor(FlightPlanColors.textSecondary)
 
-                            VStack(spacing: 10) {
+                            // Only show the auto-selected regulatory authority
+                            if regulatoryAuthority == .faa {
                                 CheckboxOption(
                                     title: "FAA",
                                     subtitle: "United States",
-                                    isSelected: regulatoryAuthority == .faa,
+                                    isSelected: true,
                                     isDisabled: true
                                 )
-
+                            } else {
                                 CheckboxOption(
                                     title: "Transport Canada",
                                     subtitle: "Canada",
-                                    isSelected: regulatoryAuthority == .transportCanada,
+                                    isSelected: true,
                                     isDisabled: true
                                 )
                             }
@@ -457,14 +458,14 @@ struct FlightPlanFormView: View {
                                 )
                             }
 
-                            // LAANC Authorization Status
+                            // FAA Authorization Status
                             VStack(alignment: .leading, spacing: 8) {
-                                GlassLabel(text: "LAANC Authorization Status", required: false)
+                                GlassLabel(text: "FAA Authorization Status", required: false)
 
                                 AuthorizationStatusBadge(status: laancAuthorizationStatus)
 
                                 if let ceiling = laancGridCeiling {
-                                    Text("LAANC Grid Ceiling: \(ceiling) ft")
+                                    Text("FAA Grid Ceiling: \(ceiling) ft")
                                         .font(.system(size: 12))
                                         .foregroundColor(FlightPlanColors.textSecondary)
                                         .padding(.top, 2)
@@ -511,7 +512,7 @@ struct FlightPlanFormView: View {
                                         Image(systemName: "exclamationmark.triangle.fill")
                                             .font(.system(size: 12))
                                             .foregroundColor(.orange)
-                                        Text("BVLOS operations require a Part 107 waiver")
+                                        Text("BVLOS operations require a Civil Regulation waiver")
                                             .font(.system(size: 12))
                                             .foregroundColor(.orange)
                                     }
@@ -543,13 +544,13 @@ struct FlightPlanFormView: View {
                     }
                     .padding(.horizontal, 16)
 
-                    // Part 107 Compliance Section
-                    GlassCard(title: "Part 107 Compliance", icon: "checkmark.shield") {
+                    // Civil Regulation Compliance Section
+                    GlassCard(title: "Civil Regulation Compliance", icon: "checkmark.shield") {
                         VStack(alignment: .leading, spacing: 16) {
                             VStack(spacing: 10) {
                                 CheckboxOption(
                                     title: "Compliant",
-                                    subtitle: "This flight complies with all Part 107 rules",
+                                    subtitle: "This flight complies with all applicable civil regulations",
                                     isSelected: part107Compliant,
                                     isDisabled: maxAltitude > 400,
                                     action: { part107Compliant = true }
@@ -557,7 +558,7 @@ struct FlightPlanFormView: View {
 
                                 CheckboxOption(
                                     title: "Non-Compliant",
-                                    subtitle: "This flight does not fully comply with Part 107 rules",
+                                    subtitle: "This flight does not fully comply with applicable civil regulations",
                                     isSelected: !part107Compliant,
                                     isDisabled: maxAltitude > 400,
                                     action: { part107Compliant = false }
@@ -569,7 +570,7 @@ struct FlightPlanFormView: View {
                                     Image(systemName: "info.circle.fill")
                                         .font(.system(size: 12))
                                         .foregroundColor(.orange)
-                                    Text("Flights above 400 ft AGL are non-compliant with Part 107")
+                                    Text("Flights above 400 ft AGL are non-compliant with civil regulations")
                                         .font(.system(size: 12))
                                         .foregroundColor(FlightPlanColors.textSecondary)
                                 }
@@ -579,7 +580,7 @@ struct FlightPlanFormView: View {
                                 GlassTextEditor(
                                     title: "Non-Compliance Explanation",
                                     text: $part107NonComplianceExplanation,
-                                    placeholder: "Explain which Part 107 rules cannot be met and why...",
+                                    placeholder: "Explain which civil regulation rules cannot be met and why...",
                                     required: true
                                 )
                                 .transition(.opacity)
@@ -655,58 +656,69 @@ struct FlightPlanFormView: View {
                                     Text("I certify that this flight will be conducted in accordance with all applicable civil regulations under ")
                                         .font(.system(size: 13))
                                         .foregroundColor(FlightPlanColors.textSecondary)
+
+                                    Spacer()
                                 }
 
-                                // Regulation picker
-                                Menu {
-                                    Section("USA") {
-                                        ForEach(CertificationRegulation.usaRegulations, id: \.self) { regulation in
-                                            Button {
-                                                certificationRegulation = regulation
-                                            } label: {
-                                                HStack {
-                                                    Text(regulation.displayName)
-                                                    if certificationRegulation == regulation {
-                                                        Image(systemName: "checkmark")
+                                // Regulation picker - aligned to the right
+                                HStack {
+                                    Spacer()
+                                    Menu {
+                                        Section("USA") {
+                                            ForEach(CertificationRegulation.usaRegulations, id: \.self) { regulation in
+                                                Button {
+                                                    certificationRegulation = regulation
+                                                } label: {
+                                                    HStack {
+                                                        Text(regulation.displayName)
+                                                        if certificationRegulation == regulation {
+                                                            Image(systemName: "checkmark")
+                                                        }
                                                     }
                                                 }
                                             }
                                         }
-                                    }
-                                    Section("Canada") {
-                                        ForEach(CertificationRegulation.canadaRegulations, id: \.self) { regulation in
-                                            Button {
-                                                certificationRegulation = regulation
-                                            } label: {
-                                                HStack {
-                                                    Text(regulation.displayName)
-                                                    if certificationRegulation == regulation {
-                                                        Image(systemName: "checkmark")
+                                        Section("Canada") {
+                                            ForEach(CertificationRegulation.canadaRegulations, id: \.self) { regulation in
+                                                Button {
+                                                    certificationRegulation = regulation
+                                                } label: {
+                                                    HStack {
+                                                        Text(regulation.displayName)
+                                                        if certificationRegulation == regulation {
+                                                            Image(systemName: "checkmark")
+                                                        }
                                                     }
                                                 }
                                             }
                                         }
-                                    }
-                                } label: {
-                                    HStack(spacing: 6) {
-                                        Text(certificationRegulation.displayName)
-                                            .font(.system(size: 13, weight: .medium))
-                                            .foregroundColor(FlightPlanColors.primary)
+                                    } label: {
+                                        HStack(spacing: 6) {
+                                            if let regulation = certificationRegulation {
+                                                Text(regulation.displayName)
+                                                    .font(.system(size: 13, weight: .medium))
+                                                    .foregroundColor(FlightPlanColors.primary)
+                                            } else {
+                                                Text("Select Regulation")
+                                                    .font(.system(size: 13, weight: .medium))
+                                                    .foregroundColor(FlightPlanColors.textSecondary)
+                                            }
 
-                                        Image(systemName: "chevron.down")
-                                            .font(.system(size: 10, weight: .semibold))
-                                            .foregroundColor(FlightPlanColors.primary)
+                                            Image(systemName: "chevron.down")
+                                                .font(.system(size: 10, weight: .semibold))
+                                                .foregroundColor(certificationRegulation != nil ? FlightPlanColors.primary : FlightPlanColors.textSecondary)
+                                        }
+                                        .padding(.horizontal, 12)
+                                        .padding(.vertical, 8)
+                                        .background(
+                                            RoundedRectangle(cornerRadius: 8)
+                                                .fill(certificationRegulation != nil ? FlightPlanColors.primary.opacity(0.1) : FlightPlanColors.fieldBackground)
+                                        )
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 8)
+                                                .stroke(certificationRegulation != nil ? FlightPlanColors.primary.opacity(0.3) : FlightPlanColors.border, lineWidth: 1)
+                                        )
                                     }
-                                    .padding(.horizontal, 12)
-                                    .padding(.vertical, 8)
-                                    .background(
-                                        RoundedRectangle(cornerRadius: 8)
-                                            .fill(FlightPlanColors.primary.opacity(0.1))
-                                    )
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 8)
-                                            .stroke(FlightPlanColors.primary.opacity(0.3), lineWidth: 1)
-                                    )
                                 }
 
                                 Text("and that I am the remote pilot in command responsible for this operation.")
@@ -999,7 +1011,8 @@ struct FlightPlanFormView: View {
         let baseRequirements = selectedDrone != nil &&
             !location.isEmpty &&
             signatureImage != nil &&
-            signatureDate != nil
+            signatureDate != nil &&
+            certificationRegulation != nil  // Regulation must be selected
 
         let flightOverPeopleValid = !flightOverPeople || !flightOverPeopleExplanation.isEmpty
         let part107Valid = part107Compliant || !part107NonComplianceExplanation.isEmpty
@@ -1091,7 +1104,7 @@ struct FlightPlanFormView: View {
             waiverSafetyMitigations: requiresWaiver ? waiverSafetyMitigations : nil,
             waiverOperationalProcedures: requiresWaiver ? waiverOperationalProcedures : nil,
             waiverRiskAnalysis: requiresWaiver ? waiverRiskAnalysis : nil,
-            certificationRegulation: certificationRegulation,
+            certificationRegulation: certificationRegulation!,  // Safe: canSubmit ensures this is not nil
             signatureImage: signatureImage,
             signatureDate: signatureDate,
             generatedAt: Date()
@@ -1144,14 +1157,12 @@ struct FlightPlanFormView: View {
                 airspaceClass = airspaceService.airspaceClass
                 laancGridCeiling = airspaceService.laancGridCeiling
 
-                // Set regulatory authority and default certification regulation based on detected country
+                // Set regulatory authority based on detected country (certification regulation requires manual selection)
                 if let country = detectedCountry {
                     if country == "Canada" {
                         regulatoryAuthority = .transportCanada
-                        certificationRegulation = .tp15263
                     } else {
                         regulatoryAuthority = .faa
-                        certificationRegulation = .part107
                     }
                 }
 
@@ -1669,11 +1680,15 @@ private struct CheckboxOption: View {
                     Text(title)
                         .font(.system(size: 14, weight: .medium))
                         .foregroundColor(isDisabled ? FlightPlanColors.textSecondary : FlightPlanColors.textPrimary)
+                        .multilineTextAlignment(.leading)
 
                     Text(subtitle)
                         .font(.system(size: 11))
                         .foregroundColor(FlightPlanColors.textSecondary)
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
 
                 Spacer()
             }
