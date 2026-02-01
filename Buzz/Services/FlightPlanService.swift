@@ -211,8 +211,12 @@ class FlightPlanService: ObservableObject {
                 )
             }
 
-            // Get the storage URL (private bucket, so we store the path)
-            let pdfUrl = "\(storageBucket)/\(filePath)"
+            // Get the full storage URL for consistency with other tables
+            let pdfURL = try supabase.storage
+                .from(storageBucket)
+                .getPublicURL(path: filePath)
+            let pdfUrl = pdfURL.absoluteString
+            print("DEBUG FlightPlan: PDF URL: \(pdfUrl)")
 
             // Prepare the flight plan record for database
             let flightPlanRecord: [String: AnyJSON] = [
