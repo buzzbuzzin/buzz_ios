@@ -510,7 +510,7 @@ class FlightPlanService: ObservableObject {
         // Cell 18: Civil Regulation Compliance (with checkbox options)
         drawCheckboxCell(
             number: 18,
-            label: "Civil Regulation Compliance",
+            label: "CIVIL REGULATION COMPLIANCE",
             options: [("Yes", data.part107Compliant), ("No", !data.part107Compliant)],
             rect: CGRect(x: xOffset, y: yOffset, width: row5Widths[2], height: standardRowHeight),
             context: context
@@ -546,7 +546,7 @@ class FlightPlanService: ObservableObject {
         // Cell 21: Part 107 Non-Compliance Explanation (always shown)
         yOffset = drawFixedTextBlock(
             number: 21,
-            label: "PART 107 NON-COMPLIANCE EXPLANATION",
+            label: "CIVIL REGULATION NON-COMPLIANCE EXPLANATION",
             text: data.part107NonComplianceExplanation ?? "",
             at: yOffset,
             width: contentWidth,
