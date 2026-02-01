@@ -109,82 +109,55 @@ class FlightPlanService: ObservableObject {
         let renderer = UIGraphicsPDFRenderer(bounds: pageRect)
 
         let pdfData = renderer.pdfData { context in
-            var yOffset: CGFloat = 50
+            var yOffset: CGFloat = 40
 
             // Start first page
             context.beginPage()
 
-            // Draw logo at top center (preserve aspect ratio)
+            // 1. Draw logo at top center (preserve aspect ratio)
             if let logoImage = UIImage(named: "Logo") {
-                let maxLogoHeight: CGFloat = 80
+                let maxLogoHeight: CGFloat = 70
                 let aspectRatio = logoImage.size.width / logoImage.size.height
                 let logoHeight = maxLogoHeight
                 let logoWidth = logoHeight * aspectRatio
                 let logoX = (pageRect.width - logoWidth) / 2
                 let logoRect = CGRect(x: logoX, y: yOffset, width: logoWidth, height: logoHeight)
                 logoImage.draw(in: logoRect)
-                yOffset += logoHeight + 20 // Add space after logo
+                yOffset += logoHeight + 15
             }
 
-            // Title
-            let titleFont = UIFont.boldSystemFont(ofSize: 24)
-            let titleAttributes: [NSAttributedString.Key: Any] = [
-                .font: titleFont,
-                .foregroundColor: UIColor.black
-            ]
-            "FLIGHT PLAN".draw(at: CGPoint(x: 50, y: yOffset), withAttributes: titleAttributes)
-            yOffset += 40
+            // 2. Draw title bar
+            yOffset = drawTitleBar(at: yOffset, pageRect: pageRect, context: context.cgContext)
 
-            // Generation date
+            // 3. Draw generation date (right-aligned)
             let dateFormatter = DateFormatter()
             dateFormatter.dateFormat = "MMMM d, yyyy 'at' h:mm a"
-            let dateFont = UIFont.systemFont(ofSize: 10)
+            let dateFont = UIFont.systemFont(ofSize: 9)
             let dateAttributes: [NSAttributedString.Key: Any] = [
                 .font: dateFont,
                 .foregroundColor: UIColor.gray
             ]
-            "Generated: \(dateFormatter.string(from: data.generatedAt))".draw(at: CGPoint(x: 50, y: yOffset), withAttributes: dateAttributes)
-            yOffset += 30
+            let dateText = "Generated: \(dateFormatter.string(from: data.generatedAt))"
+            let dateSize = (dateText as NSString).size(withAttributes: dateAttributes)
+            let dateX = pageRect.width - 36 - dateSize.width
+            dateText.draw(at: CGPoint(x: dateX, y: yOffset + 5), withAttributes: dateAttributes)
+            yOffset += 25
 
-            // Draw separator line
-            yOffset = drawSeparatorLine(at: yOffset, pageRect: pageRect, context: context.cgContext)
+            // 4. Draw form grid (main tabular structure)
+            yOffset = drawFormGrid(at: yOffset, data: data, pageRect: pageRect, context: context.cgContext)
 
-            // Flight Plan Section
-            yOffset = drawSectionHeader("FLIGHT DETAILS", at: yOffset, pageRect: pageRect)
+            // 5. Draw certification section
+            yOffset = drawCertificationSection(at: yOffset, pageRect: pageRect, context: context.cgContext)
 
-            yOffset = drawField("Pilot Name:", data.pilotName, at: yOffset, pageRect: pageRect)
-            yOffset = drawField("Callsign:", data.callSign, at: yOffset, pageRect: pageRect)
-
-            let droneInfo = [data.droneManufacturer, data.droneModel].compactMap { $0 }.joined(separator: " ")
-            yOffset = drawField("Drone:", droneInfo.isEmpty ? "N/A" : droneInfo, at: yOffset, pageRect: pageRect)
-
-            if let serial = data.droneSerialNumber, !serial.isEmpty {
-                yOffset = drawField("Serial Number:", serial, at: yOffset, pageRect: pageRect)
-            }
-            if let regNum = data.droneRegistrationNumber, !regNum.isEmpty {
-                yOffset = drawField("Registration #:", regNum, at: yOffset, pageRect: pageRect)
-            }
-
-            let takeoffFormatter = DateFormatter()
-            takeoffFormatter.dateFormat = "MMMM d, yyyy 'at' h:mm a"
-            yOffset = drawField("Takeoff Date/Time:", takeoffFormatter.string(from: data.takeoffDateTime), at: yOffset, pageRect: pageRect)
-
-            yOffset = drawField("Location:", data.location, at: yOffset, pageRect: pageRect)
-            if let coords = data.locationCoordinates, !coords.isEmpty {
-                yOffset = drawField("Coordinates:", coords, at: yOffset, pageRect: pageRect)
-            }
-
-            // Footer
-            yOffset += 30
-            yOffset = drawSeparatorLine(at: yOffset, pageRect: pageRect, context: context.cgContext)
-
+            // 6. Draw footer disclaimer
+            yOffset += 15
             let footerFont = UIFont.italicSystemFont(ofSize: 9)
             let footerAttributes: [NSAttributedString.Key: Any] = [
                 .font: footerFont,
                 .foregroundColor: UIColor.gray
             ]
             "This flight plan was generated using Buzz. Pilots are responsible for compliance with all applicable regulations.".draw(
-                in: CGRect(x: 50, y: yOffset, width: pageRect.width - 100, height: 40),
+                in: CGRect(x: 36, y: yOffset, width: 540, height: 40),
                 withAttributes: footerAttributes
             )
         }
@@ -231,6 +204,362 @@ class FlightPlanService: ObservableObject {
         context.addLine(to: CGPoint(x: pageRect.width - 50, y: yOffset))
         context.strokePath()
         return yOffset + 15
+    }
+
+    // MARK: - FAA-Style PDF Drawing Helpers
+
+    private func drawCell(
+        number: Int,
+        label: String,
+        value: String,
+        rect: CGRect,
+        context: CGContext
+    ) {
+        // Draw border
+        context.setStrokeColor(UIColor.black.cgColor)
+        context.setLineWidth(0.75)
+        context.stroke(rect)
+
+        // Draw field number (top-left corner)
+        let numberFont = UIFont.boldSystemFont(ofSize: 8)
+        let numberAttributes: [NSAttributedString.Key: Any] = [
+            .font: numberFont,
+            .foregroundColor: UIColor.darkGray
+        ]
+        let numberText = "\(number)."
+        numberText.draw(
+            at: CGPoint(x: rect.minX + 4, y: rect.minY + 3),
+            withAttributes: numberAttributes
+        )
+
+        // Draw field label (uppercase, small, gray)
+        let labelFont = UIFont.systemFont(ofSize: 8, weight: .medium)
+        let labelAttributes: [NSAttributedString.Key: Any] = [
+            .font: labelFont,
+            .foregroundColor: UIColor(white: 0.45, alpha: 1.0)
+        ]
+        label.uppercased().draw(
+            at: CGPoint(x: rect.minX + 18, y: rect.minY + 4),
+            withAttributes: labelAttributes
+        )
+
+        // Draw field value (below label, prominent)
+        let valueFont = UIFont.systemFont(ofSize: 13, weight: .regular)
+        let valueAttributes: [NSAttributedString.Key: Any] = [
+            .font: valueFont,
+            .foregroundColor: value == "N/A" ? UIColor.gray : UIColor.black
+        ]
+
+        // Truncate if too long
+        let maxValueWidth = rect.width - 16
+        let displayValue = truncateText(value, toWidth: maxValueWidth, font: valueFont)
+
+        let valueY = rect.minY + 20
+        displayValue.draw(
+            at: CGPoint(x: rect.minX + 8, y: valueY),
+            withAttributes: valueAttributes
+        )
+    }
+
+    private func drawTitleBar(
+        at y: CGFloat,
+        pageRect: CGRect,
+        context: CGContext
+    ) -> CGFloat {
+        let leftMargin: CGFloat = 36
+        let contentWidth: CGFloat = 540
+        let barHeight: CGFloat = 35
+        let barRect = CGRect(x: leftMargin, y: y, width: contentWidth, height: barHeight)
+
+        // Fill background
+        context.setFillColor(UIColor.systemGray6.cgColor)
+        context.fill(barRect)
+
+        // Draw border
+        context.setStrokeColor(UIColor.black.cgColor)
+        context.setLineWidth(1.0)
+        context.stroke(barRect)
+
+        // Draw "UAS" badge on left
+        let badgeFont = UIFont.boldSystemFont(ofSize: 10)
+        let badgeAttributes: [NSAttributedString.Key: Any] = [
+            .font: badgeFont,
+            .foregroundColor: UIColor.white
+        ]
+        let badge = "UAS"
+        let badgeSize = (badge as NSString).size(withAttributes: badgeAttributes)
+        let badgePadding: CGFloat = 6
+        let badgeRect = CGRect(
+            x: leftMargin + 8,
+            y: y + (barHeight - badgeSize.height - badgePadding) / 2,
+            width: badgeSize.width + badgePadding * 2,
+            height: badgeSize.height + badgePadding
+        )
+
+        context.setFillColor(UIColor.systemBlue.cgColor)
+        let badgePath = UIBezierPath(roundedRect: badgeRect, cornerRadius: 4)
+        context.addPath(badgePath.cgPath)
+        context.fillPath()
+
+        badge.draw(
+            at: CGPoint(x: badgeRect.minX + badgePadding, y: badgeRect.minY + badgePadding / 2),
+            withAttributes: badgeAttributes
+        )
+
+        // Draw title text centered
+        let titleFont = UIFont.boldSystemFont(ofSize: 18)
+        let titleAttributes: [NSAttributedString.Key: Any] = [
+            .font: titleFont,
+            .foregroundColor: UIColor.black
+        ]
+        let title = "DRONE FLIGHT PLAN"
+        let titleSize = (title as NSString).size(withAttributes: titleAttributes)
+        let titleX = leftMargin + (contentWidth - titleSize.width) / 2
+        let titleY = y + (barHeight - titleSize.height) / 2
+
+        title.draw(at: CGPoint(x: titleX, y: titleY), withAttributes: titleAttributes)
+
+        return y + barHeight
+    }
+
+    private func drawFormGrid(
+        at startY: CGFloat,
+        data: FlightPlanFormData,
+        pageRect: CGRect,
+        context: CGContext
+    ) -> CGFloat {
+        let leftMargin: CGFloat = 36
+        var yOffset = startY + 10
+
+        // Row heights
+        let standardRowHeight: CGFloat = 55
+        let remarksRowHeight: CGFloat = 45
+
+        // Row 1: TYPE, DRONE ID, DRONE TYPE, CALLSIGN
+        let row1Widths: [CGFloat] = [80, 150, 160, 150] // Total: 540
+        var xOffset = leftMargin
+
+        // Cell 1: TYPE
+        drawCell(
+            number: 1,
+            label: "TYPE",
+            value: "PART 107",
+            rect: CGRect(x: xOffset, y: yOffset, width: row1Widths[0], height: standardRowHeight),
+            context: context
+        )
+        xOffset += row1Widths[0]
+
+        // Cell 2: DRONE IDENTIFICATION
+        drawCell(
+            number: 2,
+            label: "DRONE IDENTIFICATION",
+            value: data.droneRegistrationNumber ?? "N/A",
+            rect: CGRect(x: xOffset, y: yOffset, width: row1Widths[1], height: standardRowHeight),
+            context: context
+        )
+        xOffset += row1Widths[1]
+
+        // Cell 3: DRONE TYPE
+        let droneType = [data.droneManufacturer, data.droneModel]
+            .compactMap { $0 }
+            .joined(separator: " ")
+        drawCell(
+            number: 3,
+            label: "DRONE TYPE",
+            value: droneType.isEmpty ? "N/A" : droneType,
+            rect: CGRect(x: xOffset, y: yOffset, width: row1Widths[2], height: standardRowHeight),
+            context: context
+        )
+        xOffset += row1Widths[2]
+
+        // Cell 4: PILOT CALLSIGN
+        drawCell(
+            number: 4,
+            label: "PILOT CALLSIGN",
+            value: data.callSign,
+            rect: CGRect(x: xOffset, y: yOffset, width: row1Widths[3], height: standardRowHeight),
+            context: context
+        )
+
+        yOffset += standardRowHeight
+
+        // Row 2: DEPARTURE POINT, DEPARTURE TIME, COORDINATES
+        xOffset = leftMargin
+        let row2Widths: [CGFloat] = [270, 135, 135]
+
+        // Cell 5: DEPARTURE POINT
+        drawCell(
+            number: 5,
+            label: "DEPARTURE POINT",
+            value: data.location,
+            rect: CGRect(x: xOffset, y: yOffset, width: row2Widths[0], height: standardRowHeight),
+            context: context
+        )
+        xOffset += row2Widths[0]
+
+        // Cell 6: DEPARTURE TIME (Zulu)
+        let zuluFormatter = DateFormatter()
+        zuluFormatter.dateFormat = "HHmm"
+        zuluFormatter.timeZone = TimeZone(identifier: "UTC")
+        let zuluTime = zuluFormatter.string(from: data.takeoffDateTime) + "Z"
+
+        drawCell(
+            number: 6,
+            label: "DEPARTURE TIME (ZULU)",
+            value: zuluTime,
+            rect: CGRect(x: xOffset, y: yOffset, width: row2Widths[1], height: standardRowHeight),
+            context: context
+        )
+        xOffset += row2Widths[1]
+
+        // Cell 7: COORDINATES
+        drawCell(
+            number: 7,
+            label: "COORDINATES",
+            value: data.locationCoordinates ?? "N/A",
+            rect: CGRect(x: xOffset, y: yOffset, width: row2Widths[2], height: standardRowHeight),
+            context: context
+        )
+
+        yOffset += standardRowHeight
+
+        // Row 3: PILOT NAME, SERIAL NUMBER, DATE
+        xOffset = leftMargin
+        let row3Widths: [CGFloat] = [270, 135, 135]
+
+        // Cell 8: PILOT NAME
+        drawCell(
+            number: 8,
+            label: "PILOT NAME",
+            value: data.pilotName,
+            rect: CGRect(x: xOffset, y: yOffset, width: row3Widths[0], height: standardRowHeight),
+            context: context
+        )
+        xOffset += row3Widths[0]
+
+        // Cell 9: SERIAL NUMBER
+        drawCell(
+            number: 9,
+            label: "SERIAL NUMBER",
+            value: data.droneSerialNumber ?? "N/A",
+            rect: CGRect(x: xOffset, y: yOffset, width: row3Widths[1], height: standardRowHeight),
+            context: context
+        )
+        xOffset += row3Widths[1]
+
+        // Cell 10: DATE
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "MM/dd/yyyy"
+        let dateStr = dateFormatter.string(from: data.takeoffDateTime)
+
+        drawCell(
+            number: 10,
+            label: "DATE",
+            value: dateStr,
+            rect: CGRect(x: xOffset, y: yOffset, width: row3Widths[2], height: standardRowHeight),
+            context: context
+        )
+
+        yOffset += standardRowHeight
+
+        // Row 4: REMARKS (full width)
+        let contentWidth: CGFloat = 540
+        drawCell(
+            number: 11,
+            label: "REMARKS",
+            value: "",
+            rect: CGRect(x: leftMargin, y: yOffset, width: contentWidth, height: remarksRowHeight),
+            context: context
+        )
+
+        yOffset += remarksRowHeight
+
+        return yOffset
+    }
+
+    private func drawCertificationSection(
+        at y: CGFloat,
+        pageRect: CGRect,
+        context: CGContext
+    ) -> CGFloat {
+        let leftMargin: CGFloat = 36
+        let contentWidth: CGFloat = 540
+        var yOffset = y + 20
+
+        // Section header
+        let headerFont = UIFont.boldSystemFont(ofSize: 10)
+        let headerAttributes: [NSAttributedString.Key: Any] = [
+            .font: headerFont,
+            .foregroundColor: UIColor.black
+        ]
+        "PILOT CERTIFICATION".draw(
+            at: CGPoint(x: leftMargin, y: yOffset),
+            withAttributes: headerAttributes
+        )
+        yOffset += 18
+
+        // Certification text
+        let certFont = UIFont.systemFont(ofSize: 9)
+        let certAttributes: [NSAttributedString.Key: Any] = [
+            .font: certFont,
+            .foregroundColor: UIColor.darkGray
+        ]
+        let certText = "I certify that this flight will be conducted in accordance with all applicable FAA regulations and that I am the remote pilot in command responsible for this operation."
+
+        let certRect = CGRect(x: leftMargin, y: yOffset, width: contentWidth, height: 30)
+        certText.draw(in: certRect, withAttributes: certAttributes)
+        yOffset += 35
+
+        // Signature line
+        context.setStrokeColor(UIColor.black.cgColor)
+        context.setLineWidth(0.5)
+        context.move(to: CGPoint(x: leftMargin, y: yOffset))
+        context.addLine(to: CGPoint(x: leftMargin + 200, y: yOffset))
+        context.strokePath()
+
+        let sigLabel = "Pilot Signature"
+        let sigLabelFont = UIFont.systemFont(ofSize: 8)
+        let sigLabelAttributes: [NSAttributedString.Key: Any] = [
+            .font: sigLabelFont,
+            .foregroundColor: UIColor.gray
+        ]
+        sigLabel.draw(
+            at: CGPoint(x: leftMargin, y: yOffset + 3),
+            withAttributes: sigLabelAttributes
+        )
+
+        // Date line
+        context.move(to: CGPoint(x: leftMargin + 280, y: yOffset))
+        context.addLine(to: CGPoint(x: leftMargin + 400, y: yOffset))
+        context.strokePath()
+
+        "Date".draw(
+            at: CGPoint(x: leftMargin + 280, y: yOffset + 3),
+            withAttributes: sigLabelAttributes
+        )
+
+        return yOffset + 25
+    }
+
+    private func truncateText(_ text: String, toWidth maxWidth: CGFloat, font: UIFont) -> String {
+        let attributes: [NSAttributedString.Key: Any] = [.font: font]
+        var truncated = text
+        var size = (truncated as NSString).size(withAttributes: attributes)
+
+        if size.width <= maxWidth {
+            return text
+        }
+
+        while size.width > maxWidth && truncated.count > 0 {
+            truncated = String(truncated.dropLast())
+            let withEllipsis = truncated + "..."
+            size = (withEllipsis as NSString).size(withAttributes: attributes)
+            if size.width <= maxWidth {
+                return withEllipsis
+            }
+        }
+
+        return truncated
     }
 
     // MARK: - Reverse Geocode Location
