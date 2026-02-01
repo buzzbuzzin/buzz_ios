@@ -13,7 +13,7 @@ struct SiteSurveyChecklistView: View {
     let booking: Booking
 
     var body: some View {
-        SiteSurveyFormView()
+        SiteSurveyFormView(booking: booking, isEmbedded: true)
             .environmentObject(authService)
     }
 }

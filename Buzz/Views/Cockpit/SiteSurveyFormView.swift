@@ -32,6 +32,15 @@ struct SiteSurveyFormView: View {
     @StateObject private var siteSurveyService = SiteSurveyService()
     @Environment(\.dismiss) private var dismiss
 
+    // Optional booking for auto-populating location
+    let booking: Booking?
+    let isEmbedded: Bool
+    
+    init(booking: Booking? = nil, isEmbedded: Bool = false) {
+        self.booking = booking
+        self.isEmbedded = isEmbedded
+    }
+
     // Site Survey Section Fields
     @State private var operationBoundaries: String = ""
     @State private var airspaceAndRequirements: String = ""
@@ -46,6 +55,7 @@ struct SiteSurveyFormView: View {
     // Location fields (optional, for weather)
     @State private var location: String = ""
     @State private var locationCoordinates: CLLocationCoordinate2D?
+    @State private var hasLoadedBookingLocation = false
 
     // UI State
     @State private var showGenerateConfirmation = false
@@ -78,41 +88,43 @@ struct SiteSurveyFormView: View {
 
             ScrollView {
                 VStack(spacing: 24) {
-                    // Custom Header
-                    HStack {
-                        Button {
-                            dismiss()
-                        } label: {
-                            Image(systemName: "xmark")
-                                .font(.system(size: 16, weight: .medium))
-                                .foregroundColor(SiteSurveyColors.textSecondary)
+                    // Custom Header - only show if NOT embedded in tab
+                    if !isEmbedded {
+                        HStack {
+                            Button {
+                                dismiss()
+                            } label: {
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 16, weight: .medium))
+                                    .foregroundColor(SiteSurveyColors.textSecondary)
+                                    .frame(width: 40, height: 40)
+                                    .background(
+                                        Circle()
+                                            .fill(Color.white.opacity(0.8))
+                                            .shadow(color: .black.opacity(0.06), radius: 4, x: 0, y: 2)
+                                    )
+                                    .overlay(
+                                        Circle()
+                                            .stroke(SiteSurveyColors.border, lineWidth: 1)
+                                    )
+                            }
+
+                            Spacer()
+
+                            Text("Site Survey")
+                                .font(.system(size: 18, weight: .semibold))
+                                .tracking(0.3)
+                                .foregroundColor(SiteSurveyColors.textPrimary)
+
+                            Spacer()
+
+                            // Spacer for centering
+                            Color.clear
                                 .frame(width: 40, height: 40)
-                                .background(
-                                    Circle()
-                                        .fill(Color.white.opacity(0.8))
-                                        .shadow(color: .black.opacity(0.06), radius: 4, x: 0, y: 2)
-                                )
-                                .overlay(
-                                    Circle()
-                                        .stroke(SiteSurveyColors.border, lineWidth: 1)
-                                )
                         }
-
-                        Spacer()
-
-                        Text("Site Survey")
-                            .font(.system(size: 18, weight: .semibold))
-                            .tracking(0.3)
-                            .foregroundColor(SiteSurveyColors.textPrimary)
-
-                        Spacer()
-
-                        // Spacer for centering
-                        Color.clear
-                            .frame(width: 40, height: 40)
+                        .padding(.horizontal, 16)
+                        .padding(.top, 8)
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 8)
 
                     // Location Section (Optional - for weather auto-population)
                     SiteSurveyGlassCard(title: "Location (Optional)", icon: "mappin.circle") {
@@ -394,7 +406,7 @@ struct SiteSurveyFormView: View {
                 }
             }
         }
-        .navigationBarHidden(true)
+        .navigationBarHidden(!isEmbedded) // Only hide navigation bar when NOT embedded
         .confirmationDialog("Generate Site Survey", isPresented: $showGenerateConfirmation) {
             Button("Generate PDF") {
                 generatePDF()
@@ -430,6 +442,12 @@ struct SiteSurveyFormView: View {
             }
         }
         .task {
+            // Load booking location if available
+            if let booking = booking, !hasLoadedBookingLocation {
+                await loadBookingLocation()
+                hasLoadedBookingLocation = true
+            }
+            
             // Request location permission and start updates
             locationManager.requestPermission()
             locationManager.startLocationUpdates()
@@ -461,6 +479,33 @@ struct SiteSurveyFormView: View {
     }
 
     // MARK: - Helper Methods
+
+    private func loadBookingLocation() async {
+        guard let booking = booking else { return }
+        
+        // Set coordinates from booking
+        let coordinate = CLLocationCoordinate2D(
+            latitude: booking.locationLat,
+            longitude: booking.locationLng
+        )
+        locationCoordinates = coordinate
+        
+        // Reverse geocode to get the full address
+        if let address = await siteSurveyService.reverseGeocodeLocation(coordinate) {
+            await MainActor.run {
+                location = address
+            }
+        } else {
+            // Fall back to booking's location name if reverse geocoding fails
+            await MainActor.run {
+                location = booking.locationName
+            }
+        }
+        
+        // Fetch weather for this location
+        await safeFlyService.fetchSafeFlyData(coordinate: coordinate)
+        updateWeatherForCurrentTime()
+    }
 
     private func useCurrentLocation() {
         guard let coordinate = locationManager.currentLocation else {
