@@ -554,7 +554,7 @@ struct FlightPlanFormView: View {
                     }
                     .padding(.horizontal, 16)
 
-                    // Civil Regulation Compliance Section
+                    // Civil Regulatory Compliance Section
                     GlassCard(title: "Civil Regulatory Compliance", icon: "checkmark.shield") {
                         VStack(alignment: .leading, spacing: 16) {
                             VStack(spacing: 10) {

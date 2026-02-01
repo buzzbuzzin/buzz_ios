@@ -677,10 +677,10 @@ class FlightPlanService: ObservableObject {
             context: context
         )
 
-        // Cell 22: Civil Regulation Non-Compliance Explanation (always shown)
+        // Cell 22: Civil Regulatory Non-Compliance Explanation (always shown)
         yOffset = drawFixedTextBlock(
             number: 22,
-            label: "CIVIL REGULATION NON-COMPLIANCE EXPLANATION",
+            label: "CIVIL REGULATORY NON-COMPLIANCE EXPLANATION",
             text: data.part107NonComplianceExplanation ?? "",
             at: yOffset,
             width: contentWidth,
