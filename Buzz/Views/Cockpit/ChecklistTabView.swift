@@ -10,13 +10,16 @@ import Auth
 
 enum ChecklistTab: String, CaseIterable {
     case operation = "Operation"
+    case siteSurvey = "Site Survey"
     case preFlight = "Pre-Flight"
     case postFlight = "Post-Flight"
-    
+
     var icon: String {
         switch self {
         case .operation:
             return "gearshape.fill"
+        case .siteSurvey:
+            return "doc.text.magnifyingglass"
         case .preFlight:
             return "airplane.departure"
         case .postFlight:
@@ -71,6 +74,8 @@ struct ChecklistTabView: View {
                         checklistService: checklistService,
                         booking: booking
                     )
+                case .siteSurvey:
+                    SiteSurveyChecklistView(booking: booking)
                 case .preFlight:
                     PreFlightChecklistView(
                         checklistService: checklistService,

@@ -28,9 +28,11 @@ private struct FlightPlanColors {
 struct FlightPlanFormView: View {
     @EnvironmentObject var authService: AuthService
     @StateObject private var flightPlanService = FlightPlanService()
-    @StateObject private var safeFlyService = SafeFlyService()
     @StateObject private var locationManager = BookingMapLocationManager()
     @Environment(\.dismiss) private var dismiss
+
+    // Booking (required - flight plan is tied to a booking)
+    let booking: Booking
 
     // Flight Plan Section Fields
     @State private var selectedDrone: DroneRegistration?
@@ -38,17 +40,6 @@ struct FlightPlanFormView: View {
     @State private var takeoffTime = Date()
     @State private var location: String = ""
     @State private var locationCoordinates: CLLocationCoordinate2D?
-
-    // Site Survey Section Fields
-    @State private var operationBoundaries: String = ""
-    @State private var airspaceAndRequirements: String = ""
-    @State private var altitudesAndRoutes: String = ""
-    @State private var proximityMannedAircraft: String = ""
-    @State private var proximityAerodromes: String = ""
-    @State private var obstacleLocationsHeights: String = ""
-    @State private var weatherConditions: String = ""
-    @State private var horizontalDistanceBystanders: String = ""
-    @State private var notes: String = ""
 
     // UI State
     @State private var showGenerateConfirmation = false
@@ -58,20 +49,13 @@ struct FlightPlanFormView: View {
     @State private var showErrorAlert = false
     @State private var errorMessage = ""
     @State private var isGeocoding = false
-    @State private var weatherLoadingState: WeatherLoadingState = .notLoaded
+    @State private var hasInitializedFromBooking = false
 
     // Address autocomplete
     @State private var addressSuggestions: [AddressSuggestion] = []
     @State private var isSearchingAddress = false
     @State private var showAddressSuggestions = false
     @StateObject private var addressSearchDebouncer = AddressSearchDebouncer()
-
-    enum WeatherLoadingState {
-        case notLoaded
-        case loading
-        case loaded
-        case unavailable
-    }
 
     var body: some View {
         ZStack {
@@ -222,22 +206,23 @@ struct FlightPlanFormView: View {
 
                             // Date & Time Grid
                             HStack(alignment: .top, spacing: 16) {
-                                // Takeoff Date
+                                // Takeoff Date (Read-only from booking)
                                 VStack(alignment: .leading, spacing: 8) {
-                                    GlassLabel(text: "Takeoff Date", required: true)
+                                    GlassLabel(text: "Takeoff Date", required: false)
 
                                     HStack(spacing: 8) {
                                         Image(systemName: "calendar")
                                             .font(.system(size: 14))
                                             .foregroundColor(FlightPlanColors.primary)
 
-                                        DatePicker("", selection: $takeoffDate, displayedComponents: [.date])
-                                            .labelsHidden()
-                                            .datePickerStyle(.compact)
+                                        Text(shortDateString)
+                                            .font(.system(size: 15))
+                                            .foregroundColor(FlightPlanColors.textPrimary)
                                     }
                                     .padding(.horizontal, 12)
-                                    .padding(.vertical, 10)
-                                    .background(Color.white.opacity(0.8))
+                                    .padding(.vertical, 12)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .background(FlightPlanColors.fieldBackground)
                                     .cornerRadius(12)
                                     .overlay(
                                         RoundedRectangle(cornerRadius: 12)
@@ -246,30 +231,31 @@ struct FlightPlanFormView: View {
                                 }
                                 .frame(maxWidth: .infinity, alignment: .leading)
 
-                                // Takeoff Time and Zulu Time
+                                // Takeoff Time (Zulu) - Read-only from booking
                                 VStack(alignment: .leading, spacing: 8) {
-                                    GlassLabel(text: "Takeoff Time", required: true)
+                                    GlassLabel(text: "Takeoff Time", required: false)
 
                                     HStack(spacing: 8) {
-                                        Image(systemName: "clock")
-                                            .font(.system(size: 14))
+                                        Text("Z")
+                                            .font(.system(size: 14, weight: .bold))
                                             .foregroundColor(FlightPlanColors.primary)
 
-                                        DatePicker("", selection: $takeoffTime, displayedComponents: [.hourAndMinute])
-                                            .labelsHidden()
-                                            .datePickerStyle(.compact)
+                                        Text(zuluTimeString.uppercased())
+                                            .font(.system(size: 15))
+                                            .foregroundColor(FlightPlanColors.textPrimary)
                                     }
                                     .padding(.horizontal, 12)
-                                    .padding(.vertical, 10)
-                                    .background(Color.white.opacity(0.8))
+                                    .padding(.vertical, 12)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .background(FlightPlanColors.fieldBackground)
                                     .cornerRadius(12)
                                     .overlay(
                                         RoundedRectangle(cornerRadius: 12)
                                             .stroke(FlightPlanColors.border, lineWidth: 1)
                                     )
 
-                                    // Zulu time aligned to the left
-                                    Text(zuluTimeString.uppercased())
+                                    // Local time below
+                                    Text(localTimeString)
                                         .font(.system(size: 10, weight: .medium))
                                         .tracking(0.5)
                                         .foregroundColor(FlightPlanColors.textSecondary)
@@ -278,101 +264,44 @@ struct FlightPlanFormView: View {
                                 .frame(maxWidth: .infinity, alignment: .leading)
                             }
 
-                            // Location with address autocomplete
+                            // Location (Read-only from booking)
                             VStack(alignment: .leading, spacing: 8) {
-                                GlassLabel(text: "Location", required: true)
+                                GlassLabel(text: "Location", required: false)
 
                                 HStack(spacing: 0) {
                                     Image(systemName: "mappin.circle.fill")
                                         .font(.system(size: 18))
                                         .foregroundColor(FlightPlanColors.textSecondary)
                                         .padding(.leading, 14)
-                                    
-                                    TextField("Enter address or coordinates", text: $location)
-                                        .font(.system(size: 15))
-                                        .foregroundColor(FlightPlanColors.textPrimary)
-                                        .padding(.horizontal, 12)
-                                        .padding(.vertical, 14)
-                                        .onChange(of: location) { newValue in
-                                            addressSearchDebouncer.search(query: newValue) { query in
-                                                searchAddresses(query: query)
-                                            }
-                                        }
-                                        .onTapGesture {
-                                            if !addressSuggestions.isEmpty {
-                                                showAddressSuggestions = true
-                                            }
-                                        }
-                                    
-                                    Button(action: useCurrentLocation) {
-                                        if isGeocoding {
+
+                                    if isGeocoding {
+                                        HStack {
                                             ProgressView()
                                                 .scaleEffect(0.7)
-                                        } else {
-                                            Image(systemName: "location.fill")
-                                                .font(.system(size: 14))
-                                                .foregroundColor(FlightPlanColors.primary)
+                                            Text("Loading address...")
+                                                .font(.system(size: 15))
+                                                .foregroundColor(FlightPlanColors.textMuted)
                                         }
+                                        .padding(.horizontal, 12)
+                                        .padding(.vertical, 14)
+                                    } else {
+                                        Text(location.isEmpty ? "Loading..." : location)
+                                            .font(.system(size: 15))
+                                            .foregroundColor(location.isEmpty ? FlightPlanColors.textMuted : FlightPlanColors.textPrimary)
+                                            .padding(.horizontal, 12)
+                                            .padding(.vertical, 14)
+                                            .lineLimit(2)
                                     }
-                                    .disabled(isGeocoding)
-                                    .padding(.horizontal, 12)
-                                    .padding(.vertical, 8)
-                                    .background(FlightPlanColors.primary.opacity(0.1))
-                                    .cornerRadius(8)
-                                    .padding(.trailing, 8)
+
+                                    Spacer()
                                 }
-                                .background(Color.white.opacity(0.8))
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(FlightPlanColors.fieldBackground)
                                 .cornerRadius(12)
                                 .overlay(
                                     RoundedRectangle(cornerRadius: 12)
                                         .stroke(FlightPlanColors.border, lineWidth: 1)
                                 )
-
-                                // Address suggestions dropdown
-                                if showAddressSuggestions && !addressSuggestions.isEmpty {
-                                    VStack(alignment: .leading, spacing: 0) {
-                                        ForEach(addressSuggestions) { suggestion in
-                                            Button {
-                                                selectAddress(suggestion)
-                                            } label: {
-                                                VStack(alignment: .leading, spacing: 4) {
-                                                    Text(suggestion.title)
-                                                        .font(.subheadline)
-                                                        .foregroundColor(FlightPlanColors.textPrimary)
-                                                    if let subtitle = suggestion.subtitle {
-                                                        Text(subtitle)
-                                                            .font(.caption)
-                                                            .foregroundColor(FlightPlanColors.textSecondary)
-                                                    }
-                                                }
-                                                .frame(maxWidth: .infinity, alignment: .leading)
-                                                .padding(.horizontal, 16)
-                                                .padding(.vertical, 12)
-                                            }
-                                            if suggestion.id != addressSuggestions.last?.id {
-                                                Divider()
-                                                    .padding(.horizontal, 12)
-                                            }
-                                        }
-                                    }
-                                    .background(Color.white)
-                                    .cornerRadius(12)
-                                    .shadow(color: Color.black.opacity(0.08), radius: 8, x: 0, y: 4)
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 12)
-                                            .stroke(FlightPlanColors.border, lineWidth: 1)
-                                    )
-                                }
-
-                                if isSearchingAddress {
-                                    HStack {
-                                        ProgressView()
-                                            .scaleEffect(0.7)
-                                        Text("Searching...")
-                                            .font(.caption)
-                                            .foregroundColor(FlightPlanColors.textSecondary)
-                                    }
-                                }
 
                                 if let coords = locationCoordinates {
                                     Text("Coordinates: \(String(format: "%.6f", coords.latitude)), \(String(format: "%.6f", coords.longitude))")
@@ -384,135 +313,6 @@ struct FlightPlanFormView: View {
                     }
                     .padding(.horizontal, 16)
 
-                    // Site Survey Section
-                    GlassCard(title: "Site Survey", icon: "doc.text") {
-                        VStack(spacing: 20) {
-                            GlassTextEditor(
-                                title: "1. Operation Boundaries",
-                                text: $operationBoundaries,
-                                placeholder: "Define the geographic boundaries of your operation area...",
-                                required: true
-                            )
-
-                            GlassTextEditor(
-                                title: "2. Airspace and Requirements",
-                                text: $airspaceAndRequirements,
-                                placeholder: "Describe airspace classification and any authorization requirements...",
-                                required: true
-                            )
-
-                            GlassTextEditor(
-                                title: "3. Altitudes and Routes",
-                                text: $altitudesAndRoutes,
-                                placeholder: "Specify planned flight altitudes and routes...",
-                                required: true
-                            )
-
-                            GlassTextEditor(
-                                title: "4. Proximity of Manned Aircraft Operations",
-                                text: $proximityMannedAircraft,
-                                placeholder: "Identify nearby manned aircraft activity and mitigations...",
-                                required: true
-                            )
-
-                            GlassTextEditor(
-                                title: "5. Proximity of Aerodromes and Helicopters",
-                                text: $proximityAerodromes,
-                                placeholder: "List nearby airports, heliports, and associated considerations...",
-                                required: true
-                            )
-
-                            GlassTextEditor(
-                                title: "6. Obstacle Locations and Heights",
-                                text: $obstacleLocationsHeights,
-                                placeholder: "Document obstacles such as towers, buildings, power lines...",
-                                required: true
-                            )
-
-                            // Weather Conditions - Auto-populated
-                            VStack(alignment: .leading, spacing: 8) {
-                                HStack {
-                                    GlassLabel(text: "7. Weather Conditions", required: false)
-
-                                    Spacer()
-
-                                    switch weatherLoadingState {
-                                    case .loading:
-                                        HStack(spacing: 4) {
-                                            ProgressView()
-                                                .scaleEffect(0.6)
-                                            Text("Loading...")
-                                                .font(.system(size: 10, weight: .medium))
-                                                .foregroundColor(FlightPlanColors.textSecondary)
-                                        }
-                                    case .loaded:
-                                        HStack(spacing: 4) {
-                                            Image(systemName: "checkmark.circle.fill")
-                                                .foregroundColor(.green)
-                                                .font(.system(size: 12))
-                                            Text("Auto-populated")
-                                                .font(.system(size: 10, weight: .medium))
-                                                .foregroundColor(.green)
-                                        }
-                                    case .unavailable:
-                                        HStack(spacing: 4) {
-                                            Image(systemName: "exclamationmark.triangle.fill")
-                                                .foregroundColor(.orange)
-                                                .font(.system(size: 12))
-                                            Text("Beyond range")
-                                                .font(.system(size: 10, weight: .medium))
-                                                .foregroundColor(.orange)
-                                        }
-                                    case .notLoaded:
-                                        EmptyView()
-                                    }
-                                }
-
-                                if weatherConditions.isEmpty {
-                                    Text("Weather will be populated when location and date/time are set")
-                                        .font(.system(size: 14))
-                                        .foregroundColor(FlightPlanColors.textMuted)
-                                        .padding(.horizontal, 16)
-                                        .padding(.vertical, 14)
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                        .background(Color.white.opacity(0.8))
-                                        .cornerRadius(12)
-                                        .overlay(
-                                            RoundedRectangle(cornerRadius: 12)
-                                                .stroke(FlightPlanColors.border, lineWidth: 1)
-                                        )
-                                } else {
-                                    Text(weatherConditions)
-                                        .font(.system(size: 14))
-                                        .foregroundColor(FlightPlanColors.textPrimary)
-                                        .padding(.horizontal, 16)
-                                        .padding(.vertical, 14)
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                        .background(Color.white.opacity(0.8))
-                                        .cornerRadius(12)
-                                        .overlay(
-                                            RoundedRectangle(cornerRadius: 12)
-                                                .stroke(FlightPlanColors.border, lineWidth: 1)
-                                        )
-                                }
-                            }
-
-                            GlassTextEditor(
-                                title: "8. Horizontal Distance and Bystanders",
-                                text: $horizontalDistanceBystanders,
-                                placeholder: "Describe minimum distances to people and property...",
-                                required: true
-                            )
-
-                            GlassTextEditor(
-                                title: "9. Notes (Optional)",
-                                text: $notes,
-                                placeholder: "Any additional notes or considerations...",
-                                required: false
-                            )
-                        }
-                    }
-                    .padding(.horizontal, 16)
 
                     // Submit Button
                     Button(action: {
@@ -557,7 +357,7 @@ struct FlightPlanFormView: View {
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("This will generate a PDF document with your flight plan and site survey information.")
+            Text("This will generate a PDF document with your flight plan information.")
         }
         .alert("Error", isPresented: $showErrorAlert) {
             Button("OK") {}
@@ -596,21 +396,10 @@ struct FlightPlanFormView: View {
                 await flightPlanService.fetchDroneRegistrations(pilotId: pilotId)
             }
 
-            // Fetch initial weather data
-            await fetchWeatherData()
-        }
-        .onChange(of: takeoffDate) { _ in
-            updateWeatherForSelectedDateTime()
-        }
-        .onChange(of: takeoffTime) { _ in
-            updateWeatherForSelectedDateTime()
-        }
-        .onReceive(locationManager.$currentLocation.compactMap { $0 }) { newLocation in
-            if safeFlyService.hourlyForecasts.isEmpty {
-                Task {
-                    await safeFlyService.fetchSafeFlyData(coordinate: newLocation)
-                    updateWeatherForSelectedDateTime()
-                }
+            // Initialize from booking (only once)
+            if !hasInitializedFromBooking {
+                initializeFromBooking()
+                hasInitializedFromBooking = true
             }
         }
     }
@@ -641,6 +430,12 @@ struct FlightPlanFormView: View {
         return calendar.date(from: combined) ?? Date()
     }
 
+    private var shortDateString: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMM d, yyyy"
+        return formatter.string(from: takeoffDate)
+    }
+
     private var zuluTimeString: String {
         // Combine date and time
         let calendar = Calendar.current
@@ -655,26 +450,46 @@ struct FlightPlanFormView: View {
         combined.minute = timeComponents.minute
 
         guard let localDateTime = calendar.date(from: combined) else {
-            return "Zulu: ----Z"
+            return "------Z"
         }
 
         let zuluFormatter = DateFormatter()
-        zuluFormatter.dateFormat = "ddHHmm"
+        zuluFormatter.dateFormat = "HHmmss"
         zuluFormatter.timeZone = TimeZone(identifier: "UTC")
 
-        return "Zulu: \(zuluFormatter.string(from: localDateTime))Z"
+        return "\(zuluFormatter.string(from: zuluFormatter.date(from: zuluFormatter.string(from: localDateTime)) ?? localDateTime))Z"
+    }
+
+    private var localTimeString: String {
+        // Combine date and time
+        let calendar = Calendar.current
+        let dateComponents = calendar.dateComponents([.year, .month, .day], from: takeoffDate)
+        let timeComponents = calendar.dateComponents([.hour, .minute], from: takeoffTime)
+
+        var combined = DateComponents()
+        combined.year = dateComponents.year
+        combined.month = dateComponents.month
+        combined.day = dateComponents.day
+        combined.hour = timeComponents.hour
+        combined.minute = timeComponents.minute
+
+        guard let localDateTime = calendar.date(from: combined) else {
+            return "Local: --:--"
+        }
+
+        let localFormatter = DateFormatter()
+        localFormatter.dateFormat = "h:mm a"
+        localFormatter.timeZone = TimeZone.current
+
+        // Get timezone abbreviation (e.g., EST, PST)
+        let tzAbbrev = TimeZone.current.abbreviation() ?? "Local"
+
+        return "\(tzAbbrev) \(localFormatter.string(from: localDateTime))"
     }
 
     private var canSubmit: Bool {
         selectedDrone != nil &&
-        !location.isEmpty &&
-        !operationBoundaries.isEmpty &&
-        !airspaceAndRequirements.isEmpty &&
-        !altitudesAndRoutes.isEmpty &&
-        !proximityMannedAircraft.isEmpty &&
-        !proximityAerodromes.isEmpty &&
-        !obstacleLocationsHeights.isEmpty &&
-        !horizontalDistanceBystanders.isEmpty
+        !location.isEmpty
     }
 
     private func droneDisplayName(_ drone: DroneRegistration) -> String {
@@ -707,49 +522,6 @@ struct FlightPlanFormView: View {
                     isGeocoding = false
                 }
             }
-
-            // Fetch weather for this location
-            await safeFlyService.fetchSafeFlyData(coordinate: coordinate)
-            updateWeatherForSelectedDateTime()
-        }
-    }
-
-    private func fetchWeatherData() async {
-        if let coordinate = locationManager.currentLocation {
-            await safeFlyService.fetchSafeFlyData(coordinate: coordinate)
-            updateWeatherForSelectedDateTime()
-        }
-    }
-
-    private func updateWeatherForSelectedDateTime() {
-        weatherLoadingState = .loading
-
-        // Combine date and time
-        let calendar = Calendar.current
-        let dateComponents = calendar.dateComponents([.year, .month, .day], from: takeoffDate)
-        let timeComponents = calendar.dateComponents([.hour, .minute], from: takeoffTime)
-
-        var combined = DateComponents()
-        combined.year = dateComponents.year
-        combined.month = dateComponents.month
-        combined.day = dateComponents.day
-        combined.hour = timeComponents.hour
-        combined.minute = timeComponents.minute
-
-        guard let selectedDateTime = calendar.date(from: combined) else {
-            weatherLoadingState = .unavailable
-            return
-        }
-
-        if let weather = flightPlanService.formatWeatherForDateTime(from: safeFlyService.hourlyForecasts, dateTime: selectedDateTime) {
-            weatherConditions = weather
-            weatherLoadingState = .loaded
-        } else if safeFlyService.hourlyForecasts.isEmpty {
-            weatherConditions = ""
-            weatherLoadingState = .notLoaded
-        } else {
-            weatherConditions = "Weather forecast not available for selected date/time (beyond 48-hour forecast range)"
-            weatherLoadingState = .unavailable
         }
     }
 
@@ -778,15 +550,6 @@ struct FlightPlanFormView: View {
             takeoffDateTime: takeoffDateTime,
             location: location,
             locationCoordinates: locationCoordinates.map { "\(String(format: "%.6f", $0.latitude)), \(String(format: "%.6f", $0.longitude))" },
-            operationBoundaries: operationBoundaries,
-            airspaceAndRequirements: airspaceAndRequirements,
-            altitudesAndRoutes: altitudesAndRoutes,
-            proximityMannedAircraft: proximityMannedAircraft,
-            proximityAerodromes: proximityAerodromes,
-            obstacleLocationsHeights: obstacleLocationsHeights,
-            weatherConditions: weatherConditions.isEmpty ? "Not available" : weatherConditions,
-            horizontalDistanceBystanders: horizontalDistanceBystanders,
-            notes: notes.isEmpty ? nil : notes,
             generatedAt: Date()
         )
 
@@ -796,6 +559,37 @@ struct FlightPlanFormView: View {
         } else {
             errorMessage = "Failed to generate PDF. Please try again."
             showErrorAlert = true
+        }
+    }
+
+    private func initializeFromBooking() {
+        // Set coordinates from booking
+        locationCoordinates = CLLocationCoordinate2D(
+            latitude: booking.locationLat,
+            longitude: booking.locationLng
+        )
+
+        // Auto-populate date and time from booking's scheduled date
+        if let scheduledDate = booking.scheduledDate {
+            takeoffDate = scheduledDate
+            takeoffTime = scheduledDate
+        }
+
+        // Reverse geocode to get the actual address from coordinates
+        isGeocoding = true
+        Task {
+            if let address = await flightPlanService.reverseGeocodeLocation(locationCoordinates!) {
+                await MainActor.run {
+                    location = address
+                    isGeocoding = false
+                }
+            } else {
+                await MainActor.run {
+                    // Fallback to coordinates if reverse geocoding fails
+                    location = "\(String(format: "%.6f", booking.locationLat)), \(String(format: "%.6f", booking.locationLng))"
+                    isGeocoding = false
+                }
+            }
         }
     }
 
@@ -825,14 +619,6 @@ struct FlightPlanFormView: View {
         locationCoordinates = suggestion.coordinate
         showAddressSuggestions = false
         addressSuggestions = []
-
-        // Fetch weather for this location if we have coordinates
-        if let coordinate = suggestion.coordinate {
-            Task {
-                await safeFlyService.fetchSafeFlyData(coordinate: coordinate)
-                updateWeatherForSelectedDateTime()
-            }
-        }
     }
 }
 
@@ -900,7 +686,7 @@ class PDFShareItem: NSObject, UIActivityItemSource {
     }
 
     func activityViewController(_ activityViewController: UIActivityViewController, subjectForActivityType activityType: UIActivity.ActivityType?) -> String {
-        return "Flight Plan & Site Survey"
+        return "Flight Plan"
     }
 
     func activityViewController(_ activityViewController: UIActivityViewController, dataTypeIdentifierForActivityType activityType: UIActivity.ActivityType?) -> String {

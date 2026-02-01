@@ -190,8 +190,20 @@ struct CockpitView: View {
                                 .font(.title2)
                                 .fontWeight(.semibold)
                                 .padding(.horizontal, 16)
-                            
+
                             LazyVGrid(columns: columns, spacing: 12) {
+                                // Flight Plan Card - Using fullScreenCover for stable presentation
+                                Button {
+                                    showFlightPlan = true
+                                } label: {
+                                    CockpitGridCard(
+                                        title: "Flight Plan",
+                                        icon: "doc.text.fill",
+                                        color: .indigo
+                                    )
+                                }
+                                .buttonStyle(PlainButtonStyle())
+
                                 // Checklist Card - Using fullScreenCover for stable presentation
                                 // NavigationLink(isActive:) has a known bug where it resets on parent body re-evaluation
                                 Button {
@@ -225,18 +237,6 @@ struct CockpitView: View {
                                         title: "SOP",
                                         icon: "book.fill",
                                         color: .blue
-                                    )
-                                }
-                                .buttonStyle(PlainButtonStyle())
-
-                                // Flight Plan Card - Using fullScreenCover for stable presentation
-                                Button {
-                                    showFlightPlan = true
-                                } label: {
-                                    CockpitGridCard(
-                                        title: "Flight Plan",
-                                        icon: "doc.text.fill",
-                                        color: .indigo
                                     )
                                 }
                                 .buttonStyle(PlainButtonStyle())
@@ -591,7 +591,7 @@ struct CockpitView: View {
         }
         .fullScreenCover(isPresented: $showFlightPlan) {
             NavigationView {
-                FlightPlanFormView()
+                BookingFlightPlanSelectionView()
                     .environmentObject(authService)
                     .toolbar {
                         ToolbarItem(placement: .navigationBarLeading) {

@@ -1,50 +1,20 @@
 //
-//  FlightPlanService.swift
+//  SiteSurveyService.swift
 //  Buzz
 //
-//  Created for flight plan PDF generation
+//  Created for site survey PDF generation
 //
 
 import Foundation
-import Supabase
 import UIKit
 import CoreLocation
-import Combine
-import SwiftUI
 import MapKit
+import Combine
 
 @MainActor
-class FlightPlanService: ObservableObject {
-    @Published var registrations: [DroneRegistration] = []
-    @Published var isLoading = false
+class SiteSurveyService: ObservableObject {
     @Published var isGeneratingPDF = false
     @Published var errorMessage: String?
-
-    private let supabase = SupabaseClient.shared.client
-
-    // MARK: - Fetch Drone Registrations
-
-    func fetchDroneRegistrations(pilotId: UUID) async {
-        isLoading = true
-        errorMessage = nil
-
-        do {
-            let registrations: [DroneRegistration] = try await supabase
-                .from("drone_registrations")
-                .select()
-                .eq("pilot_id", value: pilotId.uuidString)
-                .order("uploaded_at", ascending: false)
-                .execute()
-                .value
-
-            self.registrations = registrations
-            self.isLoading = false
-        } catch {
-            self.isLoading = false
-            self.errorMessage = error.localizedDescription
-            print("Error fetching drone registrations: \(error.localizedDescription)")
-        }
-    }
 
     // MARK: - Format Weather for DateTime
 
@@ -101,7 +71,7 @@ class FlightPlanService: ObservableObject {
 
     // MARK: - Generate PDF
 
-    func generatePDF(from data: FlightPlanFormData) -> Data? {
+    func generatePDF(from data: SiteSurveyFormData) -> Data? {
         isGeneratingPDF = true
         defer { isGeneratingPDF = false }
 
@@ -109,10 +79,20 @@ class FlightPlanService: ObservableObject {
         let renderer = UIGraphicsPDFRenderer(bounds: pageRect)
 
         let pdfData = renderer.pdfData { context in
+            var currentPage = 1
             var yOffset: CGFloat = 50
 
             // Start first page
             context.beginPage()
+
+            // Helper function to check and add new page if needed
+            func checkPageBreak(requiredHeight: CGFloat) {
+                if yOffset + requiredHeight > pageRect.height - 50 {
+                    context.beginPage()
+                    currentPage += 1
+                    yOffset = 50
+                }
+            }
 
             // Draw logo at top center (preserve aspect ratio)
             if let logoImage = UIImage(named: "Logo") {
@@ -132,8 +112,17 @@ class FlightPlanService: ObservableObject {
                 .font: titleFont,
                 .foregroundColor: UIColor.black
             ]
-            "FLIGHT PLAN".draw(at: CGPoint(x: 50, y: yOffset), withAttributes: titleAttributes)
+            "SITE SURVEY".draw(at: CGPoint(x: 50, y: yOffset), withAttributes: titleAttributes)
             yOffset += 40
+
+            // Pilot Name
+            let infoFont = UIFont.systemFont(ofSize: 11)
+            let infoAttributes: [NSAttributedString.Key: Any] = [
+                .font: infoFont,
+                .foregroundColor: UIColor.darkGray
+            ]
+            "Pilot: \(data.pilotName)".draw(at: CGPoint(x: 50, y: yOffset), withAttributes: infoAttributes)
+            yOffset += 18
 
             // Generation date
             let dateFormatter = DateFormatter()
@@ -144,38 +133,54 @@ class FlightPlanService: ObservableObject {
                 .foregroundColor: UIColor.gray
             ]
             "Generated: \(dateFormatter.string(from: data.generatedAt))".draw(at: CGPoint(x: 50, y: yOffset), withAttributes: dateAttributes)
-            yOffset += 30
+            yOffset += 25
 
-            // Draw separator line
-            yOffset = drawSeparatorLine(at: yOffset, pageRect: pageRect, context: context.cgContext)
-
-            // Flight Plan Section
-            yOffset = drawSectionHeader("FLIGHT DETAILS", at: yOffset, pageRect: pageRect)
-
-            yOffset = drawField("Pilot Name:", data.pilotName, at: yOffset, pageRect: pageRect)
-            yOffset = drawField("Callsign:", data.callSign, at: yOffset, pageRect: pageRect)
-
-            let droneInfo = [data.droneManufacturer, data.droneModel].compactMap { $0 }.joined(separator: " ")
-            yOffset = drawField("Drone:", droneInfo.isEmpty ? "N/A" : droneInfo, at: yOffset, pageRect: pageRect)
-
-            if let serial = data.droneSerialNumber, !serial.isEmpty {
-                yOffset = drawField("Serial Number:", serial, at: yOffset, pageRect: pageRect)
+            // Location info if available
+            if let location = data.location, !location.isEmpty {
+                yOffset = drawField("Location:", location, at: yOffset, pageRect: pageRect)
             }
-            if let regNum = data.droneRegistrationNumber, !regNum.isEmpty {
-                yOffset = drawField("Registration #:", regNum, at: yOffset, pageRect: pageRect)
-            }
-
-            let takeoffFormatter = DateFormatter()
-            takeoffFormatter.dateFormat = "MMMM d, yyyy 'at' h:mm a"
-            yOffset = drawField("Takeoff Date/Time:", takeoffFormatter.string(from: data.takeoffDateTime), at: yOffset, pageRect: pageRect)
-
-            yOffset = drawField("Location:", data.location, at: yOffset, pageRect: pageRect)
             if let coords = data.locationCoordinates, !coords.isEmpty {
                 yOffset = drawField("Coordinates:", coords, at: yOffset, pageRect: pageRect)
             }
 
+            yOffset += 10
+            yOffset = drawSeparatorLine(at: yOffset, pageRect: pageRect, context: context.cgContext)
+
+            // Site Survey Section
+            yOffset = drawSectionHeader("SITE SURVEY DETAILS", at: yOffset, pageRect: pageRect)
+
+            checkPageBreak(requiredHeight: 80)
+            yOffset = drawMultilineField("1. Operation Boundaries:", data.operationBoundaries, at: yOffset, pageRect: pageRect, context: context, checkPageBreak: checkPageBreak)
+
+            checkPageBreak(requiredHeight: 80)
+            yOffset = drawMultilineField("2. Airspace and Requirements:", data.airspaceAndRequirements, at: yOffset, pageRect: pageRect, context: context, checkPageBreak: checkPageBreak)
+
+            checkPageBreak(requiredHeight: 80)
+            yOffset = drawMultilineField("3. Altitudes and Routes:", data.altitudesAndRoutes, at: yOffset, pageRect: pageRect, context: context, checkPageBreak: checkPageBreak)
+
+            checkPageBreak(requiredHeight: 80)
+            yOffset = drawMultilineField("4. Proximity of Manned Aircraft Operations:", data.proximityMannedAircraft, at: yOffset, pageRect: pageRect, context: context, checkPageBreak: checkPageBreak)
+
+            checkPageBreak(requiredHeight: 80)
+            yOffset = drawMultilineField("5. Proximity of Aerodromes and Helicopters:", data.proximityAerodromes, at: yOffset, pageRect: pageRect, context: context, checkPageBreak: checkPageBreak)
+
+            checkPageBreak(requiredHeight: 80)
+            yOffset = drawMultilineField("6. Obstacle Locations and Heights:", data.obstacleLocationsHeights, at: yOffset, pageRect: pageRect, context: context, checkPageBreak: checkPageBreak)
+
+            checkPageBreak(requiredHeight: 120)
+            yOffset = drawMultilineField("7. Weather Conditions:", data.weatherConditions, at: yOffset, pageRect: pageRect, context: context, checkPageBreak: checkPageBreak)
+
+            checkPageBreak(requiredHeight: 80)
+            yOffset = drawMultilineField("8. Horizontal Distance and Bystanders:", data.horizontalDistanceBystanders, at: yOffset, pageRect: pageRect, context: context, checkPageBreak: checkPageBreak)
+
+            if let notes = data.notes, !notes.isEmpty {
+                checkPageBreak(requiredHeight: 80)
+                yOffset = drawMultilineField("9. Notes:", notes, at: yOffset, pageRect: pageRect, context: context, checkPageBreak: checkPageBreak)
+            }
+
             // Footer
-            yOffset += 30
+            checkPageBreak(requiredHeight: 60)
+            yOffset += 20
             yOffset = drawSeparatorLine(at: yOffset, pageRect: pageRect, context: context.cgContext)
 
             let footerFont = UIFont.italicSystemFont(ofSize: 9)
@@ -183,7 +188,7 @@ class FlightPlanService: ObservableObject {
                 .font: footerFont,
                 .foregroundColor: UIColor.gray
             ]
-            "This flight plan was generated using Buzz. Pilots are responsible for compliance with all applicable regulations.".draw(
+            "This site survey was generated using Buzz. Pilots are responsible for compliance with all applicable regulations.".draw(
                 in: CGRect(x: 50, y: yOffset, width: pageRect.width - 100, height: 40),
                 withAttributes: footerAttributes
             )
@@ -222,6 +227,40 @@ class FlightPlanService: ObservableObject {
         value.draw(at: CGPoint(x: 50 + labelWidth + 10, y: yOffset), withAttributes: valueAttributes)
 
         return yOffset + 20
+    }
+
+    private func drawMultilineField(_ label: String, _ value: String, at yOffset: CGFloat, pageRect: CGRect, context: UIGraphicsPDFRendererContext, checkPageBreak: (CGFloat) -> Void) -> CGFloat {
+        var currentY = yOffset
+
+        let labelFont = UIFont.boldSystemFont(ofSize: 11)
+        let valueFont = UIFont.systemFont(ofSize: 11)
+
+        let labelAttributes: [NSAttributedString.Key: Any] = [
+            .font: labelFont,
+            .foregroundColor: UIColor.darkGray
+        ]
+        let valueAttributes: [NSAttributedString.Key: Any] = [
+            .font: valueFont,
+            .foregroundColor: UIColor.black
+        ]
+
+        // Draw label
+        label.draw(at: CGPoint(x: 50, y: currentY), withAttributes: labelAttributes)
+        currentY += 18
+
+        // Draw value with word wrap
+        let textRect = CGRect(x: 60, y: currentY, width: pageRect.width - 110, height: CGFloat.greatestFiniteMagnitude)
+        let boundingRect = (value as NSString).boundingRect(
+            with: CGSize(width: textRect.width, height: .greatestFiniteMagnitude),
+            options: [.usesLineFragmentOrigin, .usesFontLeading],
+            attributes: valueAttributes,
+            context: nil
+        )
+
+        value.draw(in: CGRect(x: 60, y: currentY, width: textRect.width, height: boundingRect.height), withAttributes: valueAttributes)
+        currentY += boundingRect.height + 15
+
+        return currentY
     }
 
     private func drawSeparatorLine(at yOffset: CGFloat, pageRect: CGRect, context: CGContext) -> CGFloat {

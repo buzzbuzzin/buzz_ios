@@ -2,7 +2,7 @@
 //  FlightPlan.swift
 //  Buzz
 //
-//  Created for flight plan and site survey form
+//  Created for flight plan form data
 //
 
 import Foundation
@@ -19,17 +19,6 @@ struct FlightPlanFormData {
     let takeoffDateTime: Date
     let location: String
     let locationCoordinates: String?
-
-    // Site Survey Section
-    let operationBoundaries: String
-    let airspaceAndRequirements: String
-    let altitudesAndRoutes: String
-    let proximityMannedAircraft: String
-    let proximityAerodromes: String
-    let obstacleLocationsHeights: String
-    let weatherConditions: String
-    let horizontalDistanceBystanders: String
-    let notes: String?
 
     // Metadata
     let generatedAt: Date
