@@ -689,13 +689,14 @@ class FlightPlanService: ObservableObject {
         ]
         "\(numberString).".draw(at: CGPoint(x: rect.minX + 4, y: rect.minY + 3), withAttributes: numberAttributes)
 
-        // Draw label
+        // Draw label - use larger offset for longer number strings (like "23a.")
         let labelFont = UIFont.systemFont(ofSize: 8, weight: .medium)
         let labelAttributes: [NSAttributedString.Key: Any] = [
             .font: labelFont,
             .foregroundColor: UIColor(white: 0.45, alpha: 1.0)
         ]
-        label.uppercased().draw(at: CGPoint(x: rect.minX + 18, y: rect.minY + 4), withAttributes: labelAttributes)
+        let labelXOffset: CGFloat = numberString.count > 2 ? 30 : 18
+        label.uppercased().draw(at: CGPoint(x: rect.minX + labelXOffset, y: rect.minY + 4), withAttributes: labelAttributes)
 
         // Draw text content (if any)
         if !text.isEmpty {
