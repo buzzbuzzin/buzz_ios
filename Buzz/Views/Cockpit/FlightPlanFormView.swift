@@ -42,6 +42,7 @@ struct FlightPlanFormView: View {
     @State private var locationCoordinates: CLLocationCoordinate2D?
 
     // Certification Section Fields
+    @State private var certificationRegulation: CertificationRegulation = .part107
     @State private var signatureImage: UIImage?
     @State private var signatureDate: Date?
     @State private var showSignaturePad = false
@@ -648,11 +649,70 @@ struct FlightPlanFormView: View {
                     // Certification Section
                     GlassCard(title: "Pilot Certification", icon: "signature") {
                         VStack(spacing: 20) {
-                            // Certification statement
-                            Text("I certify that this flight will be conducted in accordance with all applicable FAA regulations and that I am the remote pilot in command responsible for this operation.")
-                                .font(.system(size: 13))
-                                .foregroundColor(FlightPlanColors.textSecondary)
-                                .multilineTextAlignment(.leading)
+                            // Certification statement with regulation picker
+                            VStack(alignment: .leading, spacing: 12) {
+                                HStack(alignment: .top, spacing: 0) {
+                                    Text("I certify that this flight will be conducted in accordance with all applicable civil regulations under ")
+                                        .font(.system(size: 13))
+                                        .foregroundColor(FlightPlanColors.textSecondary)
+                                }
+
+                                // Regulation picker
+                                Menu {
+                                    Section("USA") {
+                                        ForEach(CertificationRegulation.usaRegulations, id: \.self) { regulation in
+                                            Button {
+                                                certificationRegulation = regulation
+                                            } label: {
+                                                HStack {
+                                                    Text(regulation.displayName)
+                                                    if certificationRegulation == regulation {
+                                                        Image(systemName: "checkmark")
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                    Section("Canada") {
+                                        ForEach(CertificationRegulation.canadaRegulations, id: \.self) { regulation in
+                                            Button {
+                                                certificationRegulation = regulation
+                                            } label: {
+                                                HStack {
+                                                    Text(regulation.displayName)
+                                                    if certificationRegulation == regulation {
+                                                        Image(systemName: "checkmark")
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                } label: {
+                                    HStack(spacing: 6) {
+                                        Text(certificationRegulation.displayName)
+                                            .font(.system(size: 13, weight: .medium))
+                                            .foregroundColor(FlightPlanColors.primary)
+
+                                        Image(systemName: "chevron.down")
+                                            .font(.system(size: 10, weight: .semibold))
+                                            .foregroundColor(FlightPlanColors.primary)
+                                    }
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 8)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 8)
+                                            .fill(FlightPlanColors.primary.opacity(0.1))
+                                    )
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 8)
+                                            .stroke(FlightPlanColors.primary.opacity(0.3), lineWidth: 1)
+                                    )
+                                }
+
+                                Text("and that I am the remote pilot in command responsible for this operation.")
+                                    .font(.system(size: 13))
+                                    .foregroundColor(FlightPlanColors.textSecondary)
+                            }
 
                             // Signature and Date Grid
                             HStack(alignment: .top, spacing: 16) {
@@ -1031,6 +1091,7 @@ struct FlightPlanFormView: View {
             waiverSafetyMitigations: requiresWaiver ? waiverSafetyMitigations : nil,
             waiverOperationalProcedures: requiresWaiver ? waiverOperationalProcedures : nil,
             waiverRiskAnalysis: requiresWaiver ? waiverRiskAnalysis : nil,
+            certificationRegulation: certificationRegulation,
             signatureImage: signatureImage,
             signatureDate: signatureDate,
             generatedAt: Date()
@@ -1083,9 +1144,15 @@ struct FlightPlanFormView: View {
                 airspaceClass = airspaceService.airspaceClass
                 laancGridCeiling = airspaceService.laancGridCeiling
 
-                // Set regulatory authority based on detected country
+                // Set regulatory authority and default certification regulation based on detected country
                 if let country = detectedCountry {
-                    regulatoryAuthority = (country == "Canada") ? .transportCanada : .faa
+                    if country == "Canada" {
+                        regulatoryAuthority = .transportCanada
+                        certificationRegulation = .tp15263
+                    } else {
+                        regulatoryAuthority = .faa
+                        certificationRegulation = .part107
+                    }
                 }
 
                 // Calculate initial authorization status

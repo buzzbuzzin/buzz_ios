@@ -16,6 +16,41 @@ enum RegulatoryAuthority: String, Codable {
     case transportCanada = "TC"
 }
 
+/// Certification regulation for pilot certification statement
+enum CertificationRegulation: String, Codable, CaseIterable {
+    // USA regulations
+    case part107 = "14 CFR Part 107"
+    case part108 = "14 CFR Part 108"
+    // Canada regulations
+    case tp15263 = "Part IX TP 15263"
+    case tp15530 = "Part IX TP 15530"
+
+    /// Display name for the regulation
+    var displayName: String {
+        return self.rawValue
+    }
+
+    /// Country/region for this regulation
+    var country: String {
+        switch self {
+        case .part107, .part108:
+            return "USA"
+        case .tp15263, .tp15530:
+            return "Canada"
+        }
+    }
+
+    /// USA regulations
+    static var usaRegulations: [CertificationRegulation] {
+        return [.part107, .part108]
+    }
+
+    /// Canada regulations
+    static var canadaRegulations: [CertificationRegulation] {
+        return [.tp15263, .tp15530]
+    }
+}
+
 /// LAANC authorization status based on airspace and altitude
 enum LAANCAuthorizationStatus: String, Codable {
     case autoApproved = "Auto-Approved"
@@ -80,6 +115,7 @@ struct FlightPlanFormData {
     let waiverRiskAnalysis: String?
 
     // Certification Section
+    let certificationRegulation: CertificationRegulation
     let signatureImage: UIImage?
     let signatureDate: Date?
 

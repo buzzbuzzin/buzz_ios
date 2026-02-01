@@ -800,16 +800,35 @@ class FlightPlanService: ObservableObject {
         )
         yOffset += 14
 
-        // Certification text
+        // Certification text with regulation
         let certFont = UIFont.systemFont(ofSize: 8)
         let certAttributes: [NSAttributedString.Key: Any] = [
             .font: certFont,
             .foregroundColor: UIColor.darkGray
         ]
-        let certText = "I certify that this flight will be conducted in accordance with all applicable FAA regulations and that I am the remote pilot in command responsible for this operation."
+        let boldCertFont = UIFont.boldSystemFont(ofSize: 8)
+        let boldCertAttributes: [NSAttributedString.Key: Any] = [
+            .font: boldCertFont,
+            .foregroundColor: UIColor.black
+        ]
+
+        // Build attributed string with regulation highlighted
+        let certText = NSMutableAttributedString()
+        certText.append(NSAttributedString(
+            string: "I certify that this flight will be conducted in accordance with all applicable civil regulations under ",
+            attributes: certAttributes
+        ))
+        certText.append(NSAttributedString(
+            string: data.certificationRegulation.displayName,
+            attributes: boldCertAttributes
+        ))
+        certText.append(NSAttributedString(
+            string: " and that I am the remote pilot in command responsible for this operation.",
+            attributes: certAttributes
+        ))
 
         let certRect = CGRect(x: leftMargin, y: yOffset, width: contentWidth, height: 22)
-        certText.draw(in: certRect, withAttributes: certAttributes)
+        certText.draw(in: certRect)
         yOffset += 28
 
         // Signature and Date boxes
