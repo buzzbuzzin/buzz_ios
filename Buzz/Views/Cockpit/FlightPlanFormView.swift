@@ -41,6 +41,11 @@ struct FlightPlanFormView: View {
     @State private var location: String = ""
     @State private var locationCoordinates: CLLocationCoordinate2D?
 
+    // Certification Section Fields
+    @State private var signatureImage: UIImage?
+    @State private var signatureDate: Date?
+    @State private var showSignaturePad = false
+
     // UI State
     @State private var showGenerateConfirmation = false
     @State private var showShareSheet = false
@@ -324,6 +329,114 @@ struct FlightPlanFormView: View {
                     }
                     .padding(.horizontal, 16)
 
+                    // Certification Section
+                    GlassCard(title: "Pilot Certification", icon: "signature") {
+                        VStack(spacing: 20) {
+                            // Certification statement
+                            Text("I certify that this flight will be conducted in accordance with all applicable FAA regulations and that I am the remote pilot in command responsible for this operation.")
+                                .font(.system(size: 13))
+                                .foregroundColor(FlightPlanColors.textSecondary)
+                                .multilineTextAlignment(.leading)
+
+                            // Signature and Date Grid
+                            HStack(alignment: .top, spacing: 16) {
+                                // Signature Box
+                                VStack(alignment: .leading, spacing: 8) {
+                                    GlassLabel(text: "Signature", required: true)
+
+                                    Button {
+                                        showSignaturePad = true
+                                    } label: {
+                                        ZStack {
+                                            RoundedRectangle(cornerRadius: 12)
+                                                .fill(Color.white.opacity(0.8))
+                                                .frame(height: 80)
+                                                .overlay(
+                                                    RoundedRectangle(cornerRadius: 12)
+                                                        .stroke(signatureImage != nil ? FlightPlanColors.primary.opacity(0.5) : FlightPlanColors.border, lineWidth: 1)
+                                                )
+
+                                            if let signature = signatureImage {
+                                                Image(uiImage: signature)
+                                                    .resizable()
+                                                    .scaledToFit()
+                                                    .frame(height: 60)
+                                                    .padding(.horizontal, 10)
+                                            } else {
+                                                VStack(spacing: 6) {
+                                                    Image(systemName: "pencil.tip.crop.circle")
+                                                        .font(.system(size: 24))
+                                                        .foregroundColor(FlightPlanColors.textMuted)
+                                                    Text("Tap to sign")
+                                                        .font(.system(size: 12))
+                                                        .foregroundColor(FlightPlanColors.textMuted)
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    if signatureImage != nil {
+                                        Button {
+                                            signatureImage = nil
+                                        } label: {
+                                            Text("Clear signature")
+                                                .font(.system(size: 11))
+                                                .foregroundColor(FlightPlanColors.primary)
+                                        }
+                                    }
+                                }
+                                .frame(maxWidth: .infinity)
+
+                                // Date Box
+                                VStack(alignment: .leading, spacing: 8) {
+                                    GlassLabel(text: "Date", required: true)
+
+                                    Button {
+                                        signatureDate = Date()
+                                    } label: {
+                                        ZStack {
+                                            RoundedRectangle(cornerRadius: 12)
+                                                .fill(Color.white.opacity(0.8))
+                                                .frame(height: 80)
+                                                .overlay(
+                                                    RoundedRectangle(cornerRadius: 12)
+                                                        .stroke(signatureDate != nil ? FlightPlanColors.primary.opacity(0.5) : FlightPlanColors.border, lineWidth: 1)
+                                                )
+
+                                            if let date = signatureDate {
+                                                VStack(spacing: 4) {
+                                                    Text(formatSignatureDate(date))
+                                                        .font(.system(size: 16, weight: .medium))
+                                                        .foregroundColor(FlightPlanColors.textPrimary)
+                                                }
+                                            } else {
+                                                VStack(spacing: 6) {
+                                                    Image(systemName: "calendar.badge.plus")
+                                                        .font(.system(size: 24))
+                                                        .foregroundColor(FlightPlanColors.textMuted)
+                                                    Text("Tap to add date")
+                                                        .font(.system(size: 12))
+                                                        .foregroundColor(FlightPlanColors.textMuted)
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    if signatureDate != nil {
+                                        Button {
+                                            signatureDate = nil
+                                        } label: {
+                                            Text("Clear date")
+                                                .font(.system(size: 11))
+                                                .foregroundColor(FlightPlanColors.primary)
+                                        }
+                                    }
+                                }
+                                .frame(width: 140)
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 16)
 
                     // Submit Button
                     Button(action: {
@@ -401,6 +514,9 @@ struct FlightPlanFormView: View {
                 let pdfItem = PDFShareItem(data: pdfData, pilotName: pilotName, takeoffDateTime: takeoffDateTime)
                 ShareSheet(items: [pdfItem])
             }
+        }
+        .sheet(isPresented: $showSignaturePad) {
+            SignaturePadView(signatureImage: $signatureImage)
         }
         .task {
             // Request location permission and start updates
@@ -505,7 +621,15 @@ struct FlightPlanFormView: View {
 
     private var canSubmit: Bool {
         selectedDrone != nil &&
-        !location.isEmpty
+        !location.isEmpty &&
+        signatureImage != nil &&
+        signatureDate != nil
+    }
+
+    private func formatSignatureDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MM/dd/yyyy"
+        return formatter.string(from: date)
     }
 
     private func droneDisplayName(_ drone: DroneRegistration) -> String {
@@ -565,7 +689,10 @@ struct FlightPlanFormView: View {
             droneRegistrationNumber: selectedDrone?.registrationNumber,
             takeoffDateTime: takeoffDateTime,
             location: location,
-            locationCoordinates: locationCoordinates.map { "\(String(format: "%.6f", $0.latitude)), \(String(format: "%.6f", $0.longitude))" },
+            latitude: locationCoordinates.map { String(format: "%.6f", $0.latitude) },
+            longitude: locationCoordinates.map { String(format: "%.6f", $0.longitude) },
+            signatureImage: signatureImage,
+            signatureDate: signatureDate,
             generatedAt: Date()
         )
 
@@ -914,5 +1041,145 @@ private struct GlassTextEditor: View {
                     .stroke(FlightPlanColors.border, lineWidth: 1)
             )
         }
+    }
+}
+
+// MARK: - Signature Drawing View
+
+struct SignaturePadView: View {
+    @Binding var signatureImage: UIImage?
+    @State private var currentPath = Path()
+    @State private var paths: [Path] = []
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationView {
+            VStack(spacing: 0) {
+                // Instructions
+                Text("Sign below using your finger")
+                    .font(.system(size: 14))
+                    .foregroundColor(FlightPlanColors.textSecondary)
+                    .padding(.top, 16)
+
+                // Signature canvas
+                GeometryReader { geometry in
+                    ZStack {
+                        // Background
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(Color.white)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(FlightPlanColors.border, lineWidth: 2)
+                            )
+
+                        // Signature line
+                        Path { path in
+                            let y = geometry.size.height * 0.75
+                            path.move(to: CGPoint(x: 20, y: y))
+                            path.addLine(to: CGPoint(x: geometry.size.width - 20, y: y))
+                        }
+                        .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+
+                        // Draw existing paths
+                        ForEach(paths.indices, id: \.self) { index in
+                            paths[index]
+                                .stroke(Color.black, lineWidth: 2)
+                        }
+
+                        // Draw current path
+                        currentPath
+                            .stroke(Color.black, lineWidth: 2)
+                    }
+                    .gesture(
+                        DragGesture(minimumDistance: 0)
+                            .onChanged { value in
+                                let point = value.location
+                                if currentPath.isEmpty {
+                                    currentPath.move(to: point)
+                                } else {
+                                    currentPath.addLine(to: point)
+                                }
+                            }
+                            .onEnded { _ in
+                                paths.append(currentPath)
+                                currentPath = Path()
+                            }
+                    )
+                }
+                .padding(20)
+                .frame(height: 200)
+
+                // Buttons
+                HStack(spacing: 16) {
+                    Button {
+                        paths.removeAll()
+                        currentPath = Path()
+                    } label: {
+                        Text("Clear")
+                            .font(.system(size: 15, weight: .medium))
+                            .foregroundColor(FlightPlanColors.textSecondary)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .background(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .stroke(FlightPlanColors.border, lineWidth: 1)
+                            )
+                    }
+
+                    Button {
+                        saveSignature()
+                    } label: {
+                        Text("Done")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .background(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .fill(FlightPlanColors.primary)
+                            )
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.bottom, 20)
+            }
+            .background(FlightPlanColors.background)
+            .navigationTitle("Sign Here")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+
+    private func saveSignature() {
+        // Create image from paths
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: 300, height: 100))
+        let image = renderer.image { ctx in
+            ctx.cgContext.setStrokeColor(UIColor.black.cgColor)
+            ctx.cgContext.setLineWidth(2)
+            ctx.cgContext.setLineCap(.round)
+            ctx.cgContext.setLineJoin(.round)
+
+            // Scale paths to fit the image
+            let scaleX: CGFloat = 300 / UIScreen.main.bounds.width
+            let scaleY: CGFloat = 100 / 200 // canvas height
+
+            for path in paths {
+                let cgPath = path.cgPath
+                var transform = CGAffineTransform(scaleX: scaleX, y: scaleY)
+                if let transformedPath = cgPath.copy(using: &transform) {
+                    ctx.cgContext.addPath(transformedPath)
+                }
+            }
+            ctx.cgContext.strokePath()
+        }
+
+        signatureImage = image
+        dismiss()
     }
 }

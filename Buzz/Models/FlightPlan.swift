@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import UIKit
 
 /// Data structure for flight plan form data (used for PDF generation)
 struct FlightPlanFormData {
@@ -18,7 +19,12 @@ struct FlightPlanFormData {
     let droneRegistrationNumber: String?
     let takeoffDateTime: Date
     let location: String
-    let locationCoordinates: String?
+    let latitude: String?
+    let longitude: String?
+
+    // Certification Section
+    let signatureImage: UIImage?
+    let signatureDate: Date?
 
     // Metadata
     let generatedAt: Date

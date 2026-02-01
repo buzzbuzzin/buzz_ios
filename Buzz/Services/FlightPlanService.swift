@@ -147,7 +147,7 @@ class FlightPlanService: ObservableObject {
             yOffset = drawFormGrid(at: yOffset, data: data, pageRect: pageRect, context: context.cgContext)
 
             // 5. Draw certification section
-            yOffset = drawCertificationSection(at: yOffset, pageRect: pageRect, context: context.cgContext)
+            yOffset = drawCertificationSection(at: yOffset, data: data, pageRect: pageRect, context: context.cgContext)
 
             // 6. Draw footer disclaimer
             yOffset += 15
@@ -383,9 +383,9 @@ class FlightPlanService: ObservableObject {
 
         yOffset += standardRowHeight
 
-        // Row 2: DEPARTURE POINT, DEPARTURE TIME, COORDINATES
+        // Row 2: DEPARTURE POINT, DEPARTURE TIME, LATITUDE, LONGITUDE
         xOffset = leftMargin
-        let row2Widths: [CGFloat] = [270, 135, 135]
+        let row2Widths: [CGFloat] = [220, 110, 105, 105] // Total: 540
 
         // Cell 5: DEPARTURE POINT
         drawCell(
@@ -405,19 +405,29 @@ class FlightPlanService: ObservableObject {
 
         drawCell(
             number: 6,
-            label: "DEPARTURE TIME (ZULU)",
+            label: "DEP TIME (ZULU)",
             value: zuluTime,
             rect: CGRect(x: xOffset, y: yOffset, width: row2Widths[1], height: standardRowHeight),
             context: context
         )
         xOffset += row2Widths[1]
 
-        // Cell 7: COORDINATES
+        // Cell 7: LATITUDE
         drawCell(
             number: 7,
-            label: "COORDINATES",
-            value: data.locationCoordinates ?? "N/A",
+            label: "LATITUDE",
+            value: data.latitude ?? "N/A",
             rect: CGRect(x: xOffset, y: yOffset, width: row2Widths[2], height: standardRowHeight),
+            context: context
+        )
+        xOffset += row2Widths[2]
+
+        // Cell 8: LONGITUDE
+        drawCell(
+            number: 8,
+            label: "LONGITUDE",
+            value: data.longitude ?? "N/A",
+            rect: CGRect(x: xOffset, y: yOffset, width: row2Widths[3], height: standardRowHeight),
             context: context
         )
 
@@ -427,9 +437,9 @@ class FlightPlanService: ObservableObject {
         xOffset = leftMargin
         let row3Widths: [CGFloat] = [270, 135, 135]
 
-        // Cell 8: PILOT NAME
+        // Cell 9: PILOT NAME
         drawCell(
-            number: 8,
+            number: 9,
             label: "PILOT NAME",
             value: data.pilotName,
             rect: CGRect(x: xOffset, y: yOffset, width: row3Widths[0], height: standardRowHeight),
@@ -437,9 +447,9 @@ class FlightPlanService: ObservableObject {
         )
         xOffset += row3Widths[0]
 
-        // Cell 9: SERIAL NUMBER
+        // Cell 10: SERIAL NUMBER
         drawCell(
-            number: 9,
+            number: 10,
             label: "SERIAL NUMBER",
             value: data.droneSerialNumber ?? "N/A",
             rect: CGRect(x: xOffset, y: yOffset, width: row3Widths[1], height: standardRowHeight),
@@ -447,13 +457,13 @@ class FlightPlanService: ObservableObject {
         )
         xOffset += row3Widths[1]
 
-        // Cell 10: DATE
+        // Cell 11: DATE
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "MM/dd/yyyy"
         let dateStr = dateFormatter.string(from: data.takeoffDateTime)
 
         drawCell(
-            number: 10,
+            number: 11,
             label: "DATE",
             value: dateStr,
             rect: CGRect(x: xOffset, y: yOffset, width: row3Widths[2], height: standardRowHeight),
@@ -465,7 +475,7 @@ class FlightPlanService: ObservableObject {
         // Row 4: REMARKS (full width)
         let contentWidth: CGFloat = 540
         drawCell(
-            number: 11,
+            number: 12,
             label: "REMARKS",
             value: "",
             rect: CGRect(x: leftMargin, y: yOffset, width: contentWidth, height: remarksRowHeight),
@@ -479,6 +489,7 @@ class FlightPlanService: ObservableObject {
 
     private func drawCertificationSection(
         at y: CGFloat,
+        data: FlightPlanFormData,
         pageRect: CGRect,
         context: CGContext
     ) -> CGFloat {
@@ -508,37 +519,74 @@ class FlightPlanService: ObservableObject {
 
         let certRect = CGRect(x: leftMargin, y: yOffset, width: contentWidth, height: 30)
         certText.draw(in: certRect, withAttributes: certAttributes)
-        yOffset += 35
+        yOffset += 40
 
-        // Signature line
+        // Signature and Date boxes
+        let signatureBoxWidth: CGFloat = 250
+        let dateBoxWidth: CGFloat = 150
+        let boxHeight: CGFloat = 60
+        let boxSpacing: CGFloat = 40
+
+        // Signature Box
+        let signatureRect = CGRect(x: leftMargin, y: yOffset, width: signatureBoxWidth, height: boxHeight)
         context.setStrokeColor(UIColor.black.cgColor)
-        context.setLineWidth(0.5)
-        context.move(to: CGPoint(x: leftMargin, y: yOffset))
-        context.addLine(to: CGPoint(x: leftMargin + 200, y: yOffset))
-        context.strokePath()
+        context.setLineWidth(0.75)
+        context.stroke(signatureRect)
 
-        let sigLabel = "Pilot Signature"
+        // Draw signature image if available
+        if let signatureImage = data.signatureImage {
+            let imageInset: CGFloat = 5
+            let imageRect = CGRect(
+                x: signatureRect.minX + imageInset,
+                y: signatureRect.minY + imageInset,
+                width: signatureRect.width - (imageInset * 2),
+                height: signatureRect.height - (imageInset * 2)
+            )
+            signatureImage.draw(in: imageRect)
+        }
+
+        // Signature label
         let sigLabelFont = UIFont.systemFont(ofSize: 8)
         let sigLabelAttributes: [NSAttributedString.Key: Any] = [
             .font: sigLabelFont,
             .foregroundColor: UIColor.gray
         ]
-        sigLabel.draw(
-            at: CGPoint(x: leftMargin, y: yOffset + 3),
+        "PILOT SIGNATURE".draw(
+            at: CGPoint(x: leftMargin + 4, y: yOffset + boxHeight + 3),
             withAttributes: sigLabelAttributes
         )
 
-        // Date line
-        context.move(to: CGPoint(x: leftMargin + 280, y: yOffset))
-        context.addLine(to: CGPoint(x: leftMargin + 400, y: yOffset))
-        context.strokePath()
+        // Date Box
+        let dateBoxX = leftMargin + signatureBoxWidth + boxSpacing
+        let dateRect = CGRect(x: dateBoxX, y: yOffset, width: dateBoxWidth, height: boxHeight)
+        context.setStrokeColor(UIColor.black.cgColor)
+        context.setLineWidth(0.75)
+        context.stroke(dateRect)
 
-        "Date".draw(
-            at: CGPoint(x: leftMargin + 280, y: yOffset + 3),
+        // Draw date if available
+        if let signatureDate = data.signatureDate {
+            let dateFormatter = DateFormatter()
+            dateFormatter.dateFormat = "MM/dd/yyyy"
+            let dateString = dateFormatter.string(from: signatureDate)
+
+            let dateValueFont = UIFont.systemFont(ofSize: 16, weight: .medium)
+            let dateValueAttributes: [NSAttributedString.Key: Any] = [
+                .font: dateValueFont,
+                .foregroundColor: UIColor.black
+            ]
+            let dateSize = (dateString as NSString).size(withAttributes: dateValueAttributes)
+            let dateX = dateBoxX + (dateBoxWidth - dateSize.width) / 2
+            let dateY = yOffset + (boxHeight - dateSize.height) / 2
+            dateString.draw(at: CGPoint(x: dateX, y: dateY), withAttributes: dateValueAttributes)
+        }
+
+        // Date label
+        "DATE".draw(
+            at: CGPoint(x: dateBoxX + 4, y: yOffset + boxHeight + 3),
             withAttributes: sigLabelAttributes
         )
 
-        return yOffset + 25
+        return yOffset + boxHeight + 20
     }
 
     private func truncateText(_ text: String, toWidth maxWidth: CGFloat, font: UIFont) -> String {
