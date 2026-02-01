@@ -83,6 +83,7 @@ enum AirspaceClass: String, Codable {
 struct FlightPlanFormData {
     // Flight Plan Section
     let pilotName: String
+    let pilotLicenseNumber: String?  // Part 107 Certificate Number (US) or RPA Pilot Certificate Number (Canada)
     let callSign: String
     let droneManufacturer: String?
     let droneModel: String?

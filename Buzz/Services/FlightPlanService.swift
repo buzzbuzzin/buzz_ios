@@ -378,9 +378,9 @@ class FlightPlanService: ObservableObject {
 
         yOffset += standardRowHeight
 
-        // Row 3: PILOT NAME, LATITUDE, LONGITUDE, SERIAL NUMBER, DATE
+        // Row 3: PILOT NAME, LICENSE NUMBER, LATITUDE, LONGITUDE, SERIAL NUMBER
         xOffset = leftMargin
-        let row3Widths: [CGFloat] = [190, 80, 90, 100, 80] // Total: 540
+        let row3Widths: [CGFloat] = [150, 110, 80, 90, 110] // Total: 540
 
         // Cell 7: PILOT NAME
         drawCell(
@@ -392,92 +392,102 @@ class FlightPlanService: ObservableObject {
         )
         xOffset += row3Widths[0]
 
-        // Cell 8: LATITUDE
+        // Cell 8: LICENSE NUMBER (new box)
         drawCell(
             number: 8,
-            label: "LATITUDE",
-            value: data.latitude ?? "N/A",
+            label: "LICENSE NUMBER",
+            value: data.pilotLicenseNumber ?? "N/A",
             rect: CGRect(x: xOffset, y: yOffset, width: row3Widths[1], height: standardRowHeight),
             context: context
         )
         xOffset += row3Widths[1]
 
-        // Cell 9: LONGITUDE
+        // Cell 9: LATITUDE
         drawCell(
             number: 9,
-            label: "LONGITUDE",
-            value: data.longitude ?? "N/A",
+            label: "LATITUDE",
+            value: data.latitude ?? "N/A",
             rect: CGRect(x: xOffset, y: yOffset, width: row3Widths[2], height: standardRowHeight),
             context: context
         )
         xOffset += row3Widths[2]
 
-        // Cell 10: SERIAL NUMBER
+        // Cell 10: LONGITUDE
         drawCell(
             number: 10,
-            label: "SERIAL NUMBER",
-            value: data.droneSerialNumber ?? "N/A",
+            label: "LONGITUDE",
+            value: data.longitude ?? "N/A",
             rect: CGRect(x: xOffset, y: yOffset, width: row3Widths[3], height: standardRowHeight),
             context: context
         )
         xOffset += row3Widths[3]
 
-        // Cell 11: DATE
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "MM/dd/yyyy"
-        let dateStr = dateFormatter.string(from: data.takeoffDateTime)
-
+        // Cell 11: SERIAL NUMBER
         drawCell(
             number: 11,
-            label: "DATE",
-            value: dateStr,
+            label: "SERIAL NUMBER",
+            value: data.droneSerialNumber ?? "N/A",
             rect: CGRect(x: xOffset, y: yOffset, width: row3Widths[4], height: standardRowHeight),
             context: context
         )
 
         yOffset += standardRowHeight
 
-        // Row 4: REGULATORY AUTHORITY, MAX ALTITUDE, AIRSPACE, LAANC STATUS
+        // Row 4: DATE, REGULATORY AUTHORITY, MAX ALTITUDE, AIRSPACE, LAANC STATUS
         xOffset = leftMargin
-        let row4Widths: [CGFloat] = [135, 95, 95, 215] // Total: 540
+        let row4Widths: [CGFloat] = [80, 115, 85, 75, 185] // Total: 540 - reduced AIRSPACE and LAANC STATUS to fit DATE
 
-        // Cell 12: REGULATORY AUTHORITY
+        // Cell 12: DATE (moved from row 3)
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "MM/dd/yyyy"
+        let dateStr = dateFormatter.string(from: data.takeoffDateTime)
+
         drawCell(
             number: 12,
-            label: "REGULATORY AUTH",
-            value: data.regulatoryAuthority.rawValue,
+            label: "DATE",
+            value: dateStr,
             rect: CGRect(x: xOffset, y: yOffset, width: row4Widths[0], height: standardRowHeight),
             context: context
         )
         xOffset += row4Widths[0]
 
-        // Cell 13: MAX ALTITUDE
+        // Cell 13: REGULATORY AUTHORITY
         drawCell(
             number: 13,
-            label: "MAX ALTITUDE",
-            value: "\(data.maxAltitudeFeet) ft AGL",
+            label: "REGULATORY AUTH",
+            value: data.regulatoryAuthority.rawValue,
             rect: CGRect(x: xOffset, y: yOffset, width: row4Widths[1], height: standardRowHeight),
             context: context
         )
         xOffset += row4Widths[1]
 
-        // Cell 14: AIRSPACE
-        let airspaceValue = data.airspaceClass == .unknown ? "Unknown" : "Class \(data.airspaceClass.rawValue)"
+        // Cell 14: MAX ALTITUDE
         drawCell(
             number: 14,
-            label: "AIRSPACE",
-            value: airspaceValue,
+            label: "MAX ALTITUDE",
+            value: "\(data.maxAltitudeFeet) ft AGL",
             rect: CGRect(x: xOffset, y: yOffset, width: row4Widths[2], height: standardRowHeight),
             context: context
         )
         xOffset += row4Widths[2]
 
-        // Cell 15: LAANC STATUS
+        // Cell 15: AIRSPACE (reduced width)
+        let airspaceValue = data.airspaceClass == .unknown ? "Unknown" : "Class \(data.airspaceClass.rawValue)"
         drawCell(
             number: 15,
-            label: "Authorization STATUS",
-            value: data.laancAuthorizationStatus.rawValue,
+            label: "AIRSPACE",
+            value: airspaceValue,
             rect: CGRect(x: xOffset, y: yOffset, width: row4Widths[3], height: standardRowHeight),
+            context: context
+        )
+        xOffset += row4Widths[3]
+
+        // Cell 16: LAANC STATUS (reduced width)
+        drawCell(
+            number: 16,
+            label: "AUTH STATUS",
+            value: data.laancAuthorizationStatus.rawValue,
+            rect: CGRect(x: xOffset, y: yOffset, width: row4Widths[4], height: standardRowHeight),
             context: context
         )
 
@@ -485,11 +495,11 @@ class FlightPlanService: ObservableObject {
 
         // Row 5: VLOS TYPE, FLIGHT OVER PEOPLE, CIVIL REGULATION COMPLIANCE, WAIVER REQUIRED
         xOffset = leftMargin
-        let row5Widths: [CGFloat] = [130, 120, 170, 120] // Total: 540 - increased box 18, reduced 17 and 19
+        let row5Widths: [CGFloat] = [130, 120, 170, 120] // Total: 540
 
-        // Cell 16: VLOS TYPE (with checkbox options)
+        // Cell 17: VLOS TYPE (with checkbox options)
         drawCheckboxCell(
-            number: 16,
+            number: 17,
             label: "VLOS TYPE",
             options: [("VLOS", data.vlosType == .vlos), ("BVLOS", data.vlosType == .bvlos)],
             rect: CGRect(x: xOffset, y: yOffset, width: row5Widths[0], height: standardRowHeight),
@@ -497,9 +507,9 @@ class FlightPlanService: ObservableObject {
         )
         xOffset += row5Widths[0]
 
-        // Cell 17: FLIGHT OVER PEOPLE (with checkbox options)
+        // Cell 18: FLIGHT OVER PEOPLE (with checkbox options)
         drawCheckboxCell(
-            number: 17,
+            number: 18,
             label: "FLIGHT OVER PEOPLE",
             options: [("Yes", data.flightOverPeople), ("No", !data.flightOverPeople)],
             rect: CGRect(x: xOffset, y: yOffset, width: row5Widths[1], height: standardRowHeight),
@@ -507,19 +517,19 @@ class FlightPlanService: ObservableObject {
         )
         xOffset += row5Widths[1]
 
-        // Cell 18: Civil Regulation Compliance (with checkbox options)
+        // Cell 19: Civil Regulatory Compliance (with checkbox options)
         drawCheckboxCell(
-            number: 18,
-            label: "CIVIL REGULATION COMPLIANCE",
+            number: 19,
+            label: "CIVIL REGULATORY COMPLIANCE",
             options: [("Yes", data.part107Compliant), ("No", !data.part107Compliant)],
             rect: CGRect(x: xOffset, y: yOffset, width: row5Widths[2], height: standardRowHeight),
             context: context
         )
         xOffset += row5Widths[2]
 
-        // Cell 19: WAIVER REQUIRED (with checkbox options)
+        // Cell 20: WAIVER REQUIRED (with checkbox options)
         drawCheckboxCell(
-            number: 19,
+            number: 20,
             label: "WAIVER REQUIRED",
             options: [("Yes", data.requiresWaiver), ("No", !data.requiresWaiver)],
             rect: CGRect(x: xOffset, y: yOffset, width: row5Widths[3], height: standardRowHeight),
@@ -531,9 +541,9 @@ class FlightPlanService: ObservableObject {
         // Fixed explanation cells (always shown, reduced height)
         let explanationHeight: CGFloat = 55
 
-        // Cell 20: Flight Over People Explanation (always shown)
+        // Cell 21: Flight Over People Explanation (always shown)
         yOffset = drawFixedTextBlock(
-            number: 20,
+            number: 21,
             label: "FLIGHT OVER PEOPLE EXPLANATION",
             text: data.flightOverPeopleExplanation ?? "",
             at: yOffset,
@@ -543,9 +553,9 @@ class FlightPlanService: ObservableObject {
             context: context
         )
 
-        // Cell 21: Part 107 Non-Compliance Explanation (always shown)
+        // Cell 22: Civil Regulation Non-Compliance Explanation (always shown)
         yOffset = drawFixedTextBlock(
-            number: 21,
+            number: 22,
             label: "CIVIL REGULATION NON-COMPLIANCE EXPLANATION",
             text: data.part107NonComplianceExplanation ?? "",
             at: yOffset,
@@ -559,7 +569,7 @@ class FlightPlanService: ObservableObject {
         yOffset = drawWaiverSection(
             at: yOffset,
             data: data,
-            startingCellNumber: 22,
+            startingCellNumber: 23,
             leftMargin: leftMargin,
             contentWidth: contentWidth,
             context: context

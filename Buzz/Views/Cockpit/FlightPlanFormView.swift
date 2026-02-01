@@ -29,6 +29,7 @@ struct FlightPlanFormView: View {
     @EnvironmentObject var authService: AuthService
     @StateObject private var flightPlanService = FlightPlanService()
     @StateObject private var locationManager = BookingMapLocationManager()
+    @StateObject private var licenseService = LicenseUploadService()
     @Environment(\.dismiss) private var dismiss
 
     // Booking (required - flight plan is tied to a booking)
@@ -40,6 +41,7 @@ struct FlightPlanFormView: View {
     @State private var takeoffTime = Date()
     @State private var location: String = ""
     @State private var locationCoordinates: CLLocationCoordinate2D?
+    @State private var pilotLicenseNumber: String?
 
     // Certification Section Fields
     @State private var certificationRegulation: CertificationRegulation? = nil
@@ -142,13 +144,16 @@ struct FlightPlanFormView: View {
                                     label: "Pilot Name",
                                     value: pilotName
                                 )
-                                
+
                                 GlassReadOnlyField(
                                     label: "Callsign",
                                     value: pilotCallSign,
                                     icon: "antenna.radiowaves.left.and.right"
                                 )
                             }
+
+                            // License Number (based on regulatory authority)
+                            licenseNumberRow
 
                             // Drone Picker
                             VStack(alignment: .leading, spacing: 8) {
@@ -510,16 +515,16 @@ struct FlightPlanFormView: View {
                                     )
                                 }
 
-                                if vlosType == .bvlos {
-                                    HStack(spacing: 6) {
-                                        Image(systemName: "exclamationmark.triangle.fill")
-                                            .font(.system(size: 12))
-                                            .foregroundColor(.orange)
-                                        Text("BVLOS operations require a waiver")
-                                            .font(.system(size: 12))
-                                            .foregroundColor(.orange)
-                                    }
-                                }
+                                // if vlosType == .bvlos {
+                                //     HStack(spacing: 6) {
+                                //         Image(systemName: "exclamationmark.triangle.fill")
+                                //             .font(.system(size: 12))
+                                //             .foregroundColor(.orange)
+                                //         Text("BVLOS operations require a waiver")
+                                //             .font(.system(size: 12))
+                                //             .foregroundColor(.orange)
+                                //     }
+                                // }
                             }
 
                             // Flight Over People
@@ -548,7 +553,7 @@ struct FlightPlanFormView: View {
                     .padding(.horizontal, 16)
 
                     // Civil Regulation Compliance Section
-                    GlassCard(title: "Civil Regulation Compliance", icon: "checkmark.shield") {
+                    GlassCard(title: "Civil Regulatory Compliance", icon: "checkmark.shield") {
                         VStack(alignment: .leading, spacing: 16) {
                             VStack(spacing: 10) {
                                 CheckboxOption(
@@ -618,7 +623,7 @@ struct FlightPlanFormView: View {
                                 //             .font(.system(size: 12))
                                 //             .foregroundColor(FlightPlanColors.textSecondary)
                                 //     }
-                                }
+                                // }
                             }
 
                             if requiresWaiver {
@@ -923,9 +928,12 @@ struct FlightPlanFormView: View {
             locationManager.requestPermission()
             locationManager.startLocationUpdates()
 
-            // Fetch drone registrations
+            // Fetch drone registrations and licenses
             if let pilotId = authService.currentUser?.id {
                 await flightPlanService.fetchDroneRegistrations(pilotId: pilotId)
+                try? await licenseService.fetchLicenses(pilotId: pilotId)
+                // Update license number after licenses are fetched
+                updatePilotLicenseNumber()
             }
 
             // Initialize from booking (only once)
@@ -944,6 +952,30 @@ struct FlightPlanFormView: View {
 
     private var pilotCallSign: String {
         authService.userProfile?.callSign ?? "N/A"
+    }
+
+    private var licenseNumberLabel: String {
+        regulatoryAuthority == .faa ? "Part 107 Certificate #:" : "RPA Pilot Certificate #:"
+    }
+
+    private var licenseNumberValue: String {
+        pilotLicenseNumber ?? "Not found"
+    }
+
+    private var licenseNumberRow: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text(licenseNumberLabel)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(FlightPlanColors.textSecondary)
+                Spacer()
+                Text(licenseNumberValue)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(pilotLicenseNumber != nil ? FlightPlanColors.textPrimary : .orange)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, -8)
     }
 
     private var takeoffDateTime: Date {
@@ -1093,6 +1125,7 @@ struct FlightPlanFormView: View {
 
         let formData = FlightPlanFormData(
             pilotName: pilotName,
+            pilotLicenseNumber: pilotLicenseNumber,
             callSign: pilotCallSign,
             droneManufacturer: selectedDrone?.manufacturer,
             droneModel: selectedDrone?.model,
@@ -1205,6 +1238,34 @@ struct FlightPlanFormView: View {
             airspaceClass: airspaceClass,
             hasLAANCCoverage: hasLAANCCoverage
         )
+    }
+
+    private func updatePilotLicenseNumber() {
+        // Find the appropriate license based on regulatory authority
+        // For US (FAA): Look for Part 107 or Part 107 recurrent license
+        // For Canada (TC): Look for RPA Pilot certificate
+        let licenses = licenseService.licenses
+
+        if regulatoryAuthority == .faa {
+            // Look for Part 107 licenses
+            if let part107License = licenses.first(where: {
+                $0.licenseType == LicenseType.part107.rawValue ||
+                $0.licenseType == LicenseType.part107Recurrent.rawValue
+            }) {
+                pilotLicenseNumber = part107License.certificateNumber
+            } else {
+                pilotLicenseNumber = nil
+            }
+        } else {
+            // Look for RPA Pilot certificate (Canada)
+            if let rpaLicense = licenses.first(where: {
+                $0.licenseType == LicenseType.rpaPilotCertificate.rawValue
+            }) {
+                pilotLicenseNumber = rpaLicense.certificateNumber
+            } else {
+                pilotLicenseNumber = nil
+            }
+        }
     }
 
     // MARK: - Address Search
