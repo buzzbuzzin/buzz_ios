@@ -329,6 +329,7 @@ class FlightPlanService: ObservableObject {
         context: CGContext
     ) -> CGFloat {
         let leftMargin: CGFloat = 36
+        let contentWidth: CGFloat = 540
         var yOffset = startY + 10
 
         // Row heights
@@ -473,7 +474,6 @@ class FlightPlanService: ObservableObject {
         yOffset += standardRowHeight
 
         // Row 4: REMARKS (full width)
-        let contentWidth: CGFloat = 540
         drawCell(
             number: 12,
             label: "REMARKS",
@@ -483,6 +483,246 @@ class FlightPlanService: ObservableObject {
         )
 
         yOffset += remarksRowHeight
+
+        // Row 5: REGULATORY AUTHORITY, MAX ALTITUDE, AIRSPACE, LAANC STATUS
+        xOffset = leftMargin
+        let row5Widths: [CGFloat] = [135, 95, 95, 215] // Total: 540
+
+        // Cell 13: REGULATORY AUTHORITY
+        drawCell(
+            number: 13,
+            label: "REGULATORY AUTH",
+            value: data.regulatoryAuthority.rawValue,
+            rect: CGRect(x: xOffset, y: yOffset, width: row5Widths[0], height: standardRowHeight),
+            context: context
+        )
+        xOffset += row5Widths[0]
+
+        // Cell 14: MAX ALTITUDE
+        drawCell(
+            number: 14,
+            label: "MAX ALTITUDE",
+            value: "\(data.maxAltitudeFeet) ft AGL",
+            rect: CGRect(x: xOffset, y: yOffset, width: row5Widths[1], height: standardRowHeight),
+            context: context
+        )
+        xOffset += row5Widths[1]
+
+        // Cell 15: AIRSPACE
+        let airspaceValue = data.airspaceClass == .unknown ? "Unknown" : "Class \(data.airspaceClass.rawValue)"
+        drawCell(
+            number: 15,
+            label: "AIRSPACE",
+            value: airspaceValue,
+            rect: CGRect(x: xOffset, y: yOffset, width: row5Widths[2], height: standardRowHeight),
+            context: context
+        )
+        xOffset += row5Widths[2]
+
+        // Cell 16: LAANC STATUS
+        drawCell(
+            number: 16,
+            label: "LAANC STATUS",
+            value: data.laancAuthorizationStatus.rawValue,
+            rect: CGRect(x: xOffset, y: yOffset, width: row5Widths[3], height: standardRowHeight),
+            context: context
+        )
+
+        yOffset += standardRowHeight
+
+        // Row 6: VLOS TYPE, FLIGHT OVER PEOPLE, PART 107 COMPLIANT
+        xOffset = leftMargin
+        let row6Widths: [CGFloat] = [110, 150, 280] // Total: 540
+
+        // Cell 17: VLOS TYPE
+        drawCell(
+            number: 17,
+            label: "VLOS TYPE",
+            value: data.vlosType.rawValue,
+            rect: CGRect(x: xOffset, y: yOffset, width: row6Widths[0], height: standardRowHeight),
+            context: context
+        )
+        xOffset += row6Widths[0]
+
+        // Cell 18: FLIGHT OVER PEOPLE
+        drawCell(
+            number: 18,
+            label: "FLIGHT OVER PEOPLE",
+            value: data.flightOverPeople ? "Yes" : "No",
+            rect: CGRect(x: xOffset, y: yOffset, width: row6Widths[1], height: standardRowHeight),
+            context: context
+        )
+        xOffset += row6Widths[1]
+
+        // Cell 19: PART 107 COMPLIANT
+        drawCell(
+            number: 19,
+            label: "PART 107 COMPLIANT",
+            value: data.part107Compliant ? "Yes" : "No",
+            rect: CGRect(x: xOffset, y: yOffset, width: row6Widths[2], height: standardRowHeight),
+            context: context
+        )
+
+        yOffset += standardRowHeight
+
+        // Conditional Explanation Cells
+        var cellNumber = 20
+
+        // Cell 20: Flight Over People Explanation (if applicable)
+        if data.flightOverPeople, let explanation = data.flightOverPeopleExplanation, !explanation.isEmpty {
+            yOffset = drawTextBlock(
+                number: cellNumber,
+                label: "FLIGHT OVER PEOPLE EXPLANATION",
+                text: explanation,
+                at: yOffset,
+                width: contentWidth,
+                leftMargin: leftMargin,
+                context: context
+            )
+            cellNumber += 1
+        }
+
+        // Cell 21: Part 107 Non-Compliance Explanation (if applicable)
+        if !data.part107Compliant, let explanation = data.part107NonComplianceExplanation, !explanation.isEmpty {
+            yOffset = drawTextBlock(
+                number: cellNumber,
+                label: "PART 107 NON-COMPLIANCE EXPLANATION",
+                text: explanation,
+                at: yOffset,
+                width: contentWidth,
+                leftMargin: leftMargin,
+                context: context
+            )
+            cellNumber += 1
+        }
+
+        // Waiver Documentation Section (if applicable)
+        if data.requiresWaiver {
+            yOffset = drawWaiverSection(
+                at: yOffset,
+                data: data,
+                startingCellNumber: cellNumber,
+                leftMargin: leftMargin,
+                contentWidth: contentWidth,
+                context: context
+            )
+        }
+
+        return yOffset
+    }
+
+    private func drawTextBlock(
+        number: Int,
+        label: String,
+        text: String,
+        at y: CGFloat,
+        width: CGFloat,
+        leftMargin: CGFloat,
+        context: CGContext
+    ) -> CGFloat {
+        // Calculate height based on text length
+        let textFont = UIFont.systemFont(ofSize: 11)
+        let textAttributes: [NSAttributedString.Key: Any] = [.font: textFont]
+        let textRect = CGRect(x: 0, y: 0, width: width - 20, height: .greatestFiniteMagnitude)
+        let boundingRect = (text as NSString).boundingRect(
+            with: textRect.size,
+            options: [.usesLineFragmentOrigin, .usesFontLeading],
+            attributes: textAttributes,
+            context: nil
+        )
+        let minHeight: CGFloat = 60
+        let cellHeight = max(minHeight, boundingRect.height + 35)
+
+        let rect = CGRect(x: leftMargin, y: y, width: width, height: cellHeight)
+
+        // Draw border
+        context.setStrokeColor(UIColor.black.cgColor)
+        context.setLineWidth(0.75)
+        context.stroke(rect)
+
+        // Draw field number
+        let numberFont = UIFont.boldSystemFont(ofSize: 8)
+        let numberAttributes: [NSAttributedString.Key: Any] = [
+            .font: numberFont,
+            .foregroundColor: UIColor.darkGray
+        ]
+        "\(number).".draw(at: CGPoint(x: rect.minX + 4, y: rect.minY + 3), withAttributes: numberAttributes)
+
+        // Draw label
+        let labelFont = UIFont.systemFont(ofSize: 8, weight: .medium)
+        let labelAttributes: [NSAttributedString.Key: Any] = [
+            .font: labelFont,
+            .foregroundColor: UIColor(white: 0.45, alpha: 1.0)
+        ]
+        label.uppercased().draw(at: CGPoint(x: rect.minX + 18, y: rect.minY + 4), withAttributes: labelAttributes)
+
+        // Draw text content
+        let contentRect = CGRect(x: rect.minX + 10, y: rect.minY + 20, width: width - 20, height: cellHeight - 25)
+        text.draw(in: contentRect, withAttributes: textAttributes)
+
+        return y + cellHeight
+    }
+
+    private func drawWaiverSection(
+        at y: CGFloat,
+        data: FlightPlanFormData,
+        startingCellNumber: Int,
+        leftMargin: CGFloat,
+        contentWidth: CGFloat,
+        context: CGContext
+    ) -> CGFloat {
+        var yOffset = y + 10
+        var cellNumber = startingCellNumber
+
+        // Section header
+        let headerFont = UIFont.boldSystemFont(ofSize: 10)
+        let headerAttributes: [NSAttributedString.Key: Any] = [
+            .font: headerFont,
+            .foregroundColor: UIColor.black
+        ]
+        "WAIVER DOCUMENTATION".draw(at: CGPoint(x: leftMargin, y: yOffset), withAttributes: headerAttributes)
+        yOffset += 18
+
+        // Safety Mitigations
+        if let safetyMitigations = data.waiverSafetyMitigations, !safetyMitigations.isEmpty {
+            yOffset = drawTextBlock(
+                number: cellNumber,
+                label: "I. SAFETY MITIGATIONS",
+                text: safetyMitigations,
+                at: yOffset,
+                width: contentWidth,
+                leftMargin: leftMargin,
+                context: context
+            )
+            cellNumber += 1
+        }
+
+        // Operational Procedures
+        if let operationalProcedures = data.waiverOperationalProcedures, !operationalProcedures.isEmpty {
+            yOffset = drawTextBlock(
+                number: cellNumber,
+                label: "II. OPERATIONAL PROCEDURES",
+                text: operationalProcedures,
+                at: yOffset,
+                width: contentWidth,
+                leftMargin: leftMargin,
+                context: context
+            )
+            cellNumber += 1
+        }
+
+        // Risk Analysis
+        if let riskAnalysis = data.waiverRiskAnalysis, !riskAnalysis.isEmpty {
+            yOffset = drawTextBlock(
+                number: cellNumber,
+                label: "III. RISK ANALYSIS",
+                text: riskAnalysis,
+                at: yOffset,
+                width: contentWidth,
+                leftMargin: leftMargin,
+                context: context
+            )
+        }
 
         return yOffset
     }

@@ -46,6 +46,29 @@ struct FlightPlanFormView: View {
     @State private var signatureDate: Date?
     @State private var showSignaturePad = false
 
+    // Regulatory Section Fields
+    @State private var regulatoryAuthority: RegulatoryAuthority = .faa
+    @State private var maxAltitude: Int = 400
+    @State private var airspaceClass: AirspaceClass = .unknown
+    @State private var laancGridCeiling: Int?
+    @State private var laancAuthorizationStatus: LAANCAuthorizationStatus = .pending
+    @StateObject private var airspaceService = ArcGISAirspaceService()
+
+    // Flight Operations Fields
+    @State private var flightOverPeople = false
+    @State private var flightOverPeopleExplanation = ""
+    @State private var vlosType: VLOSType = .vlos
+
+    // Part 107 Compliance Fields
+    @State private var part107Compliant = true
+    @State private var part107NonComplianceExplanation = ""
+
+    // Waiver Fields
+    @State private var requiresWaiver = false
+    @State private var waiverSafetyMitigations = ""
+    @State private var waiverOperationalProcedures = ""
+    @State private var waiverRiskAnalysis = ""
+
     // UI State
     @State private var showGenerateConfirmation = false
     @State private var showShareSheet = false
@@ -324,6 +347,299 @@ struct FlightPlanFormView: View {
                                         .font(.caption)
                                         .foregroundColor(FlightPlanColors.textSecondary)
                                 }
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 16)
+
+                    // Regulatory Authority Section
+                    GlassCard(title: "Regulatory Authority", icon: "building.columns") {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Auto-detected based on flight location")
+                                .font(.system(size: 12))
+                                .foregroundColor(FlightPlanColors.textSecondary)
+
+                            VStack(spacing: 10) {
+                                CheckboxOption(
+                                    title: "FAA",
+                                    subtitle: "United States",
+                                    isSelected: regulatoryAuthority == .faa,
+                                    isDisabled: true
+                                )
+
+                                CheckboxOption(
+                                    title: "Transport Canada",
+                                    subtitle: "Canada",
+                                    isSelected: regulatoryAuthority == .transportCanada,
+                                    isDisabled: true
+                                )
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 16)
+
+                    // Airspace & Altitude Section
+                    GlassCard(title: "Airspace & Altitude", icon: "airplane.circle") {
+                        VStack(spacing: 20) {
+                            // Max Altitude Input
+                            VStack(alignment: .leading, spacing: 8) {
+                                GlassLabel(text: "Max Altitude (ft AGL)", required: true)
+
+                                HStack(spacing: 12) {
+                                    TextField("400", value: $maxAltitude, format: .number)
+                                        .font(.system(size: 16, weight: .medium))
+                                        .keyboardType(.numberPad)
+                                        .padding(.horizontal, 16)
+                                        .padding(.vertical, 12)
+                                        .frame(width: 100)
+                                        .background(Color.white.opacity(0.8))
+                                        .cornerRadius(10)
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 10)
+                                                .stroke(FlightPlanColors.border, lineWidth: 1)
+                                        )
+
+                                    Text("ft AGL")
+                                        .font(.system(size: 14))
+                                        .foregroundColor(FlightPlanColors.textSecondary)
+
+                                    Spacer()
+
+                                    Button("Reset to 400") {
+                                        maxAltitude = 400
+                                    }
+                                    .font(.system(size: 12, weight: .medium))
+                                    .foregroundColor(FlightPlanColors.primary)
+                                }
+
+                                if maxAltitude > 400 {
+                                    HStack(spacing: 6) {
+                                        Image(systemName: "exclamationmark.triangle.fill")
+                                            .font(.system(size: 12))
+                                            .foregroundColor(.orange)
+                                        Text("Altitudes above 400 ft AGL require special authorization")
+                                            .font(.system(size: 12))
+                                            .foregroundColor(.orange)
+                                    }
+                                    .padding(.top, 4)
+                                }
+                            }
+
+                            // Airspace Class (Auto-populated)
+                            VStack(alignment: .leading, spacing: 8) {
+                                HStack {
+                                    GlassLabel(text: "Airspace Class", required: false)
+                                    if airspaceService.isLoading {
+                                        ProgressView()
+                                            .scaleEffect(0.7)
+                                    }
+                                }
+
+                                HStack(spacing: 12) {
+                                    Image(systemName: "scope")
+                                        .font(.system(size: 16))
+                                        .foregroundColor(FlightPlanColors.primary)
+
+                                    Text(airspaceClass == .unknown ? "Detecting..." : "Class \(airspaceClass.rawValue)")
+                                        .font(.system(size: 15, weight: .medium))
+                                        .foregroundColor(airspaceClass == .unknown ? FlightPlanColors.textMuted : FlightPlanColors.textPrimary)
+
+                                    Spacer()
+                                }
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 12)
+                                .background(FlightPlanColors.fieldBackground)
+                                .cornerRadius(10)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 10)
+                                        .stroke(FlightPlanColors.border, lineWidth: 1)
+                                )
+                            }
+
+                            // LAANC Authorization Status
+                            VStack(alignment: .leading, spacing: 8) {
+                                GlassLabel(text: "LAANC Authorization Status", required: false)
+
+                                AuthorizationStatusBadge(status: laancAuthorizationStatus)
+
+                                if let ceiling = laancGridCeiling {
+                                    Text("LAANC Grid Ceiling: \(ceiling) ft")
+                                        .font(.system(size: 12))
+                                        .foregroundColor(FlightPlanColors.textSecondary)
+                                        .padding(.top, 2)
+                                }
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .onChange(of: maxAltitude) { _ in updateAuthorizationStatus() }
+                    .onChange(of: airspaceClass) { _ in updateAuthorizationStatus() }
+
+                    // Flight Operations Section
+                    GlassCard(title: "Flight Operations", icon: "eye") {
+                        VStack(spacing: 20) {
+                            // VLOS/BVLOS Selection
+                            VStack(alignment: .leading, spacing: 12) {
+                                GlassLabel(text: "Visual Line of Sight", required: true)
+
+                                VStack(spacing: 10) {
+                                    CheckboxOption(
+                                        title: "VLOS",
+                                        subtitle: "Visual Line of Sight",
+                                        isSelected: vlosType == .vlos,
+                                        action: {
+                                            vlosType = .vlos
+                                            // When switching to VLOS, allow waiver to be toggled off
+                                        }
+                                    )
+
+                                    CheckboxOption(
+                                        title: "BVLOS",
+                                        subtitle: "Beyond Visual Line of Sight",
+                                        isSelected: vlosType == .bvlos,
+                                        action: {
+                                            vlosType = .bvlos
+                                            // BVLOS requires waiver - auto-enable it
+                                            requiresWaiver = true
+                                        }
+                                    )
+                                }
+
+                                if vlosType == .bvlos {
+                                    HStack(spacing: 6) {
+                                        Image(systemName: "exclamationmark.triangle.fill")
+                                            .font(.system(size: 12))
+                                            .foregroundColor(.orange)
+                                        Text("BVLOS operations require a Part 107 waiver")
+                                            .font(.system(size: 12))
+                                            .foregroundColor(.orange)
+                                    }
+                                }
+                            }
+
+                            // Flight Over People
+                            VStack(alignment: .leading, spacing: 12) {
+                                GlassLabel(text: "Flight Over People", required: false)
+
+                                CheckboxOption(
+                                    title: "Yes",
+                                    subtitle: "This operation involves flying over people",
+                                    isSelected: flightOverPeople,
+                                    action: { flightOverPeople.toggle() }
+                                )
+
+                                if flightOverPeople {
+                                    GlassTextEditor(
+                                        title: "Explanation",
+                                        text: $flightOverPeopleExplanation,
+                                        placeholder: "Describe the circumstances and safety measures for flight over people...",
+                                        required: true
+                                    )
+                                    .transition(.opacity)
+                                }
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 16)
+
+                    // Part 107 Compliance Section
+                    GlassCard(title: "Part 107 Compliance", icon: "checkmark.shield") {
+                        VStack(alignment: .leading, spacing: 16) {
+                            VStack(spacing: 10) {
+                                CheckboxOption(
+                                    title: "Compliant",
+                                    subtitle: "This flight complies with all Part 107 rules",
+                                    isSelected: part107Compliant,
+                                    isDisabled: maxAltitude > 400,
+                                    action: { part107Compliant = true }
+                                )
+
+                                CheckboxOption(
+                                    title: "Non-Compliant",
+                                    subtitle: "This flight does not fully comply with Part 107 rules",
+                                    isSelected: !part107Compliant,
+                                    isDisabled: maxAltitude > 400,
+                                    action: { part107Compliant = false }
+                                )
+                            }
+
+                            if maxAltitude > 400 {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "info.circle.fill")
+                                        .font(.system(size: 12))
+                                        .foregroundColor(.orange)
+                                    Text("Flights above 400 ft AGL are non-compliant with Part 107")
+                                        .font(.system(size: 12))
+                                        .foregroundColor(FlightPlanColors.textSecondary)
+                                }
+                            }
+
+                            if !part107Compliant {
+                                GlassTextEditor(
+                                    title: "Non-Compliance Explanation",
+                                    text: $part107NonComplianceExplanation,
+                                    placeholder: "Explain which Part 107 rules cannot be met and why...",
+                                    required: true
+                                )
+                                .transition(.opacity)
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .onChange(of: maxAltitude) { newAltitude in
+                        if newAltitude > 400 {
+                            part107Compliant = false
+                        }
+                    }
+
+                    // Waiver Requirement Section
+                    GlassCard(title: "Waiver Requirement", icon: "doc.badge.gearshape") {
+                        VStack(alignment: .leading, spacing: 16) {
+                            VStack(spacing: 10) {
+                                CheckboxOption(
+                                    title: "Requires Waiver",
+                                    subtitle: "This operation requires an FAA waiver",
+                                    isSelected: requiresWaiver,
+                                    isDisabled: vlosType == .bvlos,
+                                    action: { requiresWaiver.toggle() }
+                                )
+
+                                if vlosType == .bvlos {
+                                    HStack(spacing: 6) {
+                                        Image(systemName: "info.circle.fill")
+                                            .font(.system(size: 12))
+                                            .foregroundColor(FlightPlanColors.primary)
+                                        Text("Waiver is required for BVLOS operations")
+                                            .font(.system(size: 12))
+                                            .foregroundColor(FlightPlanColors.textSecondary)
+                                    }
+                                }
+                            }
+
+                            if requiresWaiver {
+                                VStack(spacing: 16) {
+                                    GlassTextEditor(
+                                        title: "I. Safety Mitigations",
+                                        text: $waiverSafetyMitigations,
+                                        placeholder: "Describe safety measures to mitigate risks...",
+                                        required: true
+                                    )
+
+                                    GlassTextEditor(
+                                        title: "II. Operational Procedures",
+                                        text: $waiverOperationalProcedures,
+                                        placeholder: "Detail the operational procedures for this flight...",
+                                        required: true
+                                    )
+
+                                    GlassTextEditor(
+                                        title: "III. Risk Analysis",
+                                        text: $waiverRiskAnalysis,
+                                        placeholder: "Provide a risk analysis for this operation...",
+                                        required: true
+                                    )
+                                }
+                                .transition(.opacity)
                             }
                         }
                     }
@@ -620,10 +936,20 @@ struct FlightPlanFormView: View {
     }
 
     private var canSubmit: Bool {
-        selectedDrone != nil &&
-        !location.isEmpty &&
-        signatureImage != nil &&
-        signatureDate != nil
+        let baseRequirements = selectedDrone != nil &&
+            !location.isEmpty &&
+            signatureImage != nil &&
+            signatureDate != nil
+
+        let flightOverPeopleValid = !flightOverPeople || !flightOverPeopleExplanation.isEmpty
+        let part107Valid = part107Compliant || !part107NonComplianceExplanation.isEmpty
+        let waiverValid = !requiresWaiver || (
+            !waiverSafetyMitigations.isEmpty &&
+            !waiverOperationalProcedures.isEmpty &&
+            !waiverRiskAnalysis.isEmpty
+        )
+
+        return baseRequirements && flightOverPeopleValid && part107Valid && waiverValid
     }
 
     private func formatSignatureDate(_ date: Date) -> String {
@@ -691,6 +1017,20 @@ struct FlightPlanFormView: View {
             location: location,
             latitude: locationCoordinates.map { String(format: "%.6f", $0.latitude) },
             longitude: locationCoordinates.map { String(format: "%.6f", $0.longitude) },
+            regulatoryAuthority: regulatoryAuthority,
+            maxAltitudeFeet: maxAltitude,
+            airspaceClass: airspaceClass,
+            laancGridCeiling: laancGridCeiling,
+            laancAuthorizationStatus: laancAuthorizationStatus,
+            flightOverPeople: flightOverPeople,
+            flightOverPeopleExplanation: flightOverPeople ? flightOverPeopleExplanation : nil,
+            vlosType: vlosType,
+            part107Compliant: part107Compliant,
+            part107NonComplianceExplanation: part107Compliant ? nil : part107NonComplianceExplanation,
+            requiresWaiver: requiresWaiver,
+            waiverSafetyMitigations: requiresWaiver ? waiverSafetyMitigations : nil,
+            waiverOperationalProcedures: requiresWaiver ? waiverOperationalProcedures : nil,
+            waiverRiskAnalysis: requiresWaiver ? waiverRiskAnalysis : nil,
             signatureImage: signatureImage,
             signatureDate: signatureDate,
             generatedAt: Date()
@@ -721,19 +1061,58 @@ struct FlightPlanFormView: View {
         // Reverse geocode to get the actual address from coordinates
         isGeocoding = true
         Task {
-            if let address = await flightPlanService.reverseGeocodeLocation(locationCoordinates!) {
-                await MainActor.run {
+            // Fetch address and airspace data in parallel
+            async let addressTask = flightPlanService.reverseGeocodeLocation(locationCoordinates!)
+            async let airspaceTask: () = airspaceService.fetchAirspaceData(coordinate: locationCoordinates!)
+            async let countryTask = detectCountryFromCoordinates(locationCoordinates!)
+
+            let address = await addressTask
+            await airspaceTask
+            let detectedCountry = await countryTask
+
+            await MainActor.run {
+                if let address = address {
                     location = address
-                    isGeocoding = false
-                }
-            } else {
-                await MainActor.run {
+                } else {
                     // Fallback to coordinates if reverse geocoding fails
                     location = "\(String(format: "%.6f", booking.locationLat)), \(String(format: "%.6f", booking.locationLng))"
-                    isGeocoding = false
                 }
+                isGeocoding = false
+
+                // Update local state from airspace service
+                airspaceClass = airspaceService.airspaceClass
+                laancGridCeiling = airspaceService.laancGridCeiling
+
+                // Set regulatory authority based on detected country
+                if let country = detectedCountry {
+                    regulatoryAuthority = (country == "Canada") ? .transportCanada : .faa
+                }
+
+                // Calculate initial authorization status
+                updateAuthorizationStatus()
             }
         }
+    }
+
+    private func detectCountryFromCoordinates(_ coordinate: CLLocationCoordinate2D) async -> String? {
+        let geocoder = CLGeocoder()
+        let location = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
+
+        do {
+            let placemarks = try await geocoder.reverseGeocodeLocation(location)
+            return placemarks.first?.country
+        } catch {
+            print("Country detection failed: \(error.localizedDescription)")
+            return nil
+        }
+    }
+
+    private func updateAuthorizationStatus() {
+        laancAuthorizationStatus = airspaceService.calculateAuthorizationStatus(
+            requestedAltitude: maxAltitude,
+            laancCeiling: laancGridCeiling,
+            airspaceClass: airspaceClass
+        )
     }
 
     // MARK: - Address Search
@@ -1181,5 +1560,138 @@ struct SignaturePadView: View {
 
         signatureImage = image
         dismiss()
+    }
+}
+
+// MARK: - Checkbox Option
+
+private struct CheckboxOption: View {
+    let title: String
+    let subtitle: String
+    let isSelected: Bool
+    var isDisabled: Bool = false
+    var action: (() -> Void)? = nil
+
+    var body: some View {
+        Button {
+            if !isDisabled {
+                action?()
+            }
+        } label: {
+            HStack(spacing: 12) {
+                // Checkbox
+                ZStack {
+                    RoundedRectangle(cornerRadius: 4)
+                        .stroke(isSelected ? FlightPlanColors.primary : FlightPlanColors.border, lineWidth: 1.5)
+                        .frame(width: 20, height: 20)
+                        .background(
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(isSelected ? FlightPlanColors.primary : Color.white)
+                        )
+
+                    if isSelected {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(.white)
+                    }
+                }
+                .opacity(isDisabled ? 0.6 : 1.0)
+
+                // Labels
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(isDisabled ? FlightPlanColors.textSecondary : FlightPlanColors.textPrimary)
+
+                    Text(subtitle)
+                        .font(.system(size: 11))
+                        .foregroundColor(FlightPlanColors.textSecondary)
+                }
+
+                Spacer()
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .background(
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(isSelected ? FlightPlanColors.primary.opacity(0.08) : Color.white.opacity(0.8))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 10)
+                    .stroke(isSelected ? FlightPlanColors.primary.opacity(0.3) : FlightPlanColors.border, lineWidth: 1)
+            )
+        }
+        .disabled(isDisabled)
+    }
+}
+
+// MARK: - Authorization Status Badge
+
+private struct AuthorizationStatusBadge: View {
+    let status: LAANCAuthorizationStatus
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: statusIcon)
+                .font(.system(size: 14))
+                .foregroundColor(statusColor)
+
+            Text(status.rawValue)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundColor(statusColor)
+
+            Spacer()
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(statusBackgroundColor)
+        .cornerRadius(10)
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(statusColor.opacity(0.3), lineWidth: 1)
+        )
+    }
+
+    private var statusIcon: String {
+        switch status {
+        case .autoApproved:
+            return "checkmark.circle.fill"
+        case .manualReviewRequired:
+            return "clock.fill"
+        case .notPermitted:
+            return "xmark.circle.fill"
+        case .pending:
+            return "hourglass"
+        case .notApplicable:
+            return "minus.circle"
+        }
+    }
+
+    private var statusColor: Color {
+        switch status {
+        case .autoApproved:
+            return Color.green
+        case .manualReviewRequired:
+            return Color.orange
+        case .notPermitted:
+            return Color.red
+        case .pending:
+            return FlightPlanColors.textSecondary
+        case .notApplicable:
+            return FlightPlanColors.textSecondary
+        }
+    }
+
+    private var statusBackgroundColor: Color {
+        switch status {
+        case .autoApproved:
+            return Color.green.opacity(0.1)
+        case .manualReviewRequired:
+            return Color.orange.opacity(0.1)
+        case .notPermitted:
+            return Color.red.opacity(0.1)
+        case .pending, .notApplicable:
+            return FlightPlanColors.fieldBackground
+        }
     }
 }
