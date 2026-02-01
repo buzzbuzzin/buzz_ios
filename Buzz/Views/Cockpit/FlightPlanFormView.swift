@@ -51,6 +51,7 @@ struct FlightPlanFormView: View {
     @State private var maxAltitude: Int = 400
     @State private var airspaceClass: AirspaceClass = .unknown
     @State private var laancGridCeiling: Int?
+    @State private var hasLAANCCoverage: Bool = false  // Indicates if UASFM grid exists at location
     @State private var laancAuthorizationStatus: LAANCAuthorizationStatus = .pending
     @StateObject private var airspaceService = ArcGISAirspaceService()
 
@@ -79,6 +80,7 @@ struct FlightPlanFormView: View {
     @State private var isGeocoding = false
     @State private var hasInitializedFromBooking = false
     @State private var showZuluTimeInfo = false
+    @State private var showLAANCInfoSheet = false
 
     // Address autocomplete
     @State private var addressSuggestions: [AddressSuggestion] = []
@@ -458,7 +460,17 @@ struct FlightPlanFormView: View {
 
                             // LAANC Authorization Status
                             VStack(alignment: .leading, spacing: 8) {
-                                GlassLabel(text: "LAANC Authorization Status", required: false)
+                                HStack {
+                                    GlassLabel(text: "LAANC Authorization Status", required: false)
+                                    Spacer()
+                                    Button {
+                                        showLAANCInfoSheet = true
+                                    } label: {
+                                        Image(systemName: "info.circle")
+                                            .font(.system(size: 16))
+                                            .foregroundColor(FlightPlanColors.primary)
+                                    }
+                                }
 
                                 AuthorizationStatusBadge(status: laancAuthorizationStatus)
 
@@ -474,6 +486,7 @@ struct FlightPlanFormView: View {
                     .padding(.horizontal, 16)
                     .onChange(of: maxAltitude) { _ in updateAuthorizationStatus() }
                     .onChange(of: airspaceClass) { _ in updateAuthorizationStatus() }
+                    .onChange(of: hasLAANCCoverage) { _ in updateAuthorizationStatus() }
 
                     // Flight Operations Section
                     GlassCard(title: "Flight Operations", icon: "eye") {
@@ -834,6 +847,15 @@ struct FlightPlanFormView: View {
         .sheet(isPresented: $showSignaturePad) {
             SignaturePadView(signatureImage: $signatureImage)
         }
+        .sheet(isPresented: $showLAANCInfoSheet) {
+            LAANCInfoSheet(
+                airspaceClass: airspaceClass,
+                hasLAANCCoverage: hasLAANCCoverage,
+                laancGridCeiling: laancGridCeiling,
+                requestedAltitude: maxAltitude,
+                authorizationStatus: laancAuthorizationStatus
+            )
+        }
         .task {
             // Request location permission and start updates
             locationManager.requestPermission()
@@ -1082,6 +1104,7 @@ struct FlightPlanFormView: View {
                 // Update local state from airspace service
                 airspaceClass = airspaceService.airspaceClass
                 laancGridCeiling = airspaceService.laancGridCeiling
+                hasLAANCCoverage = airspaceService.hasLAANCCoverage
 
                 // Set regulatory authority based on detected country
                 if let country = detectedCountry {
@@ -1111,7 +1134,8 @@ struct FlightPlanFormView: View {
         laancAuthorizationStatus = airspaceService.calculateAuthorizationStatus(
             requestedAltitude: maxAltitude,
             laancCeiling: laancGridCeiling,
-            airspaceClass: airspaceClass
+            airspaceClass: airspaceClass,
+            hasLAANCCoverage: hasLAANCCoverage
         )
     }
 
@@ -1658,6 +1682,8 @@ private struct AuthorizationStatusBadge: View {
             return "checkmark.circle.fill"
         case .manualReviewRequired:
             return "clock.fill"
+        case .noLAANCCoverage:
+            return "exclamationmark.triangle.fill"
         case .notPermitted:
             return "xmark.circle.fill"
         case .pending:
@@ -1673,6 +1699,8 @@ private struct AuthorizationStatusBadge: View {
             return Color.green
         case .manualReviewRequired:
             return Color.orange
+        case .noLAANCCoverage:
+            return Color.red
         case .notPermitted:
             return Color.red
         case .pending:
@@ -1688,10 +1716,273 @@ private struct AuthorizationStatusBadge: View {
             return Color.green.opacity(0.1)
         case .manualReviewRequired:
             return Color.orange.opacity(0.1)
+        case .noLAANCCoverage:
+            return Color.red.opacity(0.1)
         case .notPermitted:
             return Color.red.opacity(0.1)
         case .pending, .notApplicable:
             return FlightPlanColors.fieldBackground
+        }
+    }
+}
+
+// MARK: - LAANC Info Sheet
+
+private struct LAANCInfoSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let airspaceClass: AirspaceClass
+    let hasLAANCCoverage: Bool
+    let laancGridCeiling: Int?
+    let requestedAltitude: Int
+    let authorizationStatus: LAANCAuthorizationStatus
+
+    var body: some View {
+        NavigationView {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 24) {
+                    // Current Status Section
+                    currentStatusSection
+
+                    Divider()
+
+                    // Decision Tree Section
+                    decisionTreeSection
+
+                    Divider()
+
+                    // Your Situation Section
+                    yourSituationSection
+                }
+                .padding(20)
+            }
+            .background(Color(.systemGroupedBackground))
+            .navigationTitle("LAANC Authorization")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                    .fontWeight(.semibold)
+                }
+            }
+        }
+    }
+
+    private var currentStatusSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("Current Status", systemImage: "info.circle.fill")
+                .font(.headline)
+                .foregroundColor(FlightPlanColors.primary)
+
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("Airspace Class:")
+                        .foregroundColor(.secondary)
+                    Spacer()
+                    Text(airspaceClass == .unknown ? "Unknown" : "Class \(airspaceClass.rawValue)")
+                        .fontWeight(.medium)
+                }
+
+                HStack {
+                    Text("LAANC Coverage:")
+                        .foregroundColor(.secondary)
+                    Spacer()
+                    HStack(spacing: 4) {
+                        Image(systemName: hasLAANCCoverage ? "checkmark.circle.fill" : "xmark.circle.fill")
+                            .foregroundColor(hasLAANCCoverage ? .green : .red)
+                        Text(hasLAANCCoverage ? "Yes" : "No")
+                            .fontWeight(.medium)
+                    }
+                }
+
+                if let ceiling = laancGridCeiling {
+                    HStack {
+                        Text("LAANC Grid Ceiling:")
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        Text("\(ceiling) ft AGL")
+                            .fontWeight(.medium)
+                    }
+                }
+
+                HStack {
+                    Text("Requested Altitude:")
+                        .foregroundColor(.secondary)
+                    Spacer()
+                    Text("\(requestedAltitude) ft AGL")
+                        .fontWeight(.medium)
+                }
+
+                HStack {
+                    Text("Authorization Status:")
+                        .foregroundColor(.secondary)
+                    Spacer()
+                    Text(authorizationStatus.rawValue)
+                        .fontWeight(.semibold)
+                        .foregroundColor(statusColor)
+                }
+            }
+            .padding()
+            .background(Color(.systemBackground))
+            .cornerRadius(12)
+        }
+    }
+
+    private var decisionTreeSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("How Authorization is Determined", systemImage: "arrow.triangle.branch")
+                .font(.headline)
+                .foregroundColor(FlightPlanColors.primary)
+
+            VStack(alignment: .leading, spacing: 16) {
+                // Step 1
+                decisionStep(
+                    number: 1,
+                    title: "Query UASFM (LAANC Grid)",
+                    description: "First, we check if your location has LAANC auto-approval coverage.",
+                    outcomes: [
+                        ("Got a result? YES", "Use that altitude as the auto-approval ceiling.", true),
+                        ("Got a result? NO", "Proceed to Step 2.", false)
+                    ]
+                )
+
+                // Step 2
+                decisionStep(
+                    number: 2,
+                    title: "Query Class Airspace",
+                    description: "If no LAANC grid data exists, we check the airspace classification.",
+                    outcomes: [
+                        ("Class G (uncontrolled)", "No authorization needed. Safe to fly under Part 107 rules.", true),
+                        ("Class B / C / D / E (controlled)", "Controlled airspace with NO LAANC auto-approval. Must use manual FAA DroneZone authorization.", false)
+                    ]
+                )
+            }
+            .padding()
+            .background(Color(.systemBackground))
+            .cornerRadius(12)
+        }
+    }
+
+    private func decisionStep(number: Int, title: String, description: String, outcomes: [(String, String, Bool)]) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 10) {
+                Text("\(number)")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundColor(.white)
+                    .frame(width: 24, height: 24)
+                    .background(FlightPlanColors.primary)
+                    .clipShape(Circle())
+
+                Text(title)
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+            }
+
+            Text(description)
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .padding(.leading, 34)
+
+            ForEach(outcomes.indices, id: \.self) { index in
+                let outcome = outcomes[index]
+                HStack(alignment: .top, spacing: 8) {
+                    Image(systemName: "arrow.turn.down.right")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .padding(.leading, 34)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(outcome.0)
+                            .font(.caption)
+                            .fontWeight(.medium)
+                        Text(outcome.1)
+                            .font(.caption2)
+                            .foregroundColor(outcome.2 ? .green : .orange)
+                    }
+                }
+            }
+        }
+    }
+
+    private var yourSituationSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("Your Situation", systemImage: "location.fill")
+                .font(.headline)
+                .foregroundColor(FlightPlanColors.primary)
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text(situationExplanation)
+                    .font(.subheadline)
+                    .foregroundColor(.primary)
+
+                if authorizationStatus == .noLAANCCoverage {
+                    HStack(spacing: 8) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundColor(.red)
+                        Text("You must obtain manual authorization via FAA DroneZone before flying.")
+                            .font(.caption)
+                            .foregroundColor(.red)
+                    }
+                    .padding()
+                    .background(Color.red.opacity(0.1))
+                    .cornerRadius(8)
+                }
+
+                if authorizationStatus == .manualReviewRequired {
+                    HStack(spacing: 8) {
+                        Image(systemName: "clock.fill")
+                            .foregroundColor(.orange)
+                        Text("Your requested altitude exceeds the LAANC auto-approval ceiling. You may request higher altitude through LAANC manual review or FAA DroneZone.")
+                            .font(.caption)
+                            .foregroundColor(.orange)
+                    }
+                    .padding()
+                    .background(Color.orange.opacity(0.1))
+                    .cornerRadius(8)
+                }
+            }
+            .padding()
+            .background(Color(.systemBackground))
+            .cornerRadius(12)
+        }
+    }
+
+    private var situationExplanation: String {
+        switch authorizationStatus {
+        case .autoApproved:
+            if let ceiling = laancGridCeiling {
+                return "Your location is in controlled airspace with LAANC coverage. Your requested altitude of \(requestedAltitude) ft is within the auto-approval ceiling of \(ceiling) ft. You can fly without additional authorization."
+            }
+            return "Your flight is auto-approved under current conditions."
+
+        case .manualReviewRequired:
+            if let ceiling = laancGridCeiling {
+                return "Your location has LAANC coverage with a ceiling of \(ceiling) ft, but your requested altitude of \(requestedAltitude) ft exceeds this limit."
+            }
+            return "Manual review is required for your requested flight parameters."
+
+        case .noLAANCCoverage:
+            return "Your location is in Class \(airspaceClass.rawValue) controlled airspace, but there is no LAANC auto-approval coverage at this location. This typically occurs at smaller airports or areas just outside LAANC grid boundaries."
+
+        case .notPermitted:
+            return "Your requested altitude of \(requestedAltitude) ft exceeds the 400 ft AGL limit allowed under Part 107. This altitude is not permitted without a waiver."
+
+        case .notApplicable:
+            return "Your location is in Class G (uncontrolled) airspace. No LAANC authorization is needed. You may fly under standard Part 107 rules (below 400 ft AGL, visual line of sight, etc.)."
+
+        case .pending:
+            return "Authorization status is being determined..."
+        }
+    }
+
+    private var statusColor: Color {
+        switch authorizationStatus {
+        case .autoApproved: return .green
+        case .manualReviewRequired: return .orange
+        case .noLAANCCoverage, .notPermitted: return .red
+        case .pending, .notApplicable: return .secondary
         }
     }
 }

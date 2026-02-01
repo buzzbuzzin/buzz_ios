@@ -20,9 +20,10 @@ enum RegulatoryAuthority: String, Codable {
 enum LAANCAuthorizationStatus: String, Codable {
     case autoApproved = "Auto-Approved"
     case manualReviewRequired = "Manual FAA Review Required"
+    case noLAANCCoverage = "No LAANC - Manual Auth Required"  // Controlled airspace without LAANC grid
     case notPermitted = "Not Permitted Under Part 107"
     case pending = "Pending"
-    case notApplicable = "N/A"
+    case notApplicable = "N/A"  // Class G or non-US
 }
 
 /// Visual line of sight type

@@ -84,6 +84,7 @@ class ArcGISAirspaceService: ObservableObject {
     @Published var errorMessage: String?
     @Published var airspaceClass: AirspaceClass = .unknown
     @Published var laancGridCeiling: Int?
+    @Published var hasLAANCCoverage: Bool = false  // NEW: Indicates if UASFM grid exists at location
     @Published var authorizationStatus: LAANCAuthorizationStatus = .pending
 
     // ArcGIS Feature Server endpoints
@@ -97,7 +98,9 @@ class ArcGISAirspaceService: ObservableObject {
 
     // MARK: - Public Methods
 
-    /// Fetch both airspace class and LAANC ceiling for given coordinates
+    /// Fetch airspace data using two-step sequential logic:
+    /// Step 1: Query UASFM (LAANC grid) first for ceiling
+    /// Step 2: If no UASFM data, query Class Airspace to determine if manual auth needed
     func fetchAirspaceData(coordinate: CLLocationCoordinate2D) async {
         // Check cache
         if let lastCoord = lastFetchCoordinate,
@@ -112,13 +115,25 @@ class ArcGISAirspaceService: ObservableObject {
         errorMessage = nil
 
         do {
-            // Fetch airspace class
-            let fetchedAirspaceClass = try await fetchAirspaceClass(coordinate: coordinate)
-            self.airspaceClass = fetchedAirspaceClass
-
-            // Fetch LAANC grid ceiling
+            // STEP 1: Query UASFM (LAANC grid) first
             let fetchedCeiling = try await fetchLAANCGridCeiling(coordinate: coordinate)
-            self.laancGridCeiling = fetchedCeiling
+
+            if let ceiling = fetchedCeiling {
+                // UASFM hit - we have LAANC coverage at this location
+                self.laancGridCeiling = ceiling
+                self.hasLAANCCoverage = true
+
+                // Still fetch airspace class for display purposes
+                let fetchedAirspaceClass = try await fetchAirspaceClass(coordinate: coordinate)
+                self.airspaceClass = fetchedAirspaceClass
+            } else {
+                // STEP 2: No UASFM data - check Class Airspace
+                self.laancGridCeiling = nil
+                self.hasLAANCCoverage = false
+
+                let fetchedAirspaceClass = try await fetchAirspaceClass(coordinate: coordinate)
+                self.airspaceClass = fetchedAirspaceClass
+            }
 
             // Update cache
             lastFetchCoordinate = coordinate
@@ -219,39 +234,66 @@ class ArcGISAirspaceService: ObservableObject {
         return nil // Not in LAANC grid
     }
 
-    /// Calculate LAANC authorization status based on altitude and airspace
+    /// Calculate LAANC authorization status based on altitude, airspace, and LAANC coverage
+    /// Uses the two-step logic:
+    /// - Step 1: If LAANC coverage exists, use ceiling for auto-approval threshold
+    /// - Step 2: If no LAANC coverage, check if in controlled airspace (requires manual auth)
+    func calculateAuthorizationStatus(
+        requestedAltitude: Int,
+        laancCeiling: Int?,
+        airspaceClass: AirspaceClass,
+        hasLAANCCoverage: Bool
+    ) -> LAANCAuthorizationStatus {
+        // Rule 1: Above 400 ft AGL is never permitted under Part 107
+        if requestedAltitude > 400 {
+            return .notPermitted
+        }
+
+        // Rule 2: Class G (uncontrolled) airspace - no authorization needed
+        if airspaceClass == .classG || airspaceClass == .unknown {
+            return .notApplicable  // Safe to fly under Part 107 rules
+        }
+
+        // Rule 3: Controlled airspace (B, C, D, E)
+        // Check if LAANC coverage exists at this location
+        if !hasLAANCCoverage || laancCeiling == nil {
+            // Controlled airspace WITHOUT LAANC auto-approval available
+            // Pilot must use manual FAA DroneZone authorization
+            return .noLAANCCoverage
+        }
+
+        // Rule 4: LAANC coverage exists - check against ceiling
+        guard let ceiling = laancCeiling else {
+            return .noLAANCCoverage
+        }
+
+        // Zero ceiling = no automatic authorization at this grid cell
+        if ceiling == 0 {
+            return .noLAANCCoverage
+        }
+
+        if requestedAltitude <= ceiling {
+            // Within LAANC auto-approval ceiling
+            return .autoApproved
+        } else {
+            // Above LAANC ceiling but ≤ 400 ft
+            // Manual review required for this altitude
+            return .manualReviewRequired
+        }
+    }
+
+    /// Legacy method for backwards compatibility - uses instance hasLAANCCoverage
     func calculateAuthorizationStatus(
         requestedAltitude: Int,
         laancCeiling: Int?,
         airspaceClass: AirspaceClass
     ) -> LAANCAuthorizationStatus {
-        // Altitude above 400 ft is never permitted under Part 107
-        if requestedAltitude > 400 {
-            return .notPermitted
-        }
-
-        // Class G (uncontrolled) airspace - no authorization needed
-        if airspaceClass == .classG || airspaceClass == .unknown {
-            return requestedAltitude <= 400 ? .autoApproved : .notPermitted
-        }
-
-        // Controlled airspace (B, C, D, E)
-        guard let ceiling = laancCeiling else {
-            // No LAANC grid data - manual review required for any altitude
-            return .manualReviewRequired
-        }
-
-        // LAANC ceiling of 0 means no automatic authorization
-        if ceiling == 0 {
-            return .manualReviewRequired
-        }
-
-        if requestedAltitude <= ceiling {
-            return .autoApproved
-        } else {
-            // Above LAANC ceiling but within 400 ft
-            return .manualReviewRequired
-        }
+        return calculateAuthorizationStatus(
+            requestedAltitude: requestedAltitude,
+            laancCeiling: laancCeiling,
+            airspaceClass: airspaceClass,
+            hasLAANCCoverage: self.hasLAANCCoverage
+        )
     }
 
     /// Update authorization status with current values
@@ -259,7 +301,8 @@ class ArcGISAirspaceService: ObservableObject {
         authorizationStatus = calculateAuthorizationStatus(
             requestedAltitude: requestedAltitude,
             laancCeiling: laancGridCeiling,
-            airspaceClass: airspaceClass
+            airspaceClass: airspaceClass,
+            hasLAANCCoverage: hasLAANCCoverage
         )
     }
 
