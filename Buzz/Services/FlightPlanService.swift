@@ -332,9 +332,8 @@ class FlightPlanService: ObservableObject {
         let contentWidth: CGFloat = 540
         var yOffset = startY + 10
 
-        // Row heights
-        let standardRowHeight: CGFloat = 55
-        let remarksRowHeight: CGFloat = 45
+        // Row heights (reduced to fit on one page)
+        let standardRowHeight: CGFloat = 42
 
         // Row 1: TYPE, DRONE ID, DRONE TYPE, CALLSIGN
         let row1Widths: [CGFloat] = [80, 150, 160, 150] // Total: 540
@@ -473,142 +472,257 @@ class FlightPlanService: ObservableObject {
 
         yOffset += standardRowHeight
 
-        // Row 4: REMARKS (full width)
+        // Row 4: REGULATORY AUTHORITY, MAX ALTITUDE, AIRSPACE, LAANC STATUS
+        xOffset = leftMargin
+        let row4Widths: [CGFloat] = [135, 95, 95, 215] // Total: 540
+
+        // Cell 12: REGULATORY AUTHORITY
         drawCell(
             number: 12,
-            label: "REMARKS",
-            value: "",
-            rect: CGRect(x: leftMargin, y: yOffset, width: contentWidth, height: remarksRowHeight),
+            label: "REGULATORY AUTH",
+            value: data.regulatoryAuthority.rawValue,
+            rect: CGRect(x: xOffset, y: yOffset, width: row4Widths[0], height: standardRowHeight),
+            context: context
+        )
+        xOffset += row4Widths[0]
+
+        // Cell 13: MAX ALTITUDE
+        drawCell(
+            number: 13,
+            label: "MAX ALTITUDE",
+            value: "\(data.maxAltitudeFeet) ft AGL",
+            rect: CGRect(x: xOffset, y: yOffset, width: row4Widths[1], height: standardRowHeight),
+            context: context
+        )
+        xOffset += row4Widths[1]
+
+        // Cell 14: AIRSPACE
+        let airspaceValue = data.airspaceClass == .unknown ? "Unknown" : "Class \(data.airspaceClass.rawValue)"
+        drawCell(
+            number: 14,
+            label: "AIRSPACE",
+            value: airspaceValue,
+            rect: CGRect(x: xOffset, y: yOffset, width: row4Widths[2], height: standardRowHeight),
+            context: context
+        )
+        xOffset += row4Widths[2]
+
+        // Cell 15: LAANC STATUS
+        drawCell(
+            number: 15,
+            label: "LAANC STATUS",
+            value: data.laancAuthorizationStatus.rawValue,
+            rect: CGRect(x: xOffset, y: yOffset, width: row4Widths[3], height: standardRowHeight),
             context: context
         )
 
-        yOffset += remarksRowHeight
+        yOffset += standardRowHeight
 
-        // Row 5: REGULATORY AUTHORITY, MAX ALTITUDE, AIRSPACE, LAANC STATUS
+        // Row 5: VLOS TYPE, FLIGHT OVER PEOPLE, PART 107 COMPLIANT
         xOffset = leftMargin
-        let row5Widths: [CGFloat] = [135, 95, 95, 215] // Total: 540
+        let row5Widths: [CGFloat] = [180, 180, 180] // Total: 540
 
-        // Cell 13: REGULATORY AUTHORITY
-        drawCell(
-            number: 13,
-            label: "REGULATORY AUTH",
-            value: data.regulatoryAuthority.rawValue,
+        // Cell 16: VLOS TYPE (with checkbox options)
+        drawCheckboxCell(
+            number: 16,
+            label: "VLOS TYPE",
+            options: [("VLOS", data.vlosType == .vlos), ("BVLOS", data.vlosType == .bvlos)],
             rect: CGRect(x: xOffset, y: yOffset, width: row5Widths[0], height: standardRowHeight),
             context: context
         )
         xOffset += row5Widths[0]
 
-        // Cell 14: MAX ALTITUDE
-        drawCell(
-            number: 14,
-            label: "MAX ALTITUDE",
-            value: "\(data.maxAltitudeFeet) ft AGL",
+        // Cell 17: FLIGHT OVER PEOPLE (with checkbox options)
+        drawCheckboxCell(
+            number: 17,
+            label: "FLIGHT OVER PEOPLE",
+            options: [("Yes", data.flightOverPeople), ("No", !data.flightOverPeople)],
             rect: CGRect(x: xOffset, y: yOffset, width: row5Widths[1], height: standardRowHeight),
             context: context
         )
         xOffset += row5Widths[1]
 
-        // Cell 15: AIRSPACE
-        let airspaceValue = data.airspaceClass == .unknown ? "Unknown" : "Class \(data.airspaceClass.rawValue)"
-        drawCell(
-            number: 15,
-            label: "AIRSPACE",
-            value: airspaceValue,
+        // Cell 18: PART 107 COMPLIANT (with checkbox options)
+        drawCheckboxCell(
+            number: 18,
+            label: "PART 107 COMPLIANT",
+            options: [("Yes", data.part107Compliant), ("No", !data.part107Compliant)],
             rect: CGRect(x: xOffset, y: yOffset, width: row5Widths[2], height: standardRowHeight),
             context: context
         )
-        xOffset += row5Widths[2]
-
-        // Cell 16: LAANC STATUS
-        drawCell(
-            number: 16,
-            label: "LAANC STATUS",
-            value: data.laancAuthorizationStatus.rawValue,
-            rect: CGRect(x: xOffset, y: yOffset, width: row5Widths[3], height: standardRowHeight),
-            context: context
-        )
 
         yOffset += standardRowHeight
 
-        // Row 6: VLOS TYPE, FLIGHT OVER PEOPLE, PART 107 COMPLIANT
+        // Row 6: WAIVER REQUIRED + REMARKS (side by side)
         xOffset = leftMargin
-        let row6Widths: [CGFloat] = [110, 150, 280] // Total: 540
 
-        // Cell 17: VLOS TYPE
-        drawCell(
-            number: 17,
-            label: "VLOS TYPE",
-            value: data.vlosType.rawValue,
-            rect: CGRect(x: xOffset, y: yOffset, width: row6Widths[0], height: standardRowHeight),
-            context: context
-        )
-        xOffset += row6Widths[0]
-
-        // Cell 18: FLIGHT OVER PEOPLE
-        drawCell(
-            number: 18,
-            label: "FLIGHT OVER PEOPLE",
-            value: data.flightOverPeople ? "Yes" : "No",
-            rect: CGRect(x: xOffset, y: yOffset, width: row6Widths[1], height: standardRowHeight),
-            context: context
-        )
-        xOffset += row6Widths[1]
-
-        // Cell 19: PART 107 COMPLIANT
-        drawCell(
+        // Cell 19: WAIVER REQUIRED (with checkbox options)
+        drawCheckboxCell(
             number: 19,
-            label: "PART 107 COMPLIANT",
-            value: data.part107Compliant ? "Yes" : "No",
-            rect: CGRect(x: xOffset, y: yOffset, width: row6Widths[2], height: standardRowHeight),
+            label: "WAIVER REQUIRED",
+            options: [("Yes", data.requiresWaiver), ("No", !data.requiresWaiver)],
+            rect: CGRect(x: xOffset, y: yOffset, width: 180, height: standardRowHeight),
+            context: context
+        )
+        xOffset += 180
+
+        // Cell 20: REMARKS (fills remaining space)
+        drawCell(
+            number: 20,
+            label: "REMARKS",
+            value: "",
+            rect: CGRect(x: xOffset, y: yOffset, width: 360, height: standardRowHeight),
             context: context
         )
 
         yOffset += standardRowHeight
 
-        // Conditional Explanation Cells
-        var cellNumber = 20
+        // Fixed explanation cells (always shown, reduced height)
+        let explanationHeight: CGFloat = 55
 
-        // Cell 20: Flight Over People Explanation (if applicable)
-        if data.flightOverPeople, let explanation = data.flightOverPeopleExplanation, !explanation.isEmpty {
-            yOffset = drawTextBlock(
-                number: cellNumber,
-                label: "FLIGHT OVER PEOPLE EXPLANATION",
-                text: explanation,
-                at: yOffset,
-                width: contentWidth,
-                leftMargin: leftMargin,
-                context: context
-            )
-            cellNumber += 1
-        }
+        // Cell 21: Flight Over People Explanation (always shown)
+        yOffset = drawFixedTextBlock(
+            number: 21,
+            label: "FLIGHT OVER PEOPLE EXPLANATION",
+            text: data.flightOverPeopleExplanation ?? "",
+            at: yOffset,
+            width: contentWidth,
+            height: explanationHeight,
+            leftMargin: leftMargin,
+            context: context
+        )
 
-        // Cell 21: Part 107 Non-Compliance Explanation (if applicable)
-        if !data.part107Compliant, let explanation = data.part107NonComplianceExplanation, !explanation.isEmpty {
-            yOffset = drawTextBlock(
-                number: cellNumber,
-                label: "PART 107 NON-COMPLIANCE EXPLANATION",
-                text: explanation,
-                at: yOffset,
-                width: contentWidth,
-                leftMargin: leftMargin,
-                context: context
-            )
-            cellNumber += 1
-        }
+        // Cell 22: Part 107 Non-Compliance Explanation (always shown)
+        yOffset = drawFixedTextBlock(
+            number: 22,
+            label: "PART 107 NON-COMPLIANCE EXPLANATION",
+            text: data.part107NonComplianceExplanation ?? "",
+            at: yOffset,
+            width: contentWidth,
+            height: explanationHeight,
+            leftMargin: leftMargin,
+            context: context
+        )
 
-        // Waiver Documentation Section (if applicable)
-        if data.requiresWaiver {
-            yOffset = drawWaiverSection(
-                at: yOffset,
-                data: data,
-                startingCellNumber: cellNumber,
-                leftMargin: leftMargin,
-                contentWidth: contentWidth,
-                context: context
-            )
-        }
+        // Waiver Documentation Cells (directly joined to main table, no title)
+        yOffset = drawWaiverSection(
+            at: yOffset,
+            data: data,
+            startingCellNumber: 23,
+            leftMargin: leftMargin,
+            contentWidth: contentWidth,
+            context: context
+        )
 
         return yOffset
+    }
+
+    private func drawCheckboxCell(
+        number: Int,
+        label: String,
+        options: [(String, Bool)],
+        rect: CGRect,
+        context: CGContext
+    ) {
+        // Draw border
+        context.setStrokeColor(UIColor.black.cgColor)
+        context.setLineWidth(0.75)
+        context.stroke(rect)
+
+        // Draw field number (top-left corner)
+        let numberFont = UIFont.boldSystemFont(ofSize: 8)
+        let numberAttributes: [NSAttributedString.Key: Any] = [
+            .font: numberFont,
+            .foregroundColor: UIColor.darkGray
+        ]
+        "\(number).".draw(
+            at: CGPoint(x: rect.minX + 4, y: rect.minY + 3),
+            withAttributes: numberAttributes
+        )
+
+        // Draw field label (uppercase, small, gray)
+        let labelFont = UIFont.systemFont(ofSize: 8, weight: .medium)
+        let labelAttributes: [NSAttributedString.Key: Any] = [
+            .font: labelFont,
+            .foregroundColor: UIColor(white: 0.45, alpha: 1.0)
+        ]
+        label.uppercased().draw(
+            at: CGPoint(x: rect.minX + 18, y: rect.minY + 4),
+            withAttributes: labelAttributes
+        )
+
+        // Draw checkbox options
+        let optionFont = UIFont.systemFont(ofSize: 11)
+        let optionAttributes: [NSAttributedString.Key: Any] = [
+            .font: optionFont,
+            .foregroundColor: UIColor.black
+        ]
+
+        var xPos = rect.minX + 8
+        let yPos = rect.minY + 25
+
+        for (optionLabel, isSelected) in options {
+            // Draw checkbox (☒ or ☐)
+            let checkbox = isSelected ? "☒" : "☐"
+            let checkboxFont = UIFont.systemFont(ofSize: 14)
+            let checkboxAttributes: [NSAttributedString.Key: Any] = [
+                .font: checkboxFont,
+                .foregroundColor: UIColor.black
+            ]
+            checkbox.draw(at: CGPoint(x: xPos, y: yPos - 2), withAttributes: checkboxAttributes)
+
+            // Draw option label
+            let labelX = xPos + 18
+            optionLabel.draw(at: CGPoint(x: labelX, y: yPos), withAttributes: optionAttributes)
+
+            // Calculate width for next option
+            let labelSize = (optionLabel as NSString).size(withAttributes: optionAttributes)
+            xPos = labelX + labelSize.width + 15
+        }
+    }
+
+    private func drawFixedTextBlock(
+        number: Int,
+        label: String,
+        text: String,
+        at y: CGFloat,
+        width: CGFloat,
+        height: CGFloat,
+        leftMargin: CGFloat,
+        context: CGContext
+    ) -> CGFloat {
+        let rect = CGRect(x: leftMargin, y: y, width: width, height: height)
+
+        // Draw border
+        context.setStrokeColor(UIColor.black.cgColor)
+        context.setLineWidth(0.75)
+        context.stroke(rect)
+
+        // Draw field number
+        let numberFont = UIFont.boldSystemFont(ofSize: 8)
+        let numberAttributes: [NSAttributedString.Key: Any] = [
+            .font: numberFont,
+            .foregroundColor: UIColor.darkGray
+        ]
+        "\(number).".draw(at: CGPoint(x: rect.minX + 4, y: rect.minY + 3), withAttributes: numberAttributes)
+
+        // Draw label
+        let labelFont = UIFont.systemFont(ofSize: 8, weight: .medium)
+        let labelAttributes: [NSAttributedString.Key: Any] = [
+            .font: labelFont,
+            .foregroundColor: UIColor(white: 0.45, alpha: 1.0)
+        ]
+        label.uppercased().draw(at: CGPoint(x: rect.minX + 18, y: rect.minY + 4), withAttributes: labelAttributes)
+
+        // Draw text content (if any)
+        if !text.isEmpty {
+            let textFont = UIFont.systemFont(ofSize: 11)
+            let textAttributes: [NSAttributedString.Key: Any] = [.font: textFont]
+            let contentRect = CGRect(x: rect.minX + 10, y: rect.minY + 20, width: width - 20, height: height - 25)
+            text.draw(in: contentRect, withAttributes: textAttributes)
+        }
+
+        return y + height
     }
 
     private func drawTextBlock(
@@ -671,58 +785,44 @@ class FlightPlanService: ObservableObject {
         contentWidth: CGFloat,
         context: CGContext
     ) -> CGFloat {
-        var yOffset = y + 10
-        var cellNumber = startingCellNumber
+        var yOffset = y
+        let waiverFieldHeight: CGFloat = 55
 
-        // Section header
-        let headerFont = UIFont.boldSystemFont(ofSize: 10)
-        let headerAttributes: [NSAttributedString.Key: Any] = [
-            .font: headerFont,
-            .foregroundColor: UIColor.black
-        ]
-        "WAIVER DOCUMENTATION".draw(at: CGPoint(x: leftMargin, y: yOffset), withAttributes: headerAttributes)
-        yOffset += 18
+        // Cell 23: Safety Mitigations (always shown, joined directly to main table)
+        yOffset = drawFixedTextBlock(
+            number: startingCellNumber,
+            label: "WAIVER: SAFETY MITIGATIONS",
+            text: data.waiverSafetyMitigations ?? "",
+            at: yOffset,
+            width: contentWidth,
+            height: waiverFieldHeight,
+            leftMargin: leftMargin,
+            context: context
+        )
 
-        // Safety Mitigations
-        if let safetyMitigations = data.waiverSafetyMitigations, !safetyMitigations.isEmpty {
-            yOffset = drawTextBlock(
-                number: cellNumber,
-                label: "I. SAFETY MITIGATIONS",
-                text: safetyMitigations,
-                at: yOffset,
-                width: contentWidth,
-                leftMargin: leftMargin,
-                context: context
-            )
-            cellNumber += 1
-        }
+        // Cell 24: Operational Procedures (always shown)
+        yOffset = drawFixedTextBlock(
+            number: startingCellNumber + 1,
+            label: "WAIVER: OPERATIONAL PROCEDURES",
+            text: data.waiverOperationalProcedures ?? "",
+            at: yOffset,
+            width: contentWidth,
+            height: waiverFieldHeight,
+            leftMargin: leftMargin,
+            context: context
+        )
 
-        // Operational Procedures
-        if let operationalProcedures = data.waiverOperationalProcedures, !operationalProcedures.isEmpty {
-            yOffset = drawTextBlock(
-                number: cellNumber,
-                label: "II. OPERATIONAL PROCEDURES",
-                text: operationalProcedures,
-                at: yOffset,
-                width: contentWidth,
-                leftMargin: leftMargin,
-                context: context
-            )
-            cellNumber += 1
-        }
-
-        // Risk Analysis
-        if let riskAnalysis = data.waiverRiskAnalysis, !riskAnalysis.isEmpty {
-            yOffset = drawTextBlock(
-                number: cellNumber,
-                label: "III. RISK ANALYSIS",
-                text: riskAnalysis,
-                at: yOffset,
-                width: contentWidth,
-                leftMargin: leftMargin,
-                context: context
-            )
-        }
+        // Cell 25: Risk Analysis (always shown)
+        yOffset = drawFixedTextBlock(
+            number: startingCellNumber + 2,
+            label: "WAIVER: RISK ANALYSIS",
+            text: data.waiverRiskAnalysis ?? "",
+            at: yOffset,
+            width: contentWidth,
+            height: waiverFieldHeight,
+            leftMargin: leftMargin,
+            context: context
+        )
 
         return yOffset
     }
@@ -735,7 +835,7 @@ class FlightPlanService: ObservableObject {
     ) -> CGFloat {
         let leftMargin: CGFloat = 36
         let contentWidth: CGFloat = 540
-        var yOffset = y + 20
+        var yOffset = y + 10
 
         // Section header
         let headerFont = UIFont.boldSystemFont(ofSize: 10)
@@ -747,24 +847,24 @@ class FlightPlanService: ObservableObject {
             at: CGPoint(x: leftMargin, y: yOffset),
             withAttributes: headerAttributes
         )
-        yOffset += 18
+        yOffset += 14
 
         // Certification text
-        let certFont = UIFont.systemFont(ofSize: 9)
+        let certFont = UIFont.systemFont(ofSize: 8)
         let certAttributes: [NSAttributedString.Key: Any] = [
             .font: certFont,
             .foregroundColor: UIColor.darkGray
         ]
         let certText = "I certify that this flight will be conducted in accordance with all applicable FAA regulations and that I am the remote pilot in command responsible for this operation."
 
-        let certRect = CGRect(x: leftMargin, y: yOffset, width: contentWidth, height: 30)
+        let certRect = CGRect(x: leftMargin, y: yOffset, width: contentWidth, height: 22)
         certText.draw(in: certRect, withAttributes: certAttributes)
-        yOffset += 40
+        yOffset += 28
 
         // Signature and Date boxes
         let signatureBoxWidth: CGFloat = 250
         let dateBoxWidth: CGFloat = 150
-        let boxHeight: CGFloat = 60
+        let boxHeight: CGFloat = 50
         let boxSpacing: CGFloat = 40
 
         // Signature Box
