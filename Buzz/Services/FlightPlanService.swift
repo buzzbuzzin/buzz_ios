@@ -109,55 +109,44 @@ class FlightPlanService: ObservableObject {
         let renderer = UIGraphicsPDFRenderer(bounds: pageRect)
 
         let pdfData = renderer.pdfData { context in
-            var yOffset: CGFloat = 40
+            var yOffset: CGFloat = 30
 
             // Start first page
             context.beginPage()
 
             // 1. Draw logo at top center (preserve aspect ratio)
             if let logoImage = UIImage(named: "Logo") {
-                let maxLogoHeight: CGFloat = 70
+                let maxLogoHeight: CGFloat = 50
                 let aspectRatio = logoImage.size.width / logoImage.size.height
                 let logoHeight = maxLogoHeight
                 let logoWidth = logoHeight * aspectRatio
                 let logoX = (pageRect.width - logoWidth) / 2
                 let logoRect = CGRect(x: logoX, y: yOffset, width: logoWidth, height: logoHeight)
                 logoImage.draw(in: logoRect)
-                yOffset += logoHeight + 15
+                yOffset += logoHeight + 8
             }
 
-            // 2. Draw title bar
+            // 2. Draw title bar (directly joined to form grid)
             yOffset = drawTitleBar(at: yOffset, pageRect: pageRect, context: context.cgContext)
 
-            // 3. Draw generation date (right-aligned)
-            let dateFormatter = DateFormatter()
-            dateFormatter.dateFormat = "MMMM d, yyyy 'at' h:mm a"
-            let dateFont = UIFont.systemFont(ofSize: 9)
-            let dateAttributes: [NSAttributedString.Key: Any] = [
-                .font: dateFont,
-                .foregroundColor: UIColor.gray
-            ]
-            let dateText = "Generated: \(dateFormatter.string(from: data.generatedAt))"
-            let dateSize = (dateText as NSString).size(withAttributes: dateAttributes)
-            let dateX = pageRect.width - 36 - dateSize.width
-            dateText.draw(at: CGPoint(x: dateX, y: yOffset + 5), withAttributes: dateAttributes)
-            yOffset += 25
-
-            // 4. Draw form grid (main tabular structure)
+            // 3. Draw form grid (main tabular structure - directly after title bar)
             yOffset = drawFormGrid(at: yOffset, data: data, pageRect: pageRect, context: context.cgContext)
 
-            // 5. Draw certification section
+            // 4. Draw certification section
             yOffset = drawCertificationSection(at: yOffset, data: data, pageRect: pageRect, context: context.cgContext)
 
-            // 6. Draw footer disclaimer
-            yOffset += 15
-            let footerFont = UIFont.italicSystemFont(ofSize: 9)
+            // 5. Draw generation date and footer (after certification)
+            yOffset += 8
+            let dateFormatter = DateFormatter()
+            dateFormatter.dateFormat = "MMMM d, yyyy 'at' h:mm a"
+            let footerFont = UIFont.italicSystemFont(ofSize: 8)
             let footerAttributes: [NSAttributedString.Key: Any] = [
                 .font: footerFont,
                 .foregroundColor: UIColor.gray
             ]
-            "This flight plan was generated using Buzz. Pilots are responsible for compliance with all applicable regulations.".draw(
-                in: CGRect(x: 36, y: yOffset, width: 540, height: 40),
+            let footerText = "Generated: \(dateFormatter.string(from: data.generatedAt)). This flight plan was generated using Buzz. Pilots are responsible for compliance with all applicable regulations."
+            footerText.draw(
+                in: CGRect(x: 36, y: yOffset, width: 540, height: 30),
                 withAttributes: footerAttributes
             )
         }
@@ -243,22 +232,24 @@ class FlightPlanService: ObservableObject {
             withAttributes: labelAttributes
         )
 
-        // Draw field value (below label, prominent)
-        let valueFont = UIFont.systemFont(ofSize: 13, weight: .regular)
+        // Draw field value (below label, with text wrapping)
+        let valueFont = UIFont.systemFont(ofSize: 11, weight: .regular)
+        let paragraphStyle = NSMutableParagraphStyle()
+        paragraphStyle.lineBreakMode = .byWordWrapping
         let valueAttributes: [NSAttributedString.Key: Any] = [
             .font: valueFont,
-            .foregroundColor: value == "N/A" ? UIColor.gray : UIColor.black
+            .foregroundColor: value == "N/A" ? UIColor.gray : UIColor.black,
+            .paragraphStyle: paragraphStyle
         ]
 
-        // Truncate if too long
-        let maxValueWidth = rect.width - 16
-        let displayValue = truncateText(value, toWidth: maxValueWidth, font: valueFont)
-
-        let valueY = rect.minY + 20
-        displayValue.draw(
-            at: CGPoint(x: rect.minX + 8, y: valueY),
-            withAttributes: valueAttributes
+        // Draw value in a rect that allows wrapping
+        let valueRect = CGRect(
+            x: rect.minX + 6,
+            y: rect.minY + 18,
+            width: rect.width - 12,
+            height: rect.height - 22
         )
+        value.draw(in: valueRect, withAttributes: valueAttributes)
     }
 
     private func drawTitleBar(
@@ -268,7 +259,7 @@ class FlightPlanService: ObservableObject {
     ) -> CGFloat {
         let leftMargin: CGFloat = 36
         let contentWidth: CGFloat = 540
-        let barHeight: CGFloat = 35
+        let barHeight: CGFloat = 28
         let barRect = CGRect(x: leftMargin, y: y, width: contentWidth, height: barHeight)
 
         // Fill background
@@ -280,34 +271,8 @@ class FlightPlanService: ObservableObject {
         context.setLineWidth(1.0)
         context.stroke(barRect)
 
-        // Draw "UAS" badge on left
-        let badgeFont = UIFont.boldSystemFont(ofSize: 10)
-        let badgeAttributes: [NSAttributedString.Key: Any] = [
-            .font: badgeFont,
-            .foregroundColor: UIColor.white
-        ]
-        let badge = "UAS"
-        let badgeSize = (badge as NSString).size(withAttributes: badgeAttributes)
-        let badgePadding: CGFloat = 6
-        let badgeRect = CGRect(
-            x: leftMargin + 8,
-            y: y + (barHeight - badgeSize.height - badgePadding) / 2,
-            width: badgeSize.width + badgePadding * 2,
-            height: badgeSize.height + badgePadding
-        )
-
-        context.setFillColor(UIColor.systemBlue.cgColor)
-        let badgePath = UIBezierPath(roundedRect: badgeRect, cornerRadius: 4)
-        context.addPath(badgePath.cgPath)
-        context.fillPath()
-
-        badge.draw(
-            at: CGPoint(x: badgeRect.minX + badgePadding, y: badgeRect.minY + badgePadding / 2),
-            withAttributes: badgeAttributes
-        )
-
         // Draw title text centered
-        let titleFont = UIFont.boldSystemFont(ofSize: 18)
+        let titleFont = UIFont.boldSystemFont(ofSize: 16)
         let titleAttributes: [NSAttributedString.Key: Any] = [
             .font: titleFont,
             .foregroundColor: UIColor.black
@@ -330,7 +295,7 @@ class FlightPlanService: ObservableObject {
     ) -> CGFloat {
         let leftMargin: CGFloat = 36
         let contentWidth: CGFloat = 540
-        var yOffset = startY + 10
+        var yOffset = startY  // No gap - directly joined to title bar
 
         // Row heights (reduced to fit on one page)
         let standardRowHeight: CGFloat = 42
@@ -383,11 +348,11 @@ class FlightPlanService: ObservableObject {
 
         yOffset += standardRowHeight
 
-        // Row 2: DEPARTURE POINT, DEPARTURE TIME, LATITUDE, LONGITUDE
+        // Row 2: DEPARTURE POINT (expanded) + DEP TIME (right-aligned)
         xOffset = leftMargin
-        let row2Widths: [CGFloat] = [220, 110, 105, 105] // Total: 540
+        let row2Widths: [CGFloat] = [430, 110] // Total: 540
 
-        // Cell 5: DEPARTURE POINT
+        // Cell 5: DEPARTURE POINT (expanded to show full address)
         drawCell(
             number: 5,
             label: "DEPARTURE POINT",
@@ -410,36 +375,16 @@ class FlightPlanService: ObservableObject {
             rect: CGRect(x: xOffset, y: yOffset, width: row2Widths[1], height: standardRowHeight),
             context: context
         )
-        xOffset += row2Widths[1]
-
-        // Cell 7: LATITUDE
-        drawCell(
-            number: 7,
-            label: "LATITUDE",
-            value: data.latitude ?? "N/A",
-            rect: CGRect(x: xOffset, y: yOffset, width: row2Widths[2], height: standardRowHeight),
-            context: context
-        )
-        xOffset += row2Widths[2]
-
-        // Cell 8: LONGITUDE
-        drawCell(
-            number: 8,
-            label: "LONGITUDE",
-            value: data.longitude ?? "N/A",
-            rect: CGRect(x: xOffset, y: yOffset, width: row2Widths[3], height: standardRowHeight),
-            context: context
-        )
 
         yOffset += standardRowHeight
 
-        // Row 3: PILOT NAME, SERIAL NUMBER, DATE
+        // Row 3: PILOT NAME, LATITUDE, LONGITUDE, SERIAL NUMBER, DATE
         xOffset = leftMargin
-        let row3Widths: [CGFloat] = [270, 135, 135]
+        let row3Widths: [CGFloat] = [190, 80, 90, 100, 80] // Total: 540
 
-        // Cell 9: PILOT NAME
+        // Cell 7: PILOT NAME
         drawCell(
-            number: 9,
+            number: 7,
             label: "PILOT NAME",
             value: data.pilotName,
             rect: CGRect(x: xOffset, y: yOffset, width: row3Widths[0], height: standardRowHeight),
@@ -447,15 +392,35 @@ class FlightPlanService: ObservableObject {
         )
         xOffset += row3Widths[0]
 
+        // Cell 8: LATITUDE
+        drawCell(
+            number: 8,
+            label: "LATITUDE",
+            value: data.latitude ?? "N/A",
+            rect: CGRect(x: xOffset, y: yOffset, width: row3Widths[1], height: standardRowHeight),
+            context: context
+        )
+        xOffset += row3Widths[1]
+
+        // Cell 9: LONGITUDE
+        drawCell(
+            number: 9,
+            label: "LONGITUDE",
+            value: data.longitude ?? "N/A",
+            rect: CGRect(x: xOffset, y: yOffset, width: row3Widths[2], height: standardRowHeight),
+            context: context
+        )
+        xOffset += row3Widths[2]
+
         // Cell 10: SERIAL NUMBER
         drawCell(
             number: 10,
             label: "SERIAL NUMBER",
             value: data.droneSerialNumber ?? "N/A",
-            rect: CGRect(x: xOffset, y: yOffset, width: row3Widths[1], height: standardRowHeight),
+            rect: CGRect(x: xOffset, y: yOffset, width: row3Widths[3], height: standardRowHeight),
             context: context
         )
-        xOffset += row3Widths[1]
+        xOffset += row3Widths[3]
 
         // Cell 11: DATE
         let dateFormatter = DateFormatter()
@@ -466,7 +431,7 @@ class FlightPlanService: ObservableObject {
             number: 11,
             label: "DATE",
             value: dateStr,
-            rect: CGRect(x: xOffset, y: yOffset, width: row3Widths[2], height: standardRowHeight),
+            rect: CGRect(x: xOffset, y: yOffset, width: row3Widths[4], height: standardRowHeight),
             context: context
         )
 
@@ -518,9 +483,9 @@ class FlightPlanService: ObservableObject {
 
         yOffset += standardRowHeight
 
-        // Row 5: VLOS TYPE, FLIGHT OVER PEOPLE, PART 107 COMPLIANT
+        // Row 5: VLOS TYPE, FLIGHT OVER PEOPLE, PART 107 COMPLIANT, WAIVER REQUIRED
         xOffset = leftMargin
-        let row5Widths: [CGFloat] = [180, 180, 180] // Total: 540
+        let row5Widths: [CGFloat] = [130, 140, 140, 130] // Total: 540
 
         // Cell 16: VLOS TYPE (with checkbox options)
         drawCheckboxCell(
@@ -550,28 +515,14 @@ class FlightPlanService: ObservableObject {
             rect: CGRect(x: xOffset, y: yOffset, width: row5Widths[2], height: standardRowHeight),
             context: context
         )
-
-        yOffset += standardRowHeight
-
-        // Row 6: WAIVER REQUIRED + REMARKS (side by side)
-        xOffset = leftMargin
+        xOffset += row5Widths[2]
 
         // Cell 19: WAIVER REQUIRED (with checkbox options)
         drawCheckboxCell(
             number: 19,
             label: "WAIVER REQUIRED",
             options: [("Yes", data.requiresWaiver), ("No", !data.requiresWaiver)],
-            rect: CGRect(x: xOffset, y: yOffset, width: 180, height: standardRowHeight),
-            context: context
-        )
-        xOffset += 180
-
-        // Cell 20: REMARKS (fills remaining space)
-        drawCell(
-            number: 20,
-            label: "REMARKS",
-            value: "",
-            rect: CGRect(x: xOffset, y: yOffset, width: 360, height: standardRowHeight),
+            rect: CGRect(x: xOffset, y: yOffset, width: row5Widths[3], height: standardRowHeight),
             context: context
         )
 
@@ -580,9 +531,9 @@ class FlightPlanService: ObservableObject {
         // Fixed explanation cells (always shown, reduced height)
         let explanationHeight: CGFloat = 55
 
-        // Cell 21: Flight Over People Explanation (always shown)
+        // Cell 20: Flight Over People Explanation (always shown)
         yOffset = drawFixedTextBlock(
-            number: 21,
+            number: 20,
             label: "FLIGHT OVER PEOPLE EXPLANATION",
             text: data.flightOverPeopleExplanation ?? "",
             at: yOffset,
@@ -592,9 +543,9 @@ class FlightPlanService: ObservableObject {
             context: context
         )
 
-        // Cell 22: Part 107 Non-Compliance Explanation (always shown)
+        // Cell 21: Part 107 Non-Compliance Explanation (always shown)
         yOffset = drawFixedTextBlock(
-            number: 22,
+            number: 21,
             label: "PART 107 NON-COMPLIANCE EXPLANATION",
             text: data.part107NonComplianceExplanation ?? "",
             at: yOffset,
@@ -608,7 +559,7 @@ class FlightPlanService: ObservableObject {
         yOffset = drawWaiverSection(
             at: yOffset,
             data: data,
-            startingCellNumber: 23,
+            startingCellNumber: 22,
             leftMargin: leftMargin,
             contentWidth: contentWidth,
             context: context
@@ -788,7 +739,7 @@ class FlightPlanService: ObservableObject {
         var yOffset = y
         let waiverFieldHeight: CGFloat = 55
 
-        // Cell 23: Safety Mitigations (always shown, joined directly to main table)
+        // Cell 22: Safety Mitigations (always shown, joined directly to main table)
         yOffset = drawFixedTextBlock(
             number: startingCellNumber,
             label: "WAIVER: SAFETY MITIGATIONS",
@@ -800,7 +751,7 @@ class FlightPlanService: ObservableObject {
             context: context
         )
 
-        // Cell 24: Operational Procedures (always shown)
+        // Cell 23: Operational Procedures (always shown)
         yOffset = drawFixedTextBlock(
             number: startingCellNumber + 1,
             label: "WAIVER: OPERATIONAL PROCEDURES",
@@ -812,7 +763,7 @@ class FlightPlanService: ObservableObject {
             context: context
         )
 
-        // Cell 25: Risk Analysis (always shown)
+        // Cell 24: Risk Analysis (always shown)
         yOffset = drawFixedTextBlock(
             number: startingCellNumber + 2,
             label: "WAIVER: RISK ANALYSIS",
