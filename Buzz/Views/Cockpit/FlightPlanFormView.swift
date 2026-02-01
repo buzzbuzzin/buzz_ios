@@ -998,7 +998,7 @@ struct FlightPlanFormView: View {
 
     private var shortDateString: String {
         let formatter = DateFormatter()
-        formatter.dateFormat = "MMM d, yyyy"
+        formatter.dateFormat = "yyyy-MM-dd"
         return formatter.string(from: takeoffDate)
     }
 

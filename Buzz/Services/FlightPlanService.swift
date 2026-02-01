@@ -563,7 +563,7 @@ class FlightPlanService: ObservableObject {
 
         // Cell 12: DATE (moved from row 3)
         let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "MM/dd/yyyy"
+        dateFormatter.dateFormat = "yyyy-MM-dd"
         let dateStr = dateFormatter.string(from: data.takeoffDateTime)
 
         drawCell(
@@ -1033,7 +1033,7 @@ class FlightPlanService: ObservableObject {
         // Draw date if available
         if let signatureDate = data.signatureDate {
             let dateFormatter = DateFormatter()
-            dateFormatter.dateFormat = "MM/dd/yyyy"
+            dateFormatter.dateFormat = "yyyy-MM-dd"
             let dateString = dateFormatter.string(from: signatureDate)
 
             let dateValueFont = UIFont.systemFont(ofSize: 16, weight: .medium)
