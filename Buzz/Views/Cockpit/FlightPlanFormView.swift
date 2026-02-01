@@ -50,6 +50,7 @@ struct FlightPlanFormView: View {
     @State private var errorMessage = ""
     @State private var isGeocoding = false
     @State private var hasInitializedFromBooking = false
+    @State private var showZuluTimeInfo = false
 
     // Address autocomplete
     @State private var addressSuggestions: [AddressSuggestion] = []
@@ -233,14 +234,24 @@ struct FlightPlanFormView: View {
 
                                 // Takeoff Time (Zulu) - Read-only from booking
                                 VStack(alignment: .leading, spacing: 8) {
-                                    GlassLabel(text: "Takeoff Time", required: false)
+                                    HStack(spacing: 4) {
+                                        GlassLabel(text: "Takeoff Time", required: false)
+                                        
+                                        Button {
+                                            showZuluTimeInfo = true
+                                        } label: {
+                                            Image(systemName: "info.circle")
+                                                .font(.system(size: 14))
+                                                .foregroundColor(FlightPlanColors.primary)
+                                        }
+                                    }
 
                                     HStack(spacing: 8) {
                                         Text("Z")
                                             .font(.system(size: 14, weight: .bold))
                                             .foregroundColor(FlightPlanColors.primary)
 
-                                        Text(zuluTimeString.uppercased())
+                                        Text(zuluTimeString)
                                             .font(.system(size: 15))
                                             .foregroundColor(FlightPlanColors.textPrimary)
                                     }
@@ -364,6 +375,11 @@ struct FlightPlanFormView: View {
         } message: {
             Text(errorMessage)
         }
+        .alert("About Zulu Time", isPresented: $showZuluTimeInfo) {
+            Button("OK") {}
+        } message: {
+            Text("Zulu time (Z) is the military and aviation term for UTC (Coordinated Universal Time). It's used globally to avoid confusion from different time zones.\n\nTo convert Zulu time to your local time:\n1. Note the Zulu time (e.g., 03:00:00)\n2. Apply your timezone offset from UTC\n3. For example, EST is UTC-5, so 03:00:00Z = 10:00 PM EST (previous day)\n\nThe local time is automatically displayed below for your convenience.")
+        }
         .fullScreenCover(isPresented: $showPDFPreview) {
             if let pdfData = generatedPDFData {
                 PDFPreviewView(
@@ -450,14 +466,14 @@ struct FlightPlanFormView: View {
         combined.minute = timeComponents.minute
 
         guard let localDateTime = calendar.date(from: combined) else {
-            return "------Z"
+            return "--:--:--"
         }
 
         let zuluFormatter = DateFormatter()
-        zuluFormatter.dateFormat = "HHmmss"
+        zuluFormatter.dateFormat = "HH:mm:ss"
         zuluFormatter.timeZone = TimeZone(identifier: "UTC")
 
-        return "\(zuluFormatter.string(from: zuluFormatter.date(from: zuluFormatter.string(from: localDateTime)) ?? localDateTime))Z"
+        return zuluFormatter.string(from: localDateTime)
     }
 
     private var localTimeString: String {
