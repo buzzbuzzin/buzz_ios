@@ -603,21 +603,21 @@ struct FlightPlanFormView: View {
                             VStack(spacing: 10) {
                                 CheckboxOption(
                                     title: "Requires Waiver",
-                                    subtitle: "This operation requires an FAA waiver",
+                                    subtitle: "This operation requires a waiver from the regulatory authority",
                                     isSelected: requiresWaiver,
                                     isDisabled: vlosType == .bvlos,
                                     action: { requiresWaiver.toggle() }
                                 )
 
-                                if vlosType == .bvlos {
-                                    HStack(spacing: 6) {
-                                        Image(systemName: "info.circle.fill")
-                                            .font(.system(size: 12))
-                                            .foregroundColor(FlightPlanColors.primary)
-                                        Text("Waiver is required for BVLOS operations")
-                                            .font(.system(size: 12))
-                                            .foregroundColor(FlightPlanColors.textSecondary)
-                                    }
+                                // if vlosType == .bvlos {
+                                //     HStack(spacing: 6) {
+                                //         Image(systemName: "info.circle.fill")
+                                //             .font(.system(size: 12))
+                                //             .foregroundColor(FlightPlanColors.primary)
+                                //         Text("Waiver is required for BVLOS operations")
+                                //             .font(.system(size: 12))
+                                //             .foregroundColor(FlightPlanColors.textSecondary)
+                                //     }
                                 }
                             }
 
@@ -1993,7 +1993,7 @@ private struct LAANCInfoSheet: View {
                     HStack(spacing: 8) {
                         Image(systemName: "exclamationmark.triangle.fill")
                             .foregroundColor(.red)
-                        Text("You must obtain manual authorization via FAA DroneZone before flying.")
+                        Text("You must obtain manual authorization via regulatory authority before flying.")
                             .font(.caption)
                             .foregroundColor(.red)
                     }
@@ -2006,7 +2006,7 @@ private struct LAANCInfoSheet: View {
                     HStack(spacing: 8) {
                         Image(systemName: "clock.fill")
                             .foregroundColor(.orange)
-                        Text("Your requested altitude exceeds the LAANC auto-approval ceiling. You may request higher altitude through LAANC manual review or FAA DroneZone.")
+                        Text("Your requested altitude exceeds the LAANC auto-approval ceiling. You may request higher altitude through LAANC manual review or regulatory authority.")
                             .font(.caption)
                             .foregroundColor(.orange)
                     }
