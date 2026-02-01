@@ -460,14 +460,14 @@ struct FlightPlanFormView: View {
                                 )
                             }
 
-                            // FAA Authorization Status
+                            // Authorization Status
                             VStack(alignment: .leading, spacing: 8) {
-                                GlassLabel(text: "FAA Authorization Status", required: false)
+                                GlassLabel(text: "Authorization Status", required: false)
 
                                 AuthorizationStatusBadge(status: laancAuthorizationStatus)
 
                                 if let ceiling = laancGridCeiling {
-                                    Text("FAA Grid Ceiling: \(ceiling) ft")
+                                    Text("Grid Ceiling: \(ceiling) ft")
                                         .font(.system(size: 12))
                                         .foregroundColor(FlightPlanColors.textSecondary)
                                         .padding(.top, 2)
@@ -515,7 +515,7 @@ struct FlightPlanFormView: View {
                                         Image(systemName: "exclamationmark.triangle.fill")
                                             .font(.system(size: 12))
                                             .foregroundColor(.orange)
-                                        Text("BVLOS operations require a Civil Regulation waiver")
+                                        Text("BVLOS operations require a waiver")
                                             .font(.system(size: 12))
                                             .foregroundColor(.orange)
                                     }

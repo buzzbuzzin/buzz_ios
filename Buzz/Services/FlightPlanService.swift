@@ -483,9 +483,9 @@ class FlightPlanService: ObservableObject {
 
         yOffset += standardRowHeight
 
-        // Row 5: VLOS TYPE, FLIGHT OVER PEOPLE, PART 107 COMPLIANT, WAIVER REQUIRED
+        // Row 5: VLOS TYPE, FLIGHT OVER PEOPLE, CIVIL REGULATION COMPLIANCE, WAIVER REQUIRED
         xOffset = leftMargin
-        let row5Widths: [CGFloat] = [130, 140, 140, 130] // Total: 540
+        let row5Widths: [CGFloat] = [130, 120, 170, 120] // Total: 540 - increased box 18, reduced 17 and 19
 
         // Cell 16: VLOS TYPE (with checkbox options)
         drawCheckboxCell(
@@ -642,6 +642,28 @@ class FlightPlanService: ObservableObject {
         leftMargin: CGFloat,
         context: CGContext
     ) -> CGFloat {
+        return drawFixedTextBlock(
+            numberString: "\(number)",
+            label: label,
+            text: text,
+            at: y,
+            width: width,
+            height: height,
+            leftMargin: leftMargin,
+            context: context
+        )
+    }
+
+    private func drawFixedTextBlock(
+        numberString: String,
+        label: String,
+        text: String,
+        at y: CGFloat,
+        width: CGFloat,
+        height: CGFloat,
+        leftMargin: CGFloat,
+        context: CGContext
+    ) -> CGFloat {
         let rect = CGRect(x: leftMargin, y: y, width: width, height: height)
 
         // Draw border
@@ -655,7 +677,7 @@ class FlightPlanService: ObservableObject {
             .font: numberFont,
             .foregroundColor: UIColor.darkGray
         ]
-        "\(number).".draw(at: CGPoint(x: rect.minX + 4, y: rect.minY + 3), withAttributes: numberAttributes)
+        "\(numberString).".draw(at: CGPoint(x: rect.minX + 4, y: rect.minY + 3), withAttributes: numberAttributes)
 
         // Draw label
         let labelFont = UIFont.systemFont(ofSize: 8, weight: .medium)
@@ -739,9 +761,9 @@ class FlightPlanService: ObservableObject {
         var yOffset = y
         let waiverFieldHeight: CGFloat = 55
 
-        // Cell 22: Safety Mitigations (always shown, joined directly to main table)
+        // Cell 22a: Safety Mitigations (always shown, joined directly to main table)
         yOffset = drawFixedTextBlock(
-            number: startingCellNumber,
+            numberString: "\(startingCellNumber)a",
             label: "WAIVER: SAFETY MITIGATIONS",
             text: data.waiverSafetyMitigations ?? "",
             at: yOffset,
@@ -751,9 +773,9 @@ class FlightPlanService: ObservableObject {
             context: context
         )
 
-        // Cell 23: Operational Procedures (always shown)
+        // Cell 22b: Operational Procedures (always shown)
         yOffset = drawFixedTextBlock(
-            number: startingCellNumber + 1,
+            numberString: "\(startingCellNumber)b",
             label: "WAIVER: OPERATIONAL PROCEDURES",
             text: data.waiverOperationalProcedures ?? "",
             at: yOffset,
@@ -763,9 +785,9 @@ class FlightPlanService: ObservableObject {
             context: context
         )
 
-        // Cell 24: Risk Analysis (always shown)
+        // Cell 22c: Risk Analysis (always shown)
         yOffset = drawFixedTextBlock(
-            number: startingCellNumber + 2,
+            numberString: "\(startingCellNumber)c",
             label: "WAIVER: RISK ANALYSIS",
             text: data.waiverRiskAnalysis ?? "",
             at: yOffset,
