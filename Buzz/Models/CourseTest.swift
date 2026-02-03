@@ -41,6 +41,26 @@ struct CourseTest: Identifiable, Codable {
         case priceOfSchedule = "price_of_schedule"
     }
     
+    // Custom decoder to handle null required_units from database
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        courseId = try container.decode(UUID.self, forKey: .courseId)
+        testName = try container.decode(String.self, forKey: .testName)
+        testDescription = try container.decodeIfPresent(String.self, forKey: .testDescription)
+        testType = try container.decode(String.self, forKey: .testType)
+        passingScore = try container.decode(Int.self, forKey: .passingScore)
+        duration = try container.decodeIfPresent(Int.self, forKey: .duration)
+        requiredForProgression = try container.decode(Bool.self, forKey: .requiredForProgression)
+        // Handle null required_units by defaulting to empty array
+        requiredUnits = (try? container.decode([UUID].self, forKey: .requiredUnits)) ?? []
+        orderIndex = try container.decode(Int.self, forKey: .orderIndex)
+        isActive = try container.decode(Bool.self, forKey: .isActive)
+        sectionId = try container.decodeIfPresent(UUID.self, forKey: .sectionId)
+        needsProctor = try container.decode(Bool.self, forKey: .needsProctor)
+        priceOfSchedule = try container.decodeIfPresent(Int.self, forKey: .priceOfSchedule)
+    }
+    
     /// Returns formatted price string (e.g., "$99.00")
     var formattedPrice: String {
         guard let price = priceOfSchedule else { return "Free" }
