@@ -591,7 +591,10 @@ struct ProctoredMultipleChoiceTestView: View {
                 .from("test_results")
                 .upsert(testResult, onConflict: "pilot_id,test_id")
                 .execute()
-            
+
+            // Update course progress
+            await academyService.updateCourseProgress(pilotId: pilotId, courseId: course.id)
+
             if passed {
                 try await badgeService.awardBadge(
                     pilotId: pilotId,
@@ -601,7 +604,7 @@ struct ProctoredMultipleChoiceTestView: View {
                     provider: Badge.CourseProvider(rawValue: course.provider.rawValue) ?? .buzz
                 )
             }
-            
+
             isLoading = false
             withAnimation {
                 showResults = true

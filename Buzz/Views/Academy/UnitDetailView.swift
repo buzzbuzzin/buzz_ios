@@ -333,7 +333,10 @@ struct UnitDetailView: View {
             
             isCompleted = true
             showCompletionSuccess = true
-            
+
+            // Update course progress
+            await academyService.updateCourseProgress(pilotId: currentUser.id, courseId: course.id)
+
             // Hide success message after 2 seconds
             try? await Task.sleep(nanoseconds: 2_000_000_000)
             showCompletionSuccess = false

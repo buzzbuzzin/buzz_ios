@@ -577,7 +577,10 @@ struct MultipleChoiceTestView: View {
                 .from("test_results")
                 .upsert(testResult, onConflict: "pilot_id,test_id")
                 .execute()
-            
+
+            // Update course progress
+            await academyService.updateCourseProgress(pilotId: pilotId, courseId: course.id)
+
             // If passed, award the course badge
             if passed {
                 try await badgeService.awardBadge(

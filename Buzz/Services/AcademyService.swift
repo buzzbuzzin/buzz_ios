@@ -869,6 +869,156 @@ class AcademyService: ObservableObject {
             throw error
         }
     }
+
+    // MARK: - Sync All Course Progress
+
+    /// Syncs progress for all enrolled courses for a pilot.
+    /// Call this on profile load to ensure existing completions are reflected.
+    func syncAllCourseProgress(pilotId: UUID) async {
+        do {
+            let response = try await supabase
+                .from("course_enrollments")
+                .select("course_id")
+                .eq("pilot_id", value: pilotId.uuidString)
+                .execute()
+
+            let data = response.data
+            guard let jsonArray = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+                return
+            }
+
+            let courseIds = jsonArray.compactMap { item -> UUID? in
+                guard let idString = item["course_id"] as? String else { return nil }
+                return UUID(uuidString: idString)
+            }
+
+            print("📊 [AcademyService] Syncing progress for \(courseIds.count) enrolled courses")
+
+            await withTaskGroup(of: Void.self) { group in
+                for courseId in courseIds {
+                    group.addTask {
+                        await self.updateCourseProgress(pilotId: pilotId, courseId: courseId)
+                    }
+                }
+            }
+
+            print("✅ [AcademyService] Finished syncing all course progress")
+        } catch {
+            print("❌ [AcademyService] Error syncing all course progress: \(error)")
+        }
+    }
+
+    // MARK: - Update Course Progress
+
+    /// Calculates course progress based on completed units and passed tests,
+    /// then syncs with remote (only updates if local >= remote).
+    /// Sets `completed_at` when progress reaches 100%.
+    @discardableResult
+    func updateCourseProgress(pilotId: UUID, courseId: UUID) async -> Int {
+        do {
+            // Fetch all units and tests for this course
+            let allUnits = try await fetchCourseUnits(courseId: courseId)
+            let allTests = try await fetchCourseTests(courseId: courseId)
+
+            let totalItems = allUnits.count + allTests.count
+
+            guard totalItems > 0 else {
+                print("⚠️ [AcademyService] Course \(courseId) has no units or tests to track")
+                return 0
+            }
+
+            // Check which units are completed
+            let unitIds = allUnits.map { $0.id }
+            let completedUnitIds = await checkUnitCompletionsByUUID(
+                pilotId: pilotId,
+                courseId: courseId,
+                unitIds: unitIds
+            )
+
+            // Check which tests are passed
+            let testIds = allTests.map { $0.id }
+            let testStatuses = await checkTestStatuses(pilotId: pilotId, testIds: testIds)
+            let passedTestCount = testStatuses.values.filter { $0 }.count
+
+            // Calculate progress
+            let completedItems = completedUnitIds.count + passedTestCount
+            let localProgress = Int((Double(completedItems) / Double(totalItems)) * 100)
+
+            print("📊 [AcademyService] Progress for course \(courseId): \(completedItems)/\(totalItems) = \(localProgress)% (units: \(completedUnitIds.count)/\(allUnits.count), tests: \(passedTestCount)/\(allTests.count))")
+
+            // Fetch current remote progress
+            let remoteProgress = await fetchRemoteProgress(pilotId: pilotId, courseId: courseId)
+
+            // Sync: only update if local >= remote
+            if localProgress >= remoteProgress {
+                await pushProgressToRemote(pilotId: pilotId, courseId: courseId, progress: localProgress)
+                print("✅ [AcademyService] Updated remote progress to \(localProgress)% (was \(remoteProgress)%)")
+            } else {
+                print("ℹ️ [AcademyService] Remote progress \(remoteProgress)% is higher than local \(localProgress)%, keeping remote value")
+            }
+
+            return localProgress
+        } catch {
+            print("❌ [AcademyService] Error updating course progress: \(error)")
+            return 0
+        }
+    }
+
+    /// Fetches the current progress_percentage from course_enrollments on the remote
+    private func fetchRemoteProgress(pilotId: UUID, courseId: UUID) async -> Int {
+        do {
+            let response = try await supabase
+                .from("course_enrollments")
+                .select("progress_percentage")
+                .eq("pilot_id", value: pilotId.uuidString)
+                .eq("course_id", value: courseId.uuidString)
+                .execute()
+
+            let data = response.data
+            guard let jsonArray = try JSONSerialization.jsonObject(with: data) as? [[String: Any]],
+                  let first = jsonArray.first,
+                  let progress = first["progress_percentage"] as? Int else {
+                return 0
+            }
+
+            return progress
+        } catch {
+            print("❌ [AcademyService] Error fetching remote progress: \(error)")
+            return 0
+        }
+    }
+
+    /// Updates course_enrollments with the new progress value.
+    /// If progress reaches 100, also sets completed_at to current timestamp.
+    private func pushProgressToRemote(pilotId: UUID, courseId: UUID, progress: Int) async {
+        do {
+            if progress >= 100 {
+                let formatter = ISO8601DateFormatter()
+                formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+                let now = formatter.string(from: Date())
+                try await supabase
+                    .from("course_enrollments")
+                    .update([
+                        "progress_percentage": AnyJSON.integer(progress),
+                        "completed_at": AnyJSON.string(now)
+                    ] as [String: AnyJSON])
+                    .eq("pilot_id", value: pilotId.uuidString)
+                    .eq("course_id", value: courseId.uuidString)
+                    .execute()
+            } else {
+                try await supabase
+                    .from("course_enrollments")
+                    .update([
+                        "progress_percentage": AnyJSON.integer(progress)
+                    ] as [String: AnyJSON])
+                    .eq("pilot_id", value: pilotId.uuidString)
+                    .eq("course_id", value: courseId.uuidString)
+                    .execute()
+            }
+        } catch {
+            print("❌ [AcademyService] Error pushing progress to remote: \(error)")
+        }
+    }
 }
 
 // MARK: - Response Models
@@ -918,10 +1068,12 @@ struct TrainingCourseResponse: Codable {
 struct CourseEnrollmentResponse: Codable {
     let courseId: UUID
     let completedAt: String?
-    
+    let progressPercentage: Int?
+
     enum CodingKeys: String, CodingKey {
         case courseId = "course_id"
         case completedAt = "completed_at"
+        case progressPercentage = "progress_percentage"
     }
 }
 
@@ -932,12 +1084,16 @@ struct CourseEnrollment: Codable, Identifiable {
     let pilotId: UUID
     let courseId: UUID
     let enrolledAt: Date
-    
+    let progressPercentage: Int
+    let completedAt: Date?
+
     enum CodingKeys: String, CodingKey {
         case id
         case pilotId = "pilot_id"
         case courseId = "course_id"
         case enrolledAt = "enrolled_at"
+        case progressPercentage = "progress_percentage"
+        case completedAt = "completed_at"
     }
 }
 
