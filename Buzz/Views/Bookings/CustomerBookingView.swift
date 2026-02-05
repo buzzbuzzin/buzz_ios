@@ -13,12 +13,15 @@ import Supabase
 struct CustomerBookingView: View {
     @EnvironmentObject var authService: AuthService
     @StateObject private var bookingService = BookingService()
+    @StateObject private var identityService = IdentityVerificationService()
     @State private var showCreateBooking = false
     @State private var showConversations = false
     @State private var isPromotionCardDismissed = false
     @State private var newlyCreatedBooking: Booking?
     @State private var navigateToBookingDetail = false
     @State private var promotionNavigationSelection: BundlePackage?
+    @State private var isIdentityVerified = false
+    @State private var showVerificationRequiredAlert = false
     
     var body: some View {
         NavigationView {
@@ -74,7 +77,7 @@ struct CustomerBookingView: View {
                             title: "No Active Bookings",
                             message: "Create your first drone pilot booking",
                             actionTitle: "Create Booking",
-                            action: { showCreateBooking = true }
+                            action: { attemptCreateBooking() }
                         )
                     } else {
                         List {
@@ -103,7 +106,7 @@ struct CustomerBookingView: View {
                 
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button {
-                        showCreateBooking = true
+                        attemptCreateBooking()
                     } label: {
                         Image(systemName: "plus")
                     }
@@ -140,9 +143,16 @@ struct CustomerBookingView: View {
             .sheet(isPresented: $showConversations) {
                 ConversationsListView()
             }
+            .alert("Verification Required", isPresented: $showVerificationRequiredAlert) {
+                Button("Go to Settings", role: .none) { }
+                Button("Cancel", role: .cancel) { }
+            } message: {
+                Text("You must verify your identity before creating bookings. Please complete identity verification in your Profile settings under Personal Info.")
+            }
         }
         .task {
             await loadBookings()
+            await checkIdentityVerification()
         }
         .onAppear {
             // Reset promotion card dismissal when view appears (so it shows again)
@@ -150,6 +160,19 @@ struct CustomerBookingView: View {
         }
     }
     
+    private func attemptCreateBooking() {
+        if isIdentityVerified {
+            showCreateBooking = true
+        } else {
+            showVerificationRequiredAlert = true
+        }
+    }
+
+    private func checkIdentityVerification() async {
+        guard let userId = authService.activeUserId else { return }
+        isIdentityVerified = await identityService.isIdentityVerified(userId: userId)
+    }
+
     private func loadBookings() async {
         guard let currentUserId = authService.activeUserId else { return }
         do {

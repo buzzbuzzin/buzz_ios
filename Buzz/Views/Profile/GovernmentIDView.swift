@@ -131,7 +131,7 @@ struct GovernmentIDView: View {
                                             .font(.headline)
                                             .foregroundColor(.green)
                                         
-                                        Text("Your identity has been successfully verified. You can now accept bookings and start working as a pilot.")
+                                        Text("Your identity has been successfully verified. \(authService.userProfile?.userType == .pilot ? "You can now accept bookings and start working as a pilot." : "You can now create bookings.")")
                                             .font(.subheadline)
                                             .foregroundColor(.secondary)
                                     }
@@ -187,7 +187,7 @@ struct GovernmentIDView: View {
                                             .font(.headline)
                                             .foregroundColor(.orange)
                                         
-                                        Text("Your identity verification is being processed. You cannot accept bookings until your identity is verified.")
+                                        Text("Your identity verification is being processed. \(authService.userProfile?.userType == .pilot ? "You cannot accept bookings until your identity is verified." : "You cannot create bookings until your identity is verified.")")
                                             .font(.subheadline)
                                             .foregroundColor(.secondary)
                                     }
