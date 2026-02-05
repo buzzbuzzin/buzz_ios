@@ -289,9 +289,12 @@ class IdentityVerificationService: ObservableObject {
     
     // MARK: - Check Verification Status
     
-    /// Checks if the user's identity is verified
+    /// Checks if the user's identity is verified.
+    /// Priority: government_ids record (verified status) takes precedence.
+    /// Fallback: profiles.is_verified column (manual override for debugging).
     func isIdentityVerified(userId: UUID) async -> Bool {
         do {
+            // First, check government_ids table
             let ids: [GovernmentID] = try await supabase
                 .from("government_ids")
                 .select()
@@ -299,11 +302,21 @@ class IdentityVerificationService: ObservableObject {
                 .limit(1)
                 .execute()
                 .value
-            
+
             if let id = ids.first {
                 return id.verificationStatus == .verified
             }
-            return false
+
+            // No government_ids record — fall back to profiles.is_verified
+            let profile: UserProfile = try await supabase
+                .from("profiles")
+                .select()
+                .eq("id", value: userId.uuidString)
+                .single()
+                .execute()
+                .value
+
+            return profile.isVerified ?? false
         } catch {
             return false
         }

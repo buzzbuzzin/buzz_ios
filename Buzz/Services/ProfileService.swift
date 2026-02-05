@@ -186,7 +186,8 @@ class ProfileService: ObservableObject {
                 referralCredits: nil,
                 referredBy: nil,
                 isBeaconVolunteer: nil,
-                selectedRegion: nil
+                selectedRegion: nil,
+                isVerified: nil
             )
         }
 
@@ -252,7 +253,8 @@ class ProfileService: ObservableObject {
                 referralCredits: nil,
                 referredBy: nil,
                 isBeaconVolunteer: nil,
-                selectedRegion: nil
+                selectedRegion: nil,
+                isVerified: nil
             )
         }
 

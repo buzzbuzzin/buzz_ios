@@ -101,6 +101,7 @@ struct UserProfile: Codable, Identifiable {
     let referredBy: UUID? // UUID of user who referred this user
     let isBeaconVolunteer: Bool? // Beacon emergency response volunteer status
     let selectedRegion: UserCourseRegion? // User's selected region for course filtering
+    let isVerified: Bool? // Manual identity verification override (fallback when no government_ids record)
     
     enum CodingKeys: String, CodingKey {
         case id
@@ -133,6 +134,7 @@ struct UserProfile: Codable, Identifiable {
         case referredBy = "referred_by"
         case isBeaconVolunteer = "is_beacon_volunteer"
         case selectedRegion = "selected_region"
+        case isVerified = "is_verified"
     }
     
     var fullName: String {

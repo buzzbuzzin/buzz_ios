@@ -207,7 +207,7 @@ class RatingService: ObservableObject {
                 lastLocationUpdate: nil,
                 referralCredits: nil,
                 referredBy: nil,
-                isBeaconVolunteer: nil, selectedRegion: nil
+                isBeaconVolunteer: nil, selectedRegion: nil, isVerified: nil
             ),
             UserProfile(
                 id: UUID(),
@@ -238,7 +238,7 @@ class RatingService: ObservableObject {
                 lastLocationUpdate: nil,
                 referralCredits: nil,
                 referredBy: nil,
-                isBeaconVolunteer: nil, selectedRegion: nil
+                isBeaconVolunteer: nil, selectedRegion: nil, isVerified: nil
             ),
             UserProfile(
                 id: UUID(),
@@ -269,7 +269,7 @@ class RatingService: ObservableObject {
                 lastLocationUpdate: nil,
                 referralCredits: nil,
                 referredBy: nil,
-                isBeaconVolunteer: nil, selectedRegion: nil
+                isBeaconVolunteer: nil, selectedRegion: nil, isVerified: nil
             ),
             UserProfile(
                 id: UUID(),
@@ -300,7 +300,7 @@ class RatingService: ObservableObject {
                 lastLocationUpdate: nil,
                 referralCredits: nil,
                 referredBy: nil,
-                isBeaconVolunteer: nil, selectedRegion: nil
+                isBeaconVolunteer: nil, selectedRegion: nil, isVerified: nil
             ),
             UserProfile(
                 id: UUID(),
@@ -331,7 +331,7 @@ class RatingService: ObservableObject {
                 lastLocationUpdate: nil,
                 referralCredits: nil,
                 referredBy: nil,
-                isBeaconVolunteer: nil, selectedRegion: nil
+                isBeaconVolunteer: nil, selectedRegion: nil, isVerified: nil
             ),
             UserProfile(
                 id: UUID(),
@@ -362,7 +362,7 @@ class RatingService: ObservableObject {
                 lastLocationUpdate: nil,
                 referralCredits: nil,
                 referredBy: nil,
-                isBeaconVolunteer: nil, selectedRegion: nil
+                isBeaconVolunteer: nil, selectedRegion: nil, isVerified: nil
             )
         ]
         
@@ -467,7 +467,7 @@ class RatingService: ObservableObject {
                 lastLocationUpdate: nil,
                 referralCredits: nil,
                 referredBy: nil,
-                isBeaconVolunteer: nil, selectedRegion: nil
+                isBeaconVolunteer: nil, selectedRegion: nil, isVerified: nil
             ),
             UserProfile(
                 id: UUID(),
@@ -498,7 +498,7 @@ class RatingService: ObservableObject {
                 lastLocationUpdate: nil,
                 referralCredits: nil,
                 referredBy: nil,
-                isBeaconVolunteer: nil, selectedRegion: nil
+                isBeaconVolunteer: nil, selectedRegion: nil, isVerified: nil
             ),
             UserProfile(
                 id: UUID(),
@@ -529,7 +529,7 @@ class RatingService: ObservableObject {
                 lastLocationUpdate: nil,
                 referralCredits: nil,
                 referredBy: nil,
-                isBeaconVolunteer: nil, selectedRegion: nil
+                isBeaconVolunteer: nil, selectedRegion: nil, isVerified: nil
             ),
             UserProfile(
                 id: UUID(),
@@ -560,7 +560,7 @@ class RatingService: ObservableObject {
                 lastLocationUpdate: nil,
                 referralCredits: nil,
                 referredBy: nil,
-                isBeaconVolunteer: nil, selectedRegion: nil
+                isBeaconVolunteer: nil, selectedRegion: nil, isVerified: nil
             ),
             UserProfile(
                 id: UUID(),
@@ -591,7 +591,7 @@ class RatingService: ObservableObject {
                 lastLocationUpdate: nil,
                 referralCredits: nil,
                 referredBy: nil,
-                isBeaconVolunteer: nil, selectedRegion: nil
+                isBeaconVolunteer: nil, selectedRegion: nil, isVerified: nil
             ),
             UserProfile(
                 id: UUID(),
@@ -622,7 +622,7 @@ class RatingService: ObservableObject {
                 lastLocationUpdate: nil,
                 referralCredits: nil,
                 referredBy: nil,
-                isBeaconVolunteer: nil, selectedRegion: nil
+                isBeaconVolunteer: nil, selectedRegion: nil, isVerified: nil
             )
         ]
         
