@@ -737,13 +737,14 @@ class AcademyService: ObservableObject {
             var completedCourses: [TrainingCourse] = []
             
             for enrollmentJson in jsonArray {
-                // Only include courses that have been completed (completed_at is not null)
+                // Only include courses that have been completed (completed_at is not null) and are active
                 guard let completedAt = enrollmentJson["completed_at"] as? String,
                       !completedAt.isEmpty,
                       let courseJson = enrollmentJson["training_courses"] as? [String: Any],
                       let courseIdString = courseJson["id"] as? String,
                       let courseId = UUID(uuidString: courseIdString),
-                      let title = courseJson["title"] as? String else {
+                      let title = courseJson["title"] as? String,
+                      courseJson["active"] as? Bool == true else {
                     continue
                 }
                 
