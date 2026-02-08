@@ -176,7 +176,7 @@ struct HangarHelpView: View {
                         : "Start a discussion with fellow pilots!"
                 )
             } else {
-                LazyVStack(spacing: 12) {
+                LazyVStack(spacing: 0) {
                     ForEach(displayedPosts) { postWithAuthor in
                         NavigationLink(destination: HangarPostDetailView(
                             postWithAuthor: postWithAuthor,
@@ -191,9 +191,10 @@ struct HangarHelpView: View {
                             })
                         }
                         .buttonStyle(PlainButtonStyle())
+
+                        Divider()
                     }
                 }
-                .padding(.horizontal)
             }
         }
     }
@@ -216,7 +217,7 @@ struct HangarHelpView: View {
                             .font(.headline)
                             .padding(.horizontal)
 
-                        LazyVStack(spacing: 12) {
+                        LazyVStack(spacing: 0) {
                             ForEach(hangarService.savedPosts) { postWithAuthor in
                                 NavigationLink(destination: HangarPostDetailView(
                                     postWithAuthor: postWithAuthor,
@@ -231,9 +232,10 @@ struct HangarHelpView: View {
                                     })
                                 }
                                 .buttonStyle(PlainButtonStyle())
+
+                                Divider()
                             }
                         }
-                        .padding(.horizontal)
                     }
 
                     // Saved Comments

@@ -523,6 +523,33 @@ CREATE TABLE public.hangar_comments (
   CONSTRAINT hangar_comments_parent_comment_id_fkey FOREIGN KEY (parent_comment_id) REFERENCES public.hangar_comments(id),
   CONSTRAINT hangar_comments_author_id_fkey FOREIGN KEY (author_id) REFERENCES public.profiles(id)
 );
+CREATE TABLE public.hangar_followed_comments (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  user_id uuid NOT NULL,
+  comment_id uuid NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT hangar_followed_comments_pkey PRIMARY KEY (id),
+  CONSTRAINT hangar_followed_comments_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id),
+  CONSTRAINT hangar_followed_comments_comment_id_fkey FOREIGN KEY (comment_id) REFERENCES public.hangar_comments(id)
+);
+CREATE TABLE public.hangar_followed_posts (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  user_id uuid NOT NULL,
+  post_id uuid NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT hangar_followed_posts_pkey PRIMARY KEY (id),
+  CONSTRAINT hangar_followed_posts_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id),
+  CONSTRAINT hangar_followed_posts_post_id_fkey FOREIGN KEY (post_id) REFERENCES public.hangar_posts(id)
+);
+CREATE TABLE public.hangar_hidden_posts (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  user_id uuid NOT NULL,
+  post_id uuid NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT hangar_hidden_posts_pkey PRIMARY KEY (id),
+  CONSTRAINT hangar_hidden_posts_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id),
+  CONSTRAINT hangar_hidden_posts_post_id_fkey FOREIGN KEY (post_id) REFERENCES public.hangar_posts(id)
+);
 CREATE TABLE public.hangar_likes (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
   user_id uuid NOT NULL,
@@ -545,9 +572,28 @@ CREATE TABLE public.hangar_posts (
   is_pinned boolean NOT NULL DEFAULT false,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  image_urls ARRAY DEFAULT '{}'::text[],
   CONSTRAINT hangar_posts_pkey PRIMARY KEY (id),
   CONSTRAINT hangar_posts_topic_id_fkey FOREIGN KEY (topic_id) REFERENCES public.hangar_topics(id),
   CONSTRAINT hangar_posts_author_id_fkey FOREIGN KEY (author_id) REFERENCES public.profiles(id)
+);
+CREATE TABLE public.hangar_saved_comments (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  user_id uuid NOT NULL,
+  comment_id uuid NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT hangar_saved_comments_pkey PRIMARY KEY (id),
+  CONSTRAINT hangar_saved_comments_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id),
+  CONSTRAINT hangar_saved_comments_comment_id_fkey FOREIGN KEY (comment_id) REFERENCES public.hangar_comments(id)
+);
+CREATE TABLE public.hangar_saved_posts (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  user_id uuid NOT NULL,
+  post_id uuid NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT hangar_saved_posts_pkey PRIMARY KEY (id),
+  CONSTRAINT hangar_saved_posts_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id),
+  CONSTRAINT hangar_saved_posts_post_id_fkey FOREIGN KEY (post_id) REFERENCES public.hangar_posts(id)
 );
 CREATE TABLE public.hangar_topics (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),

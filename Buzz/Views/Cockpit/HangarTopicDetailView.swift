@@ -28,24 +28,28 @@ struct HangarTopicDetailView: View {
                         action: { showNewPost = true }
                     )
                 } else {
-                    ForEach(hangarService.posts) { postWithAuthor in
-                        NavigationLink(destination: HangarPostDetailView(
-                            postWithAuthor: postWithAuthor,
-                            topicName: topic.name
-                        ).environmentObject(authService)) {
-                            HangarPostCard(postWithAuthor: postWithAuthor, onLike: {
-                                guard let userId = authService.activeUserId else { return }
-                                Task {
-                                    try? await hangarService.togglePostLike(postId: postWithAuthor.id, userId: userId)
-                                    await hangarService.fetchPosts(topicId: topic.id, currentUserId: userId)
-                                }
-                            })
+                    LazyVStack(spacing: 0) {
+                        ForEach(hangarService.posts) { postWithAuthor in
+                            NavigationLink(destination: HangarPostDetailView(
+                                postWithAuthor: postWithAuthor,
+                                topicName: topic.name
+                            ).environmentObject(authService)) {
+                                HangarPostCard(postWithAuthor: postWithAuthor, onLike: {
+                                    guard let userId = authService.activeUserId else { return }
+                                    Task {
+                                        try? await hangarService.togglePostLike(postId: postWithAuthor.id, userId: userId)
+                                        await hangarService.fetchPosts(topicId: topic.id, currentUserId: userId)
+                                    }
+                                })
+                            }
+                            .buttonStyle(PlainButtonStyle())
+
+                            Divider()
                         }
-                        .buttonStyle(PlainButtonStyle())
                     }
                 }
             }
-            .padding()
+            .padding(.bottom)
         }
         .navigationTitle(topic.name)
         .navigationBarTitleDisplayMode(.inline)
@@ -183,9 +187,8 @@ struct HangarPostCard: View {
                 Spacer()
             }
         }
-        .padding()
-        .background(Color(.secondarySystemBackground))
-        .cornerRadius(16)
+        .padding(.horizontal)
+        .padding(.vertical, 8)
     }
 
     private var topicColor: Color {
