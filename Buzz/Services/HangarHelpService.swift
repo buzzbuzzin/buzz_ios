@@ -655,7 +655,7 @@ class HangarHelpService: ObservableObject {
         for image in images.prefix(4) {
             guard let imageData = compressPostImage(image) else { continue }
 
-            let fileName = "\(userId.uuidString)/\(UUID().uuidString).jpg"
+            let fileName = "\(userId.uuidString.lowercased())/\(UUID().uuidString.lowercased()).jpg"
 
             let _ = try await supabase.storage
                 .from("hanger_images")
