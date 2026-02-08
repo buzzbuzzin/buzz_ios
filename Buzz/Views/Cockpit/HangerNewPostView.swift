@@ -27,7 +27,8 @@ struct HangerNewPostView: View {
     init(topics: [HangerTopic], preselectedTopicId: UUID? = nil, onPostCreated: @escaping () -> Void) {
         self.topics = topics
         self.onPostCreated = onPostCreated
-        self._selectedTopicId = State(initialValue: preselectedTopicId)
+        let defaultTopicId = preselectedTopicId ?? topics.first(where: { $0.name == "General" })?.id
+        self._selectedTopicId = State(initialValue: defaultTopicId)
     }
 
     private var isValid: Bool {

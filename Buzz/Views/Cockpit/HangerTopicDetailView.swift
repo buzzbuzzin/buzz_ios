@@ -12,6 +12,9 @@ struct HangerTopicDetailView: View {
     @StateObject private var hangerService = HangerTalkService()
     let topic: HangerTopic
     @State private var showNewPost = false
+    @State private var menuPost: HangerPostWithAuthor?
+    @State private var showDeletePostConfirmation = false
+    @State private var showEditPostSheet = false
 
     var body: some View {
         ScrollView {
@@ -40,6 +43,30 @@ struct HangerTopicDetailView: View {
                                         try? await hangerService.togglePostLike(postId: postWithAuthor.id, userId: userId)
                                         await hangerService.fetchPosts(topicId: topic.id, currentUserId: userId)
                                     }
+                                }, isOwnPost: postWithAuthor.post.authorId == authService.activeUserId, onFollow: {
+                                    guard let userId = authService.activeUserId else { return }
+                                    Task {
+                                        try? await hangerService.toggleFollowPost(postId: postWithAuthor.id, userId: userId)
+                                        await hangerService.fetchPosts(topicId: topic.id, currentUserId: userId)
+                                    }
+                                }, onSave: {
+                                    guard let userId = authService.activeUserId else { return }
+                                    Task {
+                                        try? await hangerService.toggleSavePost(postId: postWithAuthor.id, userId: userId)
+                                        await hangerService.fetchPosts(topicId: topic.id, currentUserId: userId)
+                                    }
+                                }, onHide: {
+                                    guard let userId = authService.activeUserId else { return }
+                                    Task {
+                                        try? await hangerService.toggleHidePost(postId: postWithAuthor.id, userId: userId)
+                                        await hangerService.fetchPosts(topicId: topic.id, currentUserId: userId)
+                                    }
+                                }, onEdit: {
+                                    menuPost = postWithAuthor
+                                    showEditPostSheet = true
+                                }, onDelete: {
+                                    menuPost = postWithAuthor
+                                    showDeletePostConfirmation = true
                                 })
                             }
                             .buttonStyle(PlainButtonStyle())
@@ -83,6 +110,36 @@ struct HangerTopicDetailView: View {
             guard let userId = authService.activeUserId else { return }
             await hangerService.fetchPosts(topicId: topic.id, currentUserId: userId)
         }
+        .alert("Delete Post", isPresented: $showDeletePostConfirmation) {
+            Button("Cancel", role: .cancel) {
+                menuPost = nil
+            }
+            Button("Delete", role: .destructive) {
+                if let post = menuPost {
+                    Task {
+                        try? await hangerService.deletePost(postId: post.id)
+                        guard let userId = authService.activeUserId else { return }
+                        await hangerService.fetchPosts(topicId: topic.id, currentUserId: userId)
+                    }
+                }
+                menuPost = nil
+            }
+        } message: {
+            Text("Are you sure you want to delete this post? This action cannot be undone.")
+        }
+        .sheet(isPresented: $showEditPostSheet) {
+            if let post = menuPost {
+                NavigationView {
+                    HangerEditPostView(
+                        postId: post.id,
+                        initialTitle: post.post.title,
+                        initialBody: post.post.body,
+                        initialImageUrls: post.imageUrls
+                    )
+                    .environmentObject(authService)
+                }
+            }
+        }
     }
 }
 
@@ -91,6 +148,12 @@ struct HangerTopicDetailView: View {
 struct HangerPostCard: View {
     let postWithAuthor: HangerPostWithAuthor
     let onLike: () -> Void
+    var isOwnPost: Bool = false
+    var onFollow: (() -> Void)?
+    var onSave: (() -> Void)?
+    var onHide: (() -> Void)?
+    var onEdit: (() -> Void)?
+    var onDelete: (() -> Void)?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -185,6 +248,55 @@ struct HangerPostCard: View {
                 }
 
                 Spacer()
+
+                if onFollow != nil || onSave != nil || onHide != nil {
+                    Menu {
+                        if let onFollow {
+                            Button(action: onFollow) {
+                                Label(
+                                    postWithAuthor.isFollowedByCurrentUser ? "Unfollow Post" : "Follow Post",
+                                    systemImage: postWithAuthor.isFollowedByCurrentUser ? "bell.slash" : "bell"
+                                )
+                            }
+                        }
+
+                        if let onSave {
+                            Button(action: onSave) {
+                                Label(
+                                    postWithAuthor.isSavedByCurrentUser ? "Unsave" : "Save",
+                                    systemImage: postWithAuthor.isSavedByCurrentUser ? "bookmark.slash" : "bookmark"
+                                )
+                            }
+                        }
+
+                        if let onHide {
+                            Button(action: onHide) {
+                                Label("Hide", systemImage: "eye.slash")
+                            }
+                        }
+
+                        if isOwnPost {
+                            Divider()
+
+                            if let onEdit {
+                                Button(action: onEdit) {
+                                    Label("Edit Post", systemImage: "pencil")
+                                }
+                            }
+
+                            if let onDelete {
+                                Button(role: .destructive, action: onDelete) {
+                                    Label("Delete Post", systemImage: "trash")
+                                }
+                            }
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                            .padding(.leading, 8)
+                    }
+                }
             }
         }
         .padding(.horizontal)

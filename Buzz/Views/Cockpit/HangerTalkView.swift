@@ -22,6 +22,9 @@ struct HangerTalkView: View {
     @State private var viewMode: HangerViewMode = .latest
     @State private var selectedTopicId: UUID?
     @State private var showNewPost = false
+    @State private var menuPost: HangerPostWithAuthor?
+    @State private var showDeletePostConfirmation = false
+    @State private var showEditPostSheet = false
 
     // MARK: - Filtered & Sorted Posts
 
@@ -130,6 +133,36 @@ struct HangerTalkView: View {
                 await hangerService.fetchActivityItems(currentUserId: userId)
             }
         }
+        .alert("Delete Post", isPresented: $showDeletePostConfirmation) {
+            Button("Cancel", role: .cancel) {
+                menuPost = nil
+            }
+            Button("Delete", role: .destructive) {
+                if let post = menuPost {
+                    Task {
+                        try? await hangerService.deletePost(postId: post.id)
+                        guard let userId = authService.activeUserId else { return }
+                        await hangerService.fetchAllPosts(currentUserId: userId)
+                    }
+                }
+                menuPost = nil
+            }
+        } message: {
+            Text("Are you sure you want to delete this post? This action cannot be undone.")
+        }
+        .sheet(isPresented: $showEditPostSheet) {
+            if let post = menuPost {
+                NavigationView {
+                    HangerEditPostView(
+                        postId: post.id,
+                        initialTitle: post.post.title,
+                        initialBody: post.post.body,
+                        initialImageUrls: post.imageUrls
+                    )
+                    .environmentObject(authService)
+                }
+            }
+        }
     }
 
     // MARK: - View Mode Tab Bar
@@ -188,6 +221,30 @@ struct HangerTalkView: View {
                                     try? await hangerService.togglePostLike(postId: postWithAuthor.id, userId: userId)
                                     await hangerService.fetchAllPosts(currentUserId: userId)
                                 }
+                            }, isOwnPost: postWithAuthor.post.authorId == authService.activeUserId, onFollow: {
+                                guard let userId = authService.activeUserId else { return }
+                                Task {
+                                    try? await hangerService.toggleFollowPost(postId: postWithAuthor.id, userId: userId)
+                                    await hangerService.fetchAllPosts(currentUserId: userId)
+                                }
+                            }, onSave: {
+                                guard let userId = authService.activeUserId else { return }
+                                Task {
+                                    try? await hangerService.toggleSavePost(postId: postWithAuthor.id, userId: userId)
+                                    await hangerService.fetchAllPosts(currentUserId: userId)
+                                }
+                            }, onHide: {
+                                guard let userId = authService.activeUserId else { return }
+                                Task {
+                                    try? await hangerService.toggleHidePost(postId: postWithAuthor.id, userId: userId)
+                                    await hangerService.fetchAllPosts(currentUserId: userId)
+                                }
+                            }, onEdit: {
+                                menuPost = postWithAuthor
+                                showEditPostSheet = true
+                            }, onDelete: {
+                                menuPost = postWithAuthor
+                                showDeletePostConfirmation = true
                             })
                         }
                         .buttonStyle(PlainButtonStyle())
@@ -229,6 +286,30 @@ struct HangerTalkView: View {
                                             try? await hangerService.togglePostLike(postId: postWithAuthor.id, userId: userId)
                                             await hangerService.fetchSavedPosts(currentUserId: userId)
                                         }
+                                    }, isOwnPost: postWithAuthor.post.authorId == authService.activeUserId, onFollow: {
+                                        guard let userId = authService.activeUserId else { return }
+                                        Task {
+                                            try? await hangerService.toggleFollowPost(postId: postWithAuthor.id, userId: userId)
+                                            await hangerService.fetchSavedPosts(currentUserId: userId)
+                                        }
+                                    }, onSave: {
+                                        guard let userId = authService.activeUserId else { return }
+                                        Task {
+                                            try? await hangerService.toggleSavePost(postId: postWithAuthor.id, userId: userId)
+                                            await hangerService.fetchSavedPosts(currentUserId: userId)
+                                        }
+                                    }, onHide: {
+                                        guard let userId = authService.activeUserId else { return }
+                                        Task {
+                                            try? await hangerService.toggleHidePost(postId: postWithAuthor.id, userId: userId)
+                                            await hangerService.fetchSavedPosts(currentUserId: userId)
+                                        }
+                                    }, onEdit: {
+                                        menuPost = postWithAuthor
+                                        showEditPostSheet = true
+                                    }, onDelete: {
+                                        menuPost = postWithAuthor
+                                        showDeletePostConfirmation = true
                                     })
                                 }
                                 .buttonStyle(PlainButtonStyle())
