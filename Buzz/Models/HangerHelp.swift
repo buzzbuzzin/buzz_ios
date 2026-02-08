@@ -311,7 +311,7 @@ struct HangerPostResponse: Codable {
         case createdAt = "created_at"
         case updatedAt = "updated_at"
         case profiles
-        case hangerTopics = "hangar_topics"
+        case hangerTopics = "hanger_topics"
     }
 
     init(from decoder: Decoder) throws {
@@ -514,7 +514,7 @@ struct HangerActivityCommentResponse: Codable {
         case authorId = "author_id"
         case createdAt = "created_at"
         case profiles
-        case hangerPosts = "hangar_posts"
+        case hangerPosts = "hanger_posts"
     }
 
     var profileData: HangerAuthorProfile? {
