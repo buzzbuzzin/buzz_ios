@@ -39,6 +39,7 @@ struct CockpitView: View {
     @State private var showRacer = false
     @State private var showGames = false
     @State private var showFlightPlan = false
+    @State private var showHangarHelp = false
 
     var body: some View {
         NavigationView {
@@ -409,6 +410,18 @@ struct CockpitView: View {
                                     )
                                 }
                                 .buttonStyle(PlainButtonStyle())
+
+                                // Hangar Help Card - Using fullScreenCover for stable presentation
+                                Button {
+                                    showHangarHelp = true
+                                } label: {
+                                    CockpitGridCard(
+                                        title: "Hangar Help",
+                                        icon: "bubble.left.and.bubble.right.fill",
+                                        color: .mint
+                                    )
+                                }
+                                .buttonStyle(PlainButtonStyle())
                             }
                             .padding(.horizontal, 16)
                         }
@@ -766,6 +779,23 @@ struct CockpitView: View {
                         ToolbarItem(placement: .navigationBarLeading) {
                             Button {
                                 showGames = false
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.title2)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    }
+            }
+        }
+        .fullScreenCover(isPresented: $showHangarHelp) {
+            NavigationView {
+                HangarHelpView()
+                    .environmentObject(authService)
+                    .toolbar {
+                        ToolbarItem(placement: .navigationBarLeading) {
+                            Button {
+                                showHangarHelp = false
                             } label: {
                                 Image(systemName: "xmark.circle.fill")
                                     .font(.title2)

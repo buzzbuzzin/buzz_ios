@@ -508,6 +508,58 @@ CREATE TABLE public.ground_school_test_results (
   CONSTRAINT ground_school_test_results_pilot_id_fkey FOREIGN KEY (pilot_id) REFERENCES public.profiles(id),
   CONSTRAINT ground_school_test_results_course_id_fkey FOREIGN KEY (course_id) REFERENCES public.training_courses(id)
 );
+CREATE TABLE public.hangar_comments (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  post_id uuid NOT NULL,
+  parent_comment_id uuid,
+  author_id uuid NOT NULL,
+  body text NOT NULL,
+  like_count integer NOT NULL DEFAULT 0,
+  depth integer NOT NULL DEFAULT 0,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT hangar_comments_pkey PRIMARY KEY (id),
+  CONSTRAINT hangar_comments_post_id_fkey FOREIGN KEY (post_id) REFERENCES public.hangar_posts(id),
+  CONSTRAINT hangar_comments_parent_comment_id_fkey FOREIGN KEY (parent_comment_id) REFERENCES public.hangar_comments(id),
+  CONSTRAINT hangar_comments_author_id_fkey FOREIGN KEY (author_id) REFERENCES public.profiles(id)
+);
+CREATE TABLE public.hangar_likes (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  user_id uuid NOT NULL,
+  post_id uuid,
+  comment_id uuid,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT hangar_likes_pkey PRIMARY KEY (id),
+  CONSTRAINT hangar_likes_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id),
+  CONSTRAINT hangar_likes_post_id_fkey FOREIGN KEY (post_id) REFERENCES public.hangar_posts(id),
+  CONSTRAINT hangar_likes_comment_id_fkey FOREIGN KEY (comment_id) REFERENCES public.hangar_comments(id)
+);
+CREATE TABLE public.hangar_posts (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  topic_id uuid NOT NULL,
+  author_id uuid NOT NULL,
+  title text NOT NULL,
+  body text NOT NULL,
+  like_count integer NOT NULL DEFAULT 0,
+  comment_count integer NOT NULL DEFAULT 0,
+  is_pinned boolean NOT NULL DEFAULT false,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT hangar_posts_pkey PRIMARY KEY (id),
+  CONSTRAINT hangar_posts_topic_id_fkey FOREIGN KEY (topic_id) REFERENCES public.hangar_topics(id),
+  CONSTRAINT hangar_posts_author_id_fkey FOREIGN KEY (author_id) REFERENCES public.profiles(id)
+);
+CREATE TABLE public.hangar_topics (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  name text NOT NULL,
+  description text,
+  icon_name text NOT NULL,
+  color_name text NOT NULL,
+  display_order integer NOT NULL DEFAULT 0,
+  is_active boolean NOT NULL DEFAULT true,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT hangar_topics_pkey PRIMARY KEY (id)
+);
 CREATE TABLE public.incident_logs (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
   booking_id uuid NOT NULL,
@@ -628,6 +680,7 @@ CREATE TABLE public.profiles (
   referred_by uuid,
   is_beacon_volunteer boolean DEFAULT false,
   selected_region text CHECK (selected_region IS NULL OR (selected_region = ANY (ARRAY['Canada'::text, 'USA'::text, 'UK'::text, 'Australia'::text, 'New Zealand'::text, 'South Africa'::text, 'Other'::text, 'Global'::text]))),
+  is_verified boolean NOT NULL DEFAULT false,
   CONSTRAINT profiles_pkey PRIMARY KEY (id),
   CONSTRAINT profiles_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id),
   CONSTRAINT profiles_referred_by_fkey FOREIGN KEY (referred_by) REFERENCES public.profiles(id)
