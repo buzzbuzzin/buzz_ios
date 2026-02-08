@@ -22,6 +22,7 @@ struct HangerNewPostView: View {
     @State private var selectedPhotos: [PhotosPickerItem] = []
     @State private var selectedImages: [UIImage] = []
     @State private var showTopicPicker = false
+    @State private var showTopicRequiredAlert = false
 
     init(topics: [HangerTopic], preselectedTopicId: UUID? = nil, onPostCreated: @escaping () -> Void) {
         self.topics = topics
@@ -104,11 +105,15 @@ struct HangerNewPostView: View {
             }
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button("Post") {
-                    Task { await submitPost() }
+                    if selectedTopicId == nil {
+                        showTopicRequiredAlert = true
+                    } else {
+                        Task { await submitPost() }
+                    }
                 }
-                .disabled(!isValid || isSubmitting)
+                .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isSubmitting)
                 .fontWeight(.bold)
-                .foregroundColor(isValid && !isSubmitting ? .blue : .secondary)
+                .foregroundColor(!title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isSubmitting ? .blue : .secondary)
             }
         }
         .disabled(isSubmitting)
@@ -127,6 +132,14 @@ struct HangerNewPostView: View {
                 .background(.ultraThinMaterial)
                 .cornerRadius(16)
             }
+        }
+        .alert("Select a Community", isPresented: $showTopicRequiredAlert) {
+            Button("Choose Community") {
+                showTopicPicker = true
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("Please select a community for your post before posting.")
         }
         .confirmationDialog("Select a topic", isPresented: $showTopicPicker) {
             ForEach(topics) { topic in
