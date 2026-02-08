@@ -41,6 +41,7 @@ struct CockpitView: View {
     @State private var showGames = false
     @State private var showFlightPlan = false
     @State private var showHangerTalk = false
+    @State private var showEvents = false
 
     var body: some View {
         NavigationView {
@@ -260,9 +261,9 @@ struct CockpitView: View {
                             .padding(.horizontal, 16)
                         }
                         
-                        // Community Section
+                        // Social Section
                         VStack(alignment: .leading, spacing: 12) {
-                            Text("Community")
+                            Text("Social")
                                 .font(.title2)
                                 .fontWeight(.semibold)
                                 .padding(.horizontal, 16)
@@ -293,6 +294,64 @@ struct CockpitView: View {
                                 }
                                 .buttonStyle(PlainButtonStyle())
 
+                                // TopGun Card - Using fullScreenCover for stable presentation
+                                Button {
+                                    showTopGun = true
+                                } label: {
+                                    CockpitGridCard(
+                                        title: "TopGun",
+                                        icon: "airplane.circle.fill",
+                                        color: .red
+                                    )
+                                }
+                                .buttonStyle(PlainButtonStyle())
+
+                                // Games Card - Using fullScreenCover for stable presentation
+                                Button {
+                                    showGames = true
+                                } label: {
+                                    CockpitGridCard(
+                                        title: "Games",
+                                        icon: "gamecontroller.fill",
+                                        color: .blue
+                                    )
+                                }
+                                .buttonStyle(PlainButtonStyle())
+                            }
+                            .padding(.horizontal, 16)
+                        }
+
+                        // Emporium Section
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Emporium")
+                                .font(.title2)
+                                .fontWeight(.semibold)
+                                .padding(.horizontal, 16)
+
+                            LazyVGrid(columns: columns, spacing: 12) {
+                                // Buzz Shop Card - Using fullScreenCover for stable presentation
+                                Button {
+                                    showShop = true
+                                } label: {
+                                    CockpitGridCard(
+                                        title: "Buzz Shop",
+                                        icon: "bag.fill",
+                                        color: .pink
+                                    )
+                                }
+                                .buttonStyle(PlainButtonStyle())
+                            }
+                            .padding(.horizontal, 16)
+                        }
+
+                        // Community Section
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Community")
+                                .font(.title2)
+                                .fontWeight(.semibold)
+                                .padding(.horizontal, 16)
+
+                            LazyVGrid(columns: columns, spacing: 12) {
                                 // Beacon Card - Using fullScreenCover for stable presentation
                                 Button {
                                     showBeacon = true
@@ -318,18 +377,6 @@ struct CockpitView: View {
                                 }
                                 .buttonStyle(PlainButtonStyle())
 
-                                // Games Card - Using fullScreenCover for stable presentation
-                                Button {
-                                    showGames = true
-                                } label: {
-                                    CockpitGridCard(
-                                        title: "Games",
-                                        icon: "gamecontroller.fill",
-                                        color: .blue
-                                    )
-                                }
-                                .buttonStyle(PlainButtonStyle())
-
                                 // Racer Card - Using fullScreenCover for stable presentation
                                 Button {
                                     showRacer = true
@@ -342,14 +389,26 @@ struct CockpitView: View {
                                 }
                                 .buttonStyle(PlainButtonStyle())
 
-                                // TopGun Card - Using fullScreenCover for stable presentation
+                                // Events Card - Using fullScreenCover for stable presentation
                                 Button {
-                                    showTopGun = true
+                                    showEvents = true
                                 } label: {
                                     CockpitGridCard(
-                                        title: "TopGun",
-                                        icon: "airplane.circle.fill",
-                                        color: .red
+                                        title: "Events",
+                                        icon: "calendar.badge.clock",
+                                        color: .purple
+                                    )
+                                }
+                                .buttonStyle(PlainButtonStyle())
+
+                                // News Card - Using fullScreenCover for stable presentation
+                                Button {
+                                    showNews = true
+                                } label: {
+                                    CockpitGridCard(
+                                        title: "News",
+                                        icon: "newspaper.fill",
+                                        color: .orange
                                     )
                                 }
                                 .buttonStyle(PlainButtonStyle())
@@ -389,18 +448,6 @@ struct CockpitView: View {
                                 }
                                 .buttonStyle(PlainButtonStyle())
 
-                                // Industry News Card - Using fullScreenCover for stable presentation
-                                Button {
-                                    showNews = true
-                                } label: {
-                                    CockpitGridCard(
-                                        title: "News",
-                                        icon: "newspaper.fill",
-                                        color: .orange
-                                    )
-                                }
-                                .buttonStyle(PlainButtonStyle())
-
                                 // Availability Card - Using fullScreenCover for stable presentation
                                 Button {
                                     showAvailability = true
@@ -421,18 +468,6 @@ struct CockpitView: View {
                                         title: "Progress",
                                         icon: "chart.line.uptrend.xyaxis",
                                         color: .indigo
-                                    )
-                                }
-                                .buttonStyle(PlainButtonStyle())
-
-                                // Shop Card - Using fullScreenCover for stable presentation
-                                Button {
-                                    showShop = true
-                                } label: {
-                                    CockpitGridCard(
-                                        title: "Shop",
-                                        icon: "bag.fill",
-                                        color: .pink
                                     )
                                 }
                                 .buttonStyle(PlainButtonStyle())
@@ -796,6 +831,22 @@ struct CockpitView: View {
                         ToolbarItem(placement: .navigationBarLeading) {
                             Button {
                                 showGames = false
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.title2)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    }
+            }
+        }
+        .fullScreenCover(isPresented: $showEvents) {
+            NavigationView {
+                EventsView()
+                    .toolbar {
+                        ToolbarItem(placement: .navigationBarLeading) {
+                            Button {
+                                showEvents = false
                             } label: {
                                 Image(systemName: "xmark.circle.fill")
                                     .font(.title2)
