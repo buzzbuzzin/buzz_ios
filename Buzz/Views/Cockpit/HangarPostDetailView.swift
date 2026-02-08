@@ -142,7 +142,8 @@ struct HangarPostDetailView: View {
                 HangarEditPostView(
                     postId: postWithAuthor.id,
                     initialTitle: postWithAuthor.post.title,
-                    initialBody: postWithAuthor.post.body
+                    initialBody: postWithAuthor.post.body,
+                    initialImageUrls: postWithAuthor.imageUrls
                 )
                 .environmentObject(authService)
             }
@@ -241,10 +242,17 @@ struct HangarPostDetailView: View {
                 .font(.title3)
                 .fontWeight(.bold)
 
+            // Image carousel
+            if !postWithAuthor.imageUrls.isEmpty {
+                HangarImageCarousel(imageUrls: postWithAuthor.imageUrls, height: 300)
+            }
+
             // Body
-            Text(postWithAuthor.post.body)
-                .font(.body)
-                .foregroundColor(.primary)
+            if !postWithAuthor.post.body.isEmpty {
+                Text(postWithAuthor.post.body)
+                    .font(.body)
+                    .foregroundColor(.primary)
+            }
 
             // Like button
             HStack(spacing: 16) {

@@ -147,11 +147,18 @@ struct HangarPostCard: View {
                 .multilineTextAlignment(.leading)
 
             // Body preview
-            Text(postWithAuthor.post.body)
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-                .lineLimit(3)
-                .multilineTextAlignment(.leading)
+            if !postWithAuthor.post.body.isEmpty {
+                Text(postWithAuthor.post.body)
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .lineLimit(3)
+                    .multilineTextAlignment(.leading)
+            }
+
+            // Image carousel
+            if !postWithAuthor.imageUrls.isEmpty {
+                HangarImageCarousel(imageUrls: postWithAuthor.imageUrls, height: 200)
+            }
 
             // Stats row
             HStack(spacing: 16) {
@@ -192,5 +199,109 @@ struct HangarPostCard: View {
         case "mint": return .mint
         default: return .gray
         }
+    }
+}
+
+// MARK: - Image Carousel (shared component)
+
+struct HangarImageCarousel: View {
+    let imageUrls: [String]
+    let height: CGFloat
+    @State private var currentPage = 0
+
+    var body: some View {
+        if imageUrls.count == 1 {
+            // Single image — no carousel
+            singleImage(urlString: imageUrls[0])
+        } else {
+            // Multiple images — swipeable carousel
+            ZStack(alignment: .topTrailing) {
+                TabView(selection: $currentPage) {
+                    ForEach(Array(imageUrls.enumerated()), id: \.offset) { index, urlString in
+                        carouselImage(urlString: urlString)
+                            .tag(index)
+                    }
+                }
+                .tabViewStyle(.page(indexDisplayMode: .automatic))
+                .frame(height: height)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+
+                // Counter badge
+                Text("\(currentPage + 1) / \(imageUrls.count)")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.black.opacity(0.6))
+                    .cornerRadius(10)
+                    .padding(8)
+            }
+        }
+    }
+
+    private func singleImage(urlString: String) -> some View {
+        Group {
+            if let url = URL(string: urlString) {
+                AsyncImage(url: url) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: height)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                    case .failure:
+                        imagePlaceholder
+                    case .empty:
+                        imageLoading
+                    @unknown default:
+                        imageLoading
+                    }
+                }
+            }
+        }
+    }
+
+    private func carouselImage(urlString: String) -> some View {
+        Group {
+            if let url = URL(string: urlString) {
+                AsyncImage(url: url) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: height)
+                            .clipped()
+                    case .failure:
+                        imagePlaceholder
+                    case .empty:
+                        imageLoading
+                    @unknown default:
+                        imageLoading
+                    }
+                }
+            }
+        }
+    }
+
+    private var imagePlaceholder: some View {
+        RoundedRectangle(cornerRadius: 12)
+            .fill(Color.gray.opacity(0.2))
+            .frame(height: height)
+            .overlay(
+                Image(systemName: "photo")
+                    .font(.title)
+                    .foregroundColor(.secondary)
+            )
+    }
+
+    private var imageLoading: some View {
+        RoundedRectangle(cornerRadius: 12)
+            .fill(Color.gray.opacity(0.1))
+            .frame(height: height)
+            .overlay(ProgressView())
     }
 }

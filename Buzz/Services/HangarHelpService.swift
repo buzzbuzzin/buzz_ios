@@ -8,6 +8,7 @@
 import Foundation
 import Supabase
 import Combine
+import UIKit
 
 @MainActor
 class HangarHelpService: ObservableObject {
@@ -132,7 +133,8 @@ class HangarHelpService: ObservableObject {
                     isFollowedByCurrentUser: followedPostIds.contains(resp.id),
                     topicName: topic?.name ?? "General",
                     topicIconName: topic?.iconName ?? "bubble.left.and.bubble.right.fill",
-                    topicColorName: topic?.colorName ?? "green"
+                    topicColorName: topic?.colorName ?? "green",
+                    imageUrls: resp.imageUrls
                 )
             }
 
@@ -211,7 +213,8 @@ class HangarHelpService: ObservableObject {
                     isFollowedByCurrentUser: followedPostIds.contains(resp.id),
                     topicName: topic?.name ?? "General",
                     topicIconName: topic?.iconName ?? "bubble.left.and.bubble.right.fill",
-                    topicColorName: topic?.colorName ?? "green"
+                    topicColorName: topic?.colorName ?? "green",
+                    imageUrls: resp.imageUrls
                 )
             }
 
@@ -300,10 +303,10 @@ class HangarHelpService: ObservableObject {
 
     // MARK: - Create Post
 
-    func createPost(topicId: UUID, authorId: UUID, title: String, body: String) async throws {
+    func createPost(topicId: UUID, authorId: UUID, title: String, body: String, imageUrls: [String] = []) async throws {
         if DemoModeManager.shared.isDemoModeEnabled { return }
 
-        let insert = HangarPostInsert(topicId: topicId, authorId: authorId, title: title, body: body)
+        let insert = HangarPostInsert(topicId: topicId, authorId: authorId, title: title, body: body, imageUrls: imageUrls)
 
         try await supabase
             .from("hangar_posts")
@@ -325,13 +328,17 @@ class HangarHelpService: ObservableObject {
 
     // MARK: - Update Post
 
-    func updatePost(postId: UUID, title: String, body: String) async throws {
+    func updatePost(postId: UUID, title: String, body: String, imageUrls: [String]? = nil) async throws {
         if DemoModeManager.shared.isDemoModeEnabled { return }
 
-        let updateData: [String: AnyJSON] = [
+        var updateData: [String: AnyJSON] = [
             "title": .string(title),
             "body": .string(body)
         ]
+
+        if let imageUrls = imageUrls {
+            updateData["image_urls"] = .array(imageUrls.map { .string($0) })
+        }
 
         try await supabase
             .from("hangar_posts")
@@ -638,6 +645,63 @@ class HangarHelpService: ObservableObject {
         }
     }
 
+    // MARK: - Upload Post Images
+
+    func uploadPostImages(userId: UUID, images: [UIImage]) async throws -> [String] {
+        if DemoModeManager.shared.isDemoModeEnabled { return [] }
+
+        var urls: [String] = []
+
+        for image in images.prefix(4) {
+            guard let imageData = compressPostImage(image) else { continue }
+
+            let fileName = "\(userId.uuidString)/\(UUID().uuidString).jpg"
+
+            let _ = try await supabase.storage
+                .from("hanger_images")
+                .upload(
+                    fileName,
+                    data: imageData,
+                    options: FileOptions(
+                        cacheControl: "3600",
+                        contentType: "image/jpeg",
+                        upsert: true
+                    )
+                )
+
+            let publicURL = try supabase.storage
+                .from("hanger_images")
+                .getPublicURL(path: fileName)
+
+            urls.append(publicURL.absoluteString)
+        }
+
+        return urls
+    }
+
+    private func compressPostImage(_ image: UIImage) -> Data? {
+        let maxSize: CGFloat = 1200
+        let size = image.size
+
+        var newSize: CGSize
+        if size.width > maxSize || size.height > maxSize {
+            if size.width > size.height {
+                newSize = CGSize(width: maxSize, height: (size.height / size.width) * maxSize)
+            } else {
+                newSize = CGSize(width: (size.width / size.height) * maxSize, height: maxSize)
+            }
+        } else {
+            newSize = size
+        }
+
+        UIGraphicsBeginImageContextWithOptions(newSize, false, 1.0)
+        image.draw(in: CGRect(origin: .zero, size: newSize))
+        let resizedImage = UIGraphicsGetImageFromCurrentImageContext()
+        UIGraphicsEndImageContext()
+
+        return resizedImage?.jpegData(compressionQuality: 0.8)
+    }
+
     // MARK: - Fetch Saved Posts
 
     func fetchSavedPosts(currentUserId: UUID) async {
@@ -705,7 +769,8 @@ class HangarHelpService: ObservableObject {
                     isFollowedByCurrentUser: followedPostIds.contains(resp.id),
                     topicName: topic?.name ?? "General",
                     topicIconName: topic?.iconName ?? "bubble.left.and.bubble.right.fill",
-                    topicColorName: topic?.colorName ?? "green"
+                    topicColorName: topic?.colorName ?? "green",
+                    imageUrls: resp.imageUrls
                 )
             }
 

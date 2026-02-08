@@ -42,6 +42,7 @@ struct HangarPost: Codable, Identifiable {
     let likeCount: Int
     let commentCount: Int
     let isPinned: Bool
+    let imageUrls: [String]
     let createdAt: Date
     let updatedAt: Date
 
@@ -54,8 +55,38 @@ struct HangarPost: Codable, Identifiable {
         case likeCount = "like_count"
         case commentCount = "comment_count"
         case isPinned = "is_pinned"
+        case imageUrls = "image_urls"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        topicId = try container.decode(UUID.self, forKey: .topicId)
+        authorId = try container.decode(UUID.self, forKey: .authorId)
+        title = try container.decode(String.self, forKey: .title)
+        body = try container.decode(String.self, forKey: .body)
+        likeCount = try container.decode(Int.self, forKey: .likeCount)
+        commentCount = try container.decode(Int.self, forKey: .commentCount)
+        isPinned = try container.decode(Bool.self, forKey: .isPinned)
+        imageUrls = try container.decodeIfPresent([String].self, forKey: .imageUrls) ?? []
+        createdAt = try container.decode(Date.self, forKey: .createdAt)
+        updatedAt = try container.decode(Date.self, forKey: .updatedAt)
+    }
+
+    init(id: UUID, topicId: UUID, authorId: UUID, title: String, body: String, likeCount: Int, commentCount: Int, isPinned: Bool, imageUrls: [String] = [], createdAt: Date, updatedAt: Date) {
+        self.id = id
+        self.topicId = topicId
+        self.authorId = authorId
+        self.title = title
+        self.body = body
+        self.likeCount = likeCount
+        self.commentCount = commentCount
+        self.isPinned = isPinned
+        self.imageUrls = imageUrls
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
     }
 }
 
@@ -66,12 +97,14 @@ struct HangarPostInsert: Codable {
     let authorId: UUID
     let title: String
     let body: String
+    let imageUrls: [String]
 
     enum CodingKeys: String, CodingKey {
         case topicId = "topic_id"
         case authorId = "author_id"
         case title
         case body
+        case imageUrls = "image_urls"
     }
 }
 
@@ -89,6 +122,7 @@ struct HangarPostWithAuthor: Identifiable {
     let topicName: String
     let topicIconName: String
     let topicColorName: String
+    let imageUrls: [String]
 }
 
 // MARK: - Hangar Comment
@@ -258,6 +292,7 @@ struct HangarPostResponse: Codable {
     let likeCount: Int
     let commentCount: Int
     let isPinned: Bool
+    let imageUrls: [String]
     let createdAt: Date
     let updatedAt: Date
     let profiles: HangarAuthorProfileOrArray?
@@ -272,10 +307,28 @@ struct HangarPostResponse: Codable {
         case likeCount = "like_count"
         case commentCount = "comment_count"
         case isPinned = "is_pinned"
+        case imageUrls = "image_urls"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
         case profiles
         case hangarTopics = "hangar_topics"
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        topicId = try container.decode(UUID.self, forKey: .topicId)
+        authorId = try container.decode(UUID.self, forKey: .authorId)
+        title = try container.decode(String.self, forKey: .title)
+        body = try container.decode(String.self, forKey: .body)
+        likeCount = try container.decode(Int.self, forKey: .likeCount)
+        commentCount = try container.decode(Int.self, forKey: .commentCount)
+        isPinned = try container.decode(Bool.self, forKey: .isPinned)
+        imageUrls = try container.decodeIfPresent([String].self, forKey: .imageUrls) ?? []
+        createdAt = try container.decode(Date.self, forKey: .createdAt)
+        updatedAt = try container.decode(Date.self, forKey: .updatedAt)
+        profiles = try container.decodeIfPresent(HangarAuthorProfileOrArray.self, forKey: .profiles)
+        hangarTopics = try container.decodeIfPresent(HangarTopicInfoOrArray.self, forKey: .hangarTopics)
     }
 
     var profileData: HangarAuthorProfile? {
@@ -304,6 +357,7 @@ struct HangarPostResponse: Codable {
             likeCount: likeCount,
             commentCount: commentCount,
             isPinned: isPinned,
+            imageUrls: imageUrls,
             createdAt: createdAt,
             updatedAt: updatedAt
         )

@@ -304,7 +304,8 @@ struct HangarHelpView: View {
             isFollowedByCurrentUser: false,
             topicName: "",
             topicIconName: "bubble.left.and.bubble.right.fill",
-            topicColorName: "green"
+            topicColorName: "green",
+            imageUrls: []
         )
         return HangarPostDetailView(
             postWithAuthor: dummyPost,
