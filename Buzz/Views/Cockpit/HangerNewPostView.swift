@@ -1,5 +1,5 @@
 //
-//  HangarNewPostView.swift
+//  HangerNewPostView.swift
 //  Buzz
 //
 //  Created by Xinyu Fang on 2/7/26.
@@ -8,10 +8,10 @@
 import SwiftUI
 import PhotosUI
 
-struct HangarNewPostView: View {
+struct HangerNewPostView: View {
     @EnvironmentObject var authService: AuthService
     @Environment(\.dismiss) var dismiss
-    let topics: [HangarTopic]
+    let topics: [HangerTopic]
     let onPostCreated: () -> Void
 
     @State private var selectedTopicId: UUID?
@@ -23,7 +23,7 @@ struct HangarNewPostView: View {
     @State private var selectedImages: [UIImage] = []
     @State private var showTopicPicker = false
 
-    init(topics: [HangarTopic], preselectedTopicId: UUID? = nil, onPostCreated: @escaping () -> Void) {
+    init(topics: [HangerTopic], preselectedTopicId: UUID? = nil, onPostCreated: @escaping () -> Void) {
         self.topics = topics
         self.onPostCreated = onPostCreated
         self._selectedTopicId = State(initialValue: preselectedTopicId)
@@ -34,7 +34,7 @@ struct HangarNewPostView: View {
         !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
-    private var selectedTopic: HangarTopic? {
+    private var selectedTopic: HangerTopic? {
         guard let id = selectedTopicId else { return nil }
         return topics.first { $0.id == id }
     }
@@ -261,7 +261,7 @@ struct HangarNewPostView: View {
         errorMessage = nil
 
         do {
-            let service = HangarHelpService()
+            let service = HangerHelpService()
 
             // Upload images if any
             var imageUrls: [String] = []

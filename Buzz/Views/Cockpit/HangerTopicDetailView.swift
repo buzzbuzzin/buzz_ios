@@ -1,5 +1,5 @@
 //
-//  HangarTopicDetailView.swift
+//  HangerTopicDetailView.swift
 //  Buzz
 //
 //  Created by Xinyu Fang on 2/7/26.
@@ -7,19 +7,19 @@
 
 import SwiftUI
 
-struct HangarTopicDetailView: View {
+struct HangerTopicDetailView: View {
     @EnvironmentObject var authService: AuthService
-    @StateObject private var hangarService = HangarHelpService()
-    let topic: HangarTopic
+    @StateObject private var hangerService = HangerHelpService()
+    let topic: HangerTopic
     @State private var showNewPost = false
 
     var body: some View {
         ScrollView {
             VStack(spacing: 16) {
-                if hangarService.isLoading {
+                if hangerService.isLoading {
                     ProgressView()
                         .padding(.top, 50)
-                } else if hangarService.posts.isEmpty {
+                } else if hangerService.posts.isEmpty {
                     EmptyStateView(
                         icon: "text.bubble",
                         title: "No Posts Yet",
@@ -29,16 +29,16 @@ struct HangarTopicDetailView: View {
                     )
                 } else {
                     LazyVStack(spacing: 0) {
-                        ForEach(hangarService.posts) { postWithAuthor in
-                            NavigationLink(destination: HangarPostDetailView(
+                        ForEach(hangerService.posts) { postWithAuthor in
+                            NavigationLink(destination: HangerPostDetailView(
                                 postWithAuthor: postWithAuthor,
                                 topicName: topic.name
                             ).environmentObject(authService)) {
-                                HangarPostCard(postWithAuthor: postWithAuthor, onLike: {
+                                HangerPostCard(postWithAuthor: postWithAuthor, onLike: {
                                     guard let userId = authService.activeUserId else { return }
                                     Task {
-                                        try? await hangarService.togglePostLike(postId: postWithAuthor.id, userId: userId)
-                                        await hangarService.fetchPosts(topicId: topic.id, currentUserId: userId)
+                                        try? await hangerService.togglePostLike(postId: postWithAuthor.id, userId: userId)
+                                        await hangerService.fetchPosts(topicId: topic.id, currentUserId: userId)
                                     }
                                 })
                             }
@@ -65,11 +65,11 @@ struct HangarTopicDetailView: View {
         }
         .sheet(isPresented: $showNewPost) {
             NavigationView {
-                HangarNewPostView(topics: [topic], preselectedTopicId: topic.id, onPostCreated: {
+                HangerNewPostView(topics: [topic], preselectedTopicId: topic.id, onPostCreated: {
                     showNewPost = false
                     Task {
                         guard let userId = authService.activeUserId else { return }
-                        await hangarService.fetchPosts(topicId: topic.id, currentUserId: userId)
+                        await hangerService.fetchPosts(topicId: topic.id, currentUserId: userId)
                     }
                 })
                 .environmentObject(authService)
@@ -77,19 +77,19 @@ struct HangarTopicDetailView: View {
         }
         .task {
             guard let userId = authService.activeUserId else { return }
-            await hangarService.fetchPosts(topicId: topic.id, currentUserId: userId)
+            await hangerService.fetchPosts(topicId: topic.id, currentUserId: userId)
         }
         .refreshable {
             guard let userId = authService.activeUserId else { return }
-            await hangarService.fetchPosts(topicId: topic.id, currentUserId: userId)
+            await hangerService.fetchPosts(topicId: topic.id, currentUserId: userId)
         }
     }
 }
 
 // MARK: - Post Card
 
-struct HangarPostCard: View {
-    let postWithAuthor: HangarPostWithAuthor
+struct HangerPostCard: View {
+    let postWithAuthor: HangerPostWithAuthor
     let onLike: () -> Void
 
     var body: some View {
@@ -129,7 +129,7 @@ struct HangarPostCard: View {
                         .font(.subheadline)
                         .fontWeight(.semibold)
 
-                    Text(hangarTimeAgo(postWithAuthor.post.createdAt))
+                    Text(hangerTimeAgo(postWithAuthor.post.createdAt))
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -161,7 +161,7 @@ struct HangarPostCard: View {
 
             // Image carousel
             if !postWithAuthor.imageUrls.isEmpty {
-                HangarImageCarousel(imageUrls: postWithAuthor.imageUrls, height: 200)
+                HangerImageCarousel(imageUrls: postWithAuthor.imageUrls, height: 200)
             }
 
             // Stats row
@@ -207,7 +207,7 @@ struct HangarPostCard: View {
 
 // MARK: - Image Carousel (shared component)
 
-struct HangarImageCarousel: View {
+struct HangerImageCarousel: View {
     let imageUrls: [String]
     let height: CGFloat
     @State private var currentPage = 0

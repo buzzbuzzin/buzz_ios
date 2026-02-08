@@ -1,5 +1,5 @@
 //
-//  HangarEditCommentView.swift
+//  HangerEditCommentView.swift
 //  Buzz
 //
 //  Created by Xinyu Fang on 2/8/26.
@@ -7,7 +7,7 @@
 
 import SwiftUI
 
-struct HangarEditCommentView: View {
+struct HangerEditCommentView: View {
     @EnvironmentObject var authService: AuthService
     @Environment(\.dismiss) var dismiss
     let commentId: UUID
@@ -77,7 +77,7 @@ struct HangarEditCommentView: View {
         errorMessage = nil
 
         do {
-            let service = HangarHelpService()
+            let service = HangerHelpService()
             try await service.updateComment(
                 commentId: commentId,
                 body: bodyText.trimmingCharacters(in: .whitespacesAndNewlines)

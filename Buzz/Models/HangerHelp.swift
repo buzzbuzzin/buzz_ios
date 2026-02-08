@@ -1,5 +1,5 @@
 //
-//  HangarHelp.swift
+//  HangerHelp.swift
 //  Buzz
 //
 //  Created by Xinyu Fang on 2/7/26.
@@ -7,9 +7,9 @@
 
 import Foundation
 
-// MARK: - Hangar Topic
+// MARK: - Hanger Topic
 
-struct HangarTopic: Codable, Identifiable {
+struct HangerTopic: Codable, Identifiable {
     let id: UUID
     let name: String
     let description: String?
@@ -31,9 +31,9 @@ struct HangarTopic: Codable, Identifiable {
     }
 }
 
-// MARK: - Hangar Post
+// MARK: - Hanger Post
 
-struct HangarPost: Codable, Identifiable {
+struct HangerPost: Codable, Identifiable {
     let id: UUID
     let topicId: UUID
     let authorId: UUID
@@ -90,9 +90,9 @@ struct HangarPost: Codable, Identifiable {
     }
 }
 
-// MARK: - Hangar Post Insert
+// MARK: - Hanger Post Insert
 
-struct HangarPostInsert: Codable {
+struct HangerPostInsert: Codable {
     let topicId: UUID
     let authorId: UUID
     let title: String
@@ -108,11 +108,11 @@ struct HangarPostInsert: Codable {
     }
 }
 
-// MARK: - Hangar Post with Author (for display)
+// MARK: - Hanger Post with Author (for display)
 
-struct HangarPostWithAuthor: Identifiable {
+struct HangerPostWithAuthor: Identifiable {
     let id: UUID
-    let post: HangarPost
+    let post: HangerPost
     let authorCallSign: String?
     let authorProfilePictureUrl: String?
     let authorFullName: String
@@ -125,9 +125,9 @@ struct HangarPostWithAuthor: Identifiable {
     let imageUrls: [String]
 }
 
-// MARK: - Hangar Comment
+// MARK: - Hanger Comment
 
-struct HangarComment: Codable, Identifiable {
+struct HangerComment: Codable, Identifiable {
     let id: UUID
     let postId: UUID
     let parentCommentId: UUID?
@@ -151,9 +151,9 @@ struct HangarComment: Codable, Identifiable {
     }
 }
 
-// MARK: - Hangar Comment Insert
+// MARK: - Hanger Comment Insert
 
-struct HangarCommentInsert: Codable {
+struct HangerCommentInsert: Codable {
     let postId: UUID
     let parentCommentId: UUID?
     let authorId: UUID
@@ -169,23 +169,23 @@ struct HangarCommentInsert: Codable {
     }
 }
 
-// MARK: - Hangar Comment with Author (for display)
+// MARK: - Hanger Comment with Author (for display)
 
-struct HangarCommentWithAuthor: Identifiable {
+struct HangerCommentWithAuthor: Identifiable {
     let id: UUID
-    let comment: HangarComment
+    let comment: HangerComment
     let authorCallSign: String?
     let authorProfilePictureUrl: String?
     let authorFullName: String
     var isLikedByCurrentUser: Bool
     var isSavedByCurrentUser: Bool
     var isFollowedByCurrentUser: Bool
-    var replies: [HangarCommentWithAuthor]
+    var replies: [HangerCommentWithAuthor]
 }
 
-// MARK: - Hangar Like
+// MARK: - Hanger Like
 
-struct HangarLike: Codable, Identifiable {
+struct HangerLike: Codable, Identifiable {
     let id: UUID
     let userId: UUID
     let postId: UUID?
@@ -201,9 +201,9 @@ struct HangarLike: Codable, Identifiable {
     }
 }
 
-// MARK: - Hangar Saved Post
+// MARK: - Hanger Saved Post
 
-struct HangarSavedPost: Codable, Identifiable {
+struct HangerSavedPost: Codable, Identifiable {
     let id: UUID
     let userId: UUID
     let postId: UUID
@@ -217,9 +217,9 @@ struct HangarSavedPost: Codable, Identifiable {
     }
 }
 
-// MARK: - Hangar Followed Post
+// MARK: - Hanger Followed Post
 
-struct HangarFollowedPost: Codable, Identifiable {
+struct HangerFollowedPost: Codable, Identifiable {
     let id: UUID
     let userId: UUID
     let postId: UUID
@@ -233,9 +233,9 @@ struct HangarFollowedPost: Codable, Identifiable {
     }
 }
 
-// MARK: - Hangar Hidden Post
+// MARK: - Hanger Hidden Post
 
-struct HangarHiddenPost: Codable, Identifiable {
+struct HangerHiddenPost: Codable, Identifiable {
     let id: UUID
     let userId: UUID
     let postId: UUID
@@ -249,9 +249,9 @@ struct HangarHiddenPost: Codable, Identifiable {
     }
 }
 
-// MARK: - Hangar Saved Comment
+// MARK: - Hanger Saved Comment
 
-struct HangarSavedComment: Codable, Identifiable {
+struct HangerSavedComment: Codable, Identifiable {
     let id: UUID
     let userId: UUID
     let commentId: UUID
@@ -265,9 +265,9 @@ struct HangarSavedComment: Codable, Identifiable {
     }
 }
 
-// MARK: - Hangar Followed Comment
+// MARK: - Hanger Followed Comment
 
-struct HangarFollowedComment: Codable, Identifiable {
+struct HangerFollowedComment: Codable, Identifiable {
     let id: UUID
     let userId: UUID
     let commentId: UUID
@@ -283,7 +283,7 @@ struct HangarFollowedComment: Codable, Identifiable {
 
 // MARK: - Supabase Join Response Models
 
-struct HangarPostResponse: Codable {
+struct HangerPostResponse: Codable {
     let id: UUID
     let topicId: UUID
     let authorId: UUID
@@ -295,8 +295,8 @@ struct HangarPostResponse: Codable {
     let imageUrls: [String]
     let createdAt: Date
     let updatedAt: Date
-    let profiles: HangarAuthorProfileOrArray?
-    let hangarTopics: HangarTopicInfoOrArray?
+    let profiles: HangerAuthorProfileOrArray?
+    let hangerTopics: HangerTopicInfoOrArray?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -311,7 +311,7 @@ struct HangarPostResponse: Codable {
         case createdAt = "created_at"
         case updatedAt = "updated_at"
         case profiles
-        case hangarTopics = "hangar_topics"
+        case hangerTopics = "hangar_topics"
     }
 
     init(from decoder: Decoder) throws {
@@ -327,11 +327,11 @@ struct HangarPostResponse: Codable {
         imageUrls = try container.decodeIfPresent([String].self, forKey: .imageUrls) ?? []
         createdAt = try container.decode(Date.self, forKey: .createdAt)
         updatedAt = try container.decode(Date.self, forKey: .updatedAt)
-        profiles = try container.decodeIfPresent(HangarAuthorProfileOrArray.self, forKey: .profiles)
-        hangarTopics = try container.decodeIfPresent(HangarTopicInfoOrArray.self, forKey: .hangarTopics)
+        profiles = try container.decodeIfPresent(HangerAuthorProfileOrArray.self, forKey: .profiles)
+        hangerTopics = try container.decodeIfPresent(HangerTopicInfoOrArray.self, forKey: .hangerTopics)
     }
 
-    var profileData: HangarAuthorProfile? {
+    var profileData: HangerAuthorProfile? {
         switch profiles {
         case .single(let profile): return profile
         case .array(let profiles): return profiles.first
@@ -339,16 +339,16 @@ struct HangarPostResponse: Codable {
         }
     }
 
-    var topicData: HangarTopicInfo? {
-        switch hangarTopics {
+    var topicData: HangerTopicInfo? {
+        switch hangerTopics {
         case .single(let topic): return topic
         case .array(let topics): return topics.first
         case .none: return nil
         }
     }
 
-    func toHangarPost() -> HangarPost {
-        HangarPost(
+    func toHangerPost() -> HangerPost {
+        HangerPost(
             id: id,
             topicId: topicId,
             authorId: authorId,
@@ -364,7 +364,7 @@ struct HangarPostResponse: Codable {
     }
 }
 
-struct HangarCommentResponse: Codable {
+struct HangerCommentResponse: Codable {
     let id: UUID
     let postId: UUID
     let parentCommentId: UUID?
@@ -374,7 +374,7 @@ struct HangarCommentResponse: Codable {
     let depth: Int
     let createdAt: Date
     let updatedAt: Date
-    let profiles: HangarAuthorProfileOrArray?
+    let profiles: HangerAuthorProfileOrArray?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -389,7 +389,7 @@ struct HangarCommentResponse: Codable {
         case profiles
     }
 
-    var profileData: HangarAuthorProfile? {
+    var profileData: HangerAuthorProfile? {
         switch profiles {
         case .single(let profile): return profile
         case .array(let profiles): return profiles.first
@@ -397,8 +397,8 @@ struct HangarCommentResponse: Codable {
         }
     }
 
-    func toHangarComment() -> HangarComment {
-        HangarComment(
+    func toHangerComment() -> HangerComment {
+        HangerComment(
             id: id,
             postId: postId,
             parentCommentId: parentCommentId,
@@ -413,15 +413,15 @@ struct HangarCommentResponse: Codable {
 }
 
 // Handles Supabase join returning either a single profile object or an array
-enum HangarAuthorProfileOrArray: Codable {
-    case single(HangarAuthorProfile?)
-    case array([HangarAuthorProfile])
+enum HangerAuthorProfileOrArray: Codable {
+    case single(HangerAuthorProfile?)
+    case array([HangerAuthorProfile])
 
     init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
-        if let array = try? container.decode([HangarAuthorProfile].self) {
+        if let array = try? container.decode([HangerAuthorProfile].self) {
             self = .array(array)
-        } else if let single = try? container.decode(HangarAuthorProfile.self) {
+        } else if let single = try? container.decode(HangerAuthorProfile.self) {
             self = .single(single)
         } else {
             self = .single(nil)
@@ -443,7 +443,7 @@ enum HangarAuthorProfileOrArray: Codable {
     }
 }
 
-struct HangarAuthorProfile: Codable {
+struct HangerAuthorProfile: Codable {
     let id: UUID
     let callSign: String?
     let profilePictureUrl: String?
@@ -466,7 +466,7 @@ struct HangarAuthorProfile: Codable {
 
 // MARK: - Topic Info (from Supabase join)
 
-struct HangarTopicInfo: Codable {
+struct HangerTopicInfo: Codable {
     let name: String
     let iconName: String
     let colorName: String
@@ -480,14 +480,14 @@ struct HangarTopicInfo: Codable {
 
 // MARK: - Activity Feed Models
 
-enum HangarActivityType {
+enum HangerActivityType {
     case newCommentOnFollowedPost
     case replyToFollowedComment
 }
 
-struct HangarActivityItem: Identifiable {
+struct HangerActivityItem: Identifiable {
     let id: UUID
-    let type: HangarActivityType
+    let type: HangerActivityType
     let commentBody: String
     let commentAuthorName: String
     let commentAuthorCallSign: String?
@@ -497,15 +497,15 @@ struct HangarActivityItem: Identifiable {
     let createdAt: Date
 }
 
-struct HangarActivityCommentResponse: Codable {
+struct HangerActivityCommentResponse: Codable {
     let id: UUID
     let postId: UUID
     let parentCommentId: UUID?
     let authorId: UUID
     let body: String
     let createdAt: Date
-    let profiles: HangarAuthorProfileOrArray?
-    let hangarPosts: HangarActivityPostInfo?
+    let profiles: HangerAuthorProfileOrArray?
+    let hangerPosts: HangerActivityPostInfo?
 
     enum CodingKeys: String, CodingKey {
         case id, body
@@ -514,10 +514,10 @@ struct HangarActivityCommentResponse: Codable {
         case authorId = "author_id"
         case createdAt = "created_at"
         case profiles
-        case hangarPosts = "hangar_posts"
+        case hangerPosts = "hangar_posts"
     }
 
-    var profileData: HangarAuthorProfile? {
+    var profileData: HangerAuthorProfile? {
         switch profiles {
         case .single(let p): return p
         case .array(let a): return a.first
@@ -526,20 +526,20 @@ struct HangarActivityCommentResponse: Codable {
     }
 }
 
-struct HangarActivityPostInfo: Codable {
+struct HangerActivityPostInfo: Codable {
     let id: UUID
     let title: String
 }
 
-enum HangarTopicInfoOrArray: Codable {
-    case single(HangarTopicInfo?)
-    case array([HangarTopicInfo])
+enum HangerTopicInfoOrArray: Codable {
+    case single(HangerTopicInfo?)
+    case array([HangerTopicInfo])
 
     init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
-        if let array = try? container.decode([HangarTopicInfo].self) {
+        if let array = try? container.decode([HangerTopicInfo].self) {
             self = .array(array)
-        } else if let single = try? container.decode(HangarTopicInfo.self) {
+        } else if let single = try? container.decode(HangerTopicInfo.self) {
             self = .single(single)
         } else {
             self = .single(nil)

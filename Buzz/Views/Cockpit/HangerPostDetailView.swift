@@ -1,5 +1,5 @@
 //
-//  HangarPostDetailView.swift
+//  HangerPostDetailView.swift
 //  Buzz
 //
 //  Created by Xinyu Fang on 2/7/26.
@@ -9,7 +9,7 @@ import SwiftUI
 
 // MARK: - Time Ago Helper
 
-func hangarTimeAgo(_ date: Date) -> String {
+func hangerTimeAgo(_ date: Date) -> String {
     let seconds = Int(Date().timeIntervalSince(date))
     if seconds < 60 { return "Just Now" }
     let minutes = seconds / 60
@@ -26,21 +26,21 @@ func hangarTimeAgo(_ date: Date) -> String {
     return "\(years)y"
 }
 
-struct HangarPostDetailView: View {
+struct HangerPostDetailView: View {
     @EnvironmentObject var authService: AuthService
     @Environment(\.dismiss) var dismiss
-    @StateObject private var hangarService = HangarHelpService()
-    let postWithAuthor: HangarPostWithAuthor
+    @StateObject private var hangerService = HangerHelpService()
+    let postWithAuthor: HangerPostWithAuthor
     let topicName: String
     @State private var replyText = ""
-    @State private var replyingToComment: HangarCommentWithAuthor?
+    @State private var replyingToComment: HangerCommentWithAuthor?
     @FocusState private var isReplyFocused: Bool
     @State private var showDeleteConfirmation = false
     @State private var showEditSheet = false
     @State private var showDeleteCommentConfirmation = false
     @State private var commentToDelete: UUID?
     @State private var showEditCommentSheet = false
-    @State private var commentToEdit: HangarCommentWithAuthor?
+    @State private var commentToEdit: HangerCommentWithAuthor?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -71,7 +71,7 @@ struct HangarPostDetailView: View {
                     Button {
                         guard let userId = authService.activeUserId else { return }
                         Task {
-                            try? await hangarService.toggleFollowPost(postId: postWithAuthor.id, userId: userId)
+                            try? await hangerService.toggleFollowPost(postId: postWithAuthor.id, userId: userId)
                         }
                     } label: {
                         if postWithAuthor.isFollowedByCurrentUser {
@@ -84,7 +84,7 @@ struct HangarPostDetailView: View {
                     Button {
                         guard let userId = authService.activeUserId else { return }
                         Task {
-                            try? await hangarService.toggleSavePost(postId: postWithAuthor.id, userId: userId)
+                            try? await hangerService.toggleSavePost(postId: postWithAuthor.id, userId: userId)
                         }
                     } label: {
                         if postWithAuthor.isSavedByCurrentUser {
@@ -97,7 +97,7 @@ struct HangarPostDetailView: View {
                     Button {
                         guard let userId = authService.activeUserId else { return }
                         Task {
-                            try? await hangarService.toggleHidePost(postId: postWithAuthor.id, userId: userId)
+                            try? await hangerService.toggleHidePost(postId: postWithAuthor.id, userId: userId)
                             dismiss()
                         }
                     } label: {
@@ -130,7 +130,7 @@ struct HangarPostDetailView: View {
             Button("Cancel", role: .cancel) { }
             Button("Delete", role: .destructive) {
                 Task {
-                    try? await hangarService.deletePost(postId: postWithAuthor.id)
+                    try? await hangerService.deletePost(postId: postWithAuthor.id)
                     dismiss()
                 }
             }
@@ -139,7 +139,7 @@ struct HangarPostDetailView: View {
         }
         .sheet(isPresented: $showEditSheet) {
             NavigationView {
-                HangarEditPostView(
+                HangerEditPostView(
                     postId: postWithAuthor.id,
                     initialTitle: postWithAuthor.post.title,
                     initialBody: postWithAuthor.post.body,
@@ -155,9 +155,9 @@ struct HangarPostDetailView: View {
             Button("Delete", role: .destructive) {
                 if let commentId = commentToDelete {
                     Task {
-                        try? await hangarService.deleteComment(commentId: commentId)
+                        try? await hangerService.deleteComment(commentId: commentId)
                         guard let userId = authService.activeUserId else { return }
-                        await hangarService.fetchComments(postId: postWithAuthor.id, currentUserId: userId)
+                        await hangerService.fetchComments(postId: postWithAuthor.id, currentUserId: userId)
                     }
                 }
                 commentToDelete = nil
@@ -168,7 +168,7 @@ struct HangarPostDetailView: View {
         .sheet(isPresented: $showEditCommentSheet) {
             if let editComment = commentToEdit {
                 NavigationView {
-                    HangarEditCommentView(
+                    HangerEditCommentView(
                         commentId: editComment.id,
                         initialBody: editComment.comment.body,
                         onSaved: {
@@ -176,7 +176,7 @@ struct HangarPostDetailView: View {
                             commentToEdit = nil
                             Task {
                                 guard let userId = authService.activeUserId else { return }
-                                await hangarService.fetchComments(postId: postWithAuthor.id, currentUserId: userId)
+                                await hangerService.fetchComments(postId: postWithAuthor.id, currentUserId: userId)
                             }
                         }
                     )
@@ -186,11 +186,11 @@ struct HangarPostDetailView: View {
         }
         .task {
             guard let userId = authService.activeUserId else { return }
-            await hangarService.fetchComments(postId: postWithAuthor.id, currentUserId: userId)
+            await hangerService.fetchComments(postId: postWithAuthor.id, currentUserId: userId)
         }
         .refreshable {
             guard let userId = authService.activeUserId else { return }
-            await hangarService.fetchComments(postId: postWithAuthor.id, currentUserId: userId)
+            await hangerService.fetchComments(postId: postWithAuthor.id, currentUserId: userId)
         }
     }
 
@@ -220,7 +220,7 @@ struct HangarPostDetailView: View {
                         .font(.subheadline)
                         .fontWeight(.semibold)
 
-                    Text(hangarTimeAgo(postWithAuthor.post.createdAt))
+                    Text(hangerTimeAgo(postWithAuthor.post.createdAt))
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -244,7 +244,7 @@ struct HangarPostDetailView: View {
 
             // Image carousel
             if !postWithAuthor.imageUrls.isEmpty {
-                HangarImageCarousel(imageUrls: postWithAuthor.imageUrls, height: 300)
+                HangerImageCarousel(imageUrls: postWithAuthor.imageUrls, height: 300)
             }
 
             // Body
@@ -259,7 +259,7 @@ struct HangarPostDetailView: View {
                 Button {
                     guard let userId = authService.activeUserId else { return }
                     Task {
-                        try? await hangarService.togglePostLike(postId: postWithAuthor.id, userId: userId)
+                        try? await hangerService.togglePostLike(postId: postWithAuthor.id, userId: userId)
                     }
                 } label: {
                     HStack(spacing: 4) {
@@ -287,11 +287,11 @@ struct HangarPostDetailView: View {
 
     private var commentsSection: some View {
         VStack(alignment: .leading, spacing: 0) {
-            if hangarService.isLoading {
+            if hangerService.isLoading {
                 ProgressView()
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 30)
-            } else if hangarService.comments.isEmpty {
+            } else if hangerService.comments.isEmpty {
                 Text("No comments yet. Be the first to reply!")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
@@ -299,8 +299,8 @@ struct HangarPostDetailView: View {
                     .padding()
                     .padding(.vertical, 20)
             } else {
-                ForEach(Array(hangarService.comments.enumerated()), id: \.element.id) { index, comment in
-                    HangarCommentRow(
+                ForEach(Array(hangerService.comments.enumerated()), id: \.element.id) { index, comment in
+                    HangerCommentRow(
                         comment: comment,
                         currentUserId: authService.activeUserId,
                         onReply: {
@@ -310,22 +310,22 @@ struct HangarPostDetailView: View {
                         onLike: {
                             guard let userId = authService.activeUserId else { return }
                             Task {
-                                try? await hangarService.toggleCommentLike(commentId: comment.id, userId: userId)
-                                await hangarService.fetchComments(postId: postWithAuthor.id, currentUserId: userId)
+                                try? await hangerService.toggleCommentLike(commentId: comment.id, userId: userId)
+                                await hangerService.fetchComments(postId: postWithAuthor.id, currentUserId: userId)
                             }
                         },
                         onSave: {
                             guard let userId = authService.activeUserId else { return }
                             Task {
-                                try? await hangarService.toggleSaveComment(commentId: comment.id, userId: userId)
-                                await hangarService.fetchComments(postId: postWithAuthor.id, currentUserId: userId)
+                                try? await hangerService.toggleSaveComment(commentId: comment.id, userId: userId)
+                                await hangerService.fetchComments(postId: postWithAuthor.id, currentUserId: userId)
                             }
                         },
                         onFollow: {
                             guard let userId = authService.activeUserId else { return }
                             Task {
-                                try? await hangarService.toggleFollowComment(commentId: comment.id, userId: userId)
-                                await hangarService.fetchComments(postId: postWithAuthor.id, currentUserId: userId)
+                                try? await hangerService.toggleFollowComment(commentId: comment.id, userId: userId)
+                                await hangerService.fetchComments(postId: postWithAuthor.id, currentUserId: userId)
                             }
                         },
                         onEdit: { commentToEdit in
@@ -340,7 +340,7 @@ struct HangarPostDetailView: View {
                     .padding()
 
                     // Gray gap between comments (not after last one)
-                    if index < hangarService.comments.count - 1 {
+                    if index < hangerService.comments.count - 1 {
                         Rectangle()
                             .fill(Color(.systemGroupedBackground))
                             .frame(height: 8)
@@ -408,7 +408,7 @@ struct HangarPostDetailView: View {
         let depth = replyingToComment != nil ? min((replyingToComment?.comment.depth ?? 0) + 1, 3) : 0
 
         do {
-            try await hangarService.createComment(
+            try await hangerService.createComment(
                 postId: postWithAuthor.id,
                 parentCommentId: parentId,
                 authorId: userId,
@@ -417,7 +417,7 @@ struct HangarPostDetailView: View {
             )
             replyText = ""
             replyingToComment = nil
-            await hangarService.fetchComments(postId: postWithAuthor.id, currentUserId: userId)
+            await hangerService.fetchComments(postId: postWithAuthor.id, currentUserId: userId)
         } catch {
             // Error is handled by the service's errorMessage
         }
@@ -426,14 +426,14 @@ struct HangarPostDetailView: View {
 
 // MARK: - Comment Row (Recursive for threading)
 
-struct HangarCommentRow: View {
-    let comment: HangarCommentWithAuthor
+struct HangerCommentRow: View {
+    let comment: HangerCommentWithAuthor
     let currentUserId: UUID?
     let onReply: () -> Void
     let onLike: () -> Void
     let onSave: () -> Void
     let onFollow: () -> Void
-    let onEdit: (HangarCommentWithAuthor) -> Void
+    let onEdit: (HangerCommentWithAuthor) -> Void
     let onDelete: (UUID) -> Void
 
     private var isOwnComment: Bool {
@@ -464,7 +464,7 @@ struct HangarCommentRow: View {
                         .font(.subheadline)
                         .fontWeight(.semibold)
 
-                    Text(hangarTimeAgo(comment.comment.createdAt))
+                    Text(hangerTimeAgo(comment.comment.createdAt))
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -541,7 +541,7 @@ struct HangarCommentRow: View {
             if !comment.replies.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
                     ForEach(comment.replies) { reply in
-                        HangarCommentRow(
+                        HangerCommentRow(
                             comment: reply,
                             currentUserId: currentUserId,
                             onReply: onReply,

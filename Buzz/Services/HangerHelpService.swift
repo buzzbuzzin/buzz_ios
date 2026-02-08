@@ -1,5 +1,5 @@
 //
-//  HangarHelpService.swift
+//  HangerHelpService.swift
 //  Buzz
 //
 //  Created by Xinyu Fang on 2/7/26.
@@ -11,14 +11,14 @@ import Combine
 import UIKit
 
 @MainActor
-class HangarHelpService: ObservableObject {
-    @Published var topics: [HangarTopic] = []
-    @Published var posts: [HangarPostWithAuthor] = []
-    @Published var comments: [HangarCommentWithAuthor] = []
+class HangerHelpService: ObservableObject {
+    @Published var topics: [HangerTopic] = []
+    @Published var posts: [HangerPostWithAuthor] = []
+    @Published var comments: [HangerCommentWithAuthor] = []
     @Published var hiddenPostIds: Set<UUID> = []
-    @Published var savedPosts: [HangarPostWithAuthor] = []
-    @Published var savedComments: [HangarCommentWithAuthor] = []
-    @Published var activityItems: [HangarActivityItem] = []
+    @Published var savedPosts: [HangerPostWithAuthor] = []
+    @Published var savedComments: [HangerCommentWithAuthor] = []
+    @Published var activityItems: [HangerActivityItem] = []
     @Published var hasNewActivity: Bool = false
     @Published var isLoading = false
     @Published var errorMessage: String?
@@ -40,7 +40,7 @@ class HangarHelpService: ObservableObject {
         }
 
         do {
-            let fetchedTopics: [HangarTopic] = try await supabase
+            let fetchedTopics: [HangerTopic] = try await supabase
                 .from("hangar_topics")
                 .select()
                 .eq("is_active", value: true)
@@ -70,7 +70,7 @@ class HangarHelpService: ObservableObject {
         }
 
         do {
-            let response: [HangarPostResponse] = try await supabase
+            let response: [HangerPostResponse] = try await supabase
                 .from("hangar_posts")
                 .select("*, profiles(id, call_sign, profile_picture_url, first_name, last_name), hangar_topics(name, icon_name, color_name)")
                 .order("created_at", ascending: false)
@@ -84,7 +84,7 @@ class HangarHelpService: ObservableObject {
             var hiddenIds: Set<UUID> = []
 
             if !response.isEmpty {
-                let userLikes: [HangarLike] = try await supabase
+                let userLikes: [HangerLike] = try await supabase
                     .from("hangar_likes")
                     .select()
                     .eq("user_id", value: currentUserId.uuidString)
@@ -92,7 +92,7 @@ class HangarHelpService: ObservableObject {
                     .value
                 likedPostIds = Set(userLikes.compactMap { $0.postId })
 
-                let userSaves: [HangarSavedPost] = try await supabase
+                let userSaves: [HangerSavedPost] = try await supabase
                     .from("hangar_saved_posts")
                     .select()
                     .eq("user_id", value: currentUserId.uuidString)
@@ -100,7 +100,7 @@ class HangarHelpService: ObservableObject {
                     .value
                 savedPostIds = Set(userSaves.map { $0.postId })
 
-                let userFollows: [HangarFollowedPost] = try await supabase
+                let userFollows: [HangerFollowedPost] = try await supabase
                     .from("hangar_followed_posts")
                     .select()
                     .eq("user_id", value: currentUserId.uuidString)
@@ -108,7 +108,7 @@ class HangarHelpService: ObservableObject {
                     .value
                 followedPostIds = Set(userFollows.map { $0.postId })
 
-                let userHidden: [HangarHiddenPost] = try await supabase
+                let userHidden: [HangerHiddenPost] = try await supabase
                     .from("hangar_hidden_posts")
                     .select()
                     .eq("user_id", value: currentUserId.uuidString)
@@ -122,9 +122,9 @@ class HangarHelpService: ObservableObject {
             posts = response.map { resp in
                 let profile = resp.profileData
                 let topic = resp.topicData
-                return HangarPostWithAuthor(
+                return HangerPostWithAuthor(
                     id: resp.id,
-                    post: resp.toHangarPost(),
+                    post: resp.toHangerPost(),
                     authorCallSign: profile?.callSign,
                     authorProfilePictureUrl: profile?.profilePictureUrl,
                     authorFullName: profile?.fullName ?? "Pilot",
@@ -159,7 +159,7 @@ class HangarHelpService: ObservableObject {
         }
 
         do {
-            let response: [HangarPostResponse] = try await supabase
+            let response: [HangerPostResponse] = try await supabase
                 .from("hangar_posts")
                 .select("*, profiles(id, call_sign, profile_picture_url, first_name, last_name), hangar_topics(name, icon_name, color_name)")
                 .eq("topic_id", value: topicId.uuidString)
@@ -174,7 +174,7 @@ class HangarHelpService: ObservableObject {
             var followedPostIds: Set<UUID> = []
 
             if !response.isEmpty {
-                let userLikes: [HangarLike] = try await supabase
+                let userLikes: [HangerLike] = try await supabase
                     .from("hangar_likes")
                     .select()
                     .eq("user_id", value: currentUserId.uuidString)
@@ -182,7 +182,7 @@ class HangarHelpService: ObservableObject {
                     .value
                 likedPostIds = Set(userLikes.compactMap { $0.postId })
 
-                let userSaves: [HangarSavedPost] = try await supabase
+                let userSaves: [HangerSavedPost] = try await supabase
                     .from("hangar_saved_posts")
                     .select()
                     .eq("user_id", value: currentUserId.uuidString)
@@ -190,7 +190,7 @@ class HangarHelpService: ObservableObject {
                     .value
                 savedPostIds = Set(userSaves.map { $0.postId })
 
-                let userFollows: [HangarFollowedPost] = try await supabase
+                let userFollows: [HangerFollowedPost] = try await supabase
                     .from("hangar_followed_posts")
                     .select()
                     .eq("user_id", value: currentUserId.uuidString)
@@ -202,9 +202,9 @@ class HangarHelpService: ObservableObject {
             posts = response.map { resp in
                 let profile = resp.profileData
                 let topic = resp.topicData
-                return HangarPostWithAuthor(
+                return HangerPostWithAuthor(
                     id: resp.id,
-                    post: resp.toHangarPost(),
+                    post: resp.toHangerPost(),
                     authorCallSign: profile?.callSign,
                     authorProfilePictureUrl: profile?.profilePictureUrl,
                     authorFullName: profile?.fullName ?? "Pilot",
@@ -239,7 +239,7 @@ class HangarHelpService: ObservableObject {
         }
 
         do {
-            let response: [HangarCommentResponse] = try await supabase
+            let response: [HangerCommentResponse] = try await supabase
                 .from("hangar_comments")
                 .select("*, profiles(id, call_sign, profile_picture_url, first_name, last_name)")
                 .eq("post_id", value: postId.uuidString)
@@ -253,7 +253,7 @@ class HangarHelpService: ObservableObject {
             var followedCommentIds: Set<UUID> = []
 
             if !response.isEmpty {
-                let userLikes: [HangarLike] = try await supabase
+                let userLikes: [HangerLike] = try await supabase
                     .from("hangar_likes")
                     .select()
                     .eq("user_id", value: currentUserId.uuidString)
@@ -261,7 +261,7 @@ class HangarHelpService: ObservableObject {
                     .value
                 likedCommentIds = Set(userLikes.compactMap { $0.commentId })
 
-                let userSaves: [HangarSavedComment] = try await supabase
+                let userSaves: [HangerSavedComment] = try await supabase
                     .from("hangar_saved_comments")
                     .select()
                     .eq("user_id", value: currentUserId.uuidString)
@@ -269,7 +269,7 @@ class HangarHelpService: ObservableObject {
                     .value
                 savedCommentIds = Set(userSaves.map { $0.commentId })
 
-                let userFollows: [HangarFollowedComment] = try await supabase
+                let userFollows: [HangerFollowedComment] = try await supabase
                     .from("hangar_followed_comments")
                     .select()
                     .eq("user_id", value: currentUserId.uuidString)
@@ -280,9 +280,9 @@ class HangarHelpService: ObservableObject {
 
             let flatComments = response.map { resp in
                 let profile = resp.profileData
-                return HangarCommentWithAuthor(
+                return HangerCommentWithAuthor(
                     id: resp.id,
-                    comment: resp.toHangarComment(),
+                    comment: resp.toHangerComment(),
                     authorCallSign: profile?.callSign,
                     authorProfilePictureUrl: profile?.profilePictureUrl,
                     authorFullName: profile?.fullName ?? "Pilot",
@@ -306,7 +306,7 @@ class HangarHelpService: ObservableObject {
     func createPost(topicId: UUID, authorId: UUID, title: String, body: String, imageUrls: [String] = []) async throws {
         if DemoModeManager.shared.isDemoModeEnabled { return }
 
-        let insert = HangarPostInsert(topicId: topicId, authorId: authorId, title: title, body: body, imageUrls: imageUrls)
+        let insert = HangerPostInsert(topicId: topicId, authorId: authorId, title: title, body: body, imageUrls: imageUrls)
 
         try await supabase
             .from("hangar_posts")
@@ -380,7 +380,7 @@ class HangarHelpService: ObservableObject {
     func createComment(postId: UUID, parentCommentId: UUID?, authorId: UUID, body: String, depth: Int) async throws {
         if DemoModeManager.shared.isDemoModeEnabled { return }
 
-        let insert = HangarCommentInsert(
+        let insert = HangerCommentInsert(
             postId: postId,
             parentCommentId: parentCommentId,
             authorId: authorId,
@@ -404,7 +404,7 @@ class HangarHelpService: ObservableObject {
             return
         }
 
-        let existingLikes: [HangarLike] = try await supabase
+        let existingLikes: [HangerLike] = try await supabase
             .from("hangar_likes")
             .select()
             .eq("user_id", value: userId.uuidString)
@@ -435,7 +435,7 @@ class HangarHelpService: ObservableObject {
     func toggleCommentLike(commentId: UUID, userId: UUID) async throws {
         if DemoModeManager.shared.isDemoModeEnabled { return }
 
-        let existingLikes: [HangarLike] = try await supabase
+        let existingLikes: [HangerLike] = try await supabase
             .from("hangar_likes")
             .select()
             .eq("user_id", value: userId.uuidString)
@@ -471,7 +471,7 @@ class HangarHelpService: ObservableObject {
             return
         }
 
-        let existing: [HangarSavedPost] = try await supabase
+        let existing: [HangerSavedPost] = try await supabase
             .from("hangar_saved_posts")
             .select()
             .eq("user_id", value: userId.uuidString)
@@ -512,7 +512,7 @@ class HangarHelpService: ObservableObject {
             return
         }
 
-        let existing: [HangarFollowedPost] = try await supabase
+        let existing: [HangerFollowedPost] = try await supabase
             .from("hangar_followed_posts")
             .select()
             .eq("user_id", value: userId.uuidString)
@@ -555,7 +555,7 @@ class HangarHelpService: ObservableObject {
             return
         }
 
-        let existing: [HangarHiddenPost] = try await supabase
+        let existing: [HangerHiddenPost] = try await supabase
             .from("hangar_hidden_posts")
             .select()
             .eq("user_id", value: userId.uuidString)
@@ -588,7 +588,7 @@ class HangarHelpService: ObservableObject {
     func toggleSaveComment(commentId: UUID, userId: UUID) async throws {
         if DemoModeManager.shared.isDemoModeEnabled { return }
 
-        let existing: [HangarSavedComment] = try await supabase
+        let existing: [HangerSavedComment] = try await supabase
             .from("hangar_saved_comments")
             .select()
             .eq("user_id", value: userId.uuidString)
@@ -619,7 +619,7 @@ class HangarHelpService: ObservableObject {
     func toggleFollowComment(commentId: UUID, userId: UUID) async throws {
         if DemoModeManager.shared.isDemoModeEnabled { return }
 
-        let existing: [HangarFollowedComment] = try await supabase
+        let existing: [HangerFollowedComment] = try await supabase
             .from("hangar_followed_comments")
             .select()
             .eq("user_id", value: userId.uuidString)
@@ -712,7 +712,7 @@ class HangarHelpService: ObservableObject {
 
         do {
             // Get saved post IDs
-            let userSaves: [HangarSavedPost] = try await supabase
+            let userSaves: [HangerSavedPost] = try await supabase
                 .from("hangar_saved_posts")
                 .select()
                 .eq("user_id", value: currentUserId.uuidString)
@@ -727,7 +727,7 @@ class HangarHelpService: ObservableObject {
             }
 
             // Fetch those posts with joins
-            let response: [HangarPostResponse] = try await supabase
+            let response: [HangerPostResponse] = try await supabase
                 .from("hangar_posts")
                 .select("*, profiles(id, call_sign, profile_picture_url, first_name, last_name), hangar_topics(name, icon_name, color_name)")
                 .in("id", values: savedPostIds.map { $0.uuidString })
@@ -735,7 +735,7 @@ class HangarHelpService: ObservableObject {
                 .value
 
             // Fetch user's like state
-            let userLikes: [HangarLike] = try await supabase
+            let userLikes: [HangerLike] = try await supabase
                 .from("hangar_likes")
                 .select()
                 .eq("user_id", value: currentUserId.uuidString)
@@ -744,7 +744,7 @@ class HangarHelpService: ObservableObject {
             let likedPostIds = Set(userLikes.compactMap { $0.postId })
 
             // Fetch follow state
-            let userFollows: [HangarFollowedPost] = try await supabase
+            let userFollows: [HangerFollowedPost] = try await supabase
                 .from("hangar_followed_posts")
                 .select()
                 .eq("user_id", value: currentUserId.uuidString)
@@ -758,9 +758,9 @@ class HangarHelpService: ObservableObject {
             let mappedPosts = response.map { resp in
                 let profile = resp.profileData
                 let topic = resp.topicData
-                return HangarPostWithAuthor(
+                return HangerPostWithAuthor(
                     id: resp.id,
-                    post: resp.toHangarPost(),
+                    post: resp.toHangerPost(),
                     authorCallSign: profile?.callSign,
                     authorProfilePictureUrl: profile?.profilePictureUrl,
                     authorFullName: profile?.fullName ?? "Pilot",
@@ -793,7 +793,7 @@ class HangarHelpService: ObservableObject {
 
         do {
             // Get saved comment IDs
-            let userSaves: [HangarSavedComment] = try await supabase
+            let userSaves: [HangerSavedComment] = try await supabase
                 .from("hangar_saved_comments")
                 .select()
                 .eq("user_id", value: currentUserId.uuidString)
@@ -808,7 +808,7 @@ class HangarHelpService: ObservableObject {
             }
 
             // Fetch those comments with profile joins
-            let response: [HangarCommentResponse] = try await supabase
+            let response: [HangerCommentResponse] = try await supabase
                 .from("hangar_comments")
                 .select("*, profiles(id, call_sign, profile_picture_url, first_name, last_name)")
                 .in("id", values: savedCommentIds.map { $0.uuidString })
@@ -816,7 +816,7 @@ class HangarHelpService: ObservableObject {
                 .value
 
             // Fetch user's like state
-            let userLikes: [HangarLike] = try await supabase
+            let userLikes: [HangerLike] = try await supabase
                 .from("hangar_likes")
                 .select()
                 .eq("user_id", value: currentUserId.uuidString)
@@ -825,7 +825,7 @@ class HangarHelpService: ObservableObject {
             let likedCommentIds = Set(userLikes.compactMap { $0.commentId })
 
             // Fetch follow state
-            let userFollows: [HangarFollowedComment] = try await supabase
+            let userFollows: [HangerFollowedComment] = try await supabase
                 .from("hangar_followed_comments")
                 .select()
                 .eq("user_id", value: currentUserId.uuidString)
@@ -837,9 +837,9 @@ class HangarHelpService: ObservableObject {
 
             let mappedComments = response.map { resp in
                 let profile = resp.profileData
-                return HangarCommentWithAuthor(
+                return HangerCommentWithAuthor(
                     id: resp.id,
-                    comment: resp.toHangarComment(),
+                    comment: resp.toHangerComment(),
                     authorCallSign: profile?.callSign,
                     authorProfilePictureUrl: profile?.profilePictureUrl,
                     authorFullName: profile?.fullName ?? "Pilot",
@@ -869,7 +869,7 @@ class HangarHelpService: ObservableObject {
 
         do {
             // Get followed post IDs
-            let followedPosts: [HangarFollowedPost] = try await supabase
+            let followedPosts: [HangerFollowedPost] = try await supabase
                 .from("hangar_followed_posts")
                 .select()
                 .eq("user_id", value: currentUserId.uuidString)
@@ -878,7 +878,7 @@ class HangarHelpService: ObservableObject {
             let followedPostIds = followedPosts.map { $0.postId }
 
             // Get followed comment IDs
-            let followedComments: [HangarFollowedComment] = try await supabase
+            let followedComments: [HangerFollowedComment] = try await supabase
                 .from("hangar_followed_comments")
                 .select()
                 .eq("user_id", value: currentUserId.uuidString)
@@ -886,11 +886,11 @@ class HangarHelpService: ObservableObject {
                 .value
             let followedCommentIds = followedComments.map { $0.commentId }
 
-            var allItems: [HangarActivityItem] = []
+            var allItems: [HangerActivityItem] = []
 
             // Fetch new comments on followed posts
             if !followedPostIds.isEmpty {
-                let postComments: [HangarActivityCommentResponse] = try await supabase
+                let postComments: [HangerActivityCommentResponse] = try await supabase
                     .from("hangar_comments")
                     .select("id, post_id, parent_comment_id, author_id, body, created_at, profiles(id, call_sign, profile_picture_url, first_name, last_name), hangar_posts!inner(id, title)")
                     .in("post_id", values: followedPostIds.map { $0.uuidString })
@@ -902,8 +902,8 @@ class HangarHelpService: ObservableObject {
 
                 for comment in postComments {
                     let profile = comment.profileData
-                    if let postInfo = comment.hangarPosts {
-                        allItems.append(HangarActivityItem(
+                    if let postInfo = comment.hangerPosts {
+                        allItems.append(HangerActivityItem(
                             id: comment.id,
                             type: .newCommentOnFollowedPost,
                             commentBody: comment.body,
@@ -920,7 +920,7 @@ class HangarHelpService: ObservableObject {
 
             // Fetch replies to followed comments
             if !followedCommentIds.isEmpty {
-                let commentReplies: [HangarActivityCommentResponse] = try await supabase
+                let commentReplies: [HangerActivityCommentResponse] = try await supabase
                     .from("hangar_comments")
                     .select("id, post_id, parent_comment_id, author_id, body, created_at, profiles(id, call_sign, profile_picture_url, first_name, last_name), hangar_posts!inner(id, title)")
                     .in("parent_comment_id", values: followedCommentIds.map { $0.uuidString })
@@ -932,8 +932,8 @@ class HangarHelpService: ObservableObject {
 
                 for comment in commentReplies {
                     let profile = comment.profileData
-                    if let postInfo = comment.hangarPosts {
-                        allItems.append(HangarActivityItem(
+                    if let postInfo = comment.hangerPosts {
+                        allItems.append(HangerActivityItem(
                             id: comment.id,
                             type: .replyToFollowedComment,
                             commentBody: comment.body,
@@ -975,7 +975,7 @@ class HangarHelpService: ObservableObject {
             let lastSeenAt = getActivityLastSeenDate()
 
             // Get followed post IDs
-            let followedPosts: [HangarFollowedPost] = try await supabase
+            let followedPosts: [HangerFollowedPost] = try await supabase
                 .from("hangar_followed_posts")
                 .select()
                 .eq("user_id", value: currentUserId.uuidString)
@@ -984,7 +984,7 @@ class HangarHelpService: ObservableObject {
             let followedPostIds = followedPosts.map { $0.postId }
 
             // Get followed comment IDs
-            let followedComments: [HangarFollowedComment] = try await supabase
+            let followedComments: [HangerFollowedComment] = try await supabase
                 .from("hangar_followed_comments")
                 .select()
                 .eq("user_id", value: currentUserId.uuidString)
@@ -994,7 +994,7 @@ class HangarHelpService: ObservableObject {
 
             // Check for new comments on followed posts
             if !followedPostIds.isEmpty {
-                let newPostComments: [HangarComment] = try await supabase
+                let newPostComments: [HangerComment] = try await supabase
                     .from("hangar_comments")
                     .select()
                     .in("post_id", values: followedPostIds.map { $0.uuidString })
@@ -1012,7 +1012,7 @@ class HangarHelpService: ObservableObject {
 
             // Check for replies to followed comments
             if !followedCommentIds.isEmpty {
-                let newCommentReplies: [HangarComment] = try await supabase
+                let newCommentReplies: [HangerComment] = try await supabase
                     .from("hangar_comments")
                     .select()
                     .in("parent_comment_id", values: followedCommentIds.map { $0.uuidString })
@@ -1051,8 +1051,8 @@ class HangarHelpService: ObservableObject {
 
     // MARK: - Build Comment Tree
 
-    private func buildCommentTree(_ flatComments: [HangarCommentWithAuthor]) -> [HangarCommentWithAuthor] {
-        var commentMap: [UUID: HangarCommentWithAuthor] = [:]
+    private func buildCommentTree(_ flatComments: [HangerCommentWithAuthor]) -> [HangerCommentWithAuthor] {
+        var commentMap: [UUID: HangerCommentWithAuthor] = [:]
         var topLevel: [UUID] = []
 
         for comment in flatComments {
@@ -1072,14 +1072,14 @@ class HangarHelpService: ObservableObject {
 
     // MARK: - Demo Data
 
-    static let demoTopics: [HangarTopic] = [
-        HangarTopic(id: UUID(), name: "Regulations", description: "FAA rules, Part 107, airspace questions", iconName: "book.closed.fill", colorName: "blue", displayOrder: 1, isActive: true, createdAt: Date()),
-        HangarTopic(id: UUID(), name: "Equipment", description: "Drones, cameras, accessories, repairs", iconName: "wrench.and.screwdriver.fill", colorName: "orange", displayOrder: 2, isActive: true, createdAt: Date()),
-        HangarTopic(id: UUID(), name: "Best Practices", description: "Tips, techniques, and flight procedures", iconName: "star.fill", colorName: "yellow", displayOrder: 3, isActive: true, createdAt: Date()),
-        HangarTopic(id: UUID(), name: "Weather", description: "Forecasts, METAR reading, wind advisories", iconName: "cloud.sun.bolt.fill", colorName: "cyan", displayOrder: 4, isActive: true, createdAt: Date()),
-        HangarTopic(id: UUID(), name: "Emergencies", description: "Incident reporting, emergency procedures", iconName: "exclamationmark.triangle.fill", colorName: "red", displayOrder: 5, isActive: true, createdAt: Date()),
-        HangarTopic(id: UUID(), name: "General", description: "Anything else drone-related", iconName: "bubble.left.and.bubble.right.fill", colorName: "green", displayOrder: 6, isActive: true, createdAt: Date())
+    static let demoTopics: [HangerTopic] = [
+        HangerTopic(id: UUID(), name: "Regulations", description: "FAA rules, Part 107, airspace questions", iconName: "book.closed.fill", colorName: "blue", displayOrder: 1, isActive: true, createdAt: Date()),
+        HangerTopic(id: UUID(), name: "Equipment", description: "Drones, cameras, accessories, repairs", iconName: "wrench.and.screwdriver.fill", colorName: "orange", displayOrder: 2, isActive: true, createdAt: Date()),
+        HangerTopic(id: UUID(), name: "Best Practices", description: "Tips, techniques, and flight procedures", iconName: "star.fill", colorName: "yellow", displayOrder: 3, isActive: true, createdAt: Date()),
+        HangerTopic(id: UUID(), name: "Weather", description: "Forecasts, METAR reading, wind advisories", iconName: "cloud.sun.bolt.fill", colorName: "cyan", displayOrder: 4, isActive: true, createdAt: Date()),
+        HangerTopic(id: UUID(), name: "Emergencies", description: "Incident reporting, emergency procedures", iconName: "exclamationmark.triangle.fill", colorName: "red", displayOrder: 5, isActive: true, createdAt: Date()),
+        HangerTopic(id: UUID(), name: "General", description: "Anything else drone-related", iconName: "bubble.left.and.bubble.right.fill", colorName: "green", displayOrder: 6, isActive: true, createdAt: Date())
     ]
 
-    static let demoPosts: [HangarPostWithAuthor] = []
+    static let demoPosts: [HangerPostWithAuthor] = []
 }

@@ -1,5 +1,5 @@
 //
-//  HangarHelpView.swift
+//  HangerHelpView.swift
 //  Buzz
 //
 //  Created by Xinyu Fang on 2/7/26.
@@ -9,27 +9,27 @@ import SwiftUI
 
 // MARK: - View Mode
 
-enum HangarViewMode: String, CaseIterable {
+enum HangerViewMode: String, CaseIterable {
     case latest = "Latest"
     case mostLiked = "Most Liked"
     case saved = "Saved"
     case activity = "Activity"
 }
 
-struct HangarHelpView: View {
+struct HangerHelpView: View {
     @EnvironmentObject var authService: AuthService
-    @StateObject private var hangarService = HangarHelpService()
-    @State private var viewMode: HangarViewMode = .latest
+    @StateObject private var hangerService = HangerHelpService()
+    @State private var viewMode: HangerViewMode = .latest
     @State private var selectedTopicId: UUID?
     @State private var showNewPost = false
 
     // MARK: - Filtered & Sorted Posts
 
-    private var displayedPosts: [HangarPostWithAuthor] {
-        var filtered = hangarService.posts
+    private var displayedPosts: [HangerPostWithAuthor] {
+        var filtered = hangerService.posts
 
         // Filter out hidden posts
-        filtered = filtered.filter { !hangarService.hiddenPostIds.contains($0.id) }
+        filtered = filtered.filter { !hangerService.hiddenPostIds.contains($0.id) }
 
         // Filter by topic
         if let topicId = selectedTopicId {
@@ -71,7 +71,7 @@ struct HangarHelpView: View {
             }
             .padding(.bottom)
         }
-        .navigationTitle("Hangar Help")
+        .navigationTitle("Hanger Help")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
@@ -85,13 +85,13 @@ struct HangarHelpView: View {
         }
         .sheet(isPresented: $showNewPost) {
             NavigationView {
-                HangarNewPostView(
-                    topics: hangarService.topics,
+                HangerNewPostView(
+                    topics: hangerService.topics,
                     onPostCreated: {
                         showNewPost = false
                         Task {
                             guard let userId = authService.activeUserId else { return }
-                            await hangarService.fetchAllPosts(currentUserId: userId)
+                            await hangerService.fetchAllPosts(currentUserId: userId)
                         }
                     }
                 )
@@ -99,19 +99,19 @@ struct HangarHelpView: View {
             }
         }
         .task {
-            await hangarService.fetchTopics()
+            await hangerService.fetchTopics()
             guard let userId = authService.activeUserId else { return }
-            await hangarService.fetchAllPosts(currentUserId: userId)
+            await hangerService.fetchAllPosts(currentUserId: userId)
         }
         .onChange(of: viewMode) { newMode in
             guard let userId = authService.activeUserId else { return }
             Task {
                 switch newMode {
                 case .saved:
-                    await hangarService.fetchSavedPosts(currentUserId: userId)
-                    await hangarService.fetchSavedComments(currentUserId: userId)
+                    await hangerService.fetchSavedPosts(currentUserId: userId)
+                    await hangerService.fetchSavedComments(currentUserId: userId)
                 case .activity:
-                    await hangarService.fetchActivityItems(currentUserId: userId)
+                    await hangerService.fetchActivityItems(currentUserId: userId)
                 default:
                     break
                 }
@@ -121,13 +121,13 @@ struct HangarHelpView: View {
             guard let userId = authService.activeUserId else { return }
             switch viewMode {
             case .latest, .mostLiked:
-                await hangarService.fetchTopics()
-                await hangarService.fetchAllPosts(currentUserId: userId)
+                await hangerService.fetchTopics()
+                await hangerService.fetchAllPosts(currentUserId: userId)
             case .saved:
-                await hangarService.fetchSavedPosts(currentUserId: userId)
-                await hangarService.fetchSavedComments(currentUserId: userId)
+                await hangerService.fetchSavedPosts(currentUserId: userId)
+                await hangerService.fetchSavedComments(currentUserId: userId)
             case .activity:
-                await hangarService.fetchActivityItems(currentUserId: userId)
+                await hangerService.fetchActivityItems(currentUserId: userId)
             }
         }
     }
@@ -137,7 +137,7 @@ struct HangarHelpView: View {
     private var viewModeTabBar: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                ForEach(HangarViewMode.allCases, id: \.self) { mode in
+                ForEach(HangerViewMode.allCases, id: \.self) { mode in
                     Button {
                         viewMode = mode
                     } label: {
@@ -164,7 +164,7 @@ struct HangarHelpView: View {
 
     private var postsFeedSection: some View {
         Group {
-            if hangarService.isLoading {
+            if hangerService.isLoading {
                 ProgressView()
                     .padding(.top, 40)
             } else if displayedPosts.isEmpty {
@@ -178,15 +178,15 @@ struct HangarHelpView: View {
             } else {
                 LazyVStack(spacing: 0) {
                     ForEach(displayedPosts) { postWithAuthor in
-                        NavigationLink(destination: HangarPostDetailView(
+                        NavigationLink(destination: HangerPostDetailView(
                             postWithAuthor: postWithAuthor,
                             topicName: postWithAuthor.topicName
                         ).environmentObject(authService)) {
-                            HangarPostCard(postWithAuthor: postWithAuthor, onLike: {
+                            HangerPostCard(postWithAuthor: postWithAuthor, onLike: {
                                 guard let userId = authService.activeUserId else { return }
                                 Task {
-                                    try? await hangarService.togglePostLike(postId: postWithAuthor.id, userId: userId)
-                                    await hangarService.fetchAllPosts(currentUserId: userId)
+                                    try? await hangerService.togglePostLike(postId: postWithAuthor.id, userId: userId)
+                                    await hangerService.fetchAllPosts(currentUserId: userId)
                                 }
                             })
                         }
@@ -203,7 +203,7 @@ struct HangarHelpView: View {
 
     private var savedSection: some View {
         Group {
-            if hangarService.savedPosts.isEmpty && hangarService.savedComments.isEmpty {
+            if hangerService.savedPosts.isEmpty && hangerService.savedComments.isEmpty {
                 EmptyStateView(
                     icon: "bookmark",
                     title: "No Saved Items",
@@ -212,22 +212,22 @@ struct HangarHelpView: View {
             } else {
                 VStack(alignment: .leading, spacing: 16) {
                     // Saved Posts
-                    if !hangarService.savedPosts.isEmpty {
+                    if !hangerService.savedPosts.isEmpty {
                         Text("Saved Posts")
                             .font(.headline)
                             .padding(.horizontal)
 
                         LazyVStack(spacing: 0) {
-                            ForEach(hangarService.savedPosts) { postWithAuthor in
-                                NavigationLink(destination: HangarPostDetailView(
+                            ForEach(hangerService.savedPosts) { postWithAuthor in
+                                NavigationLink(destination: HangerPostDetailView(
                                     postWithAuthor: postWithAuthor,
                                     topicName: postWithAuthor.topicName
                                 ).environmentObject(authService)) {
-                                    HangarPostCard(postWithAuthor: postWithAuthor, onLike: {
+                                    HangerPostCard(postWithAuthor: postWithAuthor, onLike: {
                                         guard let userId = authService.activeUserId else { return }
                                         Task {
-                                            try? await hangarService.togglePostLike(postId: postWithAuthor.id, userId: userId)
-                                            await hangarService.fetchSavedPosts(currentUserId: userId)
+                                            try? await hangerService.togglePostLike(postId: postWithAuthor.id, userId: userId)
+                                            await hangerService.fetchSavedPosts(currentUserId: userId)
                                         }
                                     })
                                 }
@@ -239,14 +239,14 @@ struct HangarHelpView: View {
                     }
 
                     // Saved Comments
-                    if !hangarService.savedComments.isEmpty {
+                    if !hangerService.savedComments.isEmpty {
                         Text("Saved Comments")
                             .font(.headline)
                             .padding(.horizontal)
 
                         LazyVStack(spacing: 8) {
-                            ForEach(hangarService.savedComments) { commentWithAuthor in
-                                HangarSavedCommentCard(commentWithAuthor: commentWithAuthor)
+                            ForEach(hangerService.savedComments) { commentWithAuthor in
+                                HangerSavedCommentCard(commentWithAuthor: commentWithAuthor)
                             }
                         }
                         .padding(.horizontal)
@@ -260,7 +260,7 @@ struct HangarHelpView: View {
 
     private var activitySection: some View {
         Group {
-            if hangarService.activityItems.isEmpty {
+            if hangerService.activityItems.isEmpty {
                 EmptyStateView(
                     icon: "bell",
                     title: "No Activity Yet",
@@ -268,9 +268,9 @@ struct HangarHelpView: View {
                 )
             } else {
                 LazyVStack(spacing: 0) {
-                    ForEach(hangarService.activityItems) { item in
+                    ForEach(hangerService.activityItems) { item in
                         NavigationLink(destination: activityDestination(for: item)) {
-                            HangarActivityItemCard(item: item)
+                            HangerActivityItemCard(item: item)
                         }
                         .buttonStyle(PlainButtonStyle())
 
@@ -282,11 +282,11 @@ struct HangarHelpView: View {
         }
     }
 
-    private func activityDestination(for item: HangarActivityItem) -> some View {
+    private func activityDestination(for item: HangerActivityItem) -> some View {
         // Navigate to the post detail
-        let dummyPost = HangarPostWithAuthor(
+        let dummyPost = HangerPostWithAuthor(
             id: item.postId,
-            post: HangarPost(
+            post: HangerPost(
                 id: item.postId,
                 topicId: UUID(),
                 authorId: UUID(),
@@ -309,7 +309,7 @@ struct HangarHelpView: View {
             topicColorName: "green",
             imageUrls: []
         )
-        return HangarPostDetailView(
+        return HangerPostDetailView(
             postWithAuthor: dummyPost,
             topicName: ""
         ).environmentObject(authService)
@@ -330,7 +330,7 @@ struct HangarHelpView: View {
                 )
 
                 // Topic pills
-                ForEach(hangarService.topics) { topic in
+                ForEach(hangerService.topics) { topic in
                     TopicFilterPill(
                         name: topic.name,
                         iconName: topic.iconName,
@@ -353,8 +353,8 @@ struct HangarHelpView: View {
 
 // MARK: - Saved Comment Card
 
-struct HangarSavedCommentCard: View {
-    let commentWithAuthor: HangarCommentWithAuthor
+struct HangerSavedCommentCard: View {
+    let commentWithAuthor: HangerCommentWithAuthor
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -380,7 +380,7 @@ struct HangarSavedCommentCard: View {
                         .font(.subheadline)
                         .fontWeight(.semibold)
 
-                    Text(hangarTimeAgo(commentWithAuthor.comment.createdAt))
+                    Text(hangerTimeAgo(commentWithAuthor.comment.createdAt))
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -418,8 +418,8 @@ struct HangarSavedCommentCard: View {
 
 // MARK: - Activity Item Card
 
-struct HangarActivityItemCard: View {
-    let item: HangarActivityItem
+struct HangerActivityItemCard: View {
+    let item: HangerActivityItem
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -468,7 +468,7 @@ struct HangarActivityItemCard: View {
                     .lineLimit(2)
 
                 // Timestamp
-                Text(hangarTimeAgo(item.createdAt))
+                Text(hangerTimeAgo(item.createdAt))
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
