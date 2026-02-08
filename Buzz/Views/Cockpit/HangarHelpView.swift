@@ -7,17 +7,19 @@
 
 import SwiftUI
 
-// MARK: - Sort Mode
+// MARK: - View Mode
 
-enum HangarSortMode: String, CaseIterable {
-    case newest = "Newest"
+enum HangarViewMode: String, CaseIterable {
+    case latest = "Latest"
     case mostLiked = "Most Liked"
+    case saved = "Saved"
+    case activity = "Activity"
 }
 
 struct HangarHelpView: View {
     @EnvironmentObject var authService: AuthService
     @StateObject private var hangarService = HangarHelpService()
-    @State private var sortMode: HangarSortMode = .newest
+    @State private var viewMode: HangarViewMode = .latest
     @State private var selectedTopicId: UUID?
     @State private var showNewPost = false
 
@@ -26,66 +28,45 @@ struct HangarHelpView: View {
     private var displayedPosts: [HangarPostWithAuthor] {
         var filtered = hangarService.posts
 
+        // Filter out hidden posts
+        filtered = filtered.filter { !hangarService.hiddenPostIds.contains($0.id) }
+
         // Filter by topic
         if let topicId = selectedTopicId {
             filtered = filtered.filter { $0.post.topicId == topicId }
         }
 
         // Sort
-        switch sortMode {
-        case .newest:
+        switch viewMode {
+        case .latest:
             return filtered.sorted { $0.post.createdAt > $1.post.createdAt }
         case .mostLiked:
             return filtered.sorted { $0.post.likeCount > $1.post.likeCount }
+        default:
+            return filtered
         }
     }
 
     var body: some View {
         ScrollView {
             VStack(spacing: 16) {
-                // Sort Picker
-                Picker("Sort by", selection: $sortMode) {
-                    ForEach(HangarSortMode.allCases, id: \.self) { mode in
-                        Text(mode.rawValue).tag(mode)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .padding(.horizontal)
+                // View Mode Tab Bar
+                viewModeTabBar
 
-                // Topic Filter Bar
-                topicFilterBar
+                // Content based on view mode
+                switch viewMode {
+                case .latest, .mostLiked:
+                    // Topic Filter Bar
+                    topicFilterBar
 
-                // Posts Feed
-                if hangarService.isLoading {
-                    ProgressView()
-                        .padding(.top, 40)
-                } else if displayedPosts.isEmpty {
-                    EmptyStateView(
-                        icon: "text.bubble",
-                        title: "No Posts Yet",
-                        message: selectedTopicId != nil
-                            ? "No posts in this topic yet. Be the first!"
-                            : "Start a discussion with fellow pilots!"
-                    )
-                } else {
-                    LazyVStack(spacing: 12) {
-                        ForEach(displayedPosts) { postWithAuthor in
-                            NavigationLink(destination: HangarPostDetailView(
-                                postWithAuthor: postWithAuthor,
-                                topicName: postWithAuthor.topicName
-                            ).environmentObject(authService)) {
-                                HangarPostCard(postWithAuthor: postWithAuthor, onLike: {
-                                    guard let userId = authService.activeUserId else { return }
-                                    Task {
-                                        try? await hangarService.togglePostLike(postId: postWithAuthor.id, userId: userId)
-                                        await hangarService.fetchAllPosts(currentUserId: userId)
-                                    }
-                                })
-                            }
-                            .buttonStyle(PlainButtonStyle())
-                        }
-                    }
-                    .padding(.horizontal)
+                    // Posts Feed
+                    postsFeedSection
+
+                case .saved:
+                    savedSection
+
+                case .activity:
+                    activitySection
                 }
             }
             .padding(.bottom)
@@ -122,11 +103,213 @@ struct HangarHelpView: View {
             guard let userId = authService.activeUserId else { return }
             await hangarService.fetchAllPosts(currentUserId: userId)
         }
-        .refreshable {
-            await hangarService.fetchTopics()
+        .onChange(of: viewMode) { newMode in
             guard let userId = authService.activeUserId else { return }
-            await hangarService.fetchAllPosts(currentUserId: userId)
+            Task {
+                switch newMode {
+                case .saved:
+                    await hangarService.fetchSavedPosts(currentUserId: userId)
+                    await hangarService.fetchSavedComments(currentUserId: userId)
+                case .activity:
+                    await hangarService.fetchActivityItems(currentUserId: userId)
+                default:
+                    break
+                }
+            }
         }
+        .refreshable {
+            guard let userId = authService.activeUserId else { return }
+            switch viewMode {
+            case .latest, .mostLiked:
+                await hangarService.fetchTopics()
+                await hangarService.fetchAllPosts(currentUserId: userId)
+            case .saved:
+                await hangarService.fetchSavedPosts(currentUserId: userId)
+                await hangarService.fetchSavedComments(currentUserId: userId)
+            case .activity:
+                await hangarService.fetchActivityItems(currentUserId: userId)
+            }
+        }
+    }
+
+    // MARK: - View Mode Tab Bar
+
+    private var viewModeTabBar: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(HangarViewMode.allCases, id: \.self) { mode in
+                    Button {
+                        viewMode = mode
+                    } label: {
+                        Text(mode.rawValue)
+                            .font(.system(size: 14, weight: .semibold))
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 8)
+                            .background(viewMode == mode ? Color.mint.opacity(0.2) : Color(.tertiarySystemBackground))
+                            .foregroundColor(viewMode == mode ? .mint : .secondary)
+                            .cornerRadius(20)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 20)
+                                    .stroke(viewMode == mode ? Color.mint.opacity(0.5) : Color.clear, lineWidth: 1)
+                            )
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                }
+            }
+            .padding(.horizontal)
+        }
+    }
+
+    // MARK: - Posts Feed Section
+
+    private var postsFeedSection: some View {
+        Group {
+            if hangarService.isLoading {
+                ProgressView()
+                    .padding(.top, 40)
+            } else if displayedPosts.isEmpty {
+                EmptyStateView(
+                    icon: "text.bubble",
+                    title: "No Posts Yet",
+                    message: selectedTopicId != nil
+                        ? "No posts in this topic yet. Be the first!"
+                        : "Start a discussion with fellow pilots!"
+                )
+            } else {
+                LazyVStack(spacing: 12) {
+                    ForEach(displayedPosts) { postWithAuthor in
+                        NavigationLink(destination: HangarPostDetailView(
+                            postWithAuthor: postWithAuthor,
+                            topicName: postWithAuthor.topicName
+                        ).environmentObject(authService)) {
+                            HangarPostCard(postWithAuthor: postWithAuthor, onLike: {
+                                guard let userId = authService.activeUserId else { return }
+                                Task {
+                                    try? await hangarService.togglePostLike(postId: postWithAuthor.id, userId: userId)
+                                    await hangarService.fetchAllPosts(currentUserId: userId)
+                                }
+                            })
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                    }
+                }
+                .padding(.horizontal)
+            }
+        }
+    }
+
+    // MARK: - Saved Section
+
+    private var savedSection: some View {
+        Group {
+            if hangarService.savedPosts.isEmpty && hangarService.savedComments.isEmpty {
+                EmptyStateView(
+                    icon: "bookmark",
+                    title: "No Saved Items",
+                    message: "Save posts and comments to find them here later."
+                )
+            } else {
+                VStack(alignment: .leading, spacing: 16) {
+                    // Saved Posts
+                    if !hangarService.savedPosts.isEmpty {
+                        Text("Saved Posts")
+                            .font(.headline)
+                            .padding(.horizontal)
+
+                        LazyVStack(spacing: 12) {
+                            ForEach(hangarService.savedPosts) { postWithAuthor in
+                                NavigationLink(destination: HangarPostDetailView(
+                                    postWithAuthor: postWithAuthor,
+                                    topicName: postWithAuthor.topicName
+                                ).environmentObject(authService)) {
+                                    HangarPostCard(postWithAuthor: postWithAuthor, onLike: {
+                                        guard let userId = authService.activeUserId else { return }
+                                        Task {
+                                            try? await hangarService.togglePostLike(postId: postWithAuthor.id, userId: userId)
+                                            await hangarService.fetchSavedPosts(currentUserId: userId)
+                                        }
+                                    })
+                                }
+                                .buttonStyle(PlainButtonStyle())
+                            }
+                        }
+                        .padding(.horizontal)
+                    }
+
+                    // Saved Comments
+                    if !hangarService.savedComments.isEmpty {
+                        Text("Saved Comments")
+                            .font(.headline)
+                            .padding(.horizontal)
+
+                        LazyVStack(spacing: 8) {
+                            ForEach(hangarService.savedComments) { commentWithAuthor in
+                                HangarSavedCommentCard(commentWithAuthor: commentWithAuthor)
+                            }
+                        }
+                        .padding(.horizontal)
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: - Activity Section
+
+    private var activitySection: some View {
+        Group {
+            if hangarService.activityItems.isEmpty {
+                EmptyStateView(
+                    icon: "bell",
+                    title: "No Activity Yet",
+                    message: "Follow posts and comments to see new activity here."
+                )
+            } else {
+                LazyVStack(spacing: 0) {
+                    ForEach(hangarService.activityItems) { item in
+                        NavigationLink(destination: activityDestination(for: item)) {
+                            HangarActivityItemCard(item: item)
+                        }
+                        .buttonStyle(PlainButtonStyle())
+
+                        Divider()
+                            .padding(.leading, 56)
+                    }
+                }
+            }
+        }
+    }
+
+    private func activityDestination(for item: HangarActivityItem) -> some View {
+        // Navigate to the post detail
+        let dummyPost = HangarPostWithAuthor(
+            id: item.postId,
+            post: HangarPost(
+                id: item.postId,
+                topicId: UUID(),
+                authorId: UUID(),
+                title: item.postTitle,
+                body: "",
+                likeCount: 0,
+                commentCount: 0,
+                isPinned: false,
+                createdAt: Date(),
+                updatedAt: Date()
+            ),
+            authorCallSign: nil,
+            authorProfilePictureUrl: nil,
+            authorFullName: "",
+            isLikedByCurrentUser: false,
+            isSavedByCurrentUser: false,
+            isFollowedByCurrentUser: false,
+            topicName: "",
+            topicIconName: "bubble.left.and.bubble.right.fill",
+            topicColorName: "green"
+        )
+        return HangarPostDetailView(
+            postWithAuthor: dummyPost,
+            topicName: ""
+        ).environmentObject(authService)
     }
 
     // MARK: - Topic Filter Bar
@@ -162,6 +345,135 @@ struct HangarHelpView: View {
             }
             .padding(.horizontal)
         }
+    }
+}
+
+// MARK: - Saved Comment Card
+
+struct HangarSavedCommentCard: View {
+    let commentWithAuthor: HangarCommentWithAuthor
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            // Author row
+            HStack(spacing: 8) {
+                if let urlString = commentWithAuthor.authorProfilePictureUrl,
+                   let url = URL(string: urlString) {
+                    AsyncImage(url: url) { image in
+                        image.resizable().aspectRatio(contentMode: .fill)
+                    } placeholder: {
+                        Circle().fill(Color.gray.opacity(0.3))
+                    }
+                    .frame(width: 28, height: 28)
+                    .clipShape(Circle())
+                } else {
+                    Image(systemName: "person.circle.fill")
+                        .font(.system(size: 28))
+                        .foregroundColor(.secondary)
+                }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(commentWithAuthor.authorCallSign ?? commentWithAuthor.authorFullName)
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+
+                    Text(hangarTimeAgo(commentWithAuthor.comment.createdAt))
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+
+                Spacer()
+
+                Image(systemName: "bookmark.fill")
+                    .font(.caption)
+                    .foregroundColor(.mint)
+            }
+
+            // Comment body
+            Text(commentWithAuthor.comment.body)
+                .font(.subheadline)
+                .foregroundColor(.primary)
+                .lineLimit(3)
+                .multilineTextAlignment(.leading)
+
+            // Stats
+            HStack(spacing: 12) {
+                HStack(spacing: 4) {
+                    Image(systemName: "hand.thumbsup")
+                        .font(.caption2)
+                    Text("\(commentWithAuthor.comment.likeCount)")
+                        .font(.caption)
+                }
+                .foregroundColor(.secondary)
+            }
+        }
+        .padding(12)
+        .background(Color(.secondarySystemGroupedBackground))
+        .cornerRadius(12)
+    }
+}
+
+// MARK: - Activity Item Card
+
+struct HangarActivityItemCard: View {
+    let item: HangarActivityItem
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            // Author avatar
+            if let urlString = item.commentAuthorProfilePictureUrl,
+               let url = URL(string: urlString) {
+                AsyncImage(url: url) { image in
+                    image.resizable().aspectRatio(contentMode: .fill)
+                } placeholder: {
+                    Circle().fill(Color.gray.opacity(0.3))
+                }
+                .frame(width: 40, height: 40)
+                .clipShape(Circle())
+            } else {
+                Image(systemName: "person.circle.fill")
+                    .font(.system(size: 40))
+                    .foregroundColor(.secondary)
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                // Activity description
+                Group {
+                    switch item.type {
+                    case .newCommentOnFollowedPost:
+                        Text("\(item.commentAuthorCallSign ?? item.commentAuthorName) ")
+                            .fontWeight(.semibold) +
+                        Text("commented on ") +
+                        Text(item.postTitle)
+                            .fontWeight(.semibold)
+                    case .replyToFollowedComment:
+                        Text("\(item.commentAuthorCallSign ?? item.commentAuthorName) ")
+                            .fontWeight(.semibold) +
+                        Text("replied on ") +
+                        Text(item.postTitle)
+                            .fontWeight(.semibold)
+                    }
+                }
+                .font(.subheadline)
+                .foregroundColor(.primary)
+                .lineLimit(2)
+
+                // Comment body preview
+                Text(item.commentBody)
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .lineLimit(2)
+
+                // Timestamp
+                Text(hangarTimeAgo(item.createdAt))
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+
+            Spacer()
+        }
+        .padding(.horizontal)
+        .padding(.vertical, 10)
     }
 }
 

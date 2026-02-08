@@ -84,6 +84,8 @@ struct HangarPostWithAuthor: Identifiable {
     let authorProfilePictureUrl: String?
     let authorFullName: String
     var isLikedByCurrentUser: Bool
+    var isSavedByCurrentUser: Bool
+    var isFollowedByCurrentUser: Bool
     let topicName: String
     let topicIconName: String
     let topicColorName: String
@@ -142,6 +144,8 @@ struct HangarCommentWithAuthor: Identifiable {
     let authorProfilePictureUrl: String?
     let authorFullName: String
     var isLikedByCurrentUser: Bool
+    var isSavedByCurrentUser: Bool
+    var isFollowedByCurrentUser: Bool
     var replies: [HangarCommentWithAuthor]
 }
 
@@ -158,6 +162,86 @@ struct HangarLike: Codable, Identifiable {
         case id
         case userId = "user_id"
         case postId = "post_id"
+        case commentId = "comment_id"
+        case createdAt = "created_at"
+    }
+}
+
+// MARK: - Hangar Saved Post
+
+struct HangarSavedPost: Codable, Identifiable {
+    let id: UUID
+    let userId: UUID
+    let postId: UUID
+    let createdAt: Date
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case userId = "user_id"
+        case postId = "post_id"
+        case createdAt = "created_at"
+    }
+}
+
+// MARK: - Hangar Followed Post
+
+struct HangarFollowedPost: Codable, Identifiable {
+    let id: UUID
+    let userId: UUID
+    let postId: UUID
+    let createdAt: Date
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case userId = "user_id"
+        case postId = "post_id"
+        case createdAt = "created_at"
+    }
+}
+
+// MARK: - Hangar Hidden Post
+
+struct HangarHiddenPost: Codable, Identifiable {
+    let id: UUID
+    let userId: UUID
+    let postId: UUID
+    let createdAt: Date
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case userId = "user_id"
+        case postId = "post_id"
+        case createdAt = "created_at"
+    }
+}
+
+// MARK: - Hangar Saved Comment
+
+struct HangarSavedComment: Codable, Identifiable {
+    let id: UUID
+    let userId: UUID
+    let commentId: UUID
+    let createdAt: Date
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case userId = "user_id"
+        case commentId = "comment_id"
+        case createdAt = "created_at"
+    }
+}
+
+// MARK: - Hangar Followed Comment
+
+struct HangarFollowedComment: Codable, Identifiable {
+    let id: UUID
+    let userId: UUID
+    let commentId: UUID
+    let createdAt: Date
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case userId = "user_id"
         case commentId = "comment_id"
         case createdAt = "created_at"
     }
@@ -338,6 +422,59 @@ struct HangarTopicInfo: Codable {
         case iconName = "icon_name"
         case colorName = "color_name"
     }
+}
+
+// MARK: - Activity Feed Models
+
+enum HangarActivityType {
+    case newCommentOnFollowedPost
+    case replyToFollowedComment
+}
+
+struct HangarActivityItem: Identifiable {
+    let id: UUID
+    let type: HangarActivityType
+    let commentBody: String
+    let commentAuthorName: String
+    let commentAuthorCallSign: String?
+    let commentAuthorProfilePictureUrl: String?
+    let postId: UUID
+    let postTitle: String
+    let createdAt: Date
+}
+
+struct HangarActivityCommentResponse: Codable {
+    let id: UUID
+    let postId: UUID
+    let parentCommentId: UUID?
+    let authorId: UUID
+    let body: String
+    let createdAt: Date
+    let profiles: HangarAuthorProfileOrArray?
+    let hangarPosts: HangarActivityPostInfo?
+
+    enum CodingKeys: String, CodingKey {
+        case id, body
+        case postId = "post_id"
+        case parentCommentId = "parent_comment_id"
+        case authorId = "author_id"
+        case createdAt = "created_at"
+        case profiles
+        case hangarPosts = "hangar_posts"
+    }
+
+    var profileData: HangarAuthorProfile? {
+        switch profiles {
+        case .single(let p): return p
+        case .array(let a): return a.first
+        case .none: return nil
+        }
+    }
+}
+
+struct HangarActivityPostInfo: Codable {
+    let id: UUID
+    let title: String
 }
 
 enum HangarTopicInfoOrArray: Codable {

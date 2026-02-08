@@ -69,19 +69,37 @@ struct HangarPostDetailView: View {
             ToolbarItem(placement: .navigationBarTrailing) {
                 Menu {
                     Button {
-                        // Follow Post action placeholder
+                        guard let userId = authService.activeUserId else { return }
+                        Task {
+                            try? await hangarService.toggleFollowPost(postId: postWithAuthor.id, userId: userId)
+                        }
                     } label: {
-                        Label("Follow Post", systemImage: "bell")
+                        if postWithAuthor.isFollowedByCurrentUser {
+                            Label("Unfollow Post", systemImage: "bell.slash")
+                        } else {
+                            Label("Follow Post", systemImage: "bell")
+                        }
                     }
 
                     Button {
-                        // Save action placeholder
+                        guard let userId = authService.activeUserId else { return }
+                        Task {
+                            try? await hangarService.toggleSavePost(postId: postWithAuthor.id, userId: userId)
+                        }
                     } label: {
-                        Label("Save", systemImage: "bookmark")
+                        if postWithAuthor.isSavedByCurrentUser {
+                            Label("Unsave", systemImage: "bookmark.slash")
+                        } else {
+                            Label("Save", systemImage: "bookmark")
+                        }
                     }
 
                     Button {
-                        // Hide action placeholder
+                        guard let userId = authService.activeUserId else { return }
+                        Task {
+                            try? await hangarService.toggleHidePost(postId: postWithAuthor.id, userId: userId)
+                            dismiss()
+                        }
                     } label: {
                         Label("Hide", systemImage: "eye.slash")
                     }
@@ -288,6 +306,20 @@ struct HangarPostDetailView: View {
                                 await hangarService.fetchComments(postId: postWithAuthor.id, currentUserId: userId)
                             }
                         },
+                        onSave: {
+                            guard let userId = authService.activeUserId else { return }
+                            Task {
+                                try? await hangarService.toggleSaveComment(commentId: comment.id, userId: userId)
+                                await hangarService.fetchComments(postId: postWithAuthor.id, currentUserId: userId)
+                            }
+                        },
+                        onFollow: {
+                            guard let userId = authService.activeUserId else { return }
+                            Task {
+                                try? await hangarService.toggleFollowComment(commentId: comment.id, userId: userId)
+                                await hangarService.fetchComments(postId: postWithAuthor.id, currentUserId: userId)
+                            }
+                        },
                         onEdit: { commentToEdit in
                             self.commentToEdit = commentToEdit
                             showEditCommentSheet = true
@@ -391,6 +423,8 @@ struct HangarCommentRow: View {
     let currentUserId: UUID?
     let onReply: () -> Void
     let onLike: () -> Void
+    let onSave: () -> Void
+    let onFollow: () -> Void
     let onEdit: (HangarCommentWithAuthor) -> Void
     let onDelete: (UUID) -> Void
 
@@ -457,16 +491,20 @@ struct HangarCommentRow: View {
                 }
 
                 Menu {
-                    Button {
-                        // Save comment placeholder
-                    } label: {
-                        Label("Save", systemImage: "bookmark")
+                    Button(action: onSave) {
+                        if comment.isSavedByCurrentUser {
+                            Label("Unsave", systemImage: "bookmark.slash")
+                        } else {
+                            Label("Save", systemImage: "bookmark")
+                        }
                     }
 
-                    Button {
-                        // Follow comment placeholder
-                    } label: {
-                        Label("Follow Comment", systemImage: "bell")
+                    Button(action: onFollow) {
+                        if comment.isFollowedByCurrentUser {
+                            Label("Unfollow Comment", systemImage: "bell.slash")
+                        } else {
+                            Label("Follow Comment", systemImage: "bell")
+                        }
                     }
 
                     if isOwnComment {
@@ -502,6 +540,8 @@ struct HangarCommentRow: View {
                             onLike: {
                                 // Like action is passed through for nested comments
                             },
+                            onSave: onSave,
+                            onFollow: onFollow,
                             onEdit: onEdit,
                             onDelete: onDelete
                         )

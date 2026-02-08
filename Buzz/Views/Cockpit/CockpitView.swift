@@ -15,6 +15,7 @@ struct CockpitView: View {
     @StateObject private var bookingService = BookingService()
     @StateObject private var locationManager = BookingMapLocationManager()
     @State private var hasNearbyBeaconMissions = false
+    @StateObject private var hangarActivityService = HangarHelpService()
     @State private var showChecklistSelection = false
     @State private var showPhoneOptions = false
     @State private var showCharts = false
@@ -415,11 +416,24 @@ struct CockpitView: View {
                                 Button {
                                     showHangarHelp = true
                                 } label: {
-                                    CockpitGridCard(
-                                        title: "Hangar Help",
-                                        icon: "bubble.left.and.bubble.right.fill",
-                                        color: .mint
-                                    )
+                                    ZStack(alignment: .topTrailing) {
+                                        CockpitGridCard(
+                                            title: "Hangar Help",
+                                            icon: "bubble.left.and.bubble.right.fill",
+                                            color: .mint
+                                        )
+
+                                        if hangarActivityService.hasNewActivity {
+                                            Circle()
+                                                .fill(Color.red)
+                                                .frame(width: 18, height: 18)
+                                                .overlay(
+                                                    Circle()
+                                                        .stroke(Color.white, lineWidth: 2.5)
+                                                )
+                                                .offset(x: 6, y: -6)
+                                        }
+                                    }
                                 }
                                 .buttonStyle(PlainButtonStyle())
                             }
@@ -436,6 +450,9 @@ struct CockpitView: View {
             locationManager.requestPermission()
             locationManager.startLocationUpdates()
             await checkForNearbyBeaconMissions()
+            if let userId = authService.activeUserId {
+                await hangarActivityService.checkForNewActivity(currentUserId: userId)
+            }
         }
         .onChange(of: bookingService.availableBookings.count) { _ in
             Task {
@@ -788,7 +805,13 @@ struct CockpitView: View {
                     }
             }
         }
-        .fullScreenCover(isPresented: $showHangarHelp) {
+        .fullScreenCover(isPresented: $showHangarHelp, onDismiss: {
+            Task {
+                if let userId = authService.activeUserId {
+                    await hangarActivityService.checkForNewActivity(currentUserId: userId)
+                }
+            }
+        }) {
             NavigationView {
                 HangarHelpView()
                     .environmentObject(authService)
