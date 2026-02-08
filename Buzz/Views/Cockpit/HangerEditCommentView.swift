@@ -77,7 +77,7 @@ struct HangerEditCommentView: View {
         errorMessage = nil
 
         do {
-            let service = HangerHelpService()
+            let service = HangerTalkService()
             try await service.updateComment(
                 commentId: commentId,
                 body: bodyText.trimmingCharacters(in: .whitespacesAndNewlines)

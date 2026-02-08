@@ -1,5 +1,5 @@
 //
-//  HangerHelpView.swift
+//  HangerTalkView.swift
 //  Buzz
 //
 //  Created by Xinyu Fang on 2/7/26.
@@ -16,9 +16,9 @@ enum HangerViewMode: String, CaseIterable {
     case activity = "Activity"
 }
 
-struct HangerHelpView: View {
+struct HangerTalkView: View {
     @EnvironmentObject var authService: AuthService
-    @StateObject private var hangerService = HangerHelpService()
+    @StateObject private var hangerService = HangerTalkService()
     @State private var viewMode: HangerViewMode = .latest
     @State private var selectedTopicId: UUID?
     @State private var showNewPost = false
@@ -71,7 +71,7 @@ struct HangerHelpView: View {
             }
             .padding(.bottom)
         }
-        .navigationTitle("Hanger Help")
+        .navigationTitle("Hanger Talk")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {

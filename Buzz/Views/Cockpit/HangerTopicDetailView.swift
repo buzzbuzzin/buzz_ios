@@ -9,7 +9,7 @@ import SwiftUI
 
 struct HangerTopicDetailView: View {
     @EnvironmentObject var authService: AuthService
-    @StateObject private var hangerService = HangerHelpService()
+    @StateObject private var hangerService = HangerTalkService()
     let topic: HangerTopic
     @State private var showNewPost = false
 

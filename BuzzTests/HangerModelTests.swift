@@ -2,7 +2,7 @@
 //  HangerModelTests.swift
 //  BuzzTests
 //
-//  Tests for Hanger Help data models: HangerPost, HangerComment,
+//  Tests for Hanger Talk data models: HangerPost, HangerComment,
 //  HangerPostWithAuthor, HangerTopic, Codable conformance, etc.
 //
 

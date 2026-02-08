@@ -15,7 +15,7 @@ struct CockpitView: View {
     @StateObject private var bookingService = BookingService()
     @StateObject private var locationManager = BookingMapLocationManager()
     @State private var hasNearbyBeaconMissions = false
-    @StateObject private var hangerActivityService = HangerHelpService()
+    @StateObject private var hangerTalkActivityService = HangerTalkService()
     @State private var showChecklistSelection = false
     @State private var showPhoneOptions = false
     @State private var showCharts = false
@@ -40,7 +40,7 @@ struct CockpitView: View {
     @State private var showRacer = false
     @State private var showGames = false
     @State private var showFlightPlan = false
-    @State private var showHangerHelp = false
+    @State private var showHangerTalk = false
 
     var body: some View {
         NavigationView {
@@ -260,13 +260,110 @@ struct CockpitView: View {
                             .padding(.horizontal, 16)
                         }
                         
+                        // Community Section
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Community")
+                                .font(.title2)
+                                .fontWeight(.semibold)
+                                .padding(.horizontal, 16)
+
+                            LazyVGrid(columns: columns, spacing: 12) {
+                                // Hanger Talk Card - Using fullScreenCover for stable presentation
+                                Button {
+                                    showHangerTalk = true
+                                } label: {
+                                    ZStack(alignment: .topTrailing) {
+                                        CockpitGridCard(
+                                            title: "Hanger Talk",
+                                            icon: "bubble.left.and.bubble.right.fill",
+                                            color: .mint
+                                        )
+
+                                        if hangerTalkActivityService.hasNewActivity {
+                                            Circle()
+                                                .fill(Color.red)
+                                                .frame(width: 18, height: 18)
+                                                .overlay(
+                                                    Circle()
+                                                        .stroke(Color.white, lineWidth: 2.5)
+                                                )
+                                                .offset(x: 6, y: -6)
+                                        }
+                                    }
+                                }
+                                .buttonStyle(PlainButtonStyle())
+
+                                // Beacon Card - Using fullScreenCover for stable presentation
+                                Button {
+                                    showBeacon = true
+                                } label: {
+                                    ZStack(alignment: .topTrailing) {
+                                        CockpitGridCard(
+                                            title: "Beacon",
+                                            icon: "antenna.radiowaves.left.and.right",
+                                            color: .yellow
+                                        )
+
+                                        if hasNearbyBeaconMissions {
+                                            Circle()
+                                                .fill(Color.red)
+                                                .frame(width: 18, height: 18)
+                                                .overlay(
+                                                    Circle()
+                                                        .stroke(Color.white, lineWidth: 2.5)
+                                                )
+                                                .offset(x: 6, y: -6)
+                                        }
+                                    }
+                                }
+                                .buttonStyle(PlainButtonStyle())
+
+                                // Games Card - Using fullScreenCover for stable presentation
+                                Button {
+                                    showGames = true
+                                } label: {
+                                    CockpitGridCard(
+                                        title: "Games",
+                                        icon: "gamecontroller.fill",
+                                        color: .blue
+                                    )
+                                }
+                                .buttonStyle(PlainButtonStyle())
+
+                                // Racer Card - Using fullScreenCover for stable presentation
+                                Button {
+                                    showRacer = true
+                                } label: {
+                                    CockpitGridCard(
+                                        title: "Racer",
+                                        icon: "flag.checkered",
+                                        color: .orange
+                                    )
+                                }
+                                .buttonStyle(PlainButtonStyle())
+
+                                // TopGun Card - Using fullScreenCover for stable presentation
+                                Button {
+                                    showTopGun = true
+                                } label: {
+                                    CockpitGridCard(
+                                        title: "TopGun",
+                                        icon: "airplane.circle.fill",
+                                        color: .red
+                                    )
+                                }
+                                .buttonStyle(PlainButtonStyle())
+                            }
+                            .padding(.horizontal, 16)
+                        }
+
                         // General Section
                         VStack(alignment: .leading, spacing: 12) {
                             Text("General")
                                 .font(.title2)
                                 .fontWeight(.semibold)
                                 .padding(.horizontal, 16)
-                            
+
                             LazyVGrid(columns: columns, spacing: 12) {
                                 // Leaderboard Card - Using fullScreenCover for stable presentation
                                 Button {
@@ -342,103 +439,6 @@ struct CockpitView: View {
                             }
                             .padding(.horizontal, 16)
                         }
-                        
-                        // Community Section
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("Community")
-                                .font(.title2)
-                                .fontWeight(.semibold)
-                                .padding(.horizontal, 16)
-                            
-                            LazyVGrid(columns: columns, spacing: 12) {
-                                // Beacon Card - Using fullScreenCover for stable presentation
-                                Button {
-                                    showBeacon = true
-                                } label: {
-                                    ZStack(alignment: .topTrailing) {
-                                        CockpitGridCard(
-                                            title: "Beacon",
-                                            icon: "antenna.radiowaves.left.and.right",
-                                            color: .yellow
-                                        )
-
-                                        if hasNearbyBeaconMissions {
-                                            Circle()
-                                                .fill(Color.red)
-                                                .frame(width: 18, height: 18)
-                                                .overlay(
-                                                    Circle()
-                                                        .stroke(Color.white, lineWidth: 2.5)
-                                                )
-                                                .offset(x: 6, y: -6)
-                                        }
-                                    }
-                                }
-                                .buttonStyle(PlainButtonStyle())
-
-                                // TopGun Card - Using fullScreenCover for stable presentation
-                                Button {
-                                    showTopGun = true
-                                } label: {
-                                    CockpitGridCard(
-                                        title: "TopGun",
-                                        icon: "airplane.circle.fill",
-                                        color: .red
-                                    )
-                                }
-                                .buttonStyle(PlainButtonStyle())
-
-                                // Racer Card - Using fullScreenCover for stable presentation
-                                Button {
-                                    showRacer = true
-                                } label: {
-                                    CockpitGridCard(
-                                        title: "Racer",
-                                        icon: "flag.checkered",
-                                        color: .orange
-                                    )
-                                }
-                                .buttonStyle(PlainButtonStyle())
-
-                                // Games Card - Using fullScreenCover for stable presentation
-                                Button {
-                                    showGames = true
-                                } label: {
-                                    CockpitGridCard(
-                                        title: "Games",
-                                        icon: "gamecontroller.fill",
-                                        color: .blue
-                                    )
-                                }
-                                .buttonStyle(PlainButtonStyle())
-
-                                // Hanger Help Card - Using fullScreenCover for stable presentation
-                                Button {
-                                    showHangerHelp = true
-                                } label: {
-                                    ZStack(alignment: .topTrailing) {
-                                        CockpitGridCard(
-                                            title: "Hanger Help",
-                                            icon: "bubble.left.and.bubble.right.fill",
-                                            color: .mint
-                                        )
-
-                                        if hangerActivityService.hasNewActivity {
-                                            Circle()
-                                                .fill(Color.red)
-                                                .frame(width: 18, height: 18)
-                                                .overlay(
-                                                    Circle()
-                                                        .stroke(Color.white, lineWidth: 2.5)
-                                                )
-                                                .offset(x: 6, y: -6)
-                                        }
-                                    }
-                                }
-                                .buttonStyle(PlainButtonStyle())
-                            }
-                            .padding(.horizontal, 16)
-                        }
                     }
                     .padding(.bottom)
                 }
@@ -451,7 +451,7 @@ struct CockpitView: View {
             locationManager.startLocationUpdates()
             await checkForNearbyBeaconMissions()
             if let userId = authService.activeUserId {
-                await hangerActivityService.checkForNewActivity(currentUserId: userId)
+                await hangerTalkActivityService.checkForNewActivity(currentUserId: userId)
             }
         }
         .onChange(of: bookingService.availableBookings.count) { _ in
@@ -805,20 +805,20 @@ struct CockpitView: View {
                     }
             }
         }
-        .fullScreenCover(isPresented: $showHangerHelp, onDismiss: {
+        .fullScreenCover(isPresented: $showHangerTalk, onDismiss: {
             Task {
                 if let userId = authService.activeUserId {
-                    await hangerActivityService.checkForNewActivity(currentUserId: userId)
+                    await hangerTalkActivityService.checkForNewActivity(currentUserId: userId)
                 }
             }
         }) {
             NavigationView {
-                HangerHelpView()
+                HangerTalkView()
                     .environmentObject(authService)
                     .toolbar {
                         ToolbarItem(placement: .navigationBarLeading) {
                             Button {
-                                showHangerHelp = false
+                                showHangerTalk = false
                             } label: {
                                 Image(systemName: "xmark.circle.fill")
                                     .font(.title2)

@@ -2,7 +2,7 @@
 //  HangerTestHelpers.swift
 //  BuzzTests
 //
-//  Sample data factories and utilities for Hanger Help tests.
+//  Sample data factories and utilities for Hanger Talk tests.
 //
 
 import XCTest

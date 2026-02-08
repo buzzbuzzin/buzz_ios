@@ -29,7 +29,7 @@ func hangerTimeAgo(_ date: Date) -> String {
 struct HangerPostDetailView: View {
     @EnvironmentObject var authService: AuthService
     @Environment(\.dismiss) var dismiss
-    @StateObject private var hangerService = HangerHelpService()
+    @StateObject private var hangerService = HangerTalkService()
     let postWithAuthor: HangerPostWithAuthor
     let topicName: String
     @State private var replyText = ""

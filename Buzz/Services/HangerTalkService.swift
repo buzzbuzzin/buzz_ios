@@ -1,5 +1,5 @@
 //
-//  HangerHelpService.swift
+//  HangerTalkService.swift
 //  Buzz
 //
 //  Created by Xinyu Fang on 2/7/26.
@@ -11,7 +11,7 @@ import Combine
 import UIKit
 
 @MainActor
-class HangerHelpService: ObservableObject {
+class HangerTalkService: ObservableObject {
     @Published var topics: [HangerTopic] = []
     @Published var posts: [HangerPostWithAuthor] = []
     @Published var comments: [HangerCommentWithAuthor] = []

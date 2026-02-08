@@ -230,7 +230,7 @@ struct HangerEditPostView: View {
         errorMessage = nil
 
         do {
-            let service = HangerHelpService()
+            let service = HangerTalkService()
 
             // Upload new images if any
             var allImageUrls = existingImageUrls

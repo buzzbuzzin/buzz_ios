@@ -274,7 +274,7 @@ struct HangerNewPostView: View {
         errorMessage = nil
 
         do {
-            let service = HangerHelpService()
+            let service = HangerTalkService()
 
             // Upload images if any
             var imageUrls: [String] = []
