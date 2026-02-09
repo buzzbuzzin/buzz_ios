@@ -1,5 +1,5 @@
 //
-//  HangerTalkView.swift
+//  HangerHelpView.swift
 //  Buzz
 //
 //  Created by Xinyu Fang on 2/7/26.
@@ -9,17 +9,17 @@ import SwiftUI
 
 // MARK: - View Mode
 
-enum HangerViewMode: String, CaseIterable {
+enum HangerHelpViewMode: String, CaseIterable {
     case latest = "Latest"
     case mostLiked = "Most Liked"
     case saved = "Saved"
     case activity = "Activity"
 }
 
-struct HangerTalkView: View {
+struct HangerHelpView: View {
     @EnvironmentObject var authService: AuthService
-    @StateObject private var hangerService = HangerTalkService()
-    @State private var viewMode: HangerViewMode = .latest
+    @StateObject private var hangerService = HangerHelpService()
+    @State private var viewMode: HangerHelpViewMode = .latest
     @State private var selectedTopicId: UUID?
     @State private var showNewPost = false
     @State private var menuPost: HangerPostWithAuthor?
@@ -74,7 +74,7 @@ struct HangerTalkView: View {
             }
             .padding(.bottom)
         }
-        .navigationTitle("Hanger Talk")
+        .navigationTitle("Hanger Help")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
@@ -88,7 +88,7 @@ struct HangerTalkView: View {
         }
         .sheet(isPresented: $showNewPost) {
             NavigationView {
-                HangerNewPostView(
+                HangerHelpNewPostView(
                     topics: hangerService.topics,
                     onPostCreated: {
                         showNewPost = false
@@ -153,7 +153,7 @@ struct HangerTalkView: View {
         .sheet(isPresented: $showEditPostSheet) {
             if let post = menuPost {
                 NavigationView {
-                    HangerEditPostView(
+                    HangerHelpEditPostView(
                         postId: post.id,
                         initialTitle: post.post.title,
                         initialBody: post.post.body,
@@ -170,7 +170,7 @@ struct HangerTalkView: View {
     private var viewModeTabBar: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                ForEach(HangerViewMode.allCases, id: \.self) { mode in
+                ForEach(HangerHelpViewMode.allCases, id: \.self) { mode in
                     Button {
                         viewMode = mode
                     } label: {
@@ -211,11 +211,11 @@ struct HangerTalkView: View {
             } else {
                 LazyVStack(spacing: 0) {
                     ForEach(displayedPosts) { postWithAuthor in
-                        NavigationLink(destination: HangerPostDetailView(
+                        NavigationLink(destination: HangerHelpPostDetailView(
                             postWithAuthor: postWithAuthor,
                             topicName: postWithAuthor.topicName
                         ).environmentObject(authService)) {
-                            HangerPostCard(postWithAuthor: postWithAuthor, onLike: {
+                            HangerHelpPostCard(postWithAuthor: postWithAuthor, onLike: {
                                 guard let userId = authService.activeUserId else { return }
                                 Task {
                                     try? await hangerService.togglePostLike(postId: postWithAuthor.id, userId: userId)
@@ -276,11 +276,11 @@ struct HangerTalkView: View {
 
                         LazyVStack(spacing: 0) {
                             ForEach(hangerService.savedPosts) { postWithAuthor in
-                                NavigationLink(destination: HangerPostDetailView(
+                                NavigationLink(destination: HangerHelpPostDetailView(
                                     postWithAuthor: postWithAuthor,
                                     topicName: postWithAuthor.topicName
                                 ).environmentObject(authService)) {
-                                    HangerPostCard(postWithAuthor: postWithAuthor, onLike: {
+                                    HangerHelpPostCard(postWithAuthor: postWithAuthor, onLike: {
                                         guard let userId = authService.activeUserId else { return }
                                         Task {
                                             try? await hangerService.togglePostLike(postId: postWithAuthor.id, userId: userId)
@@ -327,7 +327,7 @@ struct HangerTalkView: View {
 
                         LazyVStack(spacing: 8) {
                             ForEach(hangerService.savedComments) { commentWithAuthor in
-                                HangerSavedCommentCard(commentWithAuthor: commentWithAuthor)
+                                HangerHelpSavedCommentCard(commentWithAuthor: commentWithAuthor)
                             }
                         }
                         .padding(.horizontal)
@@ -351,7 +351,7 @@ struct HangerTalkView: View {
                 LazyVStack(spacing: 0) {
                     ForEach(hangerService.activityItems) { item in
                         NavigationLink(destination: activityDestination(for: item)) {
-                            HangerActivityItemCard(item: item)
+                            HangerHelpActivityItemCard(item: item)
                         }
                         .buttonStyle(PlainButtonStyle())
 
@@ -390,7 +390,7 @@ struct HangerTalkView: View {
             topicColorName: "green",
             imageUrls: []
         )
-        return HangerPostDetailView(
+        return HangerHelpPostDetailView(
             postWithAuthor: dummyPost,
             topicName: ""
         ).environmentObject(authService)
@@ -402,7 +402,7 @@ struct HangerTalkView: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 // "All" pill
-                TopicFilterPill(
+                HangerHelpTopicFilterPill(
                     name: "All",
                     iconName: "list.bullet",
                     colorName: "gray",
@@ -412,7 +412,7 @@ struct HangerTalkView: View {
 
                 // Topic pills
                 ForEach(hangerService.topics) { topic in
-                    TopicFilterPill(
+                    HangerHelpTopicFilterPill(
                         name: topic.name,
                         iconName: topic.iconName,
                         colorName: topic.colorName,
@@ -434,7 +434,7 @@ struct HangerTalkView: View {
 
 // MARK: - Saved Comment Card
 
-struct HangerSavedCommentCard: View {
+struct HangerHelpSavedCommentCard: View {
     let commentWithAuthor: HangerCommentWithAuthor
 
     var body: some View {
@@ -499,7 +499,7 @@ struct HangerSavedCommentCard: View {
 
 // MARK: - Activity Item Card
 
-struct HangerActivityItemCard: View {
+struct HangerHelpActivityItemCard: View {
     let item: HangerActivityItem
 
     var body: some View {
@@ -563,7 +563,7 @@ struct HangerActivityItemCard: View {
 
 // MARK: - Topic Filter Pill
 
-struct TopicFilterPill: View {
+struct HangerHelpTopicFilterPill: View {
     let name: String
     let iconName: String
     let colorName: String

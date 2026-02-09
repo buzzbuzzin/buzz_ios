@@ -1,5 +1,5 @@
 //
-//  HangerTopicDetailView.swift
+//  HangerHelpTopicDetailView.swift
 //  Buzz
 //
 //  Created by Xinyu Fang on 2/7/26.
@@ -7,9 +7,9 @@
 
 import SwiftUI
 
-struct HangerTopicDetailView: View {
+struct HangerHelpTopicDetailView: View {
     @EnvironmentObject var authService: AuthService
-    @StateObject private var hangerService = HangerTalkService()
+    @StateObject private var hangerService = HangerHelpService()
     let topic: HangerTopic
     @State private var showNewPost = false
     @State private var menuPost: HangerPostWithAuthor?
@@ -33,11 +33,11 @@ struct HangerTopicDetailView: View {
                 } else {
                     LazyVStack(spacing: 0) {
                         ForEach(hangerService.posts) { postWithAuthor in
-                            NavigationLink(destination: HangerPostDetailView(
+                            NavigationLink(destination: HangerHelpPostDetailView(
                                 postWithAuthor: postWithAuthor,
                                 topicName: topic.name
                             ).environmentObject(authService)) {
-                                HangerPostCard(postWithAuthor: postWithAuthor, onLike: {
+                                HangerHelpPostCard(postWithAuthor: postWithAuthor, onLike: {
                                     guard let userId = authService.activeUserId else { return }
                                     Task {
                                         try? await hangerService.togglePostLike(postId: postWithAuthor.id, userId: userId)
@@ -92,7 +92,7 @@ struct HangerTopicDetailView: View {
         }
         .sheet(isPresented: $showNewPost) {
             NavigationView {
-                HangerNewPostView(topics: [topic], preselectedTopicId: topic.id, onPostCreated: {
+                HangerHelpNewPostView(topics: [topic], preselectedTopicId: topic.id, onPostCreated: {
                     showNewPost = false
                     Task {
                         guard let userId = authService.activeUserId else { return }
@@ -130,7 +130,7 @@ struct HangerTopicDetailView: View {
         .sheet(isPresented: $showEditPostSheet) {
             if let post = menuPost {
                 NavigationView {
-                    HangerEditPostView(
+                    HangerHelpEditPostView(
                         postId: post.id,
                         initialTitle: post.post.title,
                         initialBody: post.post.body,
@@ -145,7 +145,7 @@ struct HangerTopicDetailView: View {
 
 // MARK: - Post Card
 
-struct HangerPostCard: View {
+struct HangerHelpPostCard: View {
     let postWithAuthor: HangerPostWithAuthor
     let onLike: () -> Void
     var isOwnPost: Bool = false
@@ -317,106 +317,3 @@ struct HangerPostCard: View {
     }
 }
 
-// MARK: - Image Carousel (shared component)
-
-struct HangerImageCarousel: View {
-    let imageUrls: [String]
-    let height: CGFloat
-    @State private var currentPage = 0
-
-    var body: some View {
-        if imageUrls.count == 1 {
-            // Single image — no carousel
-            singleImage(urlString: imageUrls[0])
-        } else {
-            // Multiple images — swipeable carousel
-            ZStack(alignment: .topTrailing) {
-                TabView(selection: $currentPage) {
-                    ForEach(Array(imageUrls.enumerated()), id: \.offset) { index, urlString in
-                        carouselImage(urlString: urlString)
-                            .tag(index)
-                    }
-                }
-                .tabViewStyle(.page(indexDisplayMode: .automatic))
-                .frame(height: height)
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-
-                // Counter badge
-                Text("\(currentPage + 1) / \(imageUrls.count)")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Color.black.opacity(0.6))
-                    .cornerRadius(10)
-                    .padding(8)
-            }
-        }
-    }
-
-    private func singleImage(urlString: String) -> some View {
-        Group {
-            if let url = URL(string: urlString) {
-                AsyncImage(url: url) { phase in
-                    switch phase {
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: height)
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
-                    case .failure:
-                        imagePlaceholder
-                    case .empty:
-                        imageLoading
-                    @unknown default:
-                        imageLoading
-                    }
-                }
-            }
-        }
-    }
-
-    private func carouselImage(urlString: String) -> some View {
-        Group {
-            if let url = URL(string: urlString) {
-                AsyncImage(url: url) { phase in
-                    switch phase {
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: height)
-                            .clipped()
-                    case .failure:
-                        imagePlaceholder
-                    case .empty:
-                        imageLoading
-                    @unknown default:
-                        imageLoading
-                    }
-                }
-            }
-        }
-    }
-
-    private var imagePlaceholder: some View {
-        RoundedRectangle(cornerRadius: 12)
-            .fill(Color.gray.opacity(0.2))
-            .frame(height: height)
-            .overlay(
-                Image(systemName: "photo")
-                    .font(.title)
-                    .foregroundColor(.secondary)
-            )
-    }
-
-    private var imageLoading: some View {
-        RoundedRectangle(cornerRadius: 12)
-            .fill(Color.gray.opacity(0.1))
-            .frame(height: height)
-            .overlay(ProgressView())
-    }
-}

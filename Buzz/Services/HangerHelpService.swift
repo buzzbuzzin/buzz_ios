@@ -1,5 +1,5 @@
 //
-//  HangerTalkService.swift
+//  HangerHelpService.swift
 //  Buzz
 //
 //  Created by Xinyu Fang on 2/7/26.
@@ -11,7 +11,7 @@ import Combine
 import UIKit
 
 @MainActor
-class HangerTalkService: ObservableObject {
+class HangerHelpService: ObservableObject {
     @Published var topics: [HangerTopic] = []
     @Published var posts: [HangerPostWithAuthor] = []
     @Published var comments: [HangerCommentWithAuthor] = []
@@ -24,7 +24,7 @@ class HangerTalkService: ObservableObject {
     @Published var errorMessage: String?
 
     private let supabase = SupabaseClient.shared.client
-    private static let activityLastSeenKey = "hangarActivityLastSeenAt"
+    private static let activityLastSeenKey = "hangerHelpActivityLastSeenAt"
 
     // MARK: - Fetch Topics
 

@@ -1,5 +1,5 @@
 //
-//  HangerPostDetailView.swift
+//  HangerHelpPostDetailView.swift
 //  Buzz
 //
 //  Created by Xinyu Fang on 2/7/26.
@@ -7,29 +7,10 @@
 
 import SwiftUI
 
-// MARK: - Time Ago Helper
-
-func hangerTimeAgo(_ date: Date) -> String {
-    let seconds = Int(Date().timeIntervalSince(date))
-    if seconds < 60 { return "Just Now" }
-    let minutes = seconds / 60
-    if minutes < 60 { return "\(minutes)m" }
-    let hours = minutes / 60
-    if hours < 24 { return "\(hours)h" }
-    let days = hours / 24
-    if days < 7 { return "\(days)d" }
-    let weeks = days / 7
-    if weeks < 4 { return "\(weeks)w" }
-    let months = days / 30
-    if months < 12 { return "\(months)mo" }
-    let years = days / 365
-    return "\(years)y"
-}
-
-struct HangerPostDetailView: View {
+struct HangerHelpPostDetailView: View {
     @EnvironmentObject var authService: AuthService
     @Environment(\.dismiss) var dismiss
-    @StateObject private var hangerService = HangerTalkService()
+    @StateObject private var hangerService = HangerHelpService()
     let postWithAuthor: HangerPostWithAuthor
     let topicName: String
     @State private var replyText = ""
@@ -139,7 +120,7 @@ struct HangerPostDetailView: View {
         }
         .sheet(isPresented: $showEditSheet) {
             NavigationView {
-                HangerEditPostView(
+                HangerHelpEditPostView(
                     postId: postWithAuthor.id,
                     initialTitle: postWithAuthor.post.title,
                     initialBody: postWithAuthor.post.body,
@@ -168,7 +149,7 @@ struct HangerPostDetailView: View {
         .sheet(isPresented: $showEditCommentSheet) {
             if let editComment = commentToEdit {
                 NavigationView {
-                    HangerEditCommentView(
+                    HangerHelpEditCommentView(
                         commentId: editComment.id,
                         initialBody: editComment.comment.body,
                         onSaved: {
@@ -300,7 +281,7 @@ struct HangerPostDetailView: View {
                     .padding(.vertical, 20)
             } else {
                 ForEach(Array(hangerService.comments.enumerated()), id: \.element.id) { index, comment in
-                    HangerCommentRow(
+                    HangerHelpCommentRow(
                         comment: comment,
                         currentUserId: authService.activeUserId,
                         onReply: {
@@ -426,7 +407,7 @@ struct HangerPostDetailView: View {
 
 // MARK: - Comment Row (Recursive for threading)
 
-struct HangerCommentRow: View {
+struct HangerHelpCommentRow: View {
     let comment: HangerCommentWithAuthor
     let currentUserId: UUID?
     let onReply: () -> Void
@@ -541,7 +522,7 @@ struct HangerCommentRow: View {
             if !comment.replies.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
                     ForEach(comment.replies) { reply in
-                        HangerCommentRow(
+                        HangerHelpCommentRow(
                             comment: reply,
                             currentUserId: currentUserId,
                             onReply: onReply,

@@ -29,6 +29,7 @@ struct AcademyView: View {
     @State private var isLoading = false
     @State private var isFetching = false // Track if fetch is in progress
     @State private var fetchTask: Task<Void, Never>? = nil // Store the current fetch task
+    @State private var showHangerHelp = false
     @State private var showRecurrentNotices = true
     @State private var isPromotionCardDismissed = false
     @State private var hasPassedGroundSchoolTest = false
@@ -340,6 +341,18 @@ struct AcademyView: View {
             .navigationTitle("Academy")
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button {
+                        showHangerHelp = true
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "bubble.left.and.bubble.right.fill")
+                            Text("Hanger Help")
+                                .font(.subheadline)
+                        }
+                        .foregroundColor(.mint)
+                    }
+                }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     NavigationLink(destination: TestCenterView()) {
                         HStack(spacing: 4) {
@@ -349,6 +362,23 @@ struct AcademyView: View {
                         }
                         .foregroundColor(.blue)
                     }
+                }
+            }
+            .fullScreenCover(isPresented: $showHangerHelp) {
+                NavigationView {
+                    HangerHelpView()
+                        .environmentObject(authService)
+                        .toolbar {
+                            ToolbarItem(placement: .navigationBarLeading) {
+                                Button {
+                                    showHangerHelp = false
+                                } label: {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .font(.title2)
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+                        }
                 }
             }
             .task {

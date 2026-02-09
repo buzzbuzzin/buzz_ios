@@ -15,7 +15,6 @@ struct CockpitView: View {
     @StateObject private var bookingService = BookingService()
     @StateObject private var locationManager = BookingMapLocationManager()
     @State private var hasNearbyBeaconMissions = false
-    @StateObject private var hangerTalkActivityService = HangerTalkService()
     @State private var showChecklistSelection = false
     @State private var showPhoneOptions = false
     @State private var showCharts = false
@@ -269,28 +268,15 @@ struct CockpitView: View {
                                 .padding(.horizontal, 16)
 
                             LazyVGrid(columns: columns, spacing: 12) {
-                                // Hanger Talk Card - Using fullScreenCover for stable presentation
+                                // Hanger Talk Card - Social Feed
                                 Button {
                                     showHangerTalk = true
                                 } label: {
-                                    ZStack(alignment: .topTrailing) {
-                                        CockpitGridCard(
-                                            title: "Hanger Talk",
-                                            icon: "bubble.left.and.bubble.right.fill",
-                                            color: .mint
-                                        )
-
-                                        if hangerTalkActivityService.hasNewActivity {
-                                            Circle()
-                                                .fill(Color.red)
-                                                .frame(width: 18, height: 18)
-                                                .overlay(
-                                                    Circle()
-                                                        .stroke(Color.white, lineWidth: 2.5)
-                                                )
-                                                .offset(x: 6, y: -6)
-                                        }
-                                    }
+                                    CockpitGridCard(
+                                        title: "Hanger Talk",
+                                        icon: "text.bubble.fill",
+                                        color: .mint
+                                    )
                                 }
                                 .buttonStyle(PlainButtonStyle())
 
@@ -485,9 +471,6 @@ struct CockpitView: View {
             locationManager.requestPermission()
             locationManager.startLocationUpdates()
             await checkForNearbyBeaconMissions()
-            if let userId = authService.activeUserId {
-                await hangerTalkActivityService.checkForNewActivity(currentUserId: userId)
-            }
         }
         .onChange(of: bookingService.availableBookings.count) { _ in
             Task {
@@ -856,13 +839,7 @@ struct CockpitView: View {
                     }
             }
         }
-        .fullScreenCover(isPresented: $showHangerTalk, onDismiss: {
-            Task {
-                if let userId = authService.activeUserId {
-                    await hangerTalkActivityService.checkForNewActivity(currentUserId: userId)
-                }
-            }
-        }) {
+        .fullScreenCover(isPresented: $showHangerTalk) {
             NavigationView {
                 HangerTalkView()
                     .environmentObject(authService)

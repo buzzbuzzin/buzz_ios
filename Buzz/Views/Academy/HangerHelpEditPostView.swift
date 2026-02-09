@@ -1,5 +1,5 @@
 //
-//  HangerEditPostView.swift
+//  HangerHelpEditPostView.swift
 //  Buzz
 //
 //  Created by Xinyu Fang on 2/8/26.
@@ -8,7 +8,7 @@
 import SwiftUI
 import PhotosUI
 
-struct HangerEditPostView: View {
+struct HangerHelpEditPostView: View {
     @EnvironmentObject var authService: AuthService
     @Environment(\.dismiss) var dismiss
     let postId: UUID
@@ -230,7 +230,7 @@ struct HangerEditPostView: View {
         errorMessage = nil
 
         do {
-            let service = HangerTalkService()
+            let service = HangerHelpService()
 
             // Upload new images if any
             var allImageUrls = existingImageUrls

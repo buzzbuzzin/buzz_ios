@@ -1,8 +1,8 @@
 //
-//  HangerTalkServiceIntegrationTests.swift
+//  HangerHelpServiceIntegrationTests.swift
 //  BuzzTests
 //
-//  Integration tests for HangerTalkService calling real Supabase.
+//  Integration tests for HangerHelpService calling real Supabase.
 //  Creates posts, comments, and interactions against live DB, then
 //  cleans up in tearDown.
 //
@@ -12,16 +12,16 @@ import Supabase
 @testable import Buzz
 
 @MainActor
-final class HangerTalkServiceIntegrationTests: IntegrationTestCase {
+final class HangerHelpServiceIntegrationTests: IntegrationTestCase {
 
-    private var service: HangerTalkService!
+    private var service: HangerHelpService!
 
     /// The first active topic fetched from the DB (used to create test posts).
     private var testTopicId: UUID!
 
     override func setUp() async throws {
         try await super.setUp()
-        service = HangerTalkService()
+        service = HangerHelpService()
 
         // Fetch topics so we have a valid topic ID for creating posts
         await service.fetchTopics()
