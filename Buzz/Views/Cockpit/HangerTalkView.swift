@@ -14,6 +14,9 @@ struct HangerTalkView: View {
     @State private var showCompose = false
     @State private var showDeletePostConfirmation = false
     @State private var postToDelete: HangerTalkPostWithAuthor?
+    @State private var showSearch = false
+    @State private var showEditPost = false
+    @State private var postToEdit: HangerTalkPostWithAuthor?
 
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
@@ -44,6 +47,23 @@ struct HangerTalkView: View {
         }
         .navigationTitle("Hanger Talk")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button {
+                    showSearch = true
+                } label: {
+                    Image(systemName: "magnifyingglass")
+                        .font(.body)
+                        .foregroundColor(.primary)
+                }
+            }
+        }
+        .sheet(isPresented: $showSearch) {
+            NavigationView {
+                HangerTalkSearchView()
+                    .environmentObject(authService)
+            }
+        }
         .sheet(isPresented: $showCompose) {
             NavigationView {
                 HangerTalkComposeView(
@@ -56,6 +76,21 @@ struct HangerTalkView: View {
                     }
                 )
                 .environmentObject(authService)
+            }
+        }
+        .sheet(isPresented: $showEditPost) {
+            if let post = postToEdit {
+                NavigationView {
+                    HangerTalkEditView(
+                        postWithAuthor: post,
+                        onPostUpdated: {
+                            showEditPost = false
+                            postToEdit = nil
+                            Task { await refreshCurrentTab() }
+                        }
+                    )
+                    .environmentObject(authService)
+                }
             }
         }
         .alert("Delete Post", isPresented: $showDeletePostConfirmation) {
@@ -167,6 +202,10 @@ struct HangerTalkView: View {
                                 onDelete: {
                                     postToDelete = postWithAuthor
                                     showDeletePostConfirmation = true
+                                },
+                                onEdit: {
+                                    postToEdit = postWithAuthor
+                                    showEditPost = true
                                 }
                             )
                         }

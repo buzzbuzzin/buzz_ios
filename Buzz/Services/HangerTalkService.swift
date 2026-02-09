@@ -222,6 +222,72 @@ class HangerTalkService: ObservableObject {
             .execute()
     }
 
+    // MARK: - Update Post
+
+    func updatePost(postId: UUID, body: String, imageUrls: [String]) async throws {
+        if DemoModeManager.shared.isDemoModeEnabled { return }
+
+        let update: [String: AnyJSON] = [
+            "body": .string(body),
+            "image_urls": .array(imageUrls.map { .string($0) })
+        ]
+
+        try await supabase
+            .from("hanger_talk_posts")
+            .update(update)
+            .eq("id", value: postId.uuidString)
+            .execute()
+    }
+
+    // MARK: - Search Posts
+
+    func searchPosts(query: String, currentUserId: UUID) async -> [HangerTalkPostWithAuthor] {
+        if DemoModeManager.shared.isDemoModeEnabled { return [] }
+
+        do {
+            let response: [HangerTalkPostResponse] = try await supabase
+                .from("hanger_talk_posts")
+                .select("*, profiles(id, call_sign, profile_picture_url, first_name, last_name)")
+                .eq("is_reply", value: false)
+                .ilike("body", pattern: "%\(query)%")
+                .order("created_at", ascending: false)
+                .limit(50)
+                .execute()
+                .value
+
+            let postIds = response.map { $0.id }
+            let interactions = await fetchUserInteractions(currentUserId: currentUserId, postIds: postIds)
+
+            return response.map { resp in
+                mapResponseToPostWithAuthor(resp, interactions: interactions)
+            }
+        } catch {
+            print("Error searching posts: \(error)")
+            return []
+        }
+    }
+
+    // MARK: - Search Pilots
+
+    func searchPilots(query: String) async -> [HangerAuthorProfile] {
+        if DemoModeManager.shared.isDemoModeEnabled { return [] }
+
+        do {
+            let profiles: [HangerAuthorProfile] = try await supabase
+                .from("profiles")
+                .select("id, call_sign, profile_picture_url, first_name, last_name")
+                .or("call_sign.ilike.%\(query)%,first_name.ilike.%\(query)%,last_name.ilike.%\(query)%")
+                .limit(20)
+                .execute()
+                .value
+
+            return profiles
+        } catch {
+            print("Error searching pilots: \(error)")
+            return []
+        }
+    }
+
     // MARK: - Delete Post
 
     func deletePost(postId: UUID) async throws {

@@ -15,6 +15,7 @@ struct HangerTalkPostCard: View {
     let onReply: () -> Void
     var isOwnPost: Bool = false
     var onDelete: (() -> Void)?
+    var onEdit: (() -> Void)?
 
     @State private var likeAnimating = false
 
@@ -93,10 +94,17 @@ struct HangerTalkPostCard: View {
 
             Spacer()
 
-            if isOwnPost, let onDelete {
+            if isOwnPost, onEdit != nil || onDelete != nil {
                 Menu {
-                    Button(role: .destructive, action: onDelete) {
-                        Label("Delete Post", systemImage: "trash")
+                    if let onEdit {
+                        Button(action: onEdit) {
+                            Label("Edit Post", systemImage: "pencil")
+                        }
+                    }
+                    if let onDelete {
+                        Button(role: .destructive, action: onDelete) {
+                            Label("Delete Post", systemImage: "trash")
+                        }
                     }
                 } label: {
                     Image(systemName: "ellipsis")

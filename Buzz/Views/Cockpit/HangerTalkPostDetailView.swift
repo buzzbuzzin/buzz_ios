@@ -14,6 +14,7 @@ struct HangerTalkPostDetailView: View {
     let postWithAuthor: HangerTalkPostWithAuthor
     @State private var showComposeReply = false
     @State private var showDeleteConfirmation = false
+    @State private var showEditPost = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -57,6 +58,11 @@ struct HangerTalkPostDetailView: View {
             ToolbarItem(placement: .navigationBarTrailing) {
                 if postWithAuthor.post.authorId == authService.activeUserId {
                     Menu {
+                        Button {
+                            showEditPost = true
+                        } label: {
+                            Label("Edit Post", systemImage: "pencil")
+                        }
                         Button(role: .destructive) {
                             showDeleteConfirmation = true
                         } label: {
@@ -80,6 +86,18 @@ struct HangerTalkPostDetailView: View {
             }
         } message: {
             Text("Are you sure you want to delete this post? This action cannot be undone.")
+        }
+        .sheet(isPresented: $showEditPost) {
+            NavigationView {
+                HangerTalkEditView(
+                    postWithAuthor: postWithAuthor,
+                    onPostUpdated: {
+                        showEditPost = false
+                        dismiss()
+                    }
+                )
+                .environmentObject(authService)
+            }
         }
         .sheet(isPresented: $showComposeReply) {
             NavigationView {
