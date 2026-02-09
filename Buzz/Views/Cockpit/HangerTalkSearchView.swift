@@ -18,6 +18,7 @@ struct HangerTalkSearchView: View {
     @State private var pilotResults: [HangerAuthorProfile] = []
     @State private var isSearching = false
     @State private var hasSearched = false
+    @State private var postToReply: HangerTalkPostWithAuthor?
 
     enum SearchSegment: String, CaseIterable {
         case posts = "Posts"
@@ -69,6 +70,18 @@ struct HangerTalkSearchView: View {
                         .font(.body)
                         .foregroundColor(.primary)
                 }
+            }
+        }
+        .sheet(item: $postToReply) { post in
+            NavigationView {
+                HangerTalkComposeView(
+                    replyToPost: post,
+                    onPostCreated: {
+                        postToReply = nil
+                        performSearch()
+                    }
+                )
+                .environmentObject(authService)
             }
         }
     }
@@ -165,7 +178,9 @@ struct HangerTalkSearchView: View {
                                         performSearch()
                                     }
                                 },
-                                onReply: {},
+                                onReply: {
+                                    postToReply = postWithAuthor
+                                },
                                 isOwnPost: postWithAuthor.post.authorId == authService.activeUserId
                             )
                         }

@@ -25,43 +25,34 @@ struct HangerTalkComposeView: View {
         self.onPostCreated = onPostCreated
     }
 
+    private var isReply: Bool { replyToPost != nil }
+    private var canSubmit: Bool {
+        !bodyText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isSubmitting
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    // If replying, show original post preview
+                VStack(alignment: .leading, spacing: 0) {
                     if let original = replyToPost {
-                        replyContext(original)
-                            .padding(.horizontal)
-                    }
-
-                    // Text input (no title — Twitter style)
-                    ZStack(alignment: .topLeading) {
-                        if bodyText.isEmpty {
-                            Text(replyToPost != nil ? "Post your reply..." : "What's happening?")
-                                .font(.body)
-                                .foregroundColor(.secondary.opacity(0.5))
-                                .padding(.horizontal, 20)
-                                .padding(.vertical, 8)
-                        }
-                        TextEditor(text: $bodyText)
-                            .font(.body)
-                            .frame(minHeight: 120)
-                            .padding(.horizontal, 15)
-                            .scrollContentBackground(.hidden)
+                        threadedReplyLayout(original)
+                    } else {
+                        newPostLayout
                     }
 
                     // Image previews
                     if !selectedImages.isEmpty {
                         imagePreviewSection
-                            .padding(.horizontal)
+                            .padding(.horizontal, 16)
+                            .padding(.top, 12)
                     }
 
                     if let error = errorMessage {
                         Text(error)
                             .foregroundColor(.red)
                             .font(.caption)
-                            .padding(.horizontal)
+                            .padding(.horizontal, 16)
+                            .padding(.top, 8)
                     }
                 }
                 .padding(.top, 12)
@@ -71,25 +62,22 @@ struct HangerTalkComposeView: View {
             bottomToolbar
         }
         .background(Color(.systemBackground))
-        .navigationTitle("")
+        .navigationTitle(isReply ? "Reply" : "")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .navigationBarLeading) {
-                Button {
+                Button("Cancel") {
                     dismiss()
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(.body)
-                        .foregroundColor(.primary)
                 }
+                .foregroundColor(.primary)
             }
             ToolbarItem(placement: .navigationBarTrailing) {
-                Button(replyToPost != nil ? "Reply" : "Post") {
+                Button(isReply ? "Reply" : "Post") {
                     Task { await submitPost() }
                 }
-                .disabled(bodyText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isSubmitting)
+                .disabled(!canSubmit)
                 .fontWeight(.bold)
-                .foregroundColor(!bodyText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isSubmitting ? .blue : .secondary)
+                .foregroundColor(canSubmit ? .blue : .secondary)
             }
         }
         .disabled(isSubmitting)
@@ -123,44 +111,147 @@ struct HangerTalkComposeView: View {
         }
     }
 
-    // MARK: - Reply Context
+    // MARK: - New Post Layout
 
-    private func replyContext(_ original: HangerTalkPostWithAuthor) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 8) {
-                if let urlString = original.authorProfilePictureUrl,
-                   let url = URL(string: urlString) {
-                    AsyncImage(url: url) { image in
-                        image.resizable().aspectRatio(contentMode: .fill)
-                    } placeholder: {
-                        Circle().fill(Color.gray.opacity(0.3))
-                    }
-                    .frame(width: 28, height: 28)
-                    .clipShape(Circle())
-                } else {
-                    Image(systemName: "person.circle.fill")
-                        .font(.system(size: 28))
-                        .foregroundColor(.secondary)
+    private var newPostLayout: some View {
+        HStack(alignment: .top, spacing: 12) {
+            currentUserAvatar(size: 40)
+
+            ZStack(alignment: .topLeading) {
+                if bodyText.isEmpty {
+                    Text("What's happening?")
+                        .font(.body)
+                        .foregroundColor(.secondary.opacity(0.5))
+                        .padding(.vertical, 8)
+                }
+                TextEditor(text: $bodyText)
+                    .font(.body)
+                    .frame(minHeight: 120)
+                    .scrollContentBackground(.hidden)
+            }
+        }
+        .padding(.horizontal, 16)
+    }
+
+    // MARK: - Threaded Reply Layout
+
+    private func threadedReplyLayout(_ original: HangerTalkPostWithAuthor) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Original post with thread line
+            HStack(alignment: .top, spacing: 12) {
+                // Avatar + thread line column
+                VStack(spacing: 0) {
+                    originalPostAvatar(original, size: 40)
+
+                    // Thread line connecting original to reply
+                    Rectangle()
+                        .fill(Color(.systemGray4))
+                        .frame(width: 2)
+                        .frame(maxHeight: .infinity)
                 }
 
-                Text(original.authorCallSign ?? original.authorFullName)
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
+                // Original post content
+                VStack(alignment: .leading, spacing: 6) {
+                    // Author info row
+                    HStack(spacing: 4) {
+                        Text(original.authorCallSign ?? original.authorFullName)
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+
+                        Text("·")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+
+                        Text(hangerTimeAgo(original.post.createdAt))
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+
+                        Spacer()
+                    }
+
+                    // Post body
+                    Text(original.post.body)
+                        .font(.body)
+                        .foregroundColor(.primary)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    // Original post images
+                    if !original.post.imageUrls.isEmpty {
+                        HangerImageCarousel(imageUrls: original.post.imageUrls, height: 180)
+                            .padding(.top, 4)
+                    }
+                }
+                .padding(.bottom, 16)
+            }
+            .padding(.horizontal, 16)
+
+            // Current user reply area
+            HStack(alignment: .top, spacing: 12) {
+                currentUserAvatar(size: 40)
+
+                VStack(alignment: .leading, spacing: 6) {
+                    // "Replying to" label
+                    Text("Reply to \(original.authorCallSign ?? original.authorFullName)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+
+                    // Reply text input
+                    ZStack(alignment: .topLeading) {
+                        if bodyText.isEmpty {
+                            Text("Post your reply...")
+                                .font(.body)
+                                .foregroundColor(.secondary.opacity(0.5))
+                                .padding(.vertical, 8)
+                        }
+                        TextEditor(text: $bodyText)
+                            .font(.body)
+                            .frame(minHeight: 100)
+                            .scrollContentBackground(.hidden)
+                    }
+                }
+            }
+            .padding(.horizontal, 16)
+        }
+    }
+
+    // MARK: - Avatars
+
+    private func originalPostAvatar(_ post: HangerTalkPostWithAuthor, size: CGFloat) -> some View {
+        Group {
+            if let urlString = post.authorProfilePictureUrl,
+               let url = URL(string: urlString) {
+                AsyncImage(url: url) { image in
+                    image.resizable().aspectRatio(contentMode: .fill)
+                } placeholder: {
+                    Circle().fill(Color.gray.opacity(0.3))
+                }
+                .frame(width: size, height: size)
+                .clipShape(Circle())
+            } else {
+                Image(systemName: "person.circle.fill")
+                    .font(.system(size: size))
                     .foregroundColor(.secondary)
             }
-
-            Text(original.post.body)
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-                .lineLimit(3)
-
-            Text("Replying to \(original.authorCallSign ?? original.authorFullName)")
-                .font(.caption)
-                .foregroundColor(.blue)
         }
-        .padding(12)
-        .background(Color(.secondarySystemGroupedBackground))
-        .cornerRadius(12)
+    }
+
+    private func currentUserAvatar(size: CGFloat) -> some View {
+        Group {
+            if let urlString = authService.userProfile?.profilePictureUrl,
+               let url = URL(string: urlString) {
+                AsyncImage(url: url) { image in
+                    image.resizable().aspectRatio(contentMode: .fill)
+                } placeholder: {
+                    Circle().fill(Color.gray.opacity(0.3))
+                }
+                .frame(width: size, height: size)
+                .clipShape(Circle())
+            } else {
+                Image(systemName: "person.circle.fill")
+                    .font(.system(size: size))
+                    .foregroundColor(.secondary)
+            }
+        }
     }
 
     // MARK: - Image Preview Section

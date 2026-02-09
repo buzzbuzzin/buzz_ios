@@ -17,6 +17,7 @@ struct HangerTalkView: View {
     @State private var showSearch = false
     @State private var showEditPost = false
     @State private var postToEdit: HangerTalkPostWithAuthor?
+    @State private var postToReply: HangerTalkPostWithAuthor?
 
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
@@ -91,6 +92,18 @@ struct HangerTalkView: View {
                     )
                     .environmentObject(authService)
                 }
+            }
+        }
+        .sheet(item: $postToReply) { post in
+            NavigationView {
+                HangerTalkComposeView(
+                    replyToPost: post,
+                    onPostCreated: {
+                        postToReply = nil
+                        Task { await refreshCurrentTab() }
+                    }
+                )
+                .environmentObject(authService)
             }
         }
         .alert("Delete Post", isPresented: $showDeletePostConfirmation) {
@@ -196,7 +209,7 @@ struct HangerTalkView: View {
                                     }
                                 },
                                 onReply: {
-                                    // Navigate to detail view for reply
+                                    postToReply = postWithAuthor
                                 },
                                 isOwnPost: postWithAuthor.post.authorId == authService.activeUserId,
                                 onDelete: {
