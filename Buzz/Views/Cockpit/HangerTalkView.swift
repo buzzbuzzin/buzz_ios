@@ -149,6 +149,13 @@ struct HangerTalkView: View {
             guard let userId = authService.activeUserId else { return }
             await service.fetchFeed(currentUserId: userId)
             await service.fetchUnreadCount(userId: userId)
+
+            // Poll for new notifications every 30 seconds
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 30_000_000_000)
+                guard !Task.isCancelled else { break }
+                await service.fetchUnreadCount(userId: userId)
+            }
         }
         .onChange(of: selectedTab) { newTab in
             guard let userId = authService.activeUserId else { return }
@@ -393,5 +400,6 @@ struct HangerTalkView: View {
         case .bookmarks:
             await service.fetchBookmarkedPosts(currentUserId: userId)
         }
+        await service.fetchUnreadCount(userId: userId)
     }
 }
