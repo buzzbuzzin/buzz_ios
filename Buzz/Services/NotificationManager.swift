@@ -497,91 +497,91 @@ class NotificationManager: NSObject, ObservableObject {
         try? await notificationCenter.add(request)
     }
     
+    // MARK: - Remote Push Notification Helper
+
+    private struct PushNotificationRequest: Codable {
+        let user_id: String
+        let title: String
+        let body: String
+        let data: [String: String]?
+    }
+
+    /// Send a remote push notification to a specific user via the Supabase edge function
+    private func sendRemotePushNotification(
+        recipientUserId: UUID,
+        title: String,
+        body: String,
+        data: [String: String] = [:]
+    ) async {
+        let request = PushNotificationRequest(
+            user_id: recipientUserId.uuidString,
+            title: title,
+            body: body,
+            data: data.isEmpty ? nil : data
+        )
+
+        do {
+            try await supabase.functions.invoke(
+                "send-push-notification",
+                options: FunctionInvokeOptions(body: request)
+            )
+        } catch {
+            print("Error sending remote push notification: \(error.localizedDescription)")
+        }
+    }
+
     // MARK: - Hanger Talk Notifications
 
-    /// Notify post author when someone likes their post
-    func notifyHangerTalkLike(postId: UUID, likerCallSign: String) async {
-        let content = UNMutableNotificationContent()
-        content.title = "New Like"
-        content.body = "\(likerCallSign) liked your post"
-        content.sound = .default
-        content.categoryIdentifier = NotificationCategory.hangerTalkLike.rawValue
-        content.userInfo = [
-            "postId": postId.uuidString,
-            "type": "hanger_talk_like"
-        ]
-
-        let request = UNNotificationRequest(
-            identifier: "hanger-like-\(postId.uuidString)-\(UUID().uuidString)",
-            content: content,
-            trigger: nil
+    /// Notify post author when someone likes their post (remote push to post author)
+    func notifyHangerTalkLike(postId: UUID, postAuthorId: UUID, likerCallSign: String) async {
+        await sendRemotePushNotification(
+            recipientUserId: postAuthorId,
+            title: "New Like",
+            body: "\(likerCallSign) liked your post",
+            data: [
+                "postId": postId.uuidString,
+                "type": "hanger_talk_like"
+            ]
         )
-
-        try? await notificationCenter.add(request)
     }
 
-    /// Notify post author when someone replies to their post
-    func notifyHangerTalkReply(postId: UUID, parentPostId: UUID, replierCallSign: String) async {
-        let content = UNMutableNotificationContent()
-        content.title = "New Reply"
-        content.body = "\(replierCallSign) replied to your post"
-        content.sound = .default
-        content.categoryIdentifier = NotificationCategory.hangerTalkReply.rawValue
-        content.userInfo = [
-            "postId": postId.uuidString,
-            "parentPostId": parentPostId.uuidString,
-            "type": "hanger_talk_reply"
-        ]
-
-        let request = UNNotificationRequest(
-            identifier: "hanger-reply-\(postId.uuidString)",
-            content: content,
-            trigger: nil
+    /// Notify post author when someone replies to their post (remote push to parent post author)
+    func notifyHangerTalkReply(postId: UUID, parentPostId: UUID, parentAuthorId: UUID, replierCallSign: String) async {
+        await sendRemotePushNotification(
+            recipientUserId: parentAuthorId,
+            title: "New Reply",
+            body: "\(replierCallSign) replied to your post",
+            data: [
+                "postId": postId.uuidString,
+                "parentPostId": parentPostId.uuidString,
+                "type": "hanger_talk_reply"
+            ]
         )
-
-        try? await notificationCenter.add(request)
     }
 
-    /// Notify user when they are @mentioned in a post
-    func notifyHangerTalkMention(postId: UUID, mentionerCallSign: String) async {
-        let content = UNMutableNotificationContent()
-        content.title = "You Were Mentioned"
-        content.body = "\(mentionerCallSign) mentioned you in a post"
-        content.sound = .default
-        content.categoryIdentifier = NotificationCategory.hangerTalkMention.rawValue
-        content.userInfo = [
-            "postId": postId.uuidString,
-            "type": "hanger_talk_mention"
-        ]
-
-        let request = UNNotificationRequest(
-            identifier: "hanger-mention-\(postId.uuidString)-\(UUID().uuidString)",
-            content: content,
-            trigger: nil
+    /// Notify user when they are @mentioned in a post (remote push to mentioned user)
+    func notifyHangerTalkMention(postId: UUID, mentionedUserId: UUID, mentionerCallSign: String) async {
+        await sendRemotePushNotification(
+            recipientUserId: mentionedUserId,
+            title: "You Were Mentioned",
+            body: "\(mentionerCallSign) mentioned you in a post",
+            data: [
+                "postId": postId.uuidString,
+                "type": "hanger_talk_mention"
+            ]
         )
-
-        try? await notificationCenter.add(request)
     }
 
-    /// Notify user when someone follows them
-    func notifyHangerTalkFollow(followerCallSign: String, followerId: UUID) async {
-        let content = UNMutableNotificationContent()
-        content.title = "New Follower"
-        content.body = "\(followerCallSign) started following you"
-        content.sound = .default
-        content.categoryIdentifier = NotificationCategory.hangerTalkFollow.rawValue
-        content.userInfo = [
-            "followerId": followerId.uuidString,
-            "type": "hanger_talk_follow"
-        ]
-
-        let request = UNNotificationRequest(
-            identifier: "hanger-follow-\(followerId.uuidString)",
-            content: content,
-            trigger: nil
+    /// Notify user when someone follows them (remote push to the followed user)
+    func notifyHangerTalkFollow(followerCallSign: String, followedUserId: UUID) async {
+        await sendRemotePushNotification(
+            recipientUserId: followedUserId,
+            title: "New Follower",
+            body: "\(followerCallSign) started following you",
+            data: [
+                "type": "hanger_talk_follow"
+            ]
         )
-
-        try? await notificationCenter.add(request)
     }
 
     // MARK: - Booking Cancelled Notification
@@ -703,25 +703,17 @@ class NotificationManager: NSObject, ObservableObject {
 
     // MARK: - Hanger Talk New Post Notification
 
-    /// Notify a follower that someone they follow posted
-    func notifyHangerTalkNewPost(postId: UUID, authorCallSign: String) async {
-        let content = UNMutableNotificationContent()
-        content.title = "New Post"
-        content.body = "\(authorCallSign) shared a new post"
-        content.sound = .default
-        content.categoryIdentifier = NotificationCategory.hangerTalkNewPost.rawValue
-        content.userInfo = [
-            "postId": postId.uuidString,
-            "type": "hanger_talk_new_post"
-        ]
-
-        let request = UNNotificationRequest(
-            identifier: "hanger-newpost-\(postId.uuidString)-\(UUID().uuidString)",
-            content: content,
-            trigger: nil
+    /// Notify a follower that someone they follow posted (remote push to the follower)
+    func notifyHangerTalkNewPost(postId: UUID, followerUserId: UUID, authorCallSign: String) async {
+        await sendRemotePushNotification(
+            recipientUserId: followerUserId,
+            title: "New Post",
+            body: "\(authorCallSign) shared a new post",
+            data: [
+                "postId": postId.uuidString,
+                "type": "hanger_talk_new_post"
+            ]
         )
-
-        try? await notificationCenter.add(request)
     }
 
     // MARK: - Utility Methods

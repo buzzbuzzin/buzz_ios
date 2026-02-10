@@ -211,7 +211,7 @@ class HangerTalkService: ObservableObject {
                           userInfo: [NSLocalizedDescriptionKey: "Failed to create post"])
         }
 
-        // Notify followers about the new post
+        // Notify followers about the new post (remote push to each follower's device)
         Task {
             if let authorCallSign = await fetchCallSign(userId: authorId) {
                 // Get all users who follow the author
@@ -225,6 +225,7 @@ class HangerTalkService: ObservableObject {
                 for follower in followers {
                     await NotificationManager.shared.notifyHangerTalkNewPost(
                         postId: post.id,
+                        followerUserId: follower.followerId,
                         authorCallSign: authorCallSign
                     )
                 }
@@ -260,7 +261,7 @@ class HangerTalkService: ObservableObject {
                           userInfo: [NSLocalizedDescriptionKey: "Failed to create reply"])
         }
 
-        // Notify parent post author about the reply
+        // Notify parent post author about the reply (remote push to author's device)
         Task {
             if let parentAuthorId = await fetchPostAuthorId(postId: parentPostId),
                parentAuthorId != authorId,
@@ -268,6 +269,7 @@ class HangerTalkService: ObservableObject {
                 await NotificationManager.shared.notifyHangerTalkReply(
                     postId: post.id,
                     parentPostId: parentPostId,
+                    parentAuthorId: parentAuthorId,
                     replierCallSign: replierCallSign
                 )
             }
@@ -388,13 +390,14 @@ class HangerTalkService: ObservableObject {
                 .insert(data)
                 .execute()
 
-            // Notify post author about the like
+            // Notify post author about the like (remote push to author's device)
             Task {
                 if let postAuthorId = await fetchPostAuthorId(postId: postId),
                    postAuthorId != userId,
                    let likerCallSign = await fetchCallSign(userId: userId) {
                     await NotificationManager.shared.notifyHangerTalkLike(
                         postId: postId,
+                        postAuthorId: postAuthorId,
                         likerCallSign: likerCallSign
                     )
                 }
@@ -584,12 +587,12 @@ class HangerTalkService: ObservableObject {
                 .execute()
             updateFollowState(authorId: followingId, isFollowed: true)
 
-            // Notify the user being followed
+            // Notify the user being followed (remote push to followed user's device)
             Task {
                 if let followerCallSign = await fetchCallSign(userId: followerId) {
                     await NotificationManager.shared.notifyHangerTalkFollow(
                         followerCallSign: followerCallSign,
-                        followerId: followerId
+                        followedUserId: followingId
                     )
                 }
             }
@@ -728,11 +731,12 @@ class HangerTalkService: ObservableObject {
                     .insert(insert)
                     .execute()
 
-                // Notify the mentioned user
+                // Notify the mentioned user (remote push to mentioned user's device)
                 if profile.id != authorId {
                     let mentionerCallSign = await fetchCallSign(userId: authorId)
                     await NotificationManager.shared.notifyHangerTalkMention(
                         postId: postId,
+                        mentionedUserId: profile.id,
                         mentionerCallSign: mentionerCallSign ?? "Someone"
                     )
                 }
