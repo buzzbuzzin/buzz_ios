@@ -314,7 +314,7 @@ struct PublicProfileView: View {
                     Text("Completed Courses")
                 }
 
-                // Community Posts Section
+                // Hanger Talk Section
                 Section {
                     if pilotPosts.isEmpty {
                         Text("No posts yet")
@@ -346,7 +346,7 @@ struct PublicProfileView: View {
                         }
                     }
                 } header: {
-                    Text("Community Posts")
+                    Text("Hanger Talk")
                 }
             } else {
                 Section {
@@ -416,7 +416,7 @@ struct PublicProfileView: View {
             followerCount = counts.followers
             followingCount = counts.following
 
-            // Load pilot's community posts
+            // Load pilot's hanger talk posts
             let currentUserId = authService.currentUser?.id ?? UUID()
             pilotPosts = await hangerTalkService.fetchUserPosts(authorId: pilotId, currentUserId: currentUserId)
 
