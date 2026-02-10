@@ -60,7 +60,15 @@ struct MainTabView: View {
         case "received_review":
             // Navigate to ratings/profile
             print("Navigating to ratings")
-            
+
+        case "hanger_talk_like", "hanger_talk_reply", "hanger_talk_mention":
+            // Navigate to Hanger Talk / specific post
+            print("Navigating to Hanger Talk post: \(userInfo)")
+
+        case "hanger_talk_follow":
+            // Navigate to Hanger Talk / follower profile
+            print("Navigating to Hanger Talk follow: \(userInfo)")
+
         default:
             print("Unknown notification type: \(type)")
         }

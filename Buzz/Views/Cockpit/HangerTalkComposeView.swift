@@ -447,7 +447,7 @@ struct HangerTalkComposeView: View {
             // Extract and create mentions
             let mentionedCallSigns = MentionParser.extractMentions(from: trimmed)
             if !mentionedCallSigns.isEmpty {
-                await service.createMentions(postId: postId, mentionedCallSigns: mentionedCallSigns)
+                await service.createMentions(postId: postId, authorId: userId, mentionedCallSigns: mentionedCallSigns)
             }
 
             onPostCreated()

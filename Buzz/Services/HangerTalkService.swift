@@ -238,6 +238,20 @@ class HangerTalkService: ObservableObject {
             throw NSError(domain: "HangerTalkService", code: -1,
                           userInfo: [NSLocalizedDescriptionKey: "Failed to create reply"])
         }
+
+        // Notify parent post author about the reply
+        Task {
+            if let parentAuthorId = await fetchPostAuthorId(postId: parentPostId),
+               parentAuthorId != authorId,
+               let replierCallSign = await fetchCallSign(userId: authorId) {
+                await NotificationManager.shared.notifyHangerTalkReply(
+                    postId: post.id,
+                    parentPostId: parentPostId,
+                    replierCallSign: replierCallSign
+                )
+            }
+        }
+
         return post.id
     }
 
@@ -352,6 +366,18 @@ class HangerTalkService: ObservableObject {
                 .from("hanger_talk_likes")
                 .insert(data)
                 .execute()
+
+            // Notify post author about the like
+            Task {
+                if let postAuthorId = await fetchPostAuthorId(postId: postId),
+                   postAuthorId != userId,
+                   let likerCallSign = await fetchCallSign(userId: userId) {
+                    await NotificationManager.shared.notifyHangerTalkLike(
+                        postId: postId,
+                        likerCallSign: likerCallSign
+                    )
+                }
+            }
         }
 
         // Update local state
@@ -536,6 +562,17 @@ class HangerTalkService: ObservableObject {
                 .insert(data)
                 .execute()
             updateFollowState(authorId: followingId, isFollowed: true)
+
+            // Notify the user being followed
+            Task {
+                if let followerCallSign = await fetchCallSign(userId: followerId) {
+                    await NotificationManager.shared.notifyHangerTalkFollow(
+                        followerCallSign: followerCallSign,
+                        followerId: followerId
+                    )
+                }
+            }
+
             return true // now following
         }
     }
@@ -646,7 +683,7 @@ class HangerTalkService: ObservableObject {
 
     // MARK: - Create Mentions for Post
 
-    func createMentions(postId: UUID, mentionedCallSigns: [String]) async {
+    func createMentions(postId: UUID, authorId: UUID, mentionedCallSigns: [String]) async {
         if DemoModeManager.shared.isDemoModeEnabled { return }
 
         for callSign in mentionedCallSigns {
@@ -669,6 +706,15 @@ class HangerTalkService: ObservableObject {
                     .from("hanger_talk_mentions")
                     .insert(insert)
                     .execute()
+
+                // Notify the mentioned user
+                if profile.id != authorId {
+                    let mentionerCallSign = await fetchCallSign(userId: authorId)
+                    await NotificationManager.shared.notifyHangerTalkMention(
+                        postId: postId,
+                        mentionerCallSign: mentionerCallSign ?? "Someone"
+                    )
+                }
             } catch {
                 print("Error creating mention for @\(callSign): \(error)")
             }
@@ -832,6 +878,42 @@ class HangerTalkService: ObservableObject {
         } catch {
             print("Error fetching user posts: \(error)")
             return []
+        }
+    }
+
+    // MARK: - Notification Helpers
+
+    /// Fetch the author ID of a post
+    private func fetchPostAuthorId(postId: UUID) async -> UUID? {
+        do {
+            let posts: [HangerTalkPost] = try await supabase
+                .from("hanger_talk_posts")
+                .select()
+                .eq("id", value: postId.uuidString)
+                .limit(1)
+                .execute()
+                .value
+            return posts.first?.authorId
+        } catch {
+            print("Error fetching post author: \(error)")
+            return nil
+        }
+    }
+
+    /// Fetch the call sign for a given user ID
+    private func fetchCallSign(userId: UUID) async -> String? {
+        do {
+            let profiles: [HangerAuthorProfile] = try await supabase
+                .from("profiles")
+                .select("id, call_sign, profile_picture_url, first_name, last_name")
+                .eq("id", value: userId.uuidString)
+                .limit(1)
+                .execute()
+                .value
+            return profiles.first?.callSign
+        } catch {
+            print("Error fetching call sign: \(error)")
+            return nil
         }
     }
 

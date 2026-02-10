@@ -14,7 +14,11 @@ struct NotificationPreferences: Codable {
     var rankImprovements: NotificationDeliveryOptions
     var bookingUpdates: NotificationDeliveryOptions
     var messages: NotificationDeliveryOptions
-    
+    var hangerTalkLikes: NotificationDeliveryOptions
+    var hangerTalkReplies: NotificationDeliveryOptions
+    var hangerTalkMentions: NotificationDeliveryOptions
+    var hangerTalkFollows: NotificationDeliveryOptions
+
     init() {
         // Default: system notifications ON for all types
         self.bookingReminders = NotificationDeliveryOptions(system: true, email: false, text: false)
@@ -23,6 +27,10 @@ struct NotificationPreferences: Codable {
         self.rankImprovements = NotificationDeliveryOptions(system: true, email: false, text: false)
         self.bookingUpdates = NotificationDeliveryOptions(system: true, email: false, text: false)
         self.messages = NotificationDeliveryOptions(system: true, email: false, text: false)
+        self.hangerTalkLikes = NotificationDeliveryOptions(system: true, email: false, text: false)
+        self.hangerTalkReplies = NotificationDeliveryOptions(system: true, email: false, text: false)
+        self.hangerTalkMentions = NotificationDeliveryOptions(system: true, email: false, text: false)
+        self.hangerTalkFollows = NotificationDeliveryOptions(system: true, email: false, text: false)
     }
     
     enum CodingKeys: String, CodingKey {
@@ -32,6 +40,10 @@ struct NotificationPreferences: Codable {
         case rankImprovements = "rank_improvements"
         case bookingUpdates = "booking_updates"
         case messages
+        case hangerTalkLikes = "hanger_talk_likes"
+        case hangerTalkReplies = "hanger_talk_replies"
+        case hangerTalkMentions = "hanger_talk_mentions"
+        case hangerTalkFollows = "hanger_talk_follows"
     }
 }
 

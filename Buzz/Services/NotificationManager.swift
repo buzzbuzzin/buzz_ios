@@ -38,6 +38,10 @@ class NotificationManager: NSObject, ObservableObject {
         case videoUploadReminder = "VIDEO_UPLOAD_REMINDER"
         case emergencyBeacon = "EMERGENCY_BEACON"
         case emergencyBeaconUrgent = "EMERGENCY_BEACON_URGENT"
+        case hangerTalkLike = "HANGER_TALK_LIKE"
+        case hangerTalkReply = "HANGER_TALK_REPLY"
+        case hangerTalkMention = "HANGER_TALK_MENTION"
+        case hangerTalkFollow = "HANGER_TALK_FOLLOW"
     }
     
     // Published property for emergency flash effect
@@ -488,6 +492,93 @@ class NotificationManager: NSObject, ObservableObject {
         try? await notificationCenter.add(request)
     }
     
+    // MARK: - Hanger Talk Notifications
+
+    /// Notify post author when someone likes their post
+    func notifyHangerTalkLike(postId: UUID, likerCallSign: String) async {
+        let content = UNMutableNotificationContent()
+        content.title = "New Like"
+        content.body = "\(likerCallSign) liked your post"
+        content.sound = .default
+        content.categoryIdentifier = NotificationCategory.hangerTalkLike.rawValue
+        content.userInfo = [
+            "postId": postId.uuidString,
+            "type": "hanger_talk_like"
+        ]
+
+        let request = UNNotificationRequest(
+            identifier: "hanger-like-\(postId.uuidString)-\(UUID().uuidString)",
+            content: content,
+            trigger: nil
+        )
+
+        try? await notificationCenter.add(request)
+    }
+
+    /// Notify post author when someone replies to their post
+    func notifyHangerTalkReply(postId: UUID, parentPostId: UUID, replierCallSign: String) async {
+        let content = UNMutableNotificationContent()
+        content.title = "New Reply"
+        content.body = "\(replierCallSign) replied to your post"
+        content.sound = .default
+        content.categoryIdentifier = NotificationCategory.hangerTalkReply.rawValue
+        content.userInfo = [
+            "postId": postId.uuidString,
+            "parentPostId": parentPostId.uuidString,
+            "type": "hanger_talk_reply"
+        ]
+
+        let request = UNNotificationRequest(
+            identifier: "hanger-reply-\(postId.uuidString)",
+            content: content,
+            trigger: nil
+        )
+
+        try? await notificationCenter.add(request)
+    }
+
+    /// Notify user when they are @mentioned in a post
+    func notifyHangerTalkMention(postId: UUID, mentionerCallSign: String) async {
+        let content = UNMutableNotificationContent()
+        content.title = "You Were Mentioned"
+        content.body = "\(mentionerCallSign) mentioned you in a post"
+        content.sound = .default
+        content.categoryIdentifier = NotificationCategory.hangerTalkMention.rawValue
+        content.userInfo = [
+            "postId": postId.uuidString,
+            "type": "hanger_talk_mention"
+        ]
+
+        let request = UNNotificationRequest(
+            identifier: "hanger-mention-\(postId.uuidString)-\(UUID().uuidString)",
+            content: content,
+            trigger: nil
+        )
+
+        try? await notificationCenter.add(request)
+    }
+
+    /// Notify user when someone follows them
+    func notifyHangerTalkFollow(followerCallSign: String, followerId: UUID) async {
+        let content = UNMutableNotificationContent()
+        content.title = "New Follower"
+        content.body = "\(followerCallSign) started following you"
+        content.sound = .default
+        content.categoryIdentifier = NotificationCategory.hangerTalkFollow.rawValue
+        content.userInfo = [
+            "followerId": followerId.uuidString,
+            "type": "hanger_talk_follow"
+        ]
+
+        let request = UNNotificationRequest(
+            identifier: "hanger-follow-\(followerId.uuidString)",
+            content: content,
+            trigger: nil
+        )
+
+        try? await notificationCenter.add(request)
+    }
+
     // MARK: - Utility Methods
     
     /// Check if a specific notification type is enabled in user preferences
@@ -510,6 +601,14 @@ class NotificationManager: NSObject, ObservableObject {
         case .emergencyBeacon, .emergencyBeaconUrgent:
             // Emergency notifications are always enabled for volunteers
             return true
+        case .hangerTalkLike:
+            return preferences.hangerTalkLikes.system
+        case .hangerTalkReply:
+            return preferences.hangerTalkReplies.system
+        case .hangerTalkMention:
+            return preferences.hangerTalkMentions.system
+        case .hangerTalkFollow:
+            return preferences.hangerTalkFollows.system
         }
     }
     

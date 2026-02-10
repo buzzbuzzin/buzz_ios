@@ -23,49 +23,97 @@ struct NotificationsView: View {
         case weatherUpdates
         case receivedReviews
         case messages
+        case hangerTalkLikes
+        case hangerTalkReplies
+        case hangerTalkMentions
+        case hangerTalkFollows
     }
     
     var body: some View {
         List {
-            NotificationPreferenceCard(
-                title: "Booking Reminders",
-                description: "Reminders for upcoming bookings",
-                icon: "calendar",
-                options: notificationService.preferences.bookingReminders,
-                onEdit: {
-                    editingNotificationType = .bookingReminders
-                }
-            )
-            
-            NotificationPreferenceCard(
-                title: "Weather Updates",
-                description: "Weather information for upcoming bookings",
-                icon: "cloud.sun",
-                options: notificationService.preferences.weatherUpdates,
-                onEdit: {
-                    editingNotificationType = .weatherUpdates
-                }
-            )
-            
-            NotificationPreferenceCard(
-                title: "Received Reviews",
-                description: "When you receive new reviews",
-                icon: "star.fill",
-                options: notificationService.preferences.receivedReviews,
-                onEdit: {
-                    editingNotificationType = .receivedReviews
-                }
-            )
-            
-            NotificationPreferenceCard(
-                title: "Messages",
-                description: "New messages from customers or pilots",
-                icon: "message.fill",
-                options: notificationService.preferences.messages,
-                onEdit: {
-                    editingNotificationType = .messages
-                }
-            )
+            Section("General") {
+                NotificationPreferenceCard(
+                    title: "Booking Reminders",
+                    description: "Reminders for upcoming bookings",
+                    icon: "calendar",
+                    options: notificationService.preferences.bookingReminders,
+                    onEdit: {
+                        editingNotificationType = .bookingReminders
+                    }
+                )
+
+                NotificationPreferenceCard(
+                    title: "Weather Updates",
+                    description: "Weather information for upcoming bookings",
+                    icon: "cloud.sun",
+                    options: notificationService.preferences.weatherUpdates,
+                    onEdit: {
+                        editingNotificationType = .weatherUpdates
+                    }
+                )
+
+                NotificationPreferenceCard(
+                    title: "Received Reviews",
+                    description: "When you receive new reviews",
+                    icon: "star.fill",
+                    options: notificationService.preferences.receivedReviews,
+                    onEdit: {
+                        editingNotificationType = .receivedReviews
+                    }
+                )
+
+                NotificationPreferenceCard(
+                    title: "Messages",
+                    description: "New messages from customers or pilots",
+                    icon: "message.fill",
+                    options: notificationService.preferences.messages,
+                    onEdit: {
+                        editingNotificationType = .messages
+                    }
+                )
+            }
+
+            Section("Hanger Talk") {
+                NotificationPreferenceCard(
+                    title: "Likes",
+                    description: "When someone likes your post",
+                    icon: "heart.fill",
+                    options: notificationService.preferences.hangerTalkLikes,
+                    onEdit: {
+                        editingNotificationType = .hangerTalkLikes
+                    }
+                )
+
+                NotificationPreferenceCard(
+                    title: "Replies",
+                    description: "When someone replies to your post",
+                    icon: "arrowshape.turn.up.left.fill",
+                    options: notificationService.preferences.hangerTalkReplies,
+                    onEdit: {
+                        editingNotificationType = .hangerTalkReplies
+                    }
+                )
+
+                NotificationPreferenceCard(
+                    title: "Mentions",
+                    description: "When someone @mentions you",
+                    icon: "at",
+                    options: notificationService.preferences.hangerTalkMentions,
+                    onEdit: {
+                        editingNotificationType = .hangerTalkMentions
+                    }
+                )
+
+                NotificationPreferenceCard(
+                    title: "Follows",
+                    description: "When someone follows you",
+                    icon: "person.badge.plus",
+                    options: notificationService.preferences.hangerTalkFollows,
+                    onEdit: {
+                        editingNotificationType = .hangerTalkFollows
+                    }
+                )
+            }
         }
         .navigationTitle("Notifications")
         .navigationBarTitleDisplayMode(.inline)
@@ -183,24 +231,36 @@ struct NotificationEditSheet: View {
         case .weatherUpdates: return "Weather Updates"
         case .receivedReviews: return "Received Reviews"
         case .messages: return "Messages"
+        case .hangerTalkLikes: return "Likes"
+        case .hangerTalkReplies: return "Replies"
+        case .hangerTalkMentions: return "Mentions"
+        case .hangerTalkFollows: return "Follows"
         }
     }
-    
+
     var description: String {
         switch notificationType {
         case .bookingReminders: return "Reminders for upcoming bookings"
         case .weatherUpdates: return "Weather information for upcoming bookings"
         case .receivedReviews: return "When you receive new reviews"
         case .messages: return "New messages from customers or pilots"
+        case .hangerTalkLikes: return "When someone likes your post"
+        case .hangerTalkReplies: return "When someone replies to your post"
+        case .hangerTalkMentions: return "When someone @mentions you"
+        case .hangerTalkFollows: return "When someone follows you"
         }
     }
-    
+
     var bindingOptions: Binding<NotificationDeliveryOptions> {
         switch notificationType {
         case .bookingReminders: return $preferences.bookingReminders
         case .weatherUpdates: return $preferences.weatherUpdates
         case .receivedReviews: return $preferences.receivedReviews
         case .messages: return $preferences.messages
+        case .hangerTalkLikes: return $preferences.hangerTalkLikes
+        case .hangerTalkReplies: return $preferences.hangerTalkReplies
+        case .hangerTalkMentions: return $preferences.hangerTalkMentions
+        case .hangerTalkFollows: return $preferences.hangerTalkFollows
         }
     }
     
@@ -219,6 +279,14 @@ struct NotificationEditSheet: View {
             _localOptions = State(initialValue: preferences.wrappedValue.receivedReviews)
         case .messages:
             _localOptions = State(initialValue: preferences.wrappedValue.messages)
+        case .hangerTalkLikes:
+            _localOptions = State(initialValue: preferences.wrappedValue.hangerTalkLikes)
+        case .hangerTalkReplies:
+            _localOptions = State(initialValue: preferences.wrappedValue.hangerTalkReplies)
+        case .hangerTalkMentions:
+            _localOptions = State(initialValue: preferences.wrappedValue.hangerTalkMentions)
+        case .hangerTalkFollows:
+            _localOptions = State(initialValue: preferences.wrappedValue.hangerTalkFollows)
         }
     }
     
