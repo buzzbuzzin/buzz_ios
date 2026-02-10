@@ -188,7 +188,7 @@ struct HangerHelpPostCard: View {
                 }
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(postWithAuthor.authorCallSign ?? postWithAuthor.authorFullName)
+                    Text(postWithAuthor.authorCallSign ?? "Pilot")
                         .font(.subheadline)
                         .fontWeight(.semibold)
 

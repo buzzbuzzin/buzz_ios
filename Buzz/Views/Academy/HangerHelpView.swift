@@ -457,7 +457,7 @@ struct HangerHelpSavedCommentCard: View {
                 }
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(commentWithAuthor.authorCallSign ?? commentWithAuthor.authorFullName)
+                    Text(commentWithAuthor.authorCallSign ?? "Pilot")
                         .font(.subheadline)
                         .fontWeight(.semibold)
 
@@ -525,13 +525,13 @@ struct HangerHelpActivityItemCard: View {
                 Group {
                     switch item.type {
                     case .newCommentOnFollowedPost:
-                        Text("\(item.commentAuthorCallSign ?? item.commentAuthorName) ")
+                        Text("\(item.commentAuthorCallSign ?? "Pilot") ")
                             .fontWeight(.semibold) +
                         Text("commented on ") +
                         Text(item.postTitle)
                             .fontWeight(.semibold)
                     case .replyToFollowedComment:
-                        Text("\(item.commentAuthorCallSign ?? item.commentAuthorName) ")
+                        Text("\(item.commentAuthorCallSign ?? "Pilot") ")
                             .fontWeight(.semibold) +
                         Text("replied on ") +
                         Text(item.postTitle)

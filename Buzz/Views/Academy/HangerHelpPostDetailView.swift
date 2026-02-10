@@ -197,7 +197,7 @@ struct HangerHelpPostDetailView: View {
                 }
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(postWithAuthor.authorCallSign ?? postWithAuthor.authorFullName)
+                    Text(postWithAuthor.authorCallSign ?? "Pilot")
                         .font(.subheadline)
                         .fontWeight(.semibold)
 
@@ -340,7 +340,7 @@ struct HangerHelpPostDetailView: View {
             VStack(spacing: 8) {
                 if let replyingTo = replyingToComment {
                     HStack {
-                        Text("Replying to \(replyingTo.authorCallSign ?? replyingTo.authorFullName)")
+                        Text("Replying to \(replyingTo.authorCallSign ?? "Pilot")")
                             .font(.caption)
                             .foregroundColor(.secondary)
 
@@ -441,7 +441,7 @@ struct HangerHelpCommentRow: View {
                 }
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(comment.authorCallSign ?? comment.authorFullName)
+                    Text(comment.authorCallSign ?? "Pilot")
                         .font(.subheadline)
                         .fontWeight(.semibold)
 

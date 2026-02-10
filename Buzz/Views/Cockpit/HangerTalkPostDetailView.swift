@@ -15,6 +15,7 @@ struct HangerTalkPostDetailView: View {
     @State private var showComposeReply = false
     @State private var showDeleteConfirmation = false
     @State private var showEditPost = false
+    @State private var navigateToProfileId: UUID?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -114,6 +115,21 @@ struct HangerTalkPostDetailView: View {
                 .environmentObject(authService)
             }
         }
+        .background(
+            NavigationLink(
+                destination: Group {
+                    if let profileId = navigateToProfileId {
+                        PublicProfileView(pilotId: profileId)
+                            .environmentObject(authService)
+                    }
+                },
+                isActive: Binding(
+                    get: { navigateToProfileId != nil },
+                    set: { if !$0 { navigateToProfileId = nil } }
+                )
+            ) { EmptyView() }
+                .hidden()
+        )
         .task {
             guard let userId = authService.activeUserId else { return }
             await service.fetchReplies(parentPostId: postWithAuthor.id, currentUserId: userId)
@@ -126,36 +142,50 @@ struct HangerTalkPostDetailView: View {
         VStack(alignment: .leading, spacing: 12) {
             // Author row
             HStack(spacing: 10) {
-                if let urlString = postWithAuthor.authorProfilePictureUrl,
-                   let url = URL(string: urlString) {
-                    AsyncImage(url: url) { image in
-                        image.resizable().aspectRatio(contentMode: .fill)
-                    } placeholder: {
-                        Circle().fill(Color.gray.opacity(0.3))
+                NavigationLink(destination: PublicProfileView(pilotId: postWithAuthor.post.authorId)
+                    .environmentObject(authService)) {
+                    if let urlString = postWithAuthor.authorProfilePictureUrl,
+                       let url = URL(string: urlString) {
+                        AsyncImage(url: url) { image in
+                            image.resizable().aspectRatio(contentMode: .fill)
+                        } placeholder: {
+                            Circle().fill(Color.gray.opacity(0.3))
+                        }
+                        .frame(width: 48, height: 48)
+                        .clipShape(Circle())
+                    } else {
+                        Image(systemName: "person.circle.fill")
+                            .font(.system(size: 48))
+                            .foregroundColor(.secondary)
                     }
-                    .frame(width: 48, height: 48)
-                    .clipShape(Circle())
-                } else {
-                    Image(systemName: "person.circle.fill")
-                        .font(.system(size: 48))
-                        .foregroundColor(.secondary)
                 }
+                .buttonStyle(.plain)
 
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(postWithAuthor.authorCallSign ?? postWithAuthor.authorFullName)
-                        .font(.headline)
-                        .fontWeight(.bold)
+                NavigationLink(destination: PublicProfileView(pilotId: postWithAuthor.post.authorId)
+                    .environmentObject(authService)) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(postWithAuthor.authorCallSign ?? "Pilot")
+                            .font(.headline)
+                            .fontWeight(.bold)
 
-                    Text("@\((postWithAuthor.authorCallSign ?? postWithAuthor.authorFullName).lowercased().replacingOccurrences(of: " ", with: ""))")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
+                        Text("@\((postWithAuthor.authorCallSign ?? "pilot").lowercased().replacingOccurrences(of: " ", with: ""))")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    }
                 }
+                .buttonStyle(.plain)
 
                 Spacer()
             }
 
-            // Body text (full size, with @mention highlighting)
-            MentionText(postWithAuthor.post.body, font: .title3)
+            // Body text (full size, with tappable @mentions)
+            TappableMentionText(postWithAuthor.post.body, font: .title3) { callSign in
+                Task {
+                    if let profile = await service.resolveCallSign(callSign) {
+                        navigateToProfileId = profile.id
+                    }
+                }
+            }
 
             // Image carousel
             if !postWithAuthor.post.imageUrls.isEmpty {
@@ -322,6 +352,23 @@ struct HangerTalkPostDetailView: View {
                             guard let userId = authService.activeUserId else { return }
                             Task {
                                 try? await service.deletePost(postId: reply.id)
+                                await service.fetchReplies(parentPostId: postWithAuthor.id, currentUserId: userId)
+                            }
+                        },
+                        onAuthorTap: {
+                            navigateToProfileId = reply.post.authorId
+                        },
+                        onMentionTap: { callSign in
+                            Task {
+                                if let profile = await service.resolveCallSign(callSign) {
+                                    navigateToProfileId = profile.id
+                                }
+                            }
+                        },
+                        onFollow: {
+                            guard let userId = authService.activeUserId else { return }
+                            Task {
+                                _ = try? await service.toggleFollow(followerId: userId, followingId: reply.post.authorId)
                                 await service.fetchReplies(parentPostId: postWithAuthor.id, currentUserId: userId)
                             }
                         }

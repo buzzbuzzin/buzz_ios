@@ -20,6 +20,7 @@ struct HangerTalkSearchView: View {
     @State private var hasSearched = false
     @State private var postToReply: HangerTalkPostWithAuthor?
     @State private var followedPilotIds: Set<UUID> = []
+    @State private var navigateToProfileId: UUID?
 
     enum SearchSegment: String, CaseIterable {
         case posts = "Posts"
@@ -60,6 +61,21 @@ struct HangerTalkSearchView: View {
                 }
             }
         }
+        .background(
+            NavigationLink(
+                destination: Group {
+                    if let profileId = navigateToProfileId {
+                        PublicProfileView(pilotId: profileId)
+                            .environmentObject(authService)
+                    }
+                },
+                isActive: Binding(
+                    get: { navigateToProfileId != nil },
+                    set: { if !$0 { navigateToProfileId = nil } }
+                )
+            ) { EmptyView() }
+                .hidden()
+        )
         .navigationTitle("Search")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -182,7 +198,24 @@ struct HangerTalkSearchView: View {
                                 onReply: {
                                     postToReply = postWithAuthor
                                 },
-                                isOwnPost: postWithAuthor.post.authorId == authService.activeUserId
+                                isOwnPost: postWithAuthor.post.authorId == authService.activeUserId,
+                                onAuthorTap: {
+                                    navigateToProfileId = postWithAuthor.post.authorId
+                                },
+                                onMentionTap: { callSign in
+                                    Task {
+                                        if let profile = await service.resolveCallSign(callSign) {
+                                            navigateToProfileId = profile.id
+                                        }
+                                    }
+                                },
+                                onFollow: {
+                                    guard let userId = authService.activeUserId else { return }
+                                    Task {
+                                        _ = try? await service.toggleFollow(followerId: userId, followingId: postWithAuthor.post.authorId)
+                                        performSearch()
+                                    }
+                                }
                             )
                         }
                         .buttonStyle(PlainButtonStyle())
@@ -220,16 +253,11 @@ struct HangerTalkSearchView: View {
                                 }
 
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text(pilot.callSign ?? pilot.fullName)
+                                    Text(pilot.callSign ?? "Pilot")
                                         .font(.subheadline)
                                         .fontWeight(.semibold)
                                         .foregroundColor(.primary)
 
-                                    if pilot.callSign != nil {
-                                        Text(pilot.fullName)
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
-                                    }
                                 }
 
                                 Spacer()

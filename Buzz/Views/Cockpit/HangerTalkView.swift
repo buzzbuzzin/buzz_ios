@@ -18,6 +18,7 @@ struct HangerTalkView: View {
     @State private var showEditPost = false
     @State private var postToEdit: HangerTalkPostWithAuthor?
     @State private var postToReply: HangerTalkPostWithAuthor?
+    @State private var navigateToProfileId: UUID?
 
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
@@ -48,6 +49,21 @@ struct HangerTalkView: View {
             // Floating compose button
             composeButton
         }
+        .background(
+            NavigationLink(
+                destination: Group {
+                    if let profileId = navigateToProfileId {
+                        PublicProfileView(pilotId: profileId)
+                            .environmentObject(authService)
+                    }
+                },
+                isActive: Binding(
+                    get: { navigateToProfileId != nil },
+                    set: { if !$0 { navigateToProfileId = nil } }
+                )
+            ) { EmptyView() }
+                .hidden()
+        )
         .navigationTitle("Hanger Talk")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -223,6 +239,23 @@ struct HangerTalkView: View {
                                 onEdit: {
                                     postToEdit = postWithAuthor
                                     showEditPost = true
+                                },
+                                onAuthorTap: {
+                                    navigateToProfileId = postWithAuthor.post.authorId
+                                },
+                                onMentionTap: { callSign in
+                                    Task {
+                                        if let profile = await service.resolveCallSign(callSign) {
+                                            navigateToProfileId = profile.id
+                                        }
+                                    }
+                                },
+                                onFollow: {
+                                    guard let userId = authService.activeUserId else { return }
+                                    Task {
+                                        _ = try? await service.toggleFollow(followerId: userId, followingId: postWithAuthor.post.authorId)
+                                        await refreshCurrentTab()
+                                    }
                                 }
                             )
                         }

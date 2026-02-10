@@ -61,6 +61,56 @@ struct MentionText: View {
     }
 }
 
+// MARK: - Tappable Mention Text (renders @mentions as tappable blue links)
+
+struct TappableMentionText: View {
+    let text: String
+    let font: Font
+    let onMentionTap: (String) -> Void
+
+    init(_ text: String, font: Font = .body, onMentionTap: @escaping (String) -> Void) {
+        self.text = text
+        self.font = font
+        self.onMentionTap = onMentionTap
+    }
+
+    var body: some View {
+        Text(buildAttributedString())
+            .font(font)
+            .environment(\.openURL, OpenURLAction { url in
+                if url.scheme == "buzzmention",
+                   let callSign = url.host?.removingPercentEncoding {
+                    onMentionTap(callSign)
+                    return .handled
+                }
+                return .systemAction
+            })
+    }
+
+    private func buildAttributedString() -> AttributedString {
+        let segments = MentionParser.parseSegments(from: text)
+        var result = AttributedString("")
+
+        for segment in segments {
+            switch segment {
+            case .plain(let str):
+                result += AttributedString(str)
+            case .mention(let callSign):
+                var mention = AttributedString("@\(callSign)")
+                mention.foregroundColor = .blue
+                mention.font = font.weight(.semibold)
+                mention.underlineStyle = .init(pattern: .solid, color: .clear)
+                if let encoded = callSign.addingPercentEncoding(withAllowedCharacters: .urlHostAllowed) {
+                    mention.link = URL(string: "buzzmention://\(encoded)")
+                }
+                result += mention
+            }
+        }
+
+        return result
+    }
+}
+
 // MARK: - Image Carousel (shared component)
 
 struct HangerImageCarousel: View {

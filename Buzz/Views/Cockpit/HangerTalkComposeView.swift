@@ -182,7 +182,7 @@ struct HangerTalkComposeView: View {
                 VStack(alignment: .leading, spacing: 6) {
                     // Author info row
                     HStack(spacing: 4) {
-                        Text(original.authorCallSign ?? original.authorFullName)
+                        Text(original.authorCallSign ?? "Pilot")
                             .font(.subheadline)
                             .fontWeight(.semibold)
 
@@ -219,7 +219,7 @@ struct HangerTalkComposeView: View {
 
                 VStack(alignment: .leading, spacing: 6) {
                     // "Replying to" label
-                    Text("Reply to \(original.authorCallSign ?? original.authorFullName)")
+                    Text("Reply to \(original.authorCallSign ?? "Pilot")")
                         .font(.caption)
                         .foregroundColor(.secondary)
 

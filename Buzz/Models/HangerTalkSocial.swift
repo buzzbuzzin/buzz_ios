@@ -106,6 +106,7 @@ struct HangerTalkPostWithAuthor: Identifiable {
     var isLikedByCurrentUser: Bool
     var isRepostedByCurrentUser: Bool
     var isBookmarkedByCurrentUser: Bool
+    var isFollowedByCurrentUser: Bool
 }
 
 // MARK: - Supabase Join Response

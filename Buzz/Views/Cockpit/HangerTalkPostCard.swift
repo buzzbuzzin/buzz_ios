@@ -16,6 +16,9 @@ struct HangerTalkPostCard: View {
     var isOwnPost: Bool = false
     var onDelete: (() -> Void)?
     var onEdit: (() -> Void)?
+    var onAuthorTap: (() -> Void)?
+    var onMentionTap: ((String) -> Void)?
+    var onFollow: (() -> Void)?
 
     @State private var likeAnimating = false
 
@@ -30,10 +33,17 @@ struct HangerTalkPostCard: View {
                     authorInfoRow
 
                     // Post body text (with @mention highlighting)
-                    MentionText(postWithAuthor.post.body)
-                        .foregroundColor(.primary)
-                        .multilineTextAlignment(.leading)
-                        .fixedSize(horizontal: false, vertical: true)
+                    if let onMentionTap {
+                        TappableMentionText(postWithAuthor.post.body, onMentionTap: onMentionTap)
+                            .foregroundColor(.primary)
+                            .multilineTextAlignment(.leading)
+                            .fixedSize(horizontal: false, vertical: true)
+                    } else {
+                        MentionText(postWithAuthor.post.body)
+                            .foregroundColor(.primary)
+                            .multilineTextAlignment(.leading)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
 
                     // Optional image carousel
                     if !postWithAuthor.post.imageUrls.isEmpty {
@@ -56,20 +66,45 @@ struct HangerTalkPostCard: View {
     // MARK: - Author Avatar
 
     private var authorAvatar: some View {
-        Group {
-            if let urlString = postWithAuthor.authorProfilePictureUrl,
-               let url = URL(string: urlString) {
-                AsyncImage(url: url) { image in
-                    image.resizable().aspectRatio(contentMode: .fill)
-                } placeholder: {
-                    Circle().fill(Color.gray.opacity(0.3))
+        ZStack(alignment: .bottom) {
+            Button {
+                onAuthorTap?()
+            } label: {
+                Group {
+                    if let urlString = postWithAuthor.authorProfilePictureUrl,
+                       let url = URL(string: urlString) {
+                        AsyncImage(url: url) { image in
+                            image.resizable().aspectRatio(contentMode: .fill)
+                        } placeholder: {
+                            Circle().fill(Color.gray.opacity(0.3))
+                        }
+                        .frame(width: 40, height: 40)
+                        .clipShape(Circle())
+                    } else {
+                        Image(systemName: "person.circle.fill")
+                            .font(.system(size: 40))
+                            .foregroundColor(.secondary)
+                    }
                 }
-                .frame(width: 40, height: 40)
-                .clipShape(Circle())
-            } else {
-                Image(systemName: "person.circle.fill")
-                    .font(.system(size: 40))
-                    .foregroundColor(.secondary)
+            }
+            .buttonStyle(.plain)
+
+            // Threads-style follow "+" button
+            if !isOwnPost && !postWithAuthor.isFollowedByCurrentUser, let onFollow {
+                Button(action: onFollow) {
+                    Image(systemName: "plus")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundColor(.white)
+                        .frame(width: 18, height: 18)
+                        .background(Color.blue)
+                        .clipShape(Circle())
+                        .overlay(
+                            Circle()
+                                .stroke(Color(.systemBackground), lineWidth: 2)
+                        )
+                }
+                .buttonStyle(.plain)
+                .offset(y: 6)
             }
         }
     }
@@ -78,10 +113,15 @@ struct HangerTalkPostCard: View {
 
     private var authorInfoRow: some View {
         HStack(spacing: 4) {
-            Text(postWithAuthor.authorCallSign ?? postWithAuthor.authorFullName)
-                .font(.subheadline)
-                .fontWeight(.semibold)
-                .foregroundColor(.primary)
+            Button {
+                onAuthorTap?()
+            } label: {
+                Text(postWithAuthor.authorCallSign ?? "Pilot")
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.primary)
+            }
+            .buttonStyle(.plain)
 
             Text("·")
                 .font(.subheadline)

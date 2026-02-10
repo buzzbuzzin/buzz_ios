@@ -524,6 +524,7 @@ class HangerTalkService: ObservableObject {
                 .delete()
                 .eq("id", value: follow.id.uuidString)
                 .execute()
+            updateFollowState(authorId: followingId, isFollowed: false)
             return false // now unfollowed
         } else {
             let data: [String: AnyJSON] = [
@@ -534,7 +535,26 @@ class HangerTalkService: ObservableObject {
                 .from("user_follows")
                 .insert(data)
                 .execute()
+            updateFollowState(authorId: followingId, isFollowed: true)
             return true // now following
+        }
+    }
+
+    private func updateFollowState(authorId: UUID, isFollowed: Bool) {
+        for i in feedPosts.indices where feedPosts[i].post.authorId == authorId {
+            feedPosts[i].isFollowedByCurrentUser = isFollowed
+        }
+        for i in followingPosts.indices where followingPosts[i].post.authorId == authorId {
+            followingPosts[i].isFollowedByCurrentUser = isFollowed
+        }
+        for i in likedPosts.indices where likedPosts[i].post.authorId == authorId {
+            likedPosts[i].isFollowedByCurrentUser = isFollowed
+        }
+        for i in bookmarkedPosts.indices where bookmarkedPosts[i].post.authorId == authorId {
+            bookmarkedPosts[i].isFollowedByCurrentUser = isFollowed
+        }
+        for i in replies.indices where replies[i].post.authorId == authorId {
+            replies[i].isFollowedByCurrentUser = isFollowed
         }
     }
 
@@ -733,8 +753,8 @@ class HangerTalkService: ObservableObject {
 
     // MARK: - Helpers
 
-    private func fetchUserInteractions(currentUserId: UUID, postIds: [UUID]) async -> (likes: Set<UUID>, reposts: Set<UUID>, bookmarks: Set<UUID>) {
-        guard !postIds.isEmpty else { return ([], [], []) }
+    private func fetchUserInteractions(currentUserId: UUID, postIds: [UUID]) async -> (likes: Set<UUID>, reposts: Set<UUID>, bookmarks: Set<UUID>, followedAuthorIds: Set<UUID>) {
+        guard !postIds.isEmpty else { return ([], [], [], []) }
 
         do {
             let userLikes: [HangerTalkLike] = try await supabase
@@ -761,14 +781,16 @@ class HangerTalkService: ObservableObject {
                 .value
             let bookmarkedIds = Set(userBookmarks.map { $0.postId })
 
-            return (likedIds, repostedIds, bookmarkedIds)
+            let followedIds = await fetchFollowedIds(userId: currentUserId)
+
+            return (likedIds, repostedIds, bookmarkedIds, followedIds)
         } catch {
             print("Error fetching user interactions: \(error)")
-            return ([], [], [])
+            return ([], [], [], [])
         }
     }
 
-    private func mapResponseToPostWithAuthor(_ resp: HangerTalkPostResponse, interactions: (likes: Set<UUID>, reposts: Set<UUID>, bookmarks: Set<UUID>)) -> HangerTalkPostWithAuthor {
+    private func mapResponseToPostWithAuthor(_ resp: HangerTalkPostResponse, interactions: (likes: Set<UUID>, reposts: Set<UUID>, bookmarks: Set<UUID>, followedAuthorIds: Set<UUID>)) -> HangerTalkPostWithAuthor {
         let profile = resp.profileData
         return HangerTalkPostWithAuthor(
             id: resp.id,
@@ -778,7 +800,8 @@ class HangerTalkService: ObservableObject {
             authorFullName: profile?.fullName ?? "Pilot",
             isLikedByCurrentUser: interactions.likes.contains(resp.id),
             isRepostedByCurrentUser: interactions.reposts.contains(resp.id),
-            isBookmarkedByCurrentUser: interactions.bookmarks.contains(resp.id)
+            isBookmarkedByCurrentUser: interactions.bookmarks.contains(resp.id),
+            isFollowedByCurrentUser: interactions.followedAuthorIds.contains(resp.authorId)
         )
     }
 
