@@ -30,15 +30,7 @@ struct HangerTalkView: View {
                 Divider()
 
                 // Content
-                List {
-                    feedContent
-                        .listRowSeparator(.hidden)
-                        .listRowInsets(EdgeInsets())
-                }
-                .listStyle(.plain)
-                .refreshable {
-                    await refreshCurrentTab()
-                }
+                feedList
             }
 
             // Floating action buttons
@@ -202,85 +194,96 @@ struct HangerTalkView: View {
         .padding(.top, 4)
     }
 
-    // MARK: - Feed Content
+    // MARK: - Feed List
 
-    @ViewBuilder
-    private var feedContent: some View {
-        let posts: [HangerTalkPostWithAuthor] = {
-            switch selectedTab {
-            case .forYou: return service.feedPosts
-            case .following: return service.followingPosts
-            case .liked: return service.likedPosts
-            case .bookmarks: return service.bookmarkedPosts
-            }
-        }()
+    private var currentPosts: [HangerTalkPostWithAuthor] {
+        switch selectedTab {
+        case .forYou: return service.feedPosts
+        case .following: return service.followingPosts
+        case .liked: return service.likedPosts
+        case .bookmarks: return service.bookmarkedPosts
+        }
+    }
 
-        if service.isLoading && posts.isEmpty {
-            ProgressView()
-                .padding(.top, 40)
-                .frame(maxWidth: .infinity)
-        } else if posts.isEmpty {
-            emptyState
-        } else {
-            ForEach(posts) { postWithAuthor in
-                NavigationLink(destination: HangerTalkPostDetailView(
-                    postWithAuthor: postWithAuthor
-                ).environmentObject(authService)) {
-                    HangerTalkPostCard(
-                        postWithAuthor: postWithAuthor,
-                        onLike: {
-                            guard let userId = authService.activeUserId else { return }
-                            Task {
-                                try? await service.toggleLike(postId: postWithAuthor.id, userId: userId)
-                                await refreshCurrentTab()
-                            }
-                        },
-                        onRepost: {
-                            guard let userId = authService.activeUserId else { return }
-                            Task {
-                                try? await service.toggleRepost(postId: postWithAuthor.id, userId: userId)
-                                await refreshCurrentTab()
-                            }
-                        },
-                        onBookmark: {
-                            guard let userId = authService.activeUserId else { return }
-                            Task {
-                                try? await service.toggleBookmark(postId: postWithAuthor.id, userId: userId)
-                                await refreshCurrentTab()
-                            }
-                        },
-                        onReply: {
-                            postToReply = postWithAuthor
-                        },
-                        isOwnPost: postWithAuthor.post.authorId == authService.activeUserId,
-                        onDelete: {
-                            postToDelete = postWithAuthor
-                            showDeletePostConfirmation = true
-                        },
-                        onEdit: {
-                            postToEdit = postWithAuthor
-                            showEditPost = true
-                        },
-                        onAuthorTap: {
-                            navigateToProfileId = postWithAuthor.post.authorId
-                        },
-                        onMentionTap: { callSign in
-                            Task {
-                                if let profile = await service.resolveCallSign(callSign) {
-                                    navigateToProfileId = profile.id
-                                }
-                            }
-                        },
-                        onFollow: {
-                            guard let userId = authService.activeUserId else { return }
-                            Task {
-                                _ = try? await service.toggleFollow(followerId: userId, followingId: postWithAuthor.post.authorId)
-                                await refreshCurrentTab()
-                            }
-                        }
-                    )
+    private var feedList: some View {
+        Group {
+            if service.isLoading && currentPosts.isEmpty {
+                ProgressView()
+                    .padding(.top, 40)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if currentPosts.isEmpty {
+                ScrollView {
+                    emptyState
                 }
-                .buttonStyle(PlainButtonStyle())
+            } else {
+                List {
+                    ForEach(currentPosts) { postWithAuthor in
+                        NavigationLink(destination: HangerTalkPostDetailView(
+                            postWithAuthor: postWithAuthor
+                        ).environmentObject(authService)) {
+                            HangerTalkPostCard(
+                                postWithAuthor: postWithAuthor,
+                                onLike: {
+                                    guard let userId = authService.activeUserId else { return }
+                                    Task {
+                                        try? await service.toggleLike(postId: postWithAuthor.id, userId: userId)
+                                        await refreshCurrentTab()
+                                    }
+                                },
+                                onRepost: {
+                                    guard let userId = authService.activeUserId else { return }
+                                    Task {
+                                        try? await service.toggleRepost(postId: postWithAuthor.id, userId: userId)
+                                        await refreshCurrentTab()
+                                    }
+                                },
+                                onBookmark: {
+                                    guard let userId = authService.activeUserId else { return }
+                                    Task {
+                                        try? await service.toggleBookmark(postId: postWithAuthor.id, userId: userId)
+                                        await refreshCurrentTab()
+                                    }
+                                },
+                                onReply: {
+                                    postToReply = postWithAuthor
+                                },
+                                isOwnPost: postWithAuthor.post.authorId == authService.activeUserId,
+                                onDelete: {
+                                    postToDelete = postWithAuthor
+                                    showDeletePostConfirmation = true
+                                },
+                                onEdit: {
+                                    postToEdit = postWithAuthor
+                                    showEditPost = true
+                                },
+                                onAuthorTap: {
+                                    navigateToProfileId = postWithAuthor.post.authorId
+                                },
+                                onMentionTap: { callSign in
+                                    Task {
+                                        if let profile = await service.resolveCallSign(callSign) {
+                                            navigateToProfileId = profile.id
+                                        }
+                                    }
+                                },
+                                onFollow: {
+                                    guard let userId = authService.activeUserId else { return }
+                                    Task {
+                                        _ = try? await service.toggleFollow(followerId: userId, followingId: postWithAuthor.post.authorId)
+                                        await refreshCurrentTab()
+                                    }
+                                }
+                            )
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                        .listRowSeparator(.hidden)
+                        .listRowInsets(EdgeInsets())
+                    }
+                }
+                .listStyle(.plain)
+                .refreshable {
+                    await refreshCurrentTab()
+                }
             }
         }
     }
