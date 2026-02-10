@@ -805,6 +805,36 @@ class HangerTalkService: ObservableObject {
         )
     }
 
+    // MARK: - Fetch User Posts (by author)
+
+    func fetchUserPosts(authorId: UUID, currentUserId: UUID) async -> [HangerTalkPostWithAuthor] {
+        if DemoModeManager.shared.isDemoModeEnabled {
+            return []
+        }
+
+        do {
+            let response: [HangerTalkPostResponse] = try await supabase
+                .from("hanger_talk_posts")
+                .select("*, profiles(id, call_sign, profile_picture_url, first_name, last_name)")
+                .eq("author_id", value: authorId.uuidString)
+                .eq("is_reply", value: false)
+                .order("created_at", ascending: false)
+                .limit(20)
+                .execute()
+                .value
+
+            let postIds = response.map { $0.id }
+            let interactions = await fetchUserInteractions(currentUserId: currentUserId, postIds: postIds)
+
+            return response.map { resp in
+                mapResponseToPostWithAuthor(resp, interactions: interactions)
+            }
+        } catch {
+            print("Error fetching user posts: \(error)")
+            return []
+        }
+    }
+
     // MARK: - Demo Data
 
     static let demoPosts: [HangerTalkPostWithAuthor] = []

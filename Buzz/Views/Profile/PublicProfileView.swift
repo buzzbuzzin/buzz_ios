@@ -27,9 +27,11 @@ struct PublicProfileView: View {
     @State private var pilotStats: PilotStats?
     @State private var ratingSummary: UserRatingSummary?
     @State private var completedCourses: [TrainingCourse] = []
+    @State private var pilotPosts: [HangerTalkPostWithAuthor] = []
     @State private var isLoading = true
     @State private var errorMessage = ""
     @State private var showError = false
+    @State private var navigateToProfileId: UUID?
     
     var isOwnProfile: Bool {
         authService.currentUser?.id == pilotId
@@ -148,6 +150,19 @@ struct PublicProfileView: View {
                                         Text("No ratings")
                                             .font(.caption2)
                                             .foregroundColor(.secondary)
+                                    }
+                                }
+
+                                // Rank below rating
+                                if let stats = pilotStats {
+                                    HStack(spacing: 4) {
+                                        Circle()
+                                            .fill(tierColor(for: stats.tier))
+                                            .frame(width: 8, height: 8)
+                                        Text(stats.tierName)
+                                            .font(.caption)
+                                            .fontWeight(.semibold)
+                                            .foregroundColor(tierColor(for: stats.tier))
                                     }
                                 }
                             }
@@ -298,6 +313,41 @@ struct PublicProfileView: View {
                 } header: {
                     Text("Completed Courses")
                 }
+
+                // Community Posts Section
+                Section {
+                    if pilotPosts.isEmpty {
+                        Text("No posts yet")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                            .padding(.vertical, 4)
+                    } else {
+                        ForEach(pilotPosts.prefix(3)) { postWithAuthor in
+                            NavigationLink(destination: HangerTalkPostDetailView(postWithAuthor: postWithAuthor).environmentObject(authService)) {
+                                CommunityPostRow(postWithAuthor: postWithAuthor)
+                            }
+                            .buttonStyle(PlainButtonStyle())
+                        }
+
+                        if pilotPosts.count > 3 {
+                            NavigationLink(destination: PilotPostsListView(pilotId: pilotId).environmentObject(authService)) {
+                                HStack {
+                                    Text("See All Posts")
+                                        .font(.subheadline)
+                                        .foregroundColor(.blue)
+                                    Spacer()
+                                    Image(systemName: "chevron.right")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                                .padding(.vertical, 4)
+                            }
+                            .buttonStyle(PlainButtonStyle())
+                        }
+                    }
+                } header: {
+                    Text("Community Posts")
+                }
             } else {
                 Section {
                     Text("Profile not found")
@@ -318,6 +368,17 @@ struct PublicProfileView: View {
         }
     }
     
+    private func tierColor(for tier: Int) -> Color {
+        switch tier {
+        case 0: return .gray
+        case 1: return .brown
+        case 2: return .orange
+        case 3: return .yellow
+        case 4: return .green
+        default: return .gray
+        }
+    }
+
     private func loadProfileData() async {
         isLoading = true
         
@@ -355,12 +416,56 @@ struct PublicProfileView: View {
             followerCount = counts.followers
             followingCount = counts.following
 
+            // Load pilot's community posts
+            let currentUserId = authService.currentUser?.id ?? UUID()
+            pilotPosts = await hangerTalkService.fetchUserPosts(authorId: pilotId, currentUserId: currentUserId)
+
             isLoading = false
         } catch {
             isLoading = false
             errorMessage = error.localizedDescription
             showError = true
         }
+    }
+}
+
+// MARK: - Community Post Row
+
+struct CommunityPostRow: View {
+    let postWithAuthor: HangerTalkPostWithAuthor
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(postWithAuthor.post.body)
+                .font(.subheadline)
+                .foregroundColor(.primary)
+                .lineLimit(3)
+
+            HStack(spacing: 16) {
+                HStack(spacing: 4) {
+                    Image(systemName: "heart")
+                        .font(.caption2)
+                    Text("\(postWithAuthor.post.likeCount)")
+                        .font(.caption2)
+                }
+                .foregroundColor(.secondary)
+
+                HStack(spacing: 4) {
+                    Image(systemName: "bubble.left")
+                        .font(.caption2)
+                    Text("\(postWithAuthor.post.replyCount)")
+                        .font(.caption2)
+                }
+                .foregroundColor(.secondary)
+
+                Spacer()
+
+                Text(postWithAuthor.post.createdAt.formatted(date: .abbreviated, time: .omitted))
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .padding(.vertical, 4)
     }
 }
 
