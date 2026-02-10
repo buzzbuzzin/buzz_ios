@@ -16,11 +16,16 @@ final class NotificationPreferencesModelTests: XCTestCase {
         let prefs = NotificationPreferences()
 
         XCTAssertTrue(prefs.bookingReminders.system)
+        XCTAssertTrue(prefs.bookingCancellations.system)
         XCTAssertTrue(prefs.weatherUpdates.system)
         XCTAssertTrue(prefs.receivedReviews.system)
-        XCTAssertTrue(prefs.rankImprovements.system)
         XCTAssertTrue(prefs.bookingUpdates.system)
         XCTAssertTrue(prefs.messages.system)
+        XCTAssertTrue(prefs.tipReceived.system)
+        XCTAssertTrue(prefs.payoutConfirmation.system)
+        XCTAssertTrue(prefs.beaconAccepted.system)
+        XCTAssertTrue(prefs.beaconResolved.system)
+        XCTAssertTrue(prefs.hangerTalkNewPosts.system)
     }
 
     func testDefaultPreferences_emailAndTextDisabled() {

@@ -150,6 +150,11 @@ final class MockNotificationManager: BookingNotificationManaging {
     var reminderCalls: Int = 0
     var nearbyCalls: Int = 0
     var completionCalls: Int = 0
+    var cancelledCalls: Int = 0
+    var tipReceivedCalls: Int = 0
+    var payoutCalls: Int = 0
+    var beaconAcceptedCalls: Int = 0
+    var beaconResolvedCalls: Int = 0
 
     func notifyBookingAccepted(bookingId: UUID, pilotName: String, aircraftType: String, departureTime: Date) async {
         acceptedCalls += 1
@@ -165,6 +170,26 @@ final class MockNotificationManager: BookingNotificationManaging {
 
     func notifyCrewBookingCompleted(bookingId: UUID, payoutAmount: Decimal, role: String) async {
         completionCalls += 1
+    }
+
+    func notifyBookingCancelled(bookingId: UUID, cancelledByName: String, aircraftType: String) async {
+        cancelledCalls += 1
+    }
+
+    func notifyTipReceived(bookingId: UUID, tipAmount: Decimal, customerName: String) async {
+        tipReceivedCalls += 1
+    }
+
+    func notifyPayoutConfirmation(bookingId: UUID, payoutAmount: Decimal) async {
+        payoutCalls += 1
+    }
+
+    func notifyBeaconAccepted(bookingId: UUID, volunteerCallSign: String, missionType: String) async {
+        beaconAcceptedCalls += 1
+    }
+
+    func notifyBeaconResolved(bookingId: UUID, missionType: String) async {
+        beaconResolvedCalls += 1
     }
 }
 

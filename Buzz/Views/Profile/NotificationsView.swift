@@ -12,18 +12,27 @@ struct NotificationsView: View {
     @Environment(\.dismiss) var dismiss
 
     @State private var editingNotificationType: NotificationType? = nil
-    
+
     enum NotificationType {
+        // General
         case bookingReminders
+        case bookingCancellations
         case weatherUpdates
         case receivedReviews
         case messages
+        case tipReceived
+        case payoutConfirmation
+        // Beacon
+        case beaconAccepted
+        case beaconResolved
+        // Hanger Talk
         case hangerTalkLikes
         case hangerTalkReplies
         case hangerTalkMentions
         case hangerTalkFollows
+        case hangerTalkNewPosts
     }
-    
+
     var body: some View {
         List {
             Section("General") {
@@ -34,6 +43,16 @@ struct NotificationsView: View {
                     options: notificationService.preferences.bookingReminders,
                     onEdit: {
                         editingNotificationType = .bookingReminders
+                    }
+                )
+
+                NotificationPreferenceCard(
+                    title: "Booking Cancellations",
+                    description: "When a booking is cancelled",
+                    icon: "calendar.badge.minus",
+                    options: notificationService.preferences.bookingCancellations,
+                    onEdit: {
+                        editingNotificationType = .bookingCancellations
                     }
                 )
 
@@ -66,9 +85,61 @@ struct NotificationsView: View {
                         editingNotificationType = .messages
                     }
                 )
+
+                NotificationPreferenceCard(
+                    title: "Tips Received",
+                    description: "When a customer tips you",
+                    icon: "dollarsign.circle.fill",
+                    options: notificationService.preferences.tipReceived,
+                    onEdit: {
+                        editingNotificationType = .tipReceived
+                    }
+                )
+
+                NotificationPreferenceCard(
+                    title: "Payout Confirmation",
+                    description: "When a payout is transferred to your account",
+                    icon: "banknote.fill",
+                    options: notificationService.preferences.payoutConfirmation,
+                    onEdit: {
+                        editingNotificationType = .payoutConfirmation
+                    }
+                )
+            }
+
+            Section("Beacon") {
+                NotificationPreferenceCard(
+                    title: "Volunteer Accepted",
+                    description: "When a volunteer responds to your emergency",
+                    icon: "figure.wave",
+                    options: notificationService.preferences.beaconAccepted,
+                    onEdit: {
+                        editingNotificationType = .beaconAccepted
+                    }
+                )
+
+                NotificationPreferenceCard(
+                    title: "Mission Resolved",
+                    description: "When an emergency mission is completed",
+                    icon: "checkmark.shield.fill",
+                    options: notificationService.preferences.beaconResolved,
+                    onEdit: {
+                        editingNotificationType = .beaconResolved
+                    }
+                )
             }
 
             Section("Hanger Talk") {
+                NotificationPreferenceCard(
+                    title: "New Posts",
+                    description: "When someone you follow shares a post",
+                    icon: "newspaper.fill",
+                    options: notificationService.preferences.hangerTalkNewPosts,
+                    onEdit: {
+                        editingNotificationType = .hangerTalkNewPosts
+                    }
+                )
+
                 NotificationPreferenceCard(
                     title: "Likes",
                     description: "When someone likes your post",
@@ -125,7 +196,7 @@ struct NotificationsView: View {
             loadPreferences()
         }
     }
-    
+
     private func loadPreferences() {
         notificationService.loadPreferences()
     }
@@ -145,20 +216,20 @@ struct NotificationPreferenceCard: View {
     let icon: String
     let options: NotificationDeliveryOptions
     let onEdit: () -> Void
-    
+
     var statusText: String {
         var enabled: [String] = []
         if options.system { enabled.append("Push notifications") }
         if options.email { enabled.append("Email") }
         if options.text { enabled.append("SMS") }
-        
+
         if enabled.isEmpty {
             return "Off"
         } else {
             return "On: \(enabled.joined(separator: ", "))"
         }
     }
-    
+
     var body: some View {
         Button(action: {
             onEdit()
@@ -168,19 +239,19 @@ struct NotificationPreferenceCard: View {
                     .font(.title3)
                     .foregroundColor(.blue)
                     .frame(width: 30)
-                
+
                 VStack(alignment: .leading, spacing: 4) {
                     Text(title)
                         .font(.headline)
                         .foregroundColor(.primary)
-                    
+
                     Text(statusText)
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                 }
-                
+
                 Spacer()
-                
+
                 Image(systemName: "chevron.right")
                     .font(.caption)
                     .foregroundColor(.secondary)
@@ -196,63 +267,91 @@ struct NotificationEditSheet: View {
     @Binding var preferences: NotificationPreferences
     let onSave: () -> Void
     @Environment(\.dismiss) var dismiss
-    
+
     @State private var localOptions: NotificationDeliveryOptions
-    
+
     var title: String {
         switch notificationType {
         case .bookingReminders: return "Booking Reminders"
+        case .bookingCancellations: return "Booking Cancellations"
         case .weatherUpdates: return "Weather Updates"
         case .receivedReviews: return "Received Reviews"
         case .messages: return "Messages"
+        case .tipReceived: return "Tips Received"
+        case .payoutConfirmation: return "Payout Confirmation"
+        case .beaconAccepted: return "Volunteer Accepted"
+        case .beaconResolved: return "Mission Resolved"
         case .hangerTalkLikes: return "Likes"
         case .hangerTalkReplies: return "Replies"
         case .hangerTalkMentions: return "Mentions"
         case .hangerTalkFollows: return "Follows"
+        case .hangerTalkNewPosts: return "New Posts"
         }
     }
 
     var description: String {
         switch notificationType {
         case .bookingReminders: return "Reminders for upcoming bookings"
+        case .bookingCancellations: return "When a booking is cancelled"
         case .weatherUpdates: return "Weather information for upcoming bookings"
         case .receivedReviews: return "When you receive new reviews"
         case .messages: return "New messages from customers or pilots"
+        case .tipReceived: return "When a customer tips you"
+        case .payoutConfirmation: return "When a payout is transferred to your account"
+        case .beaconAccepted: return "When a volunteer responds to your emergency"
+        case .beaconResolved: return "When an emergency mission is completed"
         case .hangerTalkLikes: return "When someone likes your post"
         case .hangerTalkReplies: return "When someone replies to your post"
         case .hangerTalkMentions: return "When someone @mentions you"
         case .hangerTalkFollows: return "When someone follows you"
+        case .hangerTalkNewPosts: return "When someone you follow shares a post"
         }
     }
 
     var bindingOptions: Binding<NotificationDeliveryOptions> {
         switch notificationType {
         case .bookingReminders: return $preferences.bookingReminders
+        case .bookingCancellations: return $preferences.bookingCancellations
         case .weatherUpdates: return $preferences.weatherUpdates
         case .receivedReviews: return $preferences.receivedReviews
         case .messages: return $preferences.messages
+        case .tipReceived: return $preferences.tipReceived
+        case .payoutConfirmation: return $preferences.payoutConfirmation
+        case .beaconAccepted: return $preferences.beaconAccepted
+        case .beaconResolved: return $preferences.beaconResolved
         case .hangerTalkLikes: return $preferences.hangerTalkLikes
         case .hangerTalkReplies: return $preferences.hangerTalkReplies
         case .hangerTalkMentions: return $preferences.hangerTalkMentions
         case .hangerTalkFollows: return $preferences.hangerTalkFollows
+        case .hangerTalkNewPosts: return $preferences.hangerTalkNewPosts
         }
     }
-    
+
     init(notificationType: NotificationsView.NotificationType, preferences: Binding<NotificationPreferences>, onSave: @escaping () -> Void) {
         self.notificationType = notificationType
         self._preferences = preferences
         self.onSave = onSave
-        
+
         // Initialize local options with current value
         switch notificationType {
         case .bookingReminders:
             _localOptions = State(initialValue: preferences.wrappedValue.bookingReminders)
+        case .bookingCancellations:
+            _localOptions = State(initialValue: preferences.wrappedValue.bookingCancellations)
         case .weatherUpdates:
             _localOptions = State(initialValue: preferences.wrappedValue.weatherUpdates)
         case .receivedReviews:
             _localOptions = State(initialValue: preferences.wrappedValue.receivedReviews)
         case .messages:
             _localOptions = State(initialValue: preferences.wrappedValue.messages)
+        case .tipReceived:
+            _localOptions = State(initialValue: preferences.wrappedValue.tipReceived)
+        case .payoutConfirmation:
+            _localOptions = State(initialValue: preferences.wrappedValue.payoutConfirmation)
+        case .beaconAccepted:
+            _localOptions = State(initialValue: preferences.wrappedValue.beaconAccepted)
+        case .beaconResolved:
+            _localOptions = State(initialValue: preferences.wrappedValue.beaconResolved)
         case .hangerTalkLikes:
             _localOptions = State(initialValue: preferences.wrappedValue.hangerTalkLikes)
         case .hangerTalkReplies:
@@ -261,9 +360,11 @@ struct NotificationEditSheet: View {
             _localOptions = State(initialValue: preferences.wrappedValue.hangerTalkMentions)
         case .hangerTalkFollows:
             _localOptions = State(initialValue: preferences.wrappedValue.hangerTalkFollows)
+        case .hangerTalkNewPosts:
+            _localOptions = State(initialValue: preferences.wrappedValue.hangerTalkNewPosts)
         }
     }
-    
+
     var body: some View {
         NavigationView {
             VStack(alignment: .leading, spacing: 24) {
@@ -272,12 +373,12 @@ struct NotificationEditSheet: View {
                     .font(.largeTitle)
                     .fontWeight(.bold)
                     .padding(.top, 8)
-                
+
                 // Description
                 Text(description)
                     .font(.subheadline)
                     .foregroundColor(.secondary)
-                
+
                 // Toggles
                 VStack(spacing: 20) {
                     Toggle(isOn: $localOptions.system) {
@@ -287,7 +388,7 @@ struct NotificationEditSheet: View {
                             Text("Push notifications")
                         }
                     }
-                    
+
                     Toggle(isOn: $localOptions.email) {
                         HStack {
                             Image(systemName: "envelope.fill")
@@ -295,7 +396,7 @@ struct NotificationEditSheet: View {
                             Text("Email")
                         }
                     }
-                    
+
                     Toggle(isOn: $localOptions.text) {
                         HStack {
                             Image(systemName: "message.fill")
@@ -305,7 +406,7 @@ struct NotificationEditSheet: View {
                     }
                 }
                 .padding(.top, 8)
-                
+
                 Spacer()
             }
             .padding(.horizontal, 20)
@@ -330,4 +431,3 @@ struct NotificationEditSheet: View {
         .presentationDetents([.medium])
     }
 }
-

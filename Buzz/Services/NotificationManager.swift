@@ -28,6 +28,7 @@ class NotificationManager: NSObject, ObservableObject {
     enum NotificationCategory: String {
         case bookingAccepted = "BOOKING_ACCEPTED"
         case bookingReminder = "BOOKING_REMINDER"
+        case bookingCancelled = "BOOKING_CANCELLED"
         case newMessage = "NEW_MESSAGE"
         case nearbyBooking = "NEARBY_BOOKING"
         case droneActivity = "DRONE_ACTIVITY"
@@ -35,13 +36,17 @@ class NotificationManager: NSObject, ObservableObject {
         case receivedReview = "RECEIVED_REVIEW"
         case crewBookingAccepted = "CREW_BOOKING_ACCEPTED"
         case crewBookingCompleted = "CREW_BOOKING_COMPLETED"
-        case videoUploadReminder = "VIDEO_UPLOAD_REMINDER"
+        case tipReceived = "TIP_RECEIVED"
+        case payoutConfirmation = "PAYOUT_CONFIRMATION"
         case emergencyBeacon = "EMERGENCY_BEACON"
         case emergencyBeaconUrgent = "EMERGENCY_BEACON_URGENT"
+        case beaconAccepted = "BEACON_ACCEPTED"
+        case beaconResolved = "BEACON_RESOLVED"
         case hangerTalkLike = "HANGER_TALK_LIKE"
         case hangerTalkReply = "HANGER_TALK_REPLY"
         case hangerTalkMention = "HANGER_TALK_MENTION"
         case hangerTalkFollow = "HANGER_TALK_FOLLOW"
+        case hangerTalkNewPost = "HANGER_TALK_NEW_POST"
     }
     
     // Published property for emergency flash effect
@@ -579,13 +584,155 @@ class NotificationManager: NSObject, ObservableObject {
         try? await notificationCenter.add(request)
     }
 
+    // MARK: - Booking Cancelled Notification
+
+    /// Notify the other party that a booking has been cancelled
+    func notifyBookingCancelled(bookingId: UUID, cancelledByName: String, aircraftType: String) async {
+        let content = UNMutableNotificationContent()
+        content.title = "Booking Cancelled"
+        content.body = "\(cancelledByName) cancelled the \(aircraftType) booking"
+        content.sound = .default
+        content.categoryIdentifier = NotificationCategory.bookingCancelled.rawValue
+        content.userInfo = [
+            "bookingId": bookingId.uuidString,
+            "type": "booking_cancelled"
+        ]
+
+        let request = UNNotificationRequest(
+            identifier: "booking-cancelled-\(bookingId.uuidString)",
+            content: content,
+            trigger: nil
+        )
+
+        try? await notificationCenter.add(request)
+    }
+
+    // MARK: - Tip Received Notification
+
+    /// Notify pilot that they received a tip
+    func notifyTipReceived(bookingId: UUID, tipAmount: Decimal, customerName: String) async {
+        let content = UNMutableNotificationContent()
+        let amountString = String(format: "$%.2f", NSDecimalNumber(decimal: tipAmount).doubleValue)
+        content.title = "Tip Received! 🎉"
+        content.body = "\(customerName) tipped you \(amountString)"
+        content.sound = .default
+        content.categoryIdentifier = NotificationCategory.tipReceived.rawValue
+        content.userInfo = [
+            "bookingId": bookingId.uuidString,
+            "type": "tip_received"
+        ]
+
+        let request = UNNotificationRequest(
+            identifier: "tip-\(bookingId.uuidString)",
+            content: content,
+            trigger: nil
+        )
+
+        try? await notificationCenter.add(request)
+    }
+
+    // MARK: - Payout Confirmation Notification
+
+    /// Notify pilot that their payout has been transferred
+    func notifyPayoutConfirmation(bookingId: UUID, payoutAmount: Decimal) async {
+        let content = UNMutableNotificationContent()
+        let amountString = String(format: "$%.2f", NSDecimalNumber(decimal: payoutAmount).doubleValue)
+        content.title = "Payout Sent! 💰"
+        content.body = "Your \(amountString) payout has been transferred to your account"
+        content.sound = .default
+        content.categoryIdentifier = NotificationCategory.payoutConfirmation.rawValue
+        content.userInfo = [
+            "bookingId": bookingId.uuidString,
+            "type": "payout_confirmation"
+        ]
+
+        let request = UNNotificationRequest(
+            identifier: "payout-\(bookingId.uuidString)",
+            content: content,
+            trigger: nil
+        )
+
+        try? await notificationCenter.add(request)
+    }
+
+    // MARK: - Beacon Accepted Notification
+
+    /// Notify the emergency creator that a volunteer has responded
+    func notifyBeaconAccepted(bookingId: UUID, volunteerCallSign: String, missionType: String) async {
+        let content = UNMutableNotificationContent()
+        content.title = "Help Is On The Way! 🚁"
+        content.body = "\(volunteerCallSign) has accepted the \(missionType) mission"
+        content.sound = .default
+        content.categoryIdentifier = NotificationCategory.beaconAccepted.rawValue
+        content.userInfo = [
+            "bookingId": bookingId.uuidString,
+            "type": "beacon_accepted"
+        ]
+
+        let request = UNNotificationRequest(
+            identifier: "beacon-accepted-\(bookingId.uuidString)-\(UUID().uuidString)",
+            content: content,
+            trigger: nil
+        )
+
+        try? await notificationCenter.add(request)
+    }
+
+    // MARK: - Beacon Resolved Notification
+
+    /// Notify participants that an emergency has been resolved
+    func notifyBeaconResolved(bookingId: UUID, missionType: String) async {
+        let content = UNMutableNotificationContent()
+        content.title = "Mission Complete ✅"
+        content.body = "The \(missionType) mission has been resolved. Thank you for your help!"
+        content.sound = .default
+        content.categoryIdentifier = NotificationCategory.beaconResolved.rawValue
+        content.userInfo = [
+            "bookingId": bookingId.uuidString,
+            "type": "beacon_resolved"
+        ]
+
+        let request = UNNotificationRequest(
+            identifier: "beacon-resolved-\(bookingId.uuidString)",
+            content: content,
+            trigger: nil
+        )
+
+        try? await notificationCenter.add(request)
+    }
+
+    // MARK: - Hanger Talk New Post Notification
+
+    /// Notify a follower that someone they follow posted
+    func notifyHangerTalkNewPost(postId: UUID, authorCallSign: String) async {
+        let content = UNMutableNotificationContent()
+        content.title = "New Post"
+        content.body = "\(authorCallSign) shared a new post"
+        content.sound = .default
+        content.categoryIdentifier = NotificationCategory.hangerTalkNewPost.rawValue
+        content.userInfo = [
+            "postId": postId.uuidString,
+            "type": "hanger_talk_new_post"
+        ]
+
+        let request = UNNotificationRequest(
+            identifier: "hanger-newpost-\(postId.uuidString)-\(UUID().uuidString)",
+            content: content,
+            trigger: nil
+        )
+
+        try? await notificationCenter.add(request)
+    }
+
     // MARK: - Utility Methods
-    
+
     /// Check if a specific notification type is enabled in user preferences
     func isNotificationEnabled(preferences: NotificationPreferences, type: NotificationCategory) -> Bool {
         switch type {
         case .bookingAccepted, .bookingReminder:
             return preferences.bookingReminders.system
+        case .bookingCancelled:
+            return preferences.bookingCancellations.system
         case .newMessage:
             return preferences.messages.system
         case .nearbyBooking:
@@ -596,11 +743,17 @@ class NotificationManager: NSObject, ObservableObject {
             return preferences.receivedReviews.system
         case .crewBookingAccepted, .crewBookingCompleted:
             return preferences.bookingReminders.system
-        case .videoUploadReminder:
-            return preferences.bookingReminders.system
+        case .tipReceived:
+            return preferences.tipReceived.system
+        case .payoutConfirmation:
+            return preferences.payoutConfirmation.system
         case .emergencyBeacon, .emergencyBeaconUrgent:
             // Emergency notifications are always enabled for volunteers
             return true
+        case .beaconAccepted:
+            return preferences.beaconAccepted.system
+        case .beaconResolved:
+            return preferences.beaconResolved.system
         case .hangerTalkLike:
             return preferences.hangerTalkLikes.system
         case .hangerTalkReply:
@@ -609,6 +762,8 @@ class NotificationManager: NSObject, ObservableObject {
             return preferences.hangerTalkMentions.system
         case .hangerTalkFollow:
             return preferences.hangerTalkFollows.system
+        case .hangerTalkNewPost:
+            return preferences.hangerTalkNewPosts.system
         }
     }
     

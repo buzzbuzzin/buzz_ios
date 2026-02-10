@@ -210,6 +210,27 @@ class HangerTalkService: ObservableObject {
             throw NSError(domain: "HangerTalkService", code: -1,
                           userInfo: [NSLocalizedDescriptionKey: "Failed to create post"])
         }
+
+        // Notify followers about the new post
+        Task {
+            if let authorCallSign = await fetchCallSign(userId: authorId) {
+                // Get all users who follow the author
+                let followers: [UserFollow] = (try? await supabase
+                    .from("user_follows")
+                    .select()
+                    .eq("following_id", value: authorId.uuidString)
+                    .execute()
+                    .value) ?? []
+
+                for follower in followers {
+                    await NotificationManager.shared.notifyHangerTalkNewPost(
+                        postId: post.id,
+                        authorCallSign: authorCallSign
+                    )
+                }
+            }
+        }
+
         return post.id
     }
 

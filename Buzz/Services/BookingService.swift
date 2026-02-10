@@ -23,6 +23,11 @@ protocol BookingNotificationManaging {
     func scheduleBookingReminder(bookingId: UUID, aircraftType: String, departureTime: Date, pilotName: String) async
     func notifyNearbyBooking(bookingId: UUID, aircraftType: String, distance: Double, departureTime: Date) async
     func notifyCrewBookingCompleted(bookingId: UUID, payoutAmount: Decimal, role: String) async
+    func notifyBookingCancelled(bookingId: UUID, cancelledByName: String, aircraftType: String) async
+    func notifyTipReceived(bookingId: UUID, tipAmount: Decimal, customerName: String) async
+    func notifyPayoutConfirmation(bookingId: UUID, payoutAmount: Decimal) async
+    func notifyBeaconAccepted(bookingId: UUID, volunteerCallSign: String, missionType: String) async
+    func notifyBeaconResolved(bookingId: UUID, missionType: String) async
 }
 
 protocol NotificationPreferencesProviding {
@@ -1149,7 +1154,24 @@ class BookingService: ObservableObject {
             if !result.success {
                 throw NSError(domain: "BookingService", code: -1, userInfo: [NSLocalizedDescriptionKey: result.error ?? "Failed to join mission"])
             }
-            
+
+            // Notify the beacon creator that a volunteer accepted
+            if !skipNetworkCalls {
+                Task {
+                    let booking = try? await backend.fetchBooking(id: bookingId)
+                    let pilotProfile = try? await backend.fetchUserProfile(userId: pilotId)
+                    let volunteerCallSign = pilotProfile?.callSign ?? "A volunteer"
+                    let missionType = booking?.specialization?.displayName ?? "Search & Rescue"
+                    if let booking = booking {
+                        await notificationManager.notifyBeaconAccepted(
+                            bookingId: bookingId,
+                            volunteerCallSign: volunteerCallSign,
+                            missionType: missionType
+                        )
+                    }
+                }
+            }
+
             return JoinCrewResponse(
                 success: result.success,
                 message: result.message,
@@ -1163,7 +1185,7 @@ class BookingService: ObservableObject {
             throw error
         }
     }
-    
+
     // MARK: - Fetch Booking Crew
     
     /// Fetch crew members for a booking. For automotive bookings, returns crew details.
@@ -1419,7 +1441,20 @@ class BookingService: ObservableObject {
                 // Note: Transfer ID is stored in booking, but for tips we might want to track separately
                 // For now, the tip transfer is created and funds go to pilot's Stripe account
             }
-            
+
+            // Notify pilot about the tip
+            if !skipNetworkCalls, let pilotId = booking.pilotId {
+                Task {
+                    let customerProfile = try? await backend.fetchUserProfile(userId: booking.customerId)
+                    let customerName = customerProfile?.callSign ?? "Customer"
+                    await notificationManager.notifyTipReceived(
+                        bookingId: bookingId,
+                        tipAmount: tipAmount,
+                        customerName: customerName
+                    )
+                }
+            }
+
             isLoading = false
         } catch {
             isLoading = false
@@ -1427,7 +1462,7 @@ class BookingService: ObservableObject {
             throw error
         }
     }
-    
+
     // MARK: - Search & Rescue Completion Methods
     
     /// Update the final hours worked for a Search & Rescue booking
@@ -1510,7 +1545,19 @@ class BookingService: ObservableObject {
             for crewMember in crewMemberships {
                 try? await rankingService.updateFlightHours(pilotId: crewMember.pilotId, additionalHours: hoursWorked)
             }
-            
+
+            // Notify crew about mission completion and payout
+            if !skipNetworkCalls {
+                let perPilotPayout = pilotCount > 0 ? totalAmount / Decimal(pilotCount) : totalAmount
+                let missionType = (try? await backend.fetchBooking(id: bookingId))?.specialization?.displayName ?? "Search & Rescue"
+                Task {
+                    await notificationManager.notifyBeaconResolved(bookingId: bookingId, missionType: missionType)
+                    for crewMember in crewMemberships {
+                        await notificationManager.notifyPayoutConfirmation(bookingId: bookingId, payoutAmount: perPilotPayout)
+                    }
+                }
+            }
+
             isLoading = false
         } catch {
             isLoading = false
@@ -1518,7 +1565,7 @@ class BookingService: ObservableObject {
             throw error
         }
     }
-    
+
     /// Complete a voluntary Search & Rescue mission (no payment)
     func completeVoluntaryMission(bookingId: UUID) async throws {
         isLoading = true
@@ -1559,7 +1606,15 @@ class BookingService: ObservableObject {
             for crewMember in crewMemberships {
                 try? await rankingService.updateFlightHours(pilotId: crewMember.pilotId, additionalHours: hoursWorked)
             }
-            
+
+            // Notify crew about voluntary mission completion
+            if !skipNetworkCalls {
+                let missionType = booking.specialization?.displayName ?? "Search & Rescue"
+                Task {
+                    await notificationManager.notifyBeaconResolved(bookingId: bookingId, missionType: missionType)
+                }
+            }
+
             isLoading = false
         } catch {
             isLoading = false
@@ -1567,7 +1622,7 @@ class BookingService: ObservableObject {
             throw error
         }
     }
-    
+
     /// Helper to get charge ID from a payment intent
     private func getChargeIdFromPaymentIntent(paymentIntentId: String) async throws -> String {
         // The charge ID is typically stored in the payment intent response
@@ -1663,7 +1718,15 @@ class BookingService: ObservableObject {
                 .update(updateData)
                 .eq("id", value: bookingId.uuidString)
                 .execute()
-            
+
+            // Notify pilot about payout
+            if !skipNetworkCalls, let pilotId = booking.pilotId, booking.chargeId != nil {
+                let totalAmount = booking.paymentAmount + (booking.tipAmount ?? 0)
+                Task {
+                    await notificationManager.notifyPayoutConfirmation(bookingId: bookingId, payoutAmount: totalAmount)
+                }
+            }
+
             isLoading = false
         } catch {
             isLoading = false
@@ -1671,7 +1734,7 @@ class BookingService: ObservableObject {
             throw error
         }
     }
-    
+
     // MARK: - Add Tip to Booking
     
     func addTip(bookingId: UUID, tipAmount: Decimal) async throws {
@@ -1937,15 +2000,43 @@ class BookingService: ObservableObject {
     func cancelBooking(bookingId: UUID) async throws {
         isLoading = true
         errorMessage = nil
-        
+
         do {
+            // Fetch booking details before cancelling (for notification context)
+            let booking: Booking = try await supabase
+                .from("bookings")
+                .select()
+                .eq("id", value: bookingId.uuidString)
+                .single()
+                .execute()
+                .value
+
             let updateData: [String: AnyJSON] = ["status": .string(BookingStatus.cancelled.rawValue)]
             try await supabase
                 .from("bookings")
                 .update(updateData)
                 .eq("id", value: bookingId.uuidString)
                 .execute()
-            
+
+            // Cancel any pending booking reminders
+            NotificationManager.shared.cancelBookingReminder(bookingId: bookingId)
+
+            // Notify the other party about the cancellation
+            if !skipNetworkCalls, let pilotId = booking.pilotId {
+                let aircraftType = booking.specialization?.displayName ?? "booking"
+
+                // Notify pilot that customer cancelled
+                Task {
+                    let customerProfile = try? await backend.fetchUserProfile(userId: booking.customerId)
+                    let customerName = customerProfile?.callSign ?? "Customer"
+                    await notificationManager.notifyBookingCancelled(
+                        bookingId: bookingId,
+                        cancelledByName: customerName,
+                        aircraftType: aircraftType
+                    )
+                }
+            }
+
             isLoading = false
         } catch {
             isLoading = false
