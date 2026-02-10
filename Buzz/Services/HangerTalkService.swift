@@ -13,6 +13,7 @@ import UIKit
 @MainActor
 class HangerTalkService: ObservableObject {
     @Published var feedPosts: [HangerTalkPostWithAuthor] = []
+    @Published var followingPosts: [HangerTalkPostWithAuthor] = []
     @Published var likedPosts: [HangerTalkPostWithAuthor] = []
     @Published var bookmarkedPosts: [HangerTalkPostWithAuthor] = []
     @Published var replies: [HangerTalkPostWithAuthor] = []
@@ -186,8 +187,9 @@ class HangerTalkService: ObservableObject {
 
     // MARK: - Create Post
 
-    func createPost(authorId: UUID, body: String, imageUrls: [String] = []) async throws {
-        if DemoModeManager.shared.isDemoModeEnabled { return }
+    @discardableResult
+    func createPost(authorId: UUID, body: String, imageUrls: [String] = []) async throws -> UUID {
+        if DemoModeManager.shared.isDemoModeEnabled { return UUID() }
 
         let insert = HangerTalkPostInsert(
             authorId: authorId,
@@ -197,16 +199,25 @@ class HangerTalkService: ObservableObject {
             parentPostId: nil
         )
 
-        try await supabase
+        let response: [HangerTalkPost] = try await supabase
             .from("hanger_talk_posts")
             .insert(insert)
+            .select()
             .execute()
+            .value
+
+        guard let post = response.first else {
+            throw NSError(domain: "HangerTalkService", code: -1,
+                          userInfo: [NSLocalizedDescriptionKey: "Failed to create post"])
+        }
+        return post.id
     }
 
     // MARK: - Create Reply
 
-    func createReply(authorId: UUID, parentPostId: UUID, body: String, imageUrls: [String] = []) async throws {
-        if DemoModeManager.shared.isDemoModeEnabled { return }
+    @discardableResult
+    func createReply(authorId: UUID, parentPostId: UUID, body: String, imageUrls: [String] = []) async throws -> UUID {
+        if DemoModeManager.shared.isDemoModeEnabled { return UUID() }
 
         let insert = HangerTalkPostInsert(
             authorId: authorId,
@@ -216,10 +227,18 @@ class HangerTalkService: ObservableObject {
             parentPostId: parentPostId
         )
 
-        try await supabase
+        let response: [HangerTalkPost] = try await supabase
             .from("hanger_talk_posts")
             .insert(insert)
+            .select()
             .execute()
+            .value
+
+        guard let post = response.first else {
+            throw NSError(domain: "HangerTalkService", code: -1,
+                          userInfo: [NSLocalizedDescriptionKey: "Failed to create reply"])
+        }
+        return post.id
     }
 
     // MARK: - Update Post
@@ -429,6 +448,229 @@ class HangerTalkService: ObservableObject {
         }
         if let index = replies.firstIndex(where: { $0.id == postId }) {
             replies[index].isBookmarkedByCurrentUser.toggle()
+        }
+    }
+
+    // MARK: - Fetch Following Feed
+
+    func fetchFollowingFeed(currentUserId: UUID) async {
+        isLoading = true
+        errorMessage = nil
+
+        if DemoModeManager.shared.isDemoModeEnabled {
+            followingPosts = []
+            isLoading = false
+            return
+        }
+
+        do {
+            // Get IDs of users the current user follows
+            let follows: [UserFollow] = try await supabase
+                .from("user_follows")
+                .select()
+                .eq("follower_id", value: currentUserId.uuidString)
+                .execute()
+                .value
+
+            let followedIds = follows.map { $0.followingId.uuidString }
+
+            guard !followedIds.isEmpty else {
+                followingPosts = []
+                isLoading = false
+                return
+            }
+
+            // Fetch posts from followed users
+            let response: [HangerTalkPostResponse] = try await supabase
+                .from("hanger_talk_posts")
+                .select("*, profiles(id, call_sign, profile_picture_url, first_name, last_name)")
+                .eq("is_reply", value: false)
+                .in("author_id", values: followedIds)
+                .order("created_at", ascending: false)
+                .limit(50)
+                .execute()
+                .value
+
+            let postIds = response.map { $0.id }
+            let interactions = await fetchUserInteractions(currentUserId: currentUserId, postIds: postIds)
+
+            followingPosts = response.map { resp in
+                mapResponseToPostWithAuthor(resp, interactions: interactions)
+            }
+
+            isLoading = false
+        } catch {
+            errorMessage = error.localizedDescription
+            isLoading = false
+        }
+    }
+
+    // MARK: - Toggle Follow
+
+    func toggleFollow(followerId: UUID, followingId: UUID) async throws -> Bool {
+        if DemoModeManager.shared.isDemoModeEnabled { return false }
+
+        let existing: [UserFollow] = try await supabase
+            .from("user_follows")
+            .select()
+            .eq("follower_id", value: followerId.uuidString)
+            .eq("following_id", value: followingId.uuidString)
+            .execute()
+            .value
+
+        if let follow = existing.first {
+            try await supabase
+                .from("user_follows")
+                .delete()
+                .eq("id", value: follow.id.uuidString)
+                .execute()
+            return false // now unfollowed
+        } else {
+            let data: [String: AnyJSON] = [
+                "follower_id": .string(followerId.uuidString),
+                "following_id": .string(followingId.uuidString)
+            ]
+            try await supabase
+                .from("user_follows")
+                .insert(data)
+                .execute()
+            return true // now following
+        }
+    }
+
+    // MARK: - Check if Following
+
+    func isFollowing(followerId: UUID, followingId: UUID) async -> Bool {
+        if DemoModeManager.shared.isDemoModeEnabled { return false }
+
+        do {
+            let existing: [UserFollow] = try await supabase
+                .from("user_follows")
+                .select()
+                .eq("follower_id", value: followerId.uuidString)
+                .eq("following_id", value: followingId.uuidString)
+                .execute()
+                .value
+            return !existing.isEmpty
+        } catch {
+            print("Error checking follow status: \(error)")
+            return false
+        }
+    }
+
+    // MARK: - Fetch Follow Counts
+
+    func fetchFollowCounts(userId: UUID) async -> (followers: Int, following: Int) {
+        if DemoModeManager.shared.isDemoModeEnabled { return (0, 0) }
+
+        do {
+            let followers: [UserFollow] = try await supabase
+                .from("user_follows")
+                .select()
+                .eq("following_id", value: userId.uuidString)
+                .execute()
+                .value
+
+            let following: [UserFollow] = try await supabase
+                .from("user_follows")
+                .select()
+                .eq("follower_id", value: userId.uuidString)
+                .execute()
+                .value
+
+            return (followers.count, following.count)
+        } catch {
+            print("Error fetching follow counts: \(error)")
+            return (0, 0)
+        }
+    }
+
+    // MARK: - Fetch Followed Pilot IDs
+
+    func fetchFollowedIds(userId: UUID) async -> Set<UUID> {
+        if DemoModeManager.shared.isDemoModeEnabled { return [] }
+
+        do {
+            let follows: [UserFollow] = try await supabase
+                .from("user_follows")
+                .select()
+                .eq("follower_id", value: userId.uuidString)
+                .execute()
+                .value
+            return Set(follows.map { $0.followingId })
+        } catch {
+            print("Error fetching followed IDs: \(error)")
+            return []
+        }
+    }
+
+    // MARK: - Search Pilots for Mention Autocomplete
+
+    func searchPilotsForMention(query: String) async -> [HangerAuthorProfile] {
+        if DemoModeManager.shared.isDemoModeEnabled { return [] }
+
+        do {
+            let profiles: [HangerAuthorProfile] = try await supabase
+                .from("profiles")
+                .select("id, call_sign, profile_picture_url, first_name, last_name")
+                .ilike("call_sign", pattern: "%\(query)%")
+                .limit(8)
+                .execute()
+                .value
+            return profiles
+        } catch {
+            print("Error searching pilots for mention: \(error)")
+            return []
+        }
+    }
+
+    // MARK: - Create Mentions for Post
+
+    func createMentions(postId: UUID, mentionedCallSigns: [String]) async {
+        if DemoModeManager.shared.isDemoModeEnabled { return }
+
+        for callSign in mentionedCallSigns {
+            do {
+                let profiles: [HangerAuthorProfile] = try await supabase
+                    .from("profiles")
+                    .select("id, call_sign, profile_picture_url, first_name, last_name")
+                    .ilike("call_sign", pattern: callSign)
+                    .limit(1)
+                    .execute()
+                    .value
+
+                guard let profile = profiles.first else { continue }
+
+                let insert = HangerTalkMentionInsert(
+                    postId: postId,
+                    mentionedUserId: profile.id
+                )
+                try await supabase
+                    .from("hanger_talk_mentions")
+                    .insert(insert)
+                    .execute()
+            } catch {
+                print("Error creating mention for @\(callSign): \(error)")
+            }
+        }
+    }
+
+    // MARK: - Resolve Call Sign to Profile
+
+    func resolveCallSign(_ callSign: String) async -> HangerAuthorProfile? {
+        if DemoModeManager.shared.isDemoModeEnabled { return nil }
+
+        do {
+            let profiles: [HangerAuthorProfile] = try await supabase
+                .from("profiles")
+                .select("id, call_sign, profile_picture_url, first_name, last_name")
+                .ilike("call_sign", pattern: callSign)
+                .limit(1)
+                .execute()
+                .value
+            return profiles.first
+        } catch {
+            return nil
         }
     }
 

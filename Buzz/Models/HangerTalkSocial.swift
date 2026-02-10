@@ -11,6 +11,7 @@ import Foundation
 
 enum HangerTalkFeedTab: String, CaseIterable {
     case forYou = "For You"
+    case following = "Following"
     case liked = "Liked"
     case bookmarks = "Bookmarks"
 }
@@ -224,5 +225,47 @@ struct HangerTalkBookmark: Codable, Identifiable {
         case userId = "user_id"
         case postId = "post_id"
         case createdAt = "created_at"
+    }
+}
+
+// MARK: - User Follow
+
+struct UserFollow: Codable, Identifiable {
+    let id: UUID
+    let followerId: UUID
+    let followingId: UUID
+    let createdAt: Date
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case followerId = "follower_id"
+        case followingId = "following_id"
+        case createdAt = "created_at"
+    }
+}
+
+// MARK: - Hanger Talk Mention
+
+struct HangerTalkMention: Codable, Identifiable {
+    let id: UUID
+    let postId: UUID
+    let mentionedUserId: UUID
+    let createdAt: Date
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case postId = "post_id"
+        case mentionedUserId = "mentioned_user_id"
+        case createdAt = "created_at"
+    }
+}
+
+struct HangerTalkMentionInsert: Codable {
+    let postId: UUID
+    let mentionedUserId: UUID
+
+    enum CodingKeys: String, CodingKey {
+        case postId = "post_id"
+        case mentionedUserId = "mentioned_user_id"
     }
 }

@@ -18,8 +18,12 @@ struct PublicProfileView: View {
     @StateObject private var badgeService = BadgeService()
     @StateObject private var droneRegistrationService = DroneRegistrationService()
     @StateObject private var academyService = AcademyService()
-    
+    @StateObject private var hangerTalkService = HangerTalkService()
+
     @State private var pilotProfile: UserProfile?
+    @State private var isFollowingPilot = false
+    @State private var followerCount = 0
+    @State private var followingCount = 0
     @State private var pilotStats: PilotStats?
     @State private var ratingSummary: UserRatingSummary?
     @State private var completedCourses: [TrainingCourse] = []
@@ -152,8 +156,8 @@ struct PublicProfileView: View {
                         Spacer()
                         
                         // Statistics on the right
-                        if let stats = pilotStats {
-                            VStack(alignment: .leading, spacing: 16) {
+                        VStack(alignment: .leading, spacing: 16) {
+                            if let stats = pilotStats {
                                 // Flights
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text("\(stats.completedBookings)")
@@ -163,7 +167,7 @@ struct PublicProfileView: View {
                                         .font(.caption)
                                         .foregroundColor(.secondary)
                                 }
-                                
+
                                 // Flight Hours
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(String(format: "%.0f", stats.totalFlightHours))
@@ -173,13 +177,24 @@ struct PublicProfileView: View {
                                         .font(.caption)
                                         .foregroundColor(.secondary)
                                 }
-                                
-                                // Years on Buzz
+                            }
+
+                            // Followers
+                            HStack(spacing: 16) {
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text("\(yearsOnBuzz)")
+                                    Text("\(followerCount)")
                                         .font(.title2)
                                         .fontWeight(.bold)
-                                    Text("Years on Buzz")
+                                    Text("Followers")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("\(followingCount)")
+                                        .font(.title2)
+                                        .fontWeight(.bold)
+                                    Text("Following")
                                         .font(.caption)
                                         .foregroundColor(.secondary)
                                 }
@@ -189,9 +204,33 @@ struct PublicProfileView: View {
                     .padding(.vertical, 8)
                 }
                 
-                // Message Button Section (only show if not own profile)
+                // Message & Follow Buttons (only show if not own profile)
                 if !isOwnProfile {
                     Section {
+                        // Follow / Unfollow
+                        Button {
+                            Task {
+                                guard let myId = authService.currentUser?.id else { return }
+                                let nowFollowing = try? await hangerTalkService.toggleFollow(
+                                    followerId: myId, followingId: pilotId)
+                                isFollowingPilot = nowFollowing ?? false
+                                let counts = await hangerTalkService.fetchFollowCounts(userId: pilotId)
+                                followerCount = counts.followers
+                                followingCount = counts.following
+                            }
+                        } label: {
+                            HStack {
+                                Image(systemName: isFollowingPilot ? "person.badge.minus" : "person.badge.plus")
+                                    .font(.title3)
+                                    .foregroundColor(isFollowingPilot ? .red : .blue)
+                                Text(isFollowingPilot ? "Unfollow" : "Follow")
+                                    .font(.headline)
+                                Spacer()
+                            }
+                            .padding(.vertical, 8)
+                        }
+                        .buttonStyle(PlainButtonStyle())
+
                         NavigationLink(destination: DirectMessageView(pilotId: pilotId, pilotProfile: profile)) {
                             HStack {
                                 Image(systemName: "message.fill")
@@ -307,6 +346,14 @@ struct PublicProfileView: View {
                 print("Error loading completed courses: \(error)")
                 completedCourses = []
             }
+
+            // Load follow state and counts
+            if let myId = authService.currentUser?.id, !isOwnProfile {
+                isFollowingPilot = await hangerTalkService.isFollowing(followerId: myId, followingId: pilotId)
+            }
+            let counts = await hangerTalkService.fetchFollowCounts(userId: pilotId)
+            followerCount = counts.followers
+            followingCount = counts.following
 
             isLoading = false
         } catch {

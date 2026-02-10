@@ -19,6 +19,7 @@ struct HangerTalkSearchView: View {
     @State private var isSearching = false
     @State private var hasSearched = false
     @State private var postToReply: HangerTalkPostWithAuthor?
+    @State private var followedPilotIds: Set<UUID> = []
 
     enum SearchSegment: String, CaseIterable {
         case posts = "Posts"
@@ -200,39 +201,68 @@ struct HangerTalkSearchView: View {
             } else {
                 LazyVStack(spacing: 0) {
                     ForEach(pilotResults, id: \.id) { pilot in
-                        HStack(spacing: 12) {
-                            if let urlString = pilot.profilePictureUrl,
-                               let url = URL(string: urlString) {
-                                AsyncImage(url: url) { image in
-                                    image.resizable().aspectRatio(contentMode: .fill)
-                                } placeholder: {
-                                    Circle().fill(Color.gray.opacity(0.3))
-                                }
-                                .frame(width: 44, height: 44)
-                                .clipShape(Circle())
-                            } else {
-                                Image(systemName: "person.circle.fill")
-                                    .font(.system(size: 44))
-                                    .foregroundColor(.secondary)
-                            }
-
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(pilot.callSign ?? pilot.fullName)
-                                    .font(.subheadline)
-                                    .fontWeight(.semibold)
-                                    .foregroundColor(.primary)
-
-                                if pilot.callSign != nil {
-                                    Text(pilot.fullName)
-                                        .font(.caption)
+                        NavigationLink(destination: PublicProfileView(pilotId: pilot.id)
+                            .environmentObject(authService)) {
+                            HStack(spacing: 12) {
+                                if let urlString = pilot.profilePictureUrl,
+                                   let url = URL(string: urlString) {
+                                    AsyncImage(url: url) { image in
+                                        image.resizable().aspectRatio(contentMode: .fill)
+                                    } placeholder: {
+                                        Circle().fill(Color.gray.opacity(0.3))
+                                    }
+                                    .frame(width: 44, height: 44)
+                                    .clipShape(Circle())
+                                } else {
+                                    Image(systemName: "person.circle.fill")
+                                        .font(.system(size: 44))
                                         .foregroundColor(.secondary)
                                 }
-                            }
 
-                            Spacer()
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(pilot.callSign ?? pilot.fullName)
+                                        .font(.subheadline)
+                                        .fontWeight(.semibold)
+                                        .foregroundColor(.primary)
+
+                                    if pilot.callSign != nil {
+                                        Text(pilot.fullName)
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                    }
+                                }
+
+                                Spacer()
+
+                                // Follow button (skip for own profile)
+                                if pilot.id != authService.activeUserId {
+                                    Button {
+                                        Task {
+                                            guard let myId = authService.activeUserId else { return }
+                                            let nowFollowing = try? await service.toggleFollow(followerId: myId, followingId: pilot.id)
+                                            if nowFollowing == true {
+                                                followedPilotIds.insert(pilot.id)
+                                            } else {
+                                                followedPilotIds.remove(pilot.id)
+                                            }
+                                        }
+                                    } label: {
+                                        Text(followedPilotIds.contains(pilot.id) ? "Following" : "Follow")
+                                            .font(.caption)
+                                            .fontWeight(.semibold)
+                                            .foregroundColor(followedPilotIds.contains(pilot.id) ? .secondary : .blue)
+                                            .padding(.horizontal, 12)
+                                            .padding(.vertical, 6)
+                                            .background(followedPilotIds.contains(pilot.id) ? Color(.systemGray5) : Color.blue.opacity(0.1))
+                                            .cornerRadius(16)
+                                    }
+                                    .buttonStyle(PlainButtonStyle())
+                                }
+                            }
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 10)
                         }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 10)
+                        .buttonStyle(PlainButtonStyle())
 
                         Divider()
                             .padding(.leading, 72)
@@ -276,6 +306,7 @@ struct HangerTalkSearchView: View {
                 searchResults = await service.searchPosts(query: trimmed, currentUserId: userId)
             case .pilots:
                 pilotResults = await service.searchPilots(query: trimmed)
+                followedPilotIds = await service.fetchFollowedIds(userId: userId)
             }
             isSearching = false
         }

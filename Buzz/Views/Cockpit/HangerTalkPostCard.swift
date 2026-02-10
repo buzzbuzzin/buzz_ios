@@ -29,9 +29,8 @@ struct HangerTalkPostCard: View {
                     // Author info row
                     authorInfoRow
 
-                    // Post body text
-                    Text(postWithAuthor.post.body)
-                        .font(.body)
+                    // Post body text (with @mention highlighting)
+                    MentionText(postWithAuthor.post.body)
                         .foregroundColor(.primary)
                         .multilineTextAlignment(.leading)
                         .fixedSize(horizontal: false, vertical: true)

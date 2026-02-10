@@ -154,9 +154,8 @@ struct HangerTalkPostDetailView: View {
                 Spacer()
             }
 
-            // Body text (full size)
-            Text(postWithAuthor.post.body)
-                .font(.title3)
+            // Body text (full size, with @mention highlighting)
+            MentionText(postWithAuthor.post.body, font: .title3)
 
             // Image carousel
             if !postWithAuthor.post.imageUrls.isEmpty {

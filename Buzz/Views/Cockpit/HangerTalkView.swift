@@ -32,6 +32,8 @@ struct HangerTalkView: View {
                     switch selectedTab {
                     case .forYou:
                         feedSection(posts: service.feedPosts)
+                    case .following:
+                        feedSection(posts: service.followingPosts)
                     case .liked:
                         feedSection(posts: service.likedPosts)
                     case .bookmarks:
@@ -133,6 +135,8 @@ struct HangerTalkView: View {
                 switch newTab {
                 case .forYou:
                     await service.fetchFeed(currentUserId: userId)
+                case .following:
+                    await service.fetchFollowingFeed(currentUserId: userId)
                 case .liked:
                     await service.fetchLikedPosts(currentUserId: userId)
                 case .bookmarks:
@@ -252,6 +256,7 @@ struct HangerTalkView: View {
     private var emptyStateIcon: String {
         switch selectedTab {
         case .forYou: return "text.bubble"
+        case .following: return "person.2"
         case .liked: return "heart"
         case .bookmarks: return "bookmark"
         }
@@ -260,6 +265,7 @@ struct HangerTalkView: View {
     private var emptyStateTitle: String {
         switch selectedTab {
         case .forYou: return "No Posts Yet"
+        case .following: return "No Posts from Followed Pilots"
         case .liked: return "No Liked Posts"
         case .bookmarks: return "No Bookmarks"
         }
@@ -268,6 +274,7 @@ struct HangerTalkView: View {
     private var emptyStateMessage: String {
         switch selectedTab {
         case .forYou: return "Be the first to share something with the pilot community!"
+        case .following: return "Follow pilots to see their posts here."
         case .liked: return "Posts you like will appear here."
         case .bookmarks: return "Save posts to find them here later."
         }
@@ -299,6 +306,8 @@ struct HangerTalkView: View {
         switch selectedTab {
         case .forYou:
             await service.fetchFeed(currentUserId: userId)
+        case .following:
+            await service.fetchFollowingFeed(currentUserId: userId)
         case .liked:
             await service.fetchLikedPosts(currentUserId: userId)
         case .bookmarks:

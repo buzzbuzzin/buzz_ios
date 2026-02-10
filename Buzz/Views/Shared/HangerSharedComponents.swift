@@ -26,6 +26,41 @@ func hangerTimeAgo(_ date: Date) -> String {
     return "\(years)y"
 }
 
+// MARK: - Mention Text (renders @mentions as highlighted blue text)
+
+struct MentionText: View {
+    let text: String
+    let font: Font
+
+    init(_ text: String, font: Font = .body) {
+        self.text = text
+        self.font = font
+    }
+
+    var body: some View {
+        buildText()
+            .font(font)
+    }
+
+    private func buildText() -> Text {
+        let segments = MentionParser.parseSegments(from: text)
+        var result = Text("")
+
+        for segment in segments {
+            switch segment {
+            case .plain(let str):
+                result = result + Text(str)
+            case .mention(let callSign):
+                result = result + Text("@\(callSign)")
+                    .foregroundColor(.blue)
+                    .fontWeight(.semibold)
+            }
+        }
+
+        return result
+    }
+}
+
 // MARK: - Image Carousel (shared component)
 
 struct HangerImageCarousel: View {

@@ -19,6 +19,9 @@ struct HangerTalkComposeView: View {
     @State private var selectedImages: [UIImage] = []
     @State private var isSubmitting = false
     @State private var errorMessage: String?
+    @State private var mentionSuggestions: [HangerAuthorProfile] = []
+    @State private var showMentionSuggestions = false
+    @State private var mentionSearchTask: Task<Void, Never>?
 
     init(replyToPost: HangerTalkPostWithAuthor? = nil, onPostCreated: @escaping () -> Void) {
         self.replyToPost = replyToPost
@@ -56,6 +59,11 @@ struct HangerTalkComposeView: View {
                     }
                 }
                 .padding(.top, 12)
+            }
+
+            // Mention autocomplete suggestions
+            if showMentionSuggestions && !mentionSuggestions.isEmpty {
+                mentionSuggestionsView
             }
 
             // Bottom toolbar
@@ -107,6 +115,26 @@ struct HangerTalkComposeView: View {
                     }
                 }
                 selectedImages = images
+            }
+        }
+        .onChange(of: bodyText) { newValue in
+            // Detect @mention typing for autocomplete
+            if let query = MentionParser.currentMentionQuery(in: newValue), query.count >= 1 {
+                mentionSearchTask?.cancel()
+                mentionSearchTask = Task {
+                    try? await Task.sleep(nanoseconds: 300_000_000) // 300ms debounce
+                    guard !Task.isCancelled else { return }
+                    let svc = HangerTalkService()
+                    let results = await svc.searchPilotsForMention(query: query)
+                    if !Task.isCancelled {
+                        mentionSuggestions = results
+                        showMentionSuggestions = !results.isEmpty
+                    }
+                }
+            } else {
+                mentionSearchTask?.cancel()
+                showMentionSuggestions = false
+                mentionSuggestions = []
             }
         }
     }
@@ -254,6 +282,65 @@ struct HangerTalkComposeView: View {
         }
     }
 
+    // MARK: - Mention Suggestions
+
+    private var mentionSuggestionsView: some View {
+        VStack(spacing: 0) {
+            Divider()
+            ScrollView {
+                VStack(spacing: 0) {
+                    ForEach(mentionSuggestions, id: \.id) { pilot in
+                        Button {
+                            insertMention(pilot)
+                        } label: {
+                            HStack(spacing: 10) {
+                                if let urlString = pilot.profilePictureUrl,
+                                   let url = URL(string: urlString) {
+                                    AsyncImage(url: url) { image in
+                                        image.resizable().aspectRatio(contentMode: .fill)
+                                    } placeholder: {
+                                        Circle().fill(Color.gray.opacity(0.3))
+                                    }
+                                    .frame(width: 32, height: 32)
+                                    .clipShape(Circle())
+                                } else {
+                                    Image(systemName: "person.circle.fill")
+                                        .font(.system(size: 32))
+                                        .foregroundColor(.secondary)
+                                }
+
+                                if let callSign = pilot.callSign {
+                                    Text("@\(callSign)")
+                                        .font(.subheadline)
+                                        .fontWeight(.semibold)
+                                        .foregroundColor(.primary)
+                                }
+                                Spacer()
+                            }
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 8)
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                        Divider()
+                    }
+                }
+            }
+            .frame(maxHeight: 200)
+        }
+        .background(Color(.systemBackground))
+    }
+
+    private func insertMention(_ pilot: HangerAuthorProfile) {
+        guard let callSign = pilot.callSign else { return }
+        // Replace the @query with @callSign + space
+        if let query = MentionParser.currentMentionQuery(in: bodyText),
+           let range = bodyText.range(of: "@\(query)", options: .backwards) {
+            bodyText.replaceSubrange(range, with: "@\(callSign) ")
+        }
+        showMentionSuggestions = false
+        mentionSuggestions = []
+    }
+
     // MARK: - Image Preview Section
 
     private var imagePreviewSection: some View {
@@ -341,20 +428,28 @@ struct HangerTalkComposeView: View {
                 imageUrls = try await service.uploadPostImages(userId: userId, images: selectedImages)
             }
 
+            let postId: UUID
             if let parentPost = replyToPost {
-                try await service.createReply(
+                postId = try await service.createReply(
                     authorId: userId,
                     parentPostId: parentPost.id,
                     body: trimmed,
                     imageUrls: imageUrls
                 )
             } else {
-                try await service.createPost(
+                postId = try await service.createPost(
                     authorId: userId,
                     body: trimmed,
                     imageUrls: imageUrls
                 )
             }
+
+            // Extract and create mentions
+            let mentionedCallSigns = MentionParser.extractMentions(from: trimmed)
+            if !mentionedCallSigns.isEmpty {
+                await service.createMentions(postId: postId, mentionedCallSigns: mentionedCallSigns)
+            }
+
             onPostCreated()
         } catch {
             errorMessage = error.localizedDescription
