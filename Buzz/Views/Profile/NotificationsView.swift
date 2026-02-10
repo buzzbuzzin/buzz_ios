@@ -6,16 +6,11 @@
 //
 
 import SwiftUI
-import Auth
 
 struct NotificationsView: View {
-    @EnvironmentObject var authService: AuthService
     @StateObject private var notificationService = NotificationPreferencesService()
     @Environment(\.dismiss) var dismiss
-    
-    @State private var showError = false
-    @State private var errorMessage = ""
-    @State private var showSuccess = false
+
     @State private var editingNotificationType: NotificationType? = nil
     
     enum NotificationType {
@@ -126,38 +121,17 @@ struct NotificationsView: View {
                 }
             )
         }
-        .task {
-            await loadPreferences()
-        }
-        .alert("Error", isPresented: $showError) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(errorMessage)
-        }
-        .alert("Success", isPresented: $showSuccess) {
-            Button("OK") {}
-        } message: {
-            Text("Notification preferences saved successfully")
+        .onAppear {
+            loadPreferences()
         }
     }
     
-    private func loadPreferences() async {
-        guard let currentUser = authService.currentUser else { return }
-        try? await notificationService.loadPreferences(userId: currentUser.id)
+    private func loadPreferences() {
+        notificationService.loadPreferences()
     }
-    
+
     private func savePreferences() {
-        guard let currentUser = authService.currentUser else { return }
-        
-        Task {
-            do {
-                try await notificationService.savePreferences(userId: currentUser.id)
-                showSuccess = true
-            } catch {
-                errorMessage = error.localizedDescription
-                showError = true
-            }
-        }
+        notificationService.savePreferences()
     }
 }
 
