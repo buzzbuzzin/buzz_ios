@@ -19,6 +19,7 @@ struct HangerTalkView: View {
     @State private var postToEdit: HangerTalkPostWithAuthor?
     @State private var postToReply: HangerTalkPostWithAuthor?
     @State private var navigateToProfileId: UUID?
+    @State private var showInbox = false
 
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
@@ -46,8 +47,8 @@ struct HangerTalkView: View {
                 }
             }
 
-            // Floating compose button
-            composeButton
+            // Floating action buttons
+            floatingButtons
         }
         .background(
             NavigationLink(
@@ -124,6 +125,15 @@ struct HangerTalkView: View {
                 .environmentObject(authService)
             }
         }
+        .sheet(isPresented: $showInbox, onDismiss: {
+            Task {
+                guard let userId = authService.activeUserId else { return }
+                await service.fetchUnreadCount(userId: userId)
+            }
+        }) {
+            HangerTalkInboxView(service: service)
+                .environmentObject(authService)
+        }
         .alert("Delete Post", isPresented: $showDeletePostConfirmation) {
             Button("Cancel", role: .cancel) {
                 postToDelete = nil
@@ -144,6 +154,7 @@ struct HangerTalkView: View {
         .task {
             guard let userId = authService.activeUserId else { return }
             await service.fetchFeed(currentUserId: userId)
+            await service.fetchUnreadCount(userId: userId)
         }
         .onChange(of: selectedTab) { newTab in
             guard let userId = authService.activeUserId else { return }
@@ -313,7 +324,44 @@ struct HangerTalkView: View {
         }
     }
 
-    // MARK: - Compose Button (FAB)
+    // MARK: - Floating Action Buttons
+
+    private var floatingButtons: some View {
+        VStack(spacing: 12) {
+            inboxButton
+            composeButton
+        }
+        .padding(.trailing, 20)
+        .padding(.bottom, 20)
+    }
+
+    private var inboxButton: some View {
+        Button {
+            showInbox = true
+        } label: {
+            ZStack(alignment: .topTrailing) {
+                Image(systemName: "bell.fill")
+                    .font(.body)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.primary)
+                    .frame(width: 44, height: 44)
+                    .background(Color(.systemBackground))
+                    .clipShape(Circle())
+                    .shadow(color: .black.opacity(0.15), radius: 6, x: 0, y: 3)
+
+                if service.unreadCount > 0 {
+                    Text(service.unreadCount > 99 ? "99+" : "\(service.unreadCount)")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 2)
+                        .background(Color.red)
+                        .clipShape(Capsule())
+                        .offset(x: 4, y: -4)
+                }
+            }
+        }
+    }
 
     private var composeButton: some View {
         Button {
@@ -328,8 +376,6 @@ struct HangerTalkView: View {
                 .clipShape(Circle())
                 .shadow(color: .blue.opacity(0.3), radius: 8, x: 0, y: 4)
         }
-        .padding(.trailing, 20)
-        .padding(.bottom, 20)
     }
 
     // MARK: - Refresh

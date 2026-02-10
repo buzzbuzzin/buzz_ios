@@ -19,6 +19,9 @@ class HangerTalkService: ObservableObject {
     @Published var replies: [HangerTalkPostWithAuthor] = []
     @Published var isLoading = false
     @Published var errorMessage: String?
+    @Published var inboxItems: [HangerTalkNotificationItem] = []
+    @Published var unreadCount: Int = 0
+    @Published var unreadCounts: [HangerTalkNotificationType: Int] = [:]
 
     private let supabase = SupabaseClient.shared.client
 
@@ -226,6 +229,12 @@ class HangerTalkService: ObservableObject {
                     followerUserId: follower.followerId,
                     authorCallSign: authorCallSign
                 )
+                await insertNotification(
+                    recipientId: follower.followerId,
+                    actorId: authorId,
+                    type: .newPost,
+                    postId: post.id
+                )
             }
         }
 
@@ -267,6 +276,12 @@ class HangerTalkService: ObservableObject {
                 parentPostId: parentPostId,
                 parentAuthorId: parentAuthorId,
                 replierCallSign: replierCallSign
+            )
+            await insertNotification(
+                recipientId: parentAuthorId,
+                actorId: authorId,
+                type: .reply,
+                postId: post.id
             )
         }
 
@@ -394,6 +409,12 @@ class HangerTalkService: ObservableObject {
                     postId: postId,
                     postAuthorId: postAuthorId,
                     likerCallSign: likerCallSign
+                )
+                await insertNotification(
+                    recipientId: postAuthorId,
+                    actorId: userId,
+                    type: .like,
+                    postId: postId
                 )
             }
         }
@@ -587,6 +608,12 @@ class HangerTalkService: ObservableObject {
                     followerCallSign: followerCallSign,
                     followedUserId: followingId
                 )
+                await insertNotification(
+                    recipientId: followingId,
+                    actorId: followerId,
+                    type: .follow,
+                    postId: nil
+                )
             }
 
             return true // now following
@@ -730,6 +757,12 @@ class HangerTalkService: ObservableObject {
                         postId: postId,
                         mentionedUserId: profile.id,
                         mentionerCallSign: mentionerCallSign ?? "Someone"
+                    )
+                    await insertNotification(
+                        recipientId: profile.id,
+                        actorId: authorId,
+                        type: .mention,
+                        postId: postId
                     )
                 }
             } catch {
@@ -931,6 +964,154 @@ class HangerTalkService: ObservableObject {
         } catch {
             print("Error fetching call sign: \(error)")
             return nil
+        }
+    }
+
+    // MARK: - Inbox / Notifications
+
+    func fetchInbox(userId: UUID) async {
+        if DemoModeManager.shared.isDemoModeEnabled {
+            inboxItems = []
+            return
+        }
+
+        do {
+            let response: [HangerTalkNotificationResponse] = try await supabase
+                .from("hanger_talk_notifications")
+                .select("*, profiles!hanger_talk_notifications_actor_id_fkey(id, call_sign, profile_picture_url, first_name, last_name)")
+                .eq("recipient_id", value: userId.uuidString)
+                .order("created_at", ascending: false)
+                .limit(50)
+                .execute()
+                .value
+
+            inboxItems = response.map { resp in
+                let profile = resp.profileData
+                return HangerTalkNotificationItem(
+                    id: resp.id,
+                    type: resp.type,
+                    actorId: resp.actorId,
+                    actorCallSign: profile?.callSign,
+                    actorProfilePictureUrl: profile?.profilePictureUrl,
+                    actorFullName: profile?.fullName ?? "Pilot",
+                    postId: resp.postId,
+                    isRead: resp.isRead,
+                    createdAt: resp.createdAt
+                )
+            }
+
+            // Compute per-category unread counts
+            updateUnreadCounts()
+        } catch {
+            print("Error fetching inbox: \(error)")
+        }
+    }
+
+    func itemsForCategory(_ type: HangerTalkNotificationType) -> [HangerTalkNotificationItem] {
+        inboxItems.filter { $0.type == type }
+    }
+
+    private func updateUnreadCounts() {
+        var counts: [HangerTalkNotificationType: Int] = [:]
+        for item in inboxItems where !item.isRead {
+            counts[item.type, default: 0] += 1
+        }
+        unreadCounts = counts
+        unreadCount = inboxItems.filter { !$0.isRead }.count
+    }
+
+    func fetchUnreadCount(userId: UUID) async {
+        if DemoModeManager.shared.isDemoModeEnabled {
+            unreadCount = 0
+            return
+        }
+
+        do {
+            let response: [HangerTalkNotificationResponse] = try await supabase
+                .from("hanger_talk_notifications")
+                .select("id, recipient_id, actor_id, type, post_id, is_read, created_at")
+                .eq("recipient_id", value: userId.uuidString)
+                .eq("is_read", value: false)
+                .execute()
+                .value
+
+            unreadCount = response.count
+        } catch {
+            print("Error fetching unread count: \(error)")
+        }
+    }
+
+    func markAllAsRead(userId: UUID) async {
+        if DemoModeManager.shared.isDemoModeEnabled { return }
+
+        do {
+            let update: [String: AnyJSON] = ["is_read": .bool(true)]
+            try await supabase
+                .from("hanger_talk_notifications")
+                .update(update)
+                .eq("recipient_id", value: userId.uuidString)
+                .eq("is_read", value: false)
+                .execute()
+
+            unreadCount = 0
+            unreadCounts = [:]
+            for i in inboxItems.indices {
+                inboxItems[i] = HangerTalkNotificationItem(
+                    id: inboxItems[i].id,
+                    type: inboxItems[i].type,
+                    actorId: inboxItems[i].actorId,
+                    actorCallSign: inboxItems[i].actorCallSign,
+                    actorProfilePictureUrl: inboxItems[i].actorProfilePictureUrl,
+                    actorFullName: inboxItems[i].actorFullName,
+                    postId: inboxItems[i].postId,
+                    isRead: true,
+                    createdAt: inboxItems[i].createdAt
+                )
+            }
+        } catch {
+            print("Error marking notifications as read: \(error)")
+        }
+    }
+
+    func fetchPost(postId: UUID, currentUserId: UUID) async -> HangerTalkPostWithAuthor? {
+        if DemoModeManager.shared.isDemoModeEnabled { return nil }
+
+        do {
+            let response: [HangerTalkPostResponse] = try await supabase
+                .from("hanger_talk_posts")
+                .select("*, profiles(id, call_sign, profile_picture_url, first_name, last_name)")
+                .eq("id", value: postId.uuidString)
+                .limit(1)
+                .execute()
+                .value
+
+            guard let resp = response.first else { return nil }
+            let interactions = await fetchUserInteractions(currentUserId: currentUserId, postIds: [postId])
+            return mapResponseToPostWithAuthor(resp, interactions: interactions)
+        } catch {
+            print("Error fetching post: \(error)")
+            return nil
+        }
+    }
+
+    private func insertNotification(recipientId: UUID, actorId: UUID, type: HangerTalkNotificationType, postId: UUID?) async {
+        if DemoModeManager.shared.isDemoModeEnabled { return }
+        guard recipientId != actorId else { return }
+
+        let insert = HangerTalkNotificationInsert(
+            recipientId: recipientId,
+            actorId: actorId,
+            type: type,
+            postId: postId
+        )
+
+        do {
+            try await supabase
+                .from("hanger_talk_notifications")
+                .insert(insert)
+                .execute()
+        } catch {
+            print("Error inserting notification: \(error)")
         }
     }
 

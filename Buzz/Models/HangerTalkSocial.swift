@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import SwiftUI
 
 // MARK: - Feed Tab
 
@@ -268,5 +269,125 @@ struct HangerTalkMentionInsert: Codable {
     enum CodingKeys: String, CodingKey {
         case postId = "post_id"
         case mentionedUserId = "mentioned_user_id"
+    }
+}
+
+// MARK: - Hanger Talk Notification Type
+
+enum HangerTalkNotificationType: String, Codable, CaseIterable {
+    case like
+    case reply
+    case mention
+    case follow
+    case newPost = "new_post"
+}
+
+// MARK: - Hanger Talk Notification Insert
+
+struct HangerTalkNotificationInsert: Codable {
+    let recipientId: UUID
+    let actorId: UUID
+    let type: HangerTalkNotificationType
+    let postId: UUID?
+
+    enum CodingKeys: String, CodingKey {
+        case recipientId = "recipient_id"
+        case actorId = "actor_id"
+        case type
+        case postId = "post_id"
+    }
+}
+
+// MARK: - Hanger Talk Notification Response (Supabase join)
+
+struct HangerTalkNotificationResponse: Codable, Identifiable {
+    let id: UUID
+    let recipientId: UUID
+    let actorId: UUID
+    let type: HangerTalkNotificationType
+    let postId: UUID?
+    let isRead: Bool
+    let createdAt: Date
+    let profiles: HangerAuthorProfileOrArray?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case recipientId = "recipient_id"
+        case actorId = "actor_id"
+        case type
+        case postId = "post_id"
+        case isRead = "is_read"
+        case createdAt = "created_at"
+        case profiles
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        recipientId = try container.decode(UUID.self, forKey: .recipientId)
+        actorId = try container.decode(UUID.self, forKey: .actorId)
+        type = try container.decode(HangerTalkNotificationType.self, forKey: .type)
+        postId = try container.decodeIfPresent(UUID.self, forKey: .postId)
+        isRead = try container.decode(Bool.self, forKey: .isRead)
+        createdAt = try container.decode(Date.self, forKey: .createdAt)
+        profiles = try container.decodeIfPresent(HangerAuthorProfileOrArray.self, forKey: .profiles)
+    }
+
+    var profileData: HangerAuthorProfile? {
+        switch profiles {
+        case .single(let profile): return profile
+        case .array(let profiles): return profiles.first
+        case .none: return nil
+        }
+    }
+}
+
+// MARK: - Hanger Talk Notification Item (for display)
+
+struct HangerTalkNotificationItem: Identifiable {
+    let id: UUID
+    let type: HangerTalkNotificationType
+    let actorId: UUID
+    let actorCallSign: String?
+    let actorProfilePictureUrl: String?
+    let actorFullName: String
+    let postId: UUID?
+    let isRead: Bool
+    let createdAt: Date
+
+    var description: String {
+        let name = actorCallSign ?? actorFullName
+        switch type {
+        case .like:
+            return "\(name) liked your post"
+        case .reply:
+            return "\(name) replied to your post"
+        case .mention:
+            return "\(name) mentioned you in a post"
+        case .follow:
+            return "\(name) started following you"
+        case .newPost:
+            return "\(name) shared a new post"
+        }
+    }
+
+    var iconName: String {
+        switch type {
+        case .like: return "heart.fill"
+        case .reply: return "arrowshape.turn.up.left.fill"
+        case .mention: return "at"
+        case .follow: return "person.badge.plus"
+        case .newPost: return "text.bubble.fill"
+        }
+    }
+
+    var iconColor: Color {
+        switch type {
+        case .like: return .red
+        case .reply: return .blue
+        case .mention: return .blue
+        case .follow: return .orange
+        case .newPost: return .green
+        }
     }
 }
