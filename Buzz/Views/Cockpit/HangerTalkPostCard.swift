@@ -149,6 +149,9 @@ struct HangerTalkPostCard: View {
                     Image(systemName: "ellipsis")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .contentShape(Rectangle())
                 }
             }
         }

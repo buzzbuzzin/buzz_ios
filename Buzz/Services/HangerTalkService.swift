@@ -212,23 +212,20 @@ class HangerTalkService: ObservableObject {
         }
 
         // Notify followers about the new post (remote push to each follower's device)
-        Task {
-            if let authorCallSign = await fetchCallSign(userId: authorId) {
-                // Get all users who follow the author
-                let followers: [UserFollow] = (try? await supabase
-                    .from("user_follows")
-                    .select()
-                    .eq("following_id", value: authorId.uuidString)
-                    .execute()
-                    .value) ?? []
+        if let authorCallSign = await fetchCallSign(userId: authorId) {
+            let followers: [UserFollow] = (try? await supabase
+                .from("user_follows")
+                .select()
+                .eq("following_id", value: authorId.uuidString)
+                .execute()
+                .value) ?? []
 
-                for follower in followers {
-                    await NotificationManager.shared.notifyHangerTalkNewPost(
-                        postId: post.id,
-                        followerUserId: follower.followerId,
-                        authorCallSign: authorCallSign
-                    )
-                }
+            for follower in followers {
+                await NotificationManager.shared.notifyHangerTalkNewPost(
+                    postId: post.id,
+                    followerUserId: follower.followerId,
+                    authorCallSign: authorCallSign
+                )
             }
         }
 
@@ -262,17 +259,15 @@ class HangerTalkService: ObservableObject {
         }
 
         // Notify parent post author about the reply (remote push to author's device)
-        Task {
-            if let parentAuthorId = await fetchPostAuthorId(postId: parentPostId),
-               parentAuthorId != authorId,
-               let replierCallSign = await fetchCallSign(userId: authorId) {
-                await NotificationManager.shared.notifyHangerTalkReply(
-                    postId: post.id,
-                    parentPostId: parentPostId,
-                    parentAuthorId: parentAuthorId,
-                    replierCallSign: replierCallSign
-                )
-            }
+        if let parentAuthorId = await fetchPostAuthorId(postId: parentPostId),
+           parentAuthorId != authorId,
+           let replierCallSign = await fetchCallSign(userId: authorId) {
+            await NotificationManager.shared.notifyHangerTalkReply(
+                postId: post.id,
+                parentPostId: parentPostId,
+                parentAuthorId: parentAuthorId,
+                replierCallSign: replierCallSign
+            )
         }
 
         return post.id
@@ -391,16 +386,14 @@ class HangerTalkService: ObservableObject {
                 .execute()
 
             // Notify post author about the like (remote push to author's device)
-            Task {
-                if let postAuthorId = await fetchPostAuthorId(postId: postId),
-                   postAuthorId != userId,
-                   let likerCallSign = await fetchCallSign(userId: userId) {
-                    await NotificationManager.shared.notifyHangerTalkLike(
-                        postId: postId,
-                        postAuthorId: postAuthorId,
-                        likerCallSign: likerCallSign
-                    )
-                }
+            if let postAuthorId = await fetchPostAuthorId(postId: postId),
+               postAuthorId != userId,
+               let likerCallSign = await fetchCallSign(userId: userId) {
+                await NotificationManager.shared.notifyHangerTalkLike(
+                    postId: postId,
+                    postAuthorId: postAuthorId,
+                    likerCallSign: likerCallSign
+                )
             }
         }
 
@@ -588,13 +581,11 @@ class HangerTalkService: ObservableObject {
             updateFollowState(authorId: followingId, isFollowed: true)
 
             // Notify the user being followed (remote push to followed user's device)
-            Task {
-                if let followerCallSign = await fetchCallSign(userId: followerId) {
-                    await NotificationManager.shared.notifyHangerTalkFollow(
-                        followerCallSign: followerCallSign,
-                        followedUserId: followingId
-                    )
-                }
+            if let followerCallSign = await fetchCallSign(userId: followerId) {
+                await NotificationManager.shared.notifyHangerTalkFollow(
+                    followerCallSign: followerCallSign,
+                    followedUserId: followingId
+                )
             }
 
             return true // now following
