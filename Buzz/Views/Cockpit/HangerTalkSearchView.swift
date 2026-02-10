@@ -13,7 +13,6 @@ struct HangerTalkSearchView: View {
     @StateObject private var service = HangerTalkService()
 
     @State private var searchText = ""
-    @State private var selectedSegment: SearchSegment = .posts
     @State private var searchResults: [HangerTalkPostWithAuthor] = []
     @State private var pilotResults: [HangerAuthorProfile] = []
     @State private var isSearching = false
@@ -22,25 +21,10 @@ struct HangerTalkSearchView: View {
     @State private var followedPilotIds: Set<UUID> = []
     @State private var navigateToProfileId: UUID?
 
-    enum SearchSegment: String, CaseIterable {
-        case posts = "Posts"
-        case pilots = "Pilots"
-    }
-
     var body: some View {
         VStack(spacing: 0) {
             // Search bar
             searchBar
-
-            // Segment picker
-            Picker("", selection: $selectedSegment) {
-                ForEach(SearchSegment.allCases, id: \.self) { segment in
-                    Text(segment.rawValue).tag(segment)
-                }
-            }
-            .pickerStyle(.segmented)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 8)
 
             Divider()
 
@@ -51,12 +35,19 @@ struct HangerTalkSearchView: View {
                         .padding(.top, 40)
                 } else if !hasSearched {
                     emptyPrompt
+                } else if pilotResults.isEmpty && searchResults.isEmpty {
+                    noResultsView
                 } else {
-                    switch selectedSegment {
-                    case .posts:
-                        postResults
-                    case .pilots:
-                        pilotResultsSection
+                    LazyVStack(alignment: .leading, spacing: 0) {
+                        // Pilot profiles section
+                        if !pilotResults.isEmpty {
+                            pilotResultsSection
+                        }
+
+                        // Posts section
+                        if !searchResults.isEmpty {
+                            postResults
+                        }
                     }
                 }
             }
@@ -163,63 +154,65 @@ struct HangerTalkSearchView: View {
     // MARK: - Post Results
 
     private var postResults: some View {
-        Group {
-            if searchResults.isEmpty {
-                noResultsView
-            } else {
-                LazyVStack(spacing: 0) {
-                    ForEach(searchResults) { postWithAuthor in
-                        NavigationLink(destination: HangerTalkPostDetailView(
-                            postWithAuthor: postWithAuthor
-                        ).environmentObject(authService)) {
-                            HangerTalkPostCard(
-                                postWithAuthor: postWithAuthor,
-                                onLike: {
-                                    guard let userId = authService.activeUserId else { return }
-                                    Task {
-                                        try? await service.toggleLike(postId: postWithAuthor.id, userId: userId)
-                                        performSearch()
-                                    }
-                                },
-                                onRepost: {
-                                    guard let userId = authService.activeUserId else { return }
-                                    Task {
-                                        try? await service.toggleRepost(postId: postWithAuthor.id, userId: userId)
-                                        performSearch()
-                                    }
-                                },
-                                onBookmark: {
-                                    guard let userId = authService.activeUserId else { return }
-                                    Task {
-                                        try? await service.toggleBookmark(postId: postWithAuthor.id, userId: userId)
-                                        performSearch()
-                                    }
-                                },
-                                onReply: {
-                                    postToReply = postWithAuthor
-                                },
-                                isOwnPost: postWithAuthor.post.authorId == authService.activeUserId,
-                                onAuthorTap: {
-                                    navigateToProfileId = postWithAuthor.post.authorId
-                                },
-                                onMentionTap: { callSign in
-                                    Task {
-                                        if let profile = await service.resolveCallSign(callSign) {
-                                            navigateToProfileId = profile.id
-                                        }
-                                    }
-                                },
-                                onFollow: {
-                                    guard let userId = authService.activeUserId else { return }
-                                    Task {
-                                        _ = try? await service.toggleFollow(followerId: userId, followingId: postWithAuthor.post.authorId)
-                                        performSearch()
+        VStack(alignment: .leading, spacing: 0) {
+            Text("Top posts")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+
+            LazyVStack(spacing: 0) {
+                ForEach(searchResults) { postWithAuthor in
+                    NavigationLink(destination: HangerTalkPostDetailView(
+                        postWithAuthor: postWithAuthor
+                    ).environmentObject(authService)) {
+                        HangerTalkPostCard(
+                            postWithAuthor: postWithAuthor,
+                            onLike: {
+                                guard let userId = authService.activeUserId else { return }
+                                Task {
+                                    try? await service.toggleLike(postId: postWithAuthor.id, userId: userId)
+                                    performSearch()
+                                }
+                            },
+                            onRepost: {
+                                guard let userId = authService.activeUserId else { return }
+                                Task {
+                                    try? await service.toggleRepost(postId: postWithAuthor.id, userId: userId)
+                                    performSearch()
+                                }
+                            },
+                            onBookmark: {
+                                guard let userId = authService.activeUserId else { return }
+                                Task {
+                                    try? await service.toggleBookmark(postId: postWithAuthor.id, userId: userId)
+                                    performSearch()
+                                }
+                            },
+                            onReply: {
+                                postToReply = postWithAuthor
+                            },
+                            isOwnPost: postWithAuthor.post.authorId == authService.activeUserId,
+                            onAuthorTap: {
+                                navigateToProfileId = postWithAuthor.post.authorId
+                            },
+                            onMentionTap: { callSign in
+                                Task {
+                                    if let profile = await service.resolveCallSign(callSign) {
+                                        navigateToProfileId = profile.id
                                     }
                                 }
-                            )
-                        }
-                        .buttonStyle(PlainButtonStyle())
+                            },
+                            onFollow: {
+                                guard let userId = authService.activeUserId else { return }
+                                Task {
+                                    _ = try? await service.toggleFollow(followerId: userId, followingId: postWithAuthor.post.authorId)
+                                    performSearch()
+                                }
+                            }
+                        )
                     }
+                    .buttonStyle(PlainButtonStyle())
                 }
             }
         }
@@ -228,76 +221,90 @@ struct HangerTalkSearchView: View {
     // MARK: - Pilot Results
 
     private var pilotResultsSection: some View {
-        Group {
-            if pilotResults.isEmpty {
-                noResultsView
-            } else {
-                LazyVStack(spacing: 0) {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Related profiles")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+                .padding(.horizontal, 16)
+                .padding(.top, 12)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 12) {
                     ForEach(pilotResults, id: \.id) { pilot in
                         NavigationLink(destination: PublicProfileView(pilotId: pilot.id)
                             .environmentObject(authService)) {
-                            HStack(spacing: 12) {
-                                if let urlString = pilot.profilePictureUrl,
-                                   let url = URL(string: urlString) {
-                                    AsyncImage(url: url) { image in
-                                        image.resizable().aspectRatio(contentMode: .fill)
-                                    } placeholder: {
-                                        Circle().fill(Color.gray.opacity(0.3))
-                                    }
-                                    .frame(width: 44, height: 44)
-                                    .clipShape(Circle())
-                                } else {
-                                    Image(systemName: "person.circle.fill")
-                                        .font(.system(size: 44))
-                                        .foregroundColor(.secondary)
-                                }
-
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(pilot.callSign ?? "Pilot")
-                                        .font(.subheadline)
-                                        .fontWeight(.semibold)
-                                        .foregroundColor(.primary)
-
-                                }
-
-                                Spacer()
-
-                                // Follow button (skip for own profile)
-                                if pilot.id != authService.activeUserId {
-                                    Button {
-                                        Task {
-                                            guard let myId = authService.activeUserId else { return }
-                                            let nowFollowing = try? await service.toggleFollow(followerId: myId, followingId: pilot.id)
-                                            if nowFollowing == true {
-                                                followedPilotIds.insert(pilot.id)
-                                            } else {
-                                                followedPilotIds.remove(pilot.id)
-                                            }
-                                        }
-                                    } label: {
-                                        Text(followedPilotIds.contains(pilot.id) ? "Following" : "Follow")
-                                            .font(.caption)
-                                            .fontWeight(.semibold)
-                                            .foregroundColor(followedPilotIds.contains(pilot.id) ? .secondary : .blue)
-                                            .padding(.horizontal, 12)
-                                            .padding(.vertical, 6)
-                                            .background(followedPilotIds.contains(pilot.id) ? Color(.systemGray5) : Color.blue.opacity(0.1))
-                                            .cornerRadius(16)
-                                    }
-                                    .buttonStyle(PlainButtonStyle())
-                                }
-                            }
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 10)
+                            pilotCard(pilot: pilot)
                         }
                         .buttonStyle(PlainButtonStyle())
-
-                        Divider()
-                            .padding(.leading, 72)
                     }
                 }
+                .padding(.horizontal, 16)
+            }
+
+            Divider()
+                .padding(.top, 4)
+        }
+    }
+
+    private func pilotCard(pilot: HangerAuthorProfile) -> some View {
+        VStack(spacing: 10) {
+            // Profile picture
+            if let urlString = pilot.profilePictureUrl,
+               let url = URL(string: urlString) {
+                AsyncImage(url: url) { image in
+                    image.resizable().aspectRatio(contentMode: .fill)
+                } placeholder: {
+                    Circle().fill(Color.gray.opacity(0.3))
+                }
+                .frame(width: 64, height: 64)
+                .clipShape(Circle())
+            } else {
+                Image(systemName: "person.circle.fill")
+                    .font(.system(size: 64))
+                    .foregroundColor(.secondary)
+            }
+
+            // Call sign
+            Text(pilot.callSign ?? "Pilot")
+                .font(.footnote)
+                .fontWeight(.semibold)
+                .foregroundColor(.primary)
+                .lineLimit(1)
+
+            // Follow button (skip for own profile)
+            if pilot.id != authService.activeUserId {
+                Button {
+                    Task {
+                        guard let myId = authService.activeUserId else { return }
+                        let nowFollowing = try? await service.toggleFollow(followerId: myId, followingId: pilot.id)
+                        if nowFollowing == true {
+                            followedPilotIds.insert(pilot.id)
+                        } else {
+                            followedPilotIds.remove(pilot.id)
+                        }
+                    }
+                } label: {
+                    Text(followedPilotIds.contains(pilot.id) ? "Following" : "Follow")
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                        .foregroundColor(followedPilotIds.contains(pilot.id) ? .secondary : .white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 6)
+                        .background(followedPilotIds.contains(pilot.id) ? Color(.systemGray5) : Color.primary)
+                        .cornerRadius(8)
+                }
+                .buttonStyle(PlainButtonStyle())
             }
         }
+        .frame(width: 120)
+        .padding(.vertical, 12)
+        .padding(.horizontal, 8)
+        .background(Color(.systemBackground))
+        .cornerRadius(12)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color(.systemGray4), lineWidth: 0.5)
+        )
     }
 
     // MARK: - No Results
@@ -329,13 +336,13 @@ struct HangerTalkSearchView: View {
         hasSearched = true
 
         Task {
-            switch selectedSegment {
-            case .posts:
-                searchResults = await service.searchPosts(query: trimmed, currentUserId: userId)
-            case .pilots:
-                pilotResults = await service.searchPilots(query: trimmed)
-                followedPilotIds = await service.fetchFollowedIds(userId: userId)
-            }
+            async let posts = service.searchPosts(query: trimmed, currentUserId: userId)
+            async let pilots = service.searchPilots(query: trimmed)
+            async let followedIds = service.fetchFollowedIds(userId: userId)
+
+            searchResults = await posts
+            pilotResults = await pilots
+            followedPilotIds = await followedIds
             isSearching = false
         }
     }

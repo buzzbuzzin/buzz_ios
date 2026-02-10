@@ -327,6 +327,7 @@ class HangerTalkService: ObservableObject {
             let profiles: [HangerAuthorProfile] = try await supabase
                 .from("profiles")
                 .select("id, call_sign, profile_picture_url, first_name, last_name")
+                .eq("user_type", value: "pilot")
                 .or("call_sign.ilike.%\(query)%,first_name.ilike.%\(query)%,last_name.ilike.%\(query)%")
                 .limit(20)
                 .execute()
