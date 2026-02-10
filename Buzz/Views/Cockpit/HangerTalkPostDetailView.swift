@@ -18,40 +18,52 @@ struct HangerTalkPostDetailView: View {
     @State private var navigateToProfileId: UUID?
 
     var body: some View {
-        VStack(spacing: 0) {
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 0) {
-                    // Full post content (expanded)
-                    postContentSection
-                        .padding(16)
+        List {
+            // Full post content (expanded)
+            postContentSection
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+                .listRowSeparator(.hidden)
+                .listRowInsets(EdgeInsets())
 
-                    Divider()
+            Divider()
+                .listRowSeparator(.hidden)
+                .listRowInsets(EdgeInsets())
 
-                    // Stats bar
-                    statsBar
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 10)
+            // Stats bar
+            statsBar
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .listRowSeparator(.hidden)
+                .listRowInsets(EdgeInsets())
 
-                    Divider()
+            Divider()
+                .listRowSeparator(.hidden)
+                .listRowInsets(EdgeInsets())
 
-                    // Action bar
-                    postActionBar
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
+            // Action bar
+            postActionBar
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+                .listRowSeparator(.hidden)
+                .listRowInsets(EdgeInsets())
 
-                    // Gray separator
-                    Rectangle()
-                        .fill(Color(.systemGroupedBackground))
-                        .frame(height: 8)
+            // Gray separator
+            Rectangle()
+                .fill(Color(.systemGroupedBackground))
+                .frame(height: 8)
+                .listRowSeparator(.hidden)
+                .listRowInsets(EdgeInsets())
 
-                    // Replies
-                    repliesSection
-                }
-            }
-            .refreshable {
-                guard let userId = authService.activeUserId else { return }
-                await service.fetchReplies(parentPostId: postWithAuthor.id, currentUserId: userId)
-            }
+            // Replies
+            repliesSection
+                .listRowSeparator(.hidden)
+                .listRowInsets(EdgeInsets())
+        }
+        .listStyle(.plain)
+        .refreshable {
+            guard let userId = authService.activeUserId else { return }
+            await service.fetchReplies(parentPostId: postWithAuthor.id, currentUserId: userId)
         }
         .navigationTitle("Post")
         .navigationBarTitleDisplayMode(.inline)

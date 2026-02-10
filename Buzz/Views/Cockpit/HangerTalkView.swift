@@ -352,10 +352,10 @@ struct HangerTalkView: View {
         } label: {
             ZStack(alignment: .topTrailing) {
                 Image(systemName: "bell.fill")
-                    .font(.body)
+                    .font(.title2)
                     .fontWeight(.semibold)
                     .foregroundColor(.primary)
-                    .frame(width: 44, height: 44)
+                    .frame(width: 56, height: 56)
                     .background(Color(.systemBackground))
                     .clipShape(Circle())
                     .shadow(color: .black.opacity(0.15), radius: 6, x: 0, y: 3)
