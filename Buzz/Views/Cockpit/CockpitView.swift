@@ -34,6 +34,7 @@ struct CockpitView: View {
     @State private var showAvailability = false
     @State private var showProgress = false
     @State private var showShop = false
+    @State private var showMarketplace = false
     @State private var showBeacon = false
     @State private var showTopGun = false
     @State private var showRacer = false
@@ -323,6 +324,18 @@ struct CockpitView: View {
                                         title: "Buzz Shop",
                                         icon: "bag.fill",
                                         color: .pink
+                                    )
+                                }
+                                .buttonStyle(PlainButtonStyle())
+
+                                // Marketplace Card - Using fullScreenCover for stable presentation
+                                Button {
+                                    showMarketplace = true
+                                } label: {
+                                    CockpitGridCard(
+                                        title: "Marketplace",
+                                        icon: "storefront.fill",
+                                        color: .orange
                                     )
                                 }
                                 .buttonStyle(PlainButtonStyle())
@@ -745,6 +758,22 @@ struct CockpitView: View {
                         ToolbarItem(placement: .navigationBarLeading) {
                             Button {
                                 showShop = false
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.title2)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    }
+            }
+        }
+        .fullScreenCover(isPresented: $showMarketplace) {
+            NavigationView {
+                MarketplaceComingSoonView()
+                    .toolbar {
+                        ToolbarItem(placement: .navigationBarLeading) {
+                            Button {
+                                showMarketplace = false
                             } label: {
                                 Image(systemName: "xmark.circle.fill")
                                     .font(.title2)
