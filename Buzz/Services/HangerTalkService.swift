@@ -371,9 +371,12 @@ class HangerTalkService: ObservableObject {
 
     func toggleLike(postId: UUID, userId: UUID) async throws {
         if DemoModeManager.shared.isDemoModeEnabled {
-            if let index = feedPosts.firstIndex(where: { $0.id == postId }) {
-                feedPosts[index].isLikedByCurrentUser.toggle()
-            }
+            let isCurrentlyLiked = currentLikeState(postId: postId)
+            applyInteractionUpdate(
+                postId: postId,
+                likeDelta: isCurrentlyLiked ? -1 : 1,
+                isLikedByCurrentUser: !isCurrentlyLiked
+            )
             return
         }
 
@@ -384,6 +387,7 @@ class HangerTalkService: ObservableObject {
             .eq("post_id", value: postId.uuidString)
             .execute()
             .value
+        let isCurrentlyLiked = !existing.isEmpty
 
         if let like = existing.first {
             try await supabase
@@ -419,22 +423,23 @@ class HangerTalkService: ObservableObject {
             }
         }
 
-        // Update local state
-        if let index = feedPosts.firstIndex(where: { $0.id == postId }) {
-            feedPosts[index].isLikedByCurrentUser.toggle()
-        }
-        if let index = replies.firstIndex(where: { $0.id == postId }) {
-            replies[index].isLikedByCurrentUser.toggle()
-        }
+        applyInteractionUpdate(
+            postId: postId,
+            likeDelta: isCurrentlyLiked ? -1 : 1,
+            isLikedByCurrentUser: !isCurrentlyLiked
+        )
     }
 
     // MARK: - Toggle Repost
 
     func toggleRepost(postId: UUID, userId: UUID) async throws {
         if DemoModeManager.shared.isDemoModeEnabled {
-            if let index = feedPosts.firstIndex(where: { $0.id == postId }) {
-                feedPosts[index].isRepostedByCurrentUser.toggle()
-            }
+            let isCurrentlyReposted = currentRepostState(postId: postId)
+            applyInteractionUpdate(
+                postId: postId,
+                repostDelta: isCurrentlyReposted ? -1 : 1,
+                isRepostedByCurrentUser: !isCurrentlyReposted
+            )
             return
         }
 
@@ -445,6 +450,7 @@ class HangerTalkService: ObservableObject {
             .eq("post_id", value: postId.uuidString)
             .execute()
             .value
+        let isCurrentlyReposted = !existing.isEmpty
 
         if let repost = existing.first {
             try await supabase
@@ -463,22 +469,22 @@ class HangerTalkService: ObservableObject {
                 .execute()
         }
 
-        // Update local state
-        if let index = feedPosts.firstIndex(where: { $0.id == postId }) {
-            feedPosts[index].isRepostedByCurrentUser.toggle()
-        }
-        if let index = replies.firstIndex(where: { $0.id == postId }) {
-            replies[index].isRepostedByCurrentUser.toggle()
-        }
+        applyInteractionUpdate(
+            postId: postId,
+            repostDelta: isCurrentlyReposted ? -1 : 1,
+            isRepostedByCurrentUser: !isCurrentlyReposted
+        )
     }
 
     // MARK: - Toggle Bookmark
 
     func toggleBookmark(postId: UUID, userId: UUID) async throws {
         if DemoModeManager.shared.isDemoModeEnabled {
-            if let index = feedPosts.firstIndex(where: { $0.id == postId }) {
-                feedPosts[index].isBookmarkedByCurrentUser.toggle()
-            }
+            let isCurrentlyBookmarked = currentBookmarkState(postId: postId)
+            applyInteractionUpdate(
+                postId: postId,
+                isBookmarkedByCurrentUser: !isCurrentlyBookmarked
+            )
             return
         }
 
@@ -489,6 +495,7 @@ class HangerTalkService: ObservableObject {
             .eq("post_id", value: postId.uuidString)
             .execute()
             .value
+        let isCurrentlyBookmarked = !existing.isEmpty
 
         if let bookmark = existing.first {
             try await supabase
@@ -507,13 +514,10 @@ class HangerTalkService: ObservableObject {
                 .execute()
         }
 
-        // Update local state
-        if let index = feedPosts.firstIndex(where: { $0.id == postId }) {
-            feedPosts[index].isBookmarkedByCurrentUser.toggle()
-        }
-        if let index = replies.firstIndex(where: { $0.id == postId }) {
-            replies[index].isBookmarkedByCurrentUser.toggle()
-        }
+        applyInteractionUpdate(
+            postId: postId,
+            isBookmarkedByCurrentUser: !isCurrentlyBookmarked
+        )
     }
 
     // MARK: - Fetch Following Feed
@@ -636,6 +640,121 @@ class HangerTalkService: ObservableObject {
         for i in replies.indices where replies[i].post.authorId == authorId {
             replies[i].isFollowedByCurrentUser = isFollowed
         }
+    }
+
+    private func currentLikeState(postId: UUID) -> Bool {
+        postForStateLookup(postId: postId)?.isLikedByCurrentUser ?? false
+    }
+
+    private func currentRepostState(postId: UUID) -> Bool {
+        postForStateLookup(postId: postId)?.isRepostedByCurrentUser ?? false
+    }
+
+    private func currentBookmarkState(postId: UUID) -> Bool {
+        postForStateLookup(postId: postId)?.isBookmarkedByCurrentUser ?? false
+    }
+
+    private func postForStateLookup(postId: UUID) -> HangerTalkPostWithAuthor? {
+        feedPosts.first(where: { $0.id == postId })
+            ?? followingPosts.first(where: { $0.id == postId })
+            ?? likedPosts.first(where: { $0.id == postId })
+            ?? bookmarkedPosts.first(where: { $0.id == postId })
+            ?? replies.first(where: { $0.id == postId })
+    }
+
+    private func applyInteractionUpdate(
+        postId: UUID,
+        likeDelta: Int = 0,
+        repostDelta: Int = 0,
+        isLikedByCurrentUser: Bool? = nil,
+        isRepostedByCurrentUser: Bool? = nil,
+        isBookmarkedByCurrentUser: Bool? = nil
+    ) {
+        updateInteractionState(
+            in: &feedPosts,
+            postId: postId,
+            likeDelta: likeDelta,
+            repostDelta: repostDelta,
+            isLikedByCurrentUser: isLikedByCurrentUser,
+            isRepostedByCurrentUser: isRepostedByCurrentUser,
+            isBookmarkedByCurrentUser: isBookmarkedByCurrentUser
+        )
+        updateInteractionState(
+            in: &followingPosts,
+            postId: postId,
+            likeDelta: likeDelta,
+            repostDelta: repostDelta,
+            isLikedByCurrentUser: isLikedByCurrentUser,
+            isRepostedByCurrentUser: isRepostedByCurrentUser,
+            isBookmarkedByCurrentUser: isBookmarkedByCurrentUser
+        )
+        updateInteractionState(
+            in: &likedPosts,
+            postId: postId,
+            likeDelta: likeDelta,
+            repostDelta: repostDelta,
+            isLikedByCurrentUser: isLikedByCurrentUser,
+            isRepostedByCurrentUser: isRepostedByCurrentUser,
+            isBookmarkedByCurrentUser: isBookmarkedByCurrentUser
+        )
+        updateInteractionState(
+            in: &bookmarkedPosts,
+            postId: postId,
+            likeDelta: likeDelta,
+            repostDelta: repostDelta,
+            isLikedByCurrentUser: isLikedByCurrentUser,
+            isRepostedByCurrentUser: isRepostedByCurrentUser,
+            isBookmarkedByCurrentUser: isBookmarkedByCurrentUser
+        )
+        updateInteractionState(
+            in: &replies,
+            postId: postId,
+            likeDelta: likeDelta,
+            repostDelta: repostDelta,
+            isLikedByCurrentUser: isLikedByCurrentUser,
+            isRepostedByCurrentUser: isRepostedByCurrentUser,
+            isBookmarkedByCurrentUser: isBookmarkedByCurrentUser
+        )
+    }
+
+    private func updateInteractionState(
+        in posts: inout [HangerTalkPostWithAuthor],
+        postId: UUID,
+        likeDelta: Int,
+        repostDelta: Int,
+        isLikedByCurrentUser: Bool?,
+        isRepostedByCurrentUser: Bool?,
+        isBookmarkedByCurrentUser: Bool?
+    ) {
+        guard let index = posts.firstIndex(where: { $0.id == postId }) else { return }
+
+        let existing = posts[index]
+        let post = existing.post
+        let updatedPost = HangerTalkPost(
+            id: post.id,
+            authorId: post.authorId,
+            body: post.body,
+            imageUrls: post.imageUrls,
+            likeCount: max(0, post.likeCount + likeDelta),
+            replyCount: post.replyCount,
+            repostCount: max(0, post.repostCount + repostDelta),
+            isReply: post.isReply,
+            parentPostId: post.parentPostId,
+            createdAt: post.createdAt,
+            updatedAt: post.updatedAt
+        )
+
+        posts[index] = HangerTalkPostWithAuthor(
+            id: existing.id,
+            post: updatedPost,
+            authorCallSign: existing.authorCallSign,
+            authorProfilePictureUrl: existing.authorProfilePictureUrl,
+            authorFullName: existing.authorFullName,
+            isLikedByCurrentUser: isLikedByCurrentUser ?? existing.isLikedByCurrentUser,
+            isRepostedByCurrentUser: isRepostedByCurrentUser ?? existing.isRepostedByCurrentUser,
+            isBookmarkedByCurrentUser: isBookmarkedByCurrentUser ?? existing.isBookmarkedByCurrentUser,
+            isFollowedByCurrentUser: existing.isFollowedByCurrentUser
+        )
     }
 
     // MARK: - Check if Following

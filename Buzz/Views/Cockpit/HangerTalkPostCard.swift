@@ -190,6 +190,7 @@ struct HangerTalkPostCard: View {
                 .font(.subheadline)
                 .foregroundColor(.secondary)
             }
+            .buttonStyle(.plain)
 
             Spacer()
 
@@ -204,6 +205,7 @@ struct HangerTalkPostCard: View {
                 .font(.subheadline)
                 .foregroundColor(postWithAuthor.isRepostedByCurrentUser ? .green : .secondary)
             }
+            .buttonStyle(.plain)
 
             Spacer()
 
@@ -226,6 +228,7 @@ struct HangerTalkPostCard: View {
                 .font(.subheadline)
                 .foregroundColor(postWithAuthor.isLikedByCurrentUser ? .red : .secondary)
             }
+            .buttonStyle(.plain)
 
             Spacer()
 
@@ -237,6 +240,7 @@ struct HangerTalkPostCard: View {
                     .font(.subheadline)
                     .foregroundColor(postWithAuthor.isBookmarkedByCurrentUser ? .blue : .secondary)
             }
+            .buttonStyle(.plain)
 
             Spacer()
 
@@ -264,7 +268,7 @@ struct HangerTalkPostCard: View {
 
     private func markActionTap() {
         suppressPostTap = true
-        DispatchQueue.main.async {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
             suppressPostTap = false
         }
     }
