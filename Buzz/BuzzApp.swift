@@ -9,6 +9,7 @@ import SwiftUI
 import GoogleSignIn
 import StripePaymentSheet
 import UserNotifications
+import BackgroundTasks
 
 // MARK: - AppDelegate for Remote Notifications
 
@@ -17,6 +18,15 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
+        // Register NWS weather alert background task
+        BGTaskScheduler.shared.register(
+            forTaskWithIdentifier: NWSAlertService.backgroundTaskIdentifier,
+            using: nil
+        ) { task in
+            Task { @MainActor in
+                await NWSAlertService.shared.handleBackgroundAlertCheck(task: task as! BGAppRefreshTask)
+            }
+        }
         return true
     }
     
@@ -162,6 +172,9 @@ struct BuzzApp: App {
                     // Check for app updates after a short delay to avoid blocking app launch
                     try? await Task.sleep(nanoseconds: 2_000_000_000) // 2 seconds
                     await updateService.checkForUpdate()
+
+                    // Schedule NWS weather alert background checks
+                    NWSAlertService.shared.scheduleBackgroundAlertCheck()
                 }
             }
             .onOpenURL { url in

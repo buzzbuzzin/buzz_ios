@@ -298,7 +298,42 @@ class NotificationManager: NSObject, ObservableObject {
         
         try? await notificationCenter.add(request)
     }
-    
+
+    /// Notify pilot about an active NWS weather alert
+    func notifyWeatherAlert(alertId: String, event: String, headline: String?, severity: String, areaDesc: String?) async {
+        let content = UNMutableNotificationContent()
+
+        switch severity.lowercased() {
+        case "extreme":
+            content.title = "Extreme Weather Alert"
+            content.sound = .defaultCritical
+            content.interruptionLevel = .critical
+        case "severe":
+            content.title = "Severe Weather Alert"
+            content.sound = .defaultCritical
+        default:
+            content.title = "Weather Advisory"
+            content.sound = .default
+        }
+
+        content.body = headline ?? "\(event) for \(areaDesc ?? "your area")"
+        content.categoryIdentifier = NotificationCategory.weatherChange.rawValue
+        content.userInfo = [
+            "type": "nws_weather_alert",
+            "alertId": alertId,
+            "event": event,
+            "severity": severity
+        ]
+
+        let request = UNNotificationRequest(
+            identifier: "nws-alert-\(alertId.hashValue)",
+            content: content,
+            trigger: nil
+        )
+
+        try? await notificationCenter.add(request)
+    }
+
     /// Notify pilot when they receive a new review
     func notifyReceivedReview(rating: Int, reviewerName: String, bookingId: UUID) async {
         let content = UNMutableNotificationContent()

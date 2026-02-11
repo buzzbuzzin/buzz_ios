@@ -20,6 +20,8 @@ class WeatherService: ObservableObject {
     private let notificationManager = NotificationManager.shared
     private let notificationPreferencesService = NotificationPreferencesService()
     
+    private let nwsAlertService = NWSAlertService.shared
+
     // Track last weather condition to detect changes
     private var lastWeatherCondition: String?
     private var lastNotificationTime: Date?
@@ -373,6 +375,15 @@ class WeatherService: ObservableObject {
         
         // Update last weather condition
         lastWeatherCondition = weather.condition
+    }
+
+    /// Check for active NWS weather alerts at the given coordinate
+    func checkForNWSAlerts(pilotId: UUID, coordinate: CLLocationCoordinate2D) async {
+        await nwsAlertService.checkForNewAlerts(
+            latitude: coordinate.latitude,
+            longitude: coordinate.longitude,
+            pilotId: pilotId
+        )
     }
 }
 

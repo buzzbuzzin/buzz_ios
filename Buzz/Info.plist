@@ -14,6 +14,15 @@
 	<string>Buzz needs calendar access to add your scheduled exams and bookings to your calendar so you don't miss them.</string>
 	<key>NSCalendarsUsageDescription</key>
 	<string>Buzz needs calendar access to add your scheduled exams and bookings to your calendar so you don't miss them.</string>
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array>
+		<string>com.buzz.app.ios.nws-alert-check</string>
+	</array>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>fetch</string>
+		<string>remote-notification</string>
+	</array>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>

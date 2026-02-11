@@ -15,6 +15,7 @@ struct WeatherView: View {
     @StateObject private var weatherService = WeatherService()
     @StateObject private var bookingService = BookingService()
     @StateObject private var locationManager = WeatherLocationManager()
+    @ObservedObject private var nwsAlertService = NWSAlertService.shared
 
     @State private var currentLocationName: String = "Current Location"
     @State private var upcomingBooking: Booking?
@@ -22,6 +23,11 @@ struct WeatherView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
+                // NWS Weather Alerts
+                if !nwsAlertService.activeAlerts.isEmpty {
+                    NWSAlertBannerView(alerts: nwsAlertService.activeAlerts)
+                }
+
                 // Current Location Weather
                 if let weather = weatherService.currentLocationWeather {
                     WeatherCard(
@@ -195,6 +201,11 @@ struct WeatherView: View {
                     pilotId: pilotId,
                     weather: weather,
                     locationName: locationName
+                )
+                // Check for NWS weather alerts
+                await weatherService.checkForNWSAlerts(
+                    pilotId: pilotId,
+                    coordinate: location
                 )
             }
         } catch {
@@ -829,7 +840,7 @@ struct METARMetric: View {
     let icon: String
     let label: String
     let value: String
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             HStack(spacing: 4) {
@@ -845,6 +856,97 @@ struct METARMetric: View {
                 .fontWeight(.medium)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
+        }
+    }
+}
+
+// MARK: - NWS Alert Banner
+
+struct NWSAlertBannerView: View {
+    let alerts: [NWSAlertFeature]
+    @State private var expandedAlertId: String?
+
+    var body: some View {
+        VStack(spacing: 8) {
+            ForEach(alerts) { alert in
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Image(systemName: severityIcon(alert.properties.severity))
+                            .foregroundColor(severityColor(alert.properties.severity))
+                        Text(alert.properties.event)
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                        Spacer()
+                        Image(systemName: expandedAlertId == alert.id ? "chevron.up" : "chevron.down")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            expandedAlertId = expandedAlertId == alert.id ? nil : alert.id
+                        }
+                    }
+
+                    if expandedAlertId == alert.id {
+                        if let headline = alert.properties.headline {
+                            Text(headline)
+                                .font(.caption)
+                                .foregroundColor(.primary)
+                        }
+                        if let areaDesc = alert.properties.areaDesc {
+                            Text("Area: \(areaDesc)")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        if let instruction = alert.properties.instruction {
+                            Text(instruction)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+                .padding()
+                .background(severityBackgroundColor(alert.properties.severity))
+                .cornerRadius(12)
+            }
+        }
+    }
+
+    private func severityIcon(_ severity: String) -> String {
+        switch severity {
+        case "Extreme", "Severe":
+            return "exclamationmark.triangle.fill"
+        case "Moderate":
+            return "exclamationmark.circle.fill"
+        default:
+            return "info.circle.fill"
+        }
+    }
+
+    private func severityColor(_ severity: String) -> Color {
+        switch severity {
+        case "Extreme":
+            return .red
+        case "Severe":
+            return .orange
+        case "Moderate":
+            return .yellow
+        default:
+            return .blue
+        }
+    }
+
+    private func severityBackgroundColor(_ severity: String) -> Color {
+        switch severity {
+        case "Extreme":
+            return Color.red.opacity(0.15)
+        case "Severe":
+            return Color.orange.opacity(0.15)
+        case "Moderate":
+            return Color.yellow.opacity(0.15)
+        default:
+            return Color.blue.opacity(0.15)
         }
     }
 }
