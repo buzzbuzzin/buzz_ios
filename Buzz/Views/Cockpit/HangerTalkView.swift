@@ -19,6 +19,7 @@ struct HangerTalkView: View {
     @State private var postToEdit: HangerTalkPostWithAuthor?
     @State private var postToReply: HangerTalkPostWithAuthor?
     @State private var navigateToProfileId: UUID?
+    @State private var selectedPostForDetail: HangerTalkPostWithAuthor?
     @State private var showInbox = false
 
     var body: some View {
@@ -37,19 +38,35 @@ struct HangerTalkView: View {
             floatingButtons
         }
         .background(
-            NavigationLink(
-                destination: Group {
-                    if let profileId = navigateToProfileId {
-                        PublicProfileView(pilotId: profileId)
-                            .environmentObject(authService)
-                    }
-                },
-                isActive: Binding(
-                    get: { navigateToProfileId != nil },
-                    set: { if !$0 { navigateToProfileId = nil } }
-                )
-            ) { EmptyView() }
-                .hidden()
+            ZStack {
+                NavigationLink(
+                    destination: Group {
+                        if let profileId = navigateToProfileId {
+                            PublicProfileView(pilotId: profileId)
+                                .environmentObject(authService)
+                        }
+                    },
+                    isActive: Binding(
+                        get: { navigateToProfileId != nil },
+                        set: { if !$0 { navigateToProfileId = nil } }
+                    )
+                ) { EmptyView() }
+                    .hidden()
+
+                NavigationLink(
+                    destination: Group {
+                        if let selectedPost = selectedPostForDetail {
+                            HangerTalkPostDetailView(postWithAuthor: selectedPost)
+                                .environmentObject(authService)
+                        }
+                    },
+                    isActive: Binding(
+                        get: { selectedPostForDetail != nil },
+                        set: { if !$0 { selectedPostForDetail = nil } }
+                    )
+                ) { EmptyView() }
+                    .hidden()
+            }
         )
         .navigationTitle("Hanger Talk")
         .navigationBarTitleDisplayMode(.inline)
@@ -218,64 +235,65 @@ struct HangerTalkView: View {
             } else {
                 List {
                     ForEach(currentPosts) { postWithAuthor in
-                        NavigationLink(destination: HangerTalkPostDetailView(
-                            postWithAuthor: postWithAuthor
-                        ).environmentObject(authService)) {
-                            HangerTalkPostCard(
-                                postWithAuthor: postWithAuthor,
-                                onLike: {
-                                    guard let userId = authService.activeUserId else { return }
-                                    Task {
-                                        try? await service.toggleLike(postId: postWithAuthor.id, userId: userId)
-                                        await refreshCurrentTab()
-                                    }
-                                },
-                                onRepost: {
-                                    guard let userId = authService.activeUserId else { return }
-                                    Task {
-                                        try? await service.toggleRepost(postId: postWithAuthor.id, userId: userId)
-                                        await refreshCurrentTab()
-                                    }
-                                },
-                                onBookmark: {
-                                    guard let userId = authService.activeUserId else { return }
-                                    Task {
-                                        try? await service.toggleBookmark(postId: postWithAuthor.id, userId: userId)
-                                        await refreshCurrentTab()
-                                    }
-                                },
-                                onReply: {
-                                    postToReply = postWithAuthor
-                                },
-                                isOwnPost: postWithAuthor.post.authorId == authService.activeUserId,
-                                onDelete: {
-                                    postToDelete = postWithAuthor
-                                    showDeletePostConfirmation = true
-                                },
-                                onEdit: {
-                                    postToEdit = postWithAuthor
-                                    showEditPost = true
-                                },
-                                onAuthorTap: {
-                                    navigateToProfileId = postWithAuthor.post.authorId
-                                },
-                                onMentionTap: { callSign in
-                                    Task {
-                                        if let profile = await service.resolveCallSign(callSign) {
-                                            navigateToProfileId = profile.id
-                                        }
-                                    }
-                                },
-                                onFollow: {
-                                    guard let userId = authService.activeUserId else { return }
-                                    Task {
-                                        _ = try? await service.toggleFollow(followerId: userId, followingId: postWithAuthor.post.authorId)
+                        HangerTalkPostCard(
+                            postWithAuthor: postWithAuthor,
+                            onLike: {
+                                guard let userId = authService.activeUserId else { return }
+                                Task {
+                                    try? await service.toggleLike(postId: postWithAuthor.id, userId: userId)
+                                    if selectedTab == .liked {
                                         await refreshCurrentTab()
                                     }
                                 }
-                            )
-                        }
-                        .buttonStyle(PlainButtonStyle())
+                            },
+                            onRepost: {
+                                guard let userId = authService.activeUserId else { return }
+                                Task {
+                                    try? await service.toggleRepost(postId: postWithAuthor.id, userId: userId)
+                                }
+                            },
+                            onBookmark: {
+                                guard let userId = authService.activeUserId else { return }
+                                Task {
+                                    try? await service.toggleBookmark(postId: postWithAuthor.id, userId: userId)
+                                    if selectedTab == .bookmarks {
+                                        await refreshCurrentTab()
+                                    }
+                                }
+                            },
+                            onReply: {
+                                postToReply = postWithAuthor
+                            },
+                            onPostTap: {
+                                selectedPostForDetail = postWithAuthor
+                            },
+                            isOwnPost: postWithAuthor.post.authorId == authService.activeUserId,
+                            onDelete: {
+                                postToDelete = postWithAuthor
+                                showDeletePostConfirmation = true
+                            },
+                            onEdit: {
+                                postToEdit = postWithAuthor
+                                showEditPost = true
+                            },
+                            onAuthorTap: {
+                                navigateToProfileId = postWithAuthor.post.authorId
+                            },
+                            onMentionTap: { callSign in
+                                Task {
+                                    if let profile = await service.resolveCallSign(callSign) {
+                                        navigateToProfileId = profile.id
+                                    }
+                                }
+                            },
+                            onFollow: {
+                                guard let userId = authService.activeUserId else { return }
+                                Task {
+                                    _ = try? await service.toggleFollow(followerId: userId, followingId: postWithAuthor.post.authorId)
+                                    await refreshCurrentTab()
+                                }
+                            }
+                        )
                         .listRowSeparator(.hidden)
                         .listRowInsets(EdgeInsets())
                     }

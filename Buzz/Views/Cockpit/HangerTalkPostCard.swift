@@ -13,6 +13,7 @@ struct HangerTalkPostCard: View {
     let onRepost: () -> Void
     let onBookmark: () -> Void
     let onReply: () -> Void
+    var onPostTap: (() -> Void)? = nil
     var isOwnPost: Bool = false
     var onDelete: (() -> Void)?
     var onEdit: (() -> Void)?
@@ -21,6 +22,7 @@ struct HangerTalkPostCard: View {
     var onFollow: (() -> Void)?
 
     @State private var likeAnimating = false
+    @State private var suppressPostTap = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -34,7 +36,10 @@ struct HangerTalkPostCard: View {
 
                     // Post body text (with @mention highlighting)
                     if let onMentionTap {
-                        TappableMentionText(postWithAuthor.post.body, onMentionTap: onMentionTap)
+                        TappableMentionText(postWithAuthor.post.body) { callSign in
+                            markActionTap()
+                            onMentionTap(callSign)
+                        }
                             .foregroundColor(.primary)
                             .multilineTextAlignment(.leading)
                             .fixedSize(horizontal: false, vertical: true)
@@ -58,6 +63,10 @@ struct HangerTalkPostCard: View {
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                handlePostTap()
+            }
 
             Divider()
         }
@@ -68,7 +77,9 @@ struct HangerTalkPostCard: View {
     private var authorAvatar: some View {
         ZStack(alignment: .bottom) {
             Button {
-                onAuthorTap?()
+                performAction {
+                    onAuthorTap?()
+                }
             } label: {
                 Group {
                     if let urlString = postWithAuthor.authorProfilePictureUrl,
@@ -91,7 +102,9 @@ struct HangerTalkPostCard: View {
 
             // Threads-style follow "+" button
             if !isOwnPost && !postWithAuthor.isFollowedByCurrentUser, let onFollow {
-                Button(action: onFollow) {
+                Button {
+                    performAction(onFollow)
+                } label: {
                     Image(systemName: "plus")
                         .font(.system(size: 10, weight: .bold))
                         .foregroundColor(.white)
@@ -114,7 +127,9 @@ struct HangerTalkPostCard: View {
     private var authorInfoRow: some View {
         HStack(spacing: 4) {
             Button {
-                onAuthorTap?()
+                performAction {
+                    onAuthorTap?()
+                }
             } label: {
                 Text(postWithAuthor.authorCallSign ?? "Pilot")
                     .font(.subheadline)
@@ -153,6 +168,9 @@ struct HangerTalkPostCard: View {
                         .padding(.vertical, 8)
                         .contentShape(Rectangle())
                 }
+                .simultaneousGesture(TapGesture().onEnded {
+                    markActionTap()
+                })
             }
         }
     }
@@ -162,7 +180,9 @@ struct HangerTalkPostCard: View {
     private var actionBar: some View {
         HStack(spacing: 0) {
             // Reply
-            Button(action: onReply) {
+            Button {
+                performAction(onReply)
+            } label: {
                 HStack(spacing: 4) {
                     Image(systemName: "bubble.left")
                     Text("\(postWithAuthor.post.replyCount)")
@@ -174,7 +194,9 @@ struct HangerTalkPostCard: View {
             Spacer()
 
             // Repost
-            Button(action: onRepost) {
+            Button {
+                performAction(onRepost)
+            } label: {
                 HStack(spacing: 4) {
                     Image(systemName: "arrow.2.squarepath")
                     Text("\(postWithAuthor.post.repostCount)")
@@ -186,7 +208,8 @@ struct HangerTalkPostCard: View {
             Spacer()
 
             // Like
-            Button(action: {
+            Button {
+                markActionTap()
                 withAnimation(.spring(response: 0.3, dampingFraction: 0.5)) {
                     likeAnimating = true
                 }
@@ -194,7 +217,7 @@ struct HangerTalkPostCard: View {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                     likeAnimating = false
                 }
-            }) {
+            } label: {
                 HStack(spacing: 4) {
                     Image(systemName: postWithAuthor.isLikedByCurrentUser ? "heart.fill" : "heart")
                         .scaleEffect(likeAnimating ? 1.3 : 1.0)
@@ -207,7 +230,9 @@ struct HangerTalkPostCard: View {
             Spacer()
 
             // Bookmark
-            Button(action: onBookmark) {
+            Button {
+                performAction(onBookmark)
+            } label: {
                 Image(systemName: postWithAuthor.isBookmarkedByCurrentUser ? "bookmark.fill" : "bookmark")
                     .font(.subheadline)
                     .foregroundColor(postWithAuthor.isBookmarkedByCurrentUser ? .blue : .secondary)
@@ -221,6 +246,26 @@ struct HangerTalkPostCard: View {
                     .font(.subheadline)
                     .foregroundColor(.secondary)
             }
+            .simultaneousGesture(TapGesture().onEnded {
+                markActionTap()
+            })
+        }
+    }
+
+    private func handlePostTap() {
+        guard !suppressPostTap else { return }
+        onPostTap?()
+    }
+
+    private func performAction(_ action: () -> Void) {
+        markActionTap()
+        action()
+    }
+
+    private func markActionTap() {
+        suppressPostTap = true
+        DispatchQueue.main.async {
+            suppressPostTap = false
         }
     }
 }

@@ -20,6 +20,7 @@ struct HangerTalkSearchView: View {
     @State private var postToReply: HangerTalkPostWithAuthor?
     @State private var followedPilotIds: Set<UUID> = []
     @State private var navigateToProfileId: UUID?
+    @State private var selectedPostForDetail: HangerTalkPostWithAuthor?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -53,19 +54,35 @@ struct HangerTalkSearchView: View {
             }
         }
         .background(
-            NavigationLink(
-                destination: Group {
-                    if let profileId = navigateToProfileId {
-                        PublicProfileView(pilotId: profileId)
-                            .environmentObject(authService)
-                    }
-                },
-                isActive: Binding(
-                    get: { navigateToProfileId != nil },
-                    set: { if !$0 { navigateToProfileId = nil } }
-                )
-            ) { EmptyView() }
-                .hidden()
+            ZStack {
+                NavigationLink(
+                    destination: Group {
+                        if let profileId = navigateToProfileId {
+                            PublicProfileView(pilotId: profileId)
+                                .environmentObject(authService)
+                        }
+                    },
+                    isActive: Binding(
+                        get: { navigateToProfileId != nil },
+                        set: { if !$0 { navigateToProfileId = nil } }
+                    )
+                ) { EmptyView() }
+                    .hidden()
+
+                NavigationLink(
+                    destination: Group {
+                        if let selectedPost = selectedPostForDetail {
+                            HangerTalkPostDetailView(postWithAuthor: selectedPost)
+                                .environmentObject(authService)
+                        }
+                    },
+                    isActive: Binding(
+                        get: { selectedPostForDetail != nil },
+                        set: { if !$0 { selectedPostForDetail = nil } }
+                    )
+                ) { EmptyView() }
+                    .hidden()
+            }
         )
         .navigationTitle("Search")
         .navigationBarTitleDisplayMode(.inline)
@@ -163,56 +180,54 @@ struct HangerTalkSearchView: View {
 
             LazyVStack(spacing: 0) {
                 ForEach(searchResults) { postWithAuthor in
-                    NavigationLink(destination: HangerTalkPostDetailView(
-                        postWithAuthor: postWithAuthor
-                    ).environmentObject(authService)) {
-                        HangerTalkPostCard(
-                            postWithAuthor: postWithAuthor,
-                            onLike: {
-                                guard let userId = authService.activeUserId else { return }
-                                Task {
-                                    try? await service.toggleLike(postId: postWithAuthor.id, userId: userId)
-                                    performSearch()
-                                }
-                            },
-                            onRepost: {
-                                guard let userId = authService.activeUserId else { return }
-                                Task {
-                                    try? await service.toggleRepost(postId: postWithAuthor.id, userId: userId)
-                                    performSearch()
-                                }
-                            },
-                            onBookmark: {
-                                guard let userId = authService.activeUserId else { return }
-                                Task {
-                                    try? await service.toggleBookmark(postId: postWithAuthor.id, userId: userId)
-                                    performSearch()
-                                }
-                            },
-                            onReply: {
-                                postToReply = postWithAuthor
-                            },
-                            isOwnPost: postWithAuthor.post.authorId == authService.activeUserId,
-                            onAuthorTap: {
-                                navigateToProfileId = postWithAuthor.post.authorId
-                            },
-                            onMentionTap: { callSign in
-                                Task {
-                                    if let profile = await service.resolveCallSign(callSign) {
-                                        navigateToProfileId = profile.id
-                                    }
-                                }
-                            },
-                            onFollow: {
-                                guard let userId = authService.activeUserId else { return }
-                                Task {
-                                    _ = try? await service.toggleFollow(followerId: userId, followingId: postWithAuthor.post.authorId)
-                                    performSearch()
+                    HangerTalkPostCard(
+                        postWithAuthor: postWithAuthor,
+                        onLike: {
+                            guard let userId = authService.activeUserId else { return }
+                            Task {
+                                try? await service.toggleLike(postId: postWithAuthor.id, userId: userId)
+                                performSearch()
+                            }
+                        },
+                        onRepost: {
+                            guard let userId = authService.activeUserId else { return }
+                            Task {
+                                try? await service.toggleRepost(postId: postWithAuthor.id, userId: userId)
+                                performSearch()
+                            }
+                        },
+                        onBookmark: {
+                            guard let userId = authService.activeUserId else { return }
+                            Task {
+                                try? await service.toggleBookmark(postId: postWithAuthor.id, userId: userId)
+                                performSearch()
+                            }
+                        },
+                        onReply: {
+                            postToReply = postWithAuthor
+                        },
+                        onPostTap: {
+                            selectedPostForDetail = postWithAuthor
+                        },
+                        isOwnPost: postWithAuthor.post.authorId == authService.activeUserId,
+                        onAuthorTap: {
+                            navigateToProfileId = postWithAuthor.post.authorId
+                        },
+                        onMentionTap: { callSign in
+                            Task {
+                                if let profile = await service.resolveCallSign(callSign) {
+                                    navigateToProfileId = profile.id
                                 }
                             }
-                        )
-                    }
-                    .buttonStyle(PlainButtonStyle())
+                        },
+                        onFollow: {
+                            guard let userId = authService.activeUserId else { return }
+                            Task {
+                                _ = try? await service.toggleFollow(followerId: userId, followingId: postWithAuthor.post.authorId)
+                                performSearch()
+                            }
+                        }
+                    )
                 }
             }
         }

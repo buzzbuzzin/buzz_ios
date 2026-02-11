@@ -11,65 +11,72 @@ struct HangerTalkPostDetailView: View {
     @EnvironmentObject var authService: AuthService
     @Environment(\.dismiss) var dismiss
     @StateObject private var service = HangerTalkService()
-    let postWithAuthor: HangerTalkPostWithAuthor
+    @State private var currentPost: HangerTalkPostWithAuthor
+    @State private var likeCount: Int
+    @State private var replyCount: Int
+    @State private var repostCount: Int
+    @State private var isLikedByCurrentUser: Bool
+    @State private var isRepostedByCurrentUser: Bool
+    @State private var isBookmarkedByCurrentUser: Bool
     @State private var showComposeReply = false
     @State private var showDeleteConfirmation = false
     @State private var showEditPost = false
     @State private var navigateToProfileId: UUID?
+    @State private var likeAnimating = false
+    @State private var repostAnimating = false
+    @State private var bookmarkAnimating = false
+    @State private var pendingLikeUpdate = false
+    @State private var pendingReplyUpdate = false
+    @State private var pendingRepostUpdate = false
+    @State private var pendingBookmarkUpdate = false
+
+    init(postWithAuthor: HangerTalkPostWithAuthor) {
+        _currentPost = State(initialValue: postWithAuthor)
+        _likeCount = State(initialValue: postWithAuthor.post.likeCount)
+        _replyCount = State(initialValue: postWithAuthor.post.replyCount)
+        _repostCount = State(initialValue: postWithAuthor.post.repostCount)
+        _isLikedByCurrentUser = State(initialValue: postWithAuthor.isLikedByCurrentUser)
+        _isRepostedByCurrentUser = State(initialValue: postWithAuthor.isRepostedByCurrentUser)
+        _isBookmarkedByCurrentUser = State(initialValue: postWithAuthor.isBookmarkedByCurrentUser)
+    }
 
     var body: some View {
-        List {
-            // Full post content (expanded)
-            postContentSection
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
-                .listRowSeparator(.hidden)
-                .listRowInsets(EdgeInsets())
+        VStack(spacing: 0) {
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    postContentSection
+                        .padding(.horizontal, 16)
+                        .padding(.top, 12)
+                        .padding(.bottom, 10)
 
-            Divider()
-                .listRowSeparator(.hidden)
-                .listRowInsets(EdgeInsets())
+                    Divider()
 
-            // Stats bar
-            statsBar
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
-                .listRowSeparator(.hidden)
-                .listRowInsets(EdgeInsets())
+                    statsBar
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
 
-            Divider()
-                .listRowSeparator(.hidden)
-                .listRowInsets(EdgeInsets())
+                    Divider()
 
-            // Action bar
-            postActionBar
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
-                .listRowSeparator(.hidden)
-                .listRowInsets(EdgeInsets())
+                    postActionBar
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
 
-            // Gray separator
-            Rectangle()
-                .fill(Color(.systemGroupedBackground))
-                .frame(height: 8)
-                .listRowSeparator(.hidden)
-                .listRowInsets(EdgeInsets())
+                    Rectangle()
+                        .fill(Color(.systemGroupedBackground))
+                        .frame(height: 8)
 
-            // Replies
-            repliesSection
-                .listRowSeparator(.hidden)
-                .listRowInsets(EdgeInsets())
-        }
-        .listStyle(.plain)
-        .refreshable {
-            guard let userId = authService.activeUserId else { return }
-            await service.fetchReplies(parentPostId: postWithAuthor.id, currentUserId: userId)
+                    repliesSection
+                }
+            }
+            .refreshable {
+                await refreshDetail()
+            }
         }
         .navigationTitle("Post")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
-                if postWithAuthor.post.authorId == authService.activeUserId {
+                if currentPost.post.authorId == authService.activeUserId {
                     Menu {
                         Button {
                             showEditPost = true
@@ -95,7 +102,7 @@ struct HangerTalkPostDetailView: View {
             Button("Cancel", role: .cancel) { }
             Button("Delete", role: .destructive) {
                 Task {
-                    try? await service.deletePost(postId: postWithAuthor.id)
+                    try? await service.deletePost(postId: currentPost.id)
                     dismiss()
                 }
             }
@@ -105,10 +112,12 @@ struct HangerTalkPostDetailView: View {
         .sheet(isPresented: $showEditPost) {
             NavigationView {
                 HangerTalkEditView(
-                    postWithAuthor: postWithAuthor,
+                    postWithAuthor: currentPost,
                     onPostUpdated: {
                         showEditPost = false
-                        dismiss()
+                        Task {
+                            await refreshDetail()
+                        }
                     }
                 )
                 .environmentObject(authService)
@@ -117,12 +126,19 @@ struct HangerTalkPostDetailView: View {
         .sheet(isPresented: $showComposeReply) {
             NavigationView {
                 HangerTalkComposeView(
-                    replyToPost: postWithAuthor,
+                    replyToPost: currentPost,
                     onPostCreated: {
                         showComposeReply = false
-                        Task {
-                            guard let userId = authService.activeUserId else { return }
-                            await service.fetchReplies(parentPostId: postWithAuthor.id, currentUserId: userId)
+                        pendingReplyUpdate = true
+                        applyPostUpdate(replyDelta: 1)
+                        Task { @MainActor in
+                            guard let userId = authService.activeUserId else {
+                                pendingReplyUpdate = false
+                                return
+                            }
+                            await service.fetchReplies(parentPostId: currentPost.id, currentUserId: userId)
+                            await refreshCurrentPost(currentUserId: userId)
+                            pendingReplyUpdate = false
                         }
                     }
                 )
@@ -145,79 +161,58 @@ struct HangerTalkPostDetailView: View {
                 .hidden()
         )
         .task {
-            guard let userId = authService.activeUserId else { return }
-            await service.fetchReplies(parentPostId: postWithAuthor.id, currentUserId: userId)
+            await refreshDetail()
         }
     }
 
     // MARK: - Post Content Section
 
     private var postContentSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // Author row
-            HStack(spacing: 10) {
-                NavigationLink(destination: PublicProfileView(pilotId: postWithAuthor.post.authorId)
-                    .environmentObject(authService)) {
-                    if let urlString = postWithAuthor.authorProfilePictureUrl,
-                       let url = URL(string: urlString) {
-                        AsyncImage(url: url) { image in
-                            image.resizable().aspectRatio(contentMode: .fill)
-                        } placeholder: {
-                            Circle().fill(Color.gray.opacity(0.3))
-                        }
-                        .frame(width: 48, height: 48)
-                        .clipShape(Circle())
-                    } else {
-                        Image(systemName: "person.circle.fill")
-                            .font(.system(size: 48))
-                            .foregroundColor(.secondary)
-                    }
-                }
-                .buttonStyle(.plain)
+        HStack(alignment: .top, spacing: 12) {
+            Button {
+                navigateToProfileId = currentPost.post.authorId
+            } label: {
+                authorAvatar(size: 44)
+            }
+            .buttonStyle(.plain)
 
-                NavigationLink(destination: PublicProfileView(pilotId: postWithAuthor.post.authorId)
-                    .environmentObject(authService)) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(postWithAuthor.authorCallSign ?? "Pilot")
+            VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Button {
+                        navigateToProfileId = currentPost.post.authorId
+                    } label: {
+                        Text(currentPost.authorCallSign ?? "Pilot")
                             .font(.headline)
-                            .fontWeight(.bold)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.primary)
+                    }
+                    .buttonStyle(.plain)
 
-                        Text("@\((postWithAuthor.authorCallSign ?? "pilot").lowercased().replacingOccurrences(of: " ", with: ""))")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
+                    Text(authorHandle)
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+
+                TappableMentionText(currentPost.post.body, font: .body) { callSign in
+                    Task {
+                        if let profile = await service.resolveCallSign(callSign) {
+                            navigateToProfileId = profile.id
+                        }
                     }
                 }
-                .buttonStyle(.plain)
 
-                Spacer()
-            }
-
-            // Body text (full size, with tappable @mentions)
-            TappableMentionText(postWithAuthor.post.body, font: .title3) { callSign in
-                Task {
-                    if let profile = await service.resolveCallSign(callSign) {
-                        navigateToProfileId = profile.id
-                    }
+                if !currentPost.post.imageUrls.isEmpty {
+                    HangerImageCarousel(imageUrls: currentPost.post.imageUrls, height: 300)
                 }
-            }
 
-            // Image carousel
-            if !postWithAuthor.post.imageUrls.isEmpty {
-                HangerImageCarousel(imageUrls: postWithAuthor.post.imageUrls, height: 300)
+                (
+                    Text(currentPost.post.createdAt, style: .date)
+                        .foregroundColor(.secondary)
+                    + Text(" · ").foregroundColor(.secondary)
+                    + Text(currentPost.post.createdAt, style: .time).foregroundColor(.secondary)
+                )
+                .font(.footnote)
             }
-
-            // Timestamp
-            Text(postWithAuthor.post.createdAt, style: .date)
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-            +
-            Text(" · ")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-            +
-            Text(postWithAuthor.post.createdAt, style: .time)
-                .font(.subheadline)
-                .foregroundColor(.secondary)
         }
     }
 
@@ -225,31 +220,31 @@ struct HangerTalkPostDetailView: View {
 
     private var statsBar: some View {
         HStack(spacing: 16) {
-            if postWithAuthor.post.replyCount > 0 {
+            if replyCount > 0 {
                 HStack(spacing: 4) {
-                    Text("\(postWithAuthor.post.replyCount)")
+                    Text("\(replyCount)")
                         .fontWeight(.semibold)
-                    Text(postWithAuthor.post.replyCount == 1 ? "Reply" : "Replies")
+                    Text(replyCount == 1 ? "Reply" : "Replies")
                         .foregroundColor(.secondary)
                 }
                 .font(.subheadline)
             }
 
-            if postWithAuthor.post.repostCount > 0 {
+            if repostCount > 0 {
                 HStack(spacing: 4) {
-                    Text("\(postWithAuthor.post.repostCount)")
+                    Text("\(repostCount)")
                         .fontWeight(.semibold)
-                    Text(postWithAuthor.post.repostCount == 1 ? "Repost" : "Reposts")
+                    Text(repostCount == 1 ? "Repost" : "Reposts")
                         .foregroundColor(.secondary)
                 }
                 .font(.subheadline)
             }
 
-            if postWithAuthor.post.likeCount > 0 {
+            if likeCount > 0 {
                 HStack(spacing: 4) {
-                    Text("\(postWithAuthor.post.likeCount)")
+                    Text("\(likeCount)")
                         .fontWeight(.semibold)
-                    Text(postWithAuthor.post.likeCount == 1 ? "Like" : "Likes")
+                    Text(likeCount == 1 ? "Like" : "Likes")
                         .foregroundColor(.secondary)
                 }
                 .font(.subheadline)
@@ -263,55 +258,130 @@ struct HangerTalkPostDetailView: View {
 
     private var postActionBar: some View {
         HStack(spacing: 0) {
-            // Reply
             Button {
                 showComposeReply = true
             } label: {
-                Image(systemName: "bubble.left")
-                    .font(.title3)
+                HStack(spacing: 4) {
+                    Image(systemName: "bubble.left")
+                    Text("\(replyCount)")
+                }
+                .font(.subheadline)
                     .foregroundColor(.secondary)
             }
+            .buttonStyle(.plain)
 
             Spacer()
 
-            // Repost
             Button {
                 guard let userId = authService.activeUserId else { return }
-                Task { try? await service.toggleRepost(postId: postWithAuthor.id, userId: userId) }
+                let wasReposted = isRepostedByCurrentUser
+                pendingRepostUpdate = true
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    repostAnimating = true
+                    applyPostUpdate(
+                        repostDelta: wasReposted ? -1 : 1,
+                        isRepostedByCurrentUser: !wasReposted
+                    )
+                }
+                Task { @MainActor in
+                    do {
+                        try await service.toggleRepost(postId: currentPost.id, userId: userId)
+                    } catch {
+                        withAnimation(.easeInOut(duration: 0.15)) {
+                            applyPostUpdate(
+                                repostDelta: wasReposted ? 1 : -1,
+                                isRepostedByCurrentUser: wasReposted
+                            )
+                        }
+                    }
+                    withAnimation(.easeInOut(duration: 0.15)) {
+                        repostAnimating = false
+                    }
+                    pendingRepostUpdate = false
+                }
             } label: {
-                Image(systemName: "arrow.2.squarepath")
-                    .font(.title3)
-                    .foregroundColor(postWithAuthor.isRepostedByCurrentUser ? .green : .secondary)
+                HStack(spacing: 4) {
+                    Image(systemName: "arrow.2.squarepath")
+                        .scaleEffect(repostAnimating ? 1.15 : 1.0)
+                    Text("\(repostCount)")
+                }
+                .font(.subheadline)
+                    .foregroundColor(isRepostedByCurrentUser ? .green : .secondary)
             }
+            .buttonStyle(.plain)
 
             Spacer()
 
-            // Like
             Button {
                 guard let userId = authService.activeUserId else { return }
-                Task { try? await service.toggleLike(postId: postWithAuthor.id, userId: userId) }
+                let wasLiked = isLikedByCurrentUser
+                pendingLikeUpdate = true
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.5)) {
+                    likeAnimating = true
+                    applyPostUpdate(
+                        likeDelta: wasLiked ? -1 : 1,
+                        isLikedByCurrentUser: !wasLiked
+                    )
+                }
+                Task { @MainActor in
+                    do {
+                        try await service.toggleLike(postId: currentPost.id, userId: userId)
+                    } catch {
+                        withAnimation(.easeInOut(duration: 0.15)) {
+                            applyPostUpdate(
+                                likeDelta: wasLiked ? 1 : -1,
+                                isLikedByCurrentUser: wasLiked
+                            )
+                        }
+                    }
+                    likeAnimating = false
+                    pendingLikeUpdate = false
+                }
             } label: {
-                Image(systemName: postWithAuthor.isLikedByCurrentUser ? "heart.fill" : "heart")
-                    .font(.title3)
-                    .foregroundColor(postWithAuthor.isLikedByCurrentUser ? .red : .secondary)
+                HStack(spacing: 4) {
+                    Image(systemName: isLikedByCurrentUser ? "heart.fill" : "heart")
+                    Text("\(likeCount)")
+                }
+                .font(.subheadline)
+                    .foregroundColor(isLikedByCurrentUser ? .red : .secondary)
+                    .scaleEffect(likeAnimating ? 1.2 : 1.0)
             }
+            .buttonStyle(.plain)
 
             Spacer()
 
-            // Bookmark
             Button {
                 guard let userId = authService.activeUserId else { return }
-                Task { try? await service.toggleBookmark(postId: postWithAuthor.id, userId: userId) }
+                let wasBookmarked = isBookmarkedByCurrentUser
+                pendingBookmarkUpdate = true
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    bookmarkAnimating = true
+                    applyPostUpdate(isBookmarkedByCurrentUser: !wasBookmarked)
+                }
+                Task { @MainActor in
+                    do {
+                        try await service.toggleBookmark(postId: currentPost.id, userId: userId)
+                    } catch {
+                        withAnimation(.easeInOut(duration: 0.15)) {
+                            applyPostUpdate(isBookmarkedByCurrentUser: wasBookmarked)
+                        }
+                    }
+                    withAnimation(.easeInOut(duration: 0.15)) {
+                        bookmarkAnimating = false
+                    }
+                    pendingBookmarkUpdate = false
+                }
             } label: {
-                Image(systemName: postWithAuthor.isBookmarkedByCurrentUser ? "bookmark.fill" : "bookmark")
-                    .font(.title3)
-                    .foregroundColor(postWithAuthor.isBookmarkedByCurrentUser ? .blue : .secondary)
+                Image(systemName: isBookmarkedByCurrentUser ? "bookmark.fill" : "bookmark")
+                    .font(.subheadline)
+                    .foregroundColor(isBookmarkedByCurrentUser ? .blue : .secondary)
+                    .scaleEffect(bookmarkAnimating ? 1.15 : 1.0)
             }
+            .buttonStyle(.plain)
 
             Spacer()
 
-            // Share
-            ShareLink(item: postWithAuthor.post.body) {
+            ShareLink(item: currentPost.post.body) {
                 Image(systemName: "square.and.arrow.up")
                     .font(.title3)
                     .foregroundColor(.secondary)
@@ -332,63 +402,175 @@ struct HangerTalkPostDetailView: View {
                     .font(.subheadline)
                     .foregroundColor(.secondary)
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 30)
+                    .padding(.vertical, 40)
             } else {
-                ForEach(service.replies) { reply in
-                    HangerTalkPostCard(
-                        postWithAuthor: reply,
-                        onLike: {
-                            guard let userId = authService.activeUserId else { return }
-                            Task {
-                                try? await service.toggleLike(postId: reply.id, userId: userId)
-                                await service.fetchReplies(parentPostId: postWithAuthor.id, currentUserId: userId)
-                            }
-                        },
-                        onRepost: {
-                            guard let userId = authService.activeUserId else { return }
-                            Task {
-                                try? await service.toggleRepost(postId: reply.id, userId: userId)
-                                await service.fetchReplies(parentPostId: postWithAuthor.id, currentUserId: userId)
-                            }
-                        },
-                        onBookmark: {
-                            guard let userId = authService.activeUserId else { return }
-                            Task {
-                                try? await service.toggleBookmark(postId: reply.id, userId: userId)
-                                await service.fetchReplies(parentPostId: postWithAuthor.id, currentUserId: userId)
-                            }
-                        },
-                        onReply: {
-                            showComposeReply = true
-                        },
-                        isOwnPost: reply.post.authorId == authService.activeUserId,
-                        onDelete: {
-                            guard let userId = authService.activeUserId else { return }
-                            Task {
-                                try? await service.deletePost(postId: reply.id)
-                                await service.fetchReplies(parentPostId: postWithAuthor.id, currentUserId: userId)
-                            }
-                        },
-                        onAuthorTap: {
-                            navigateToProfileId = reply.post.authorId
-                        },
-                        onMentionTap: { callSign in
-                            Task {
-                                if let profile = await service.resolveCallSign(callSign) {
-                                    navigateToProfileId = profile.id
+                LazyVStack(spacing: 0) {
+                    ForEach(service.replies) { reply in
+                        HangerTalkPostCard(
+                            postWithAuthor: reply,
+                            onLike: {
+                                guard let userId = authService.activeUserId else { return }
+                                Task {
+                                    try? await service.toggleLike(postId: reply.id, userId: userId)
+                                    await service.fetchReplies(parentPostId: currentPost.id, currentUserId: userId)
+                                }
+                            },
+                            onRepost: {
+                                guard let userId = authService.activeUserId else { return }
+                                Task {
+                                    try? await service.toggleRepost(postId: reply.id, userId: userId)
+                                    await service.fetchReplies(parentPostId: currentPost.id, currentUserId: userId)
+                                }
+                            },
+                            onBookmark: {
+                                guard let userId = authService.activeUserId else { return }
+                                Task {
+                                    try? await service.toggleBookmark(postId: reply.id, userId: userId)
+                                    await service.fetchReplies(parentPostId: currentPost.id, currentUserId: userId)
+                                }
+                            },
+                            onReply: {
+                                showComposeReply = true
+                            },
+                            isOwnPost: reply.post.authorId == authService.activeUserId,
+                            onDelete: {
+                                guard let userId = authService.activeUserId else { return }
+                                Task {
+                                    try? await service.deletePost(postId: reply.id)
+                                    await refreshCurrentPost(currentUserId: userId)
+                                    await service.fetchReplies(parentPostId: currentPost.id, currentUserId: userId)
+                                }
+                            },
+                            onAuthorTap: {
+                                navigateToProfileId = reply.post.authorId
+                            },
+                            onMentionTap: { callSign in
+                                Task {
+                                    if let profile = await service.resolveCallSign(callSign) {
+                                        navigateToProfileId = profile.id
+                                    }
+                                }
+                            },
+                            onFollow: {
+                                guard let userId = authService.activeUserId else { return }
+                                Task {
+                                    _ = try? await service.toggleFollow(followerId: userId, followingId: reply.post.authorId)
+                                    await service.fetchReplies(parentPostId: currentPost.id, currentUserId: userId)
                                 }
                             }
-                        },
-                        onFollow: {
-                            guard let userId = authService.activeUserId else { return }
-                            Task {
-                                _ = try? await service.toggleFollow(followerId: userId, followingId: reply.post.authorId)
-                                await service.fetchReplies(parentPostId: postWithAuthor.id, currentUserId: userId)
-                            }
-                        }
-                    )
+                        )
+                    }
                 }
             }
         }
+    }
+
+    private var authorHandle: String {
+        let normalized = (currentPost.authorCallSign ?? "pilot")
+            .lowercased()
+            .replacingOccurrences(of: " ", with: "")
+        return "@\(normalized)"
+    }
+
+    private func authorAvatar(size: CGFloat) -> some View {
+        Group {
+            if let urlString = currentPost.authorProfilePictureUrl,
+               let url = URL(string: urlString) {
+                AsyncImage(url: url) { image in
+                    image.resizable().aspectRatio(contentMode: .fill)
+                } placeholder: {
+                    Circle().fill(Color.gray.opacity(0.3))
+                }
+                .frame(width: size, height: size)
+                .clipShape(Circle())
+            } else {
+                Image(systemName: "person.circle.fill")
+                    .font(.system(size: size))
+                    .foregroundColor(.secondary)
+            }
+        }
+    }
+
+    private func refreshCurrentPost(currentUserId: UUID) async {
+        if let updatedPost = await service.fetchPost(postId: currentPost.id, currentUserId: currentUserId) {
+            currentPost = updatedPost
+            syncInteractionStateFromCurrentPost()
+        }
+    }
+
+    private func applyPostUpdate(
+        likeDelta: Int = 0,
+        replyDelta: Int = 0,
+        repostDelta: Int = 0,
+        isLikedByCurrentUser: Bool? = nil,
+        isRepostedByCurrentUser: Bool? = nil,
+        isBookmarkedByCurrentUser: Bool? = nil
+    ) {
+        likeCount = max(0, likeCount + likeDelta)
+        replyCount = max(0, replyCount + replyDelta)
+        repostCount = max(0, repostCount + repostDelta)
+        if let isLikedByCurrentUser {
+            self.isLikedByCurrentUser = isLikedByCurrentUser
+        }
+        if let isRepostedByCurrentUser {
+            self.isRepostedByCurrentUser = isRepostedByCurrentUser
+        }
+        if let isBookmarkedByCurrentUser {
+            self.isBookmarkedByCurrentUser = isBookmarkedByCurrentUser
+        }
+        syncCurrentPostFromInteractionState()
+    }
+
+    private func refreshDetail() async {
+        guard let userId = authService.activeUserId else { return }
+        await refreshCurrentPost(currentUserId: userId)
+        await service.fetchReplies(parentPostId: currentPost.id, currentUserId: userId)
+    }
+
+    private func syncInteractionStateFromCurrentPost() {
+        if !pendingLikeUpdate {
+            likeCount = currentPost.post.likeCount
+            isLikedByCurrentUser = currentPost.isLikedByCurrentUser
+        }
+        if !pendingReplyUpdate {
+            replyCount = currentPost.post.replyCount
+        }
+        if !pendingRepostUpdate {
+            repostCount = currentPost.post.repostCount
+            isRepostedByCurrentUser = currentPost.isRepostedByCurrentUser
+        }
+        if !pendingBookmarkUpdate {
+            isBookmarkedByCurrentUser = currentPost.isBookmarkedByCurrentUser
+        }
+        syncCurrentPostFromInteractionState()
+    }
+
+    private func syncCurrentPostFromInteractionState() {
+        let post = currentPost.post
+        let updatedPost = HangerTalkPost(
+            id: post.id,
+            authorId: post.authorId,
+            body: post.body,
+            imageUrls: post.imageUrls,
+            likeCount: likeCount,
+            replyCount: replyCount,
+            repostCount: repostCount,
+            isReply: post.isReply,
+            parentPostId: post.parentPostId,
+            createdAt: post.createdAt,
+            updatedAt: post.updatedAt
+        )
+
+        currentPost = HangerTalkPostWithAuthor(
+            id: currentPost.id,
+            post: updatedPost,
+            authorCallSign: currentPost.authorCallSign,
+            authorProfilePictureUrl: currentPost.authorProfilePictureUrl,
+            authorFullName: currentPost.authorFullName,
+            isLikedByCurrentUser: isLikedByCurrentUser,
+            isRepostedByCurrentUser: isRepostedByCurrentUser,
+            isBookmarkedByCurrentUser: isBookmarkedByCurrentUser,
+            isFollowedByCurrentUser: currentPost.isFollowedByCurrentUser
+        )
     }
 }

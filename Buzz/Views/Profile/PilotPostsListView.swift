@@ -16,22 +16,39 @@ struct PilotPostsListView: View {
     @State private var posts: [HangerTalkPostWithAuthor] = []
     @State private var isLoading = false
     @State private var navigateToProfileId: UUID?
+    @State private var selectedPostForDetail: HangerTalkPostWithAuthor?
 
     var body: some View {
         ZStack {
-            NavigationLink(
-                destination: Group {
-                    if let profileId = navigateToProfileId {
-                        PublicProfileView(pilotId: profileId)
-                            .environmentObject(authService)
-                    }
-                },
-                isActive: Binding(
-                    get: { navigateToProfileId != nil },
-                    set: { if !$0 { navigateToProfileId = nil } }
-                )
-            ) { EmptyView() }
-                .hidden()
+            ZStack {
+                NavigationLink(
+                    destination: Group {
+                        if let profileId = navigateToProfileId {
+                            PublicProfileView(pilotId: profileId)
+                                .environmentObject(authService)
+                        }
+                    },
+                    isActive: Binding(
+                        get: { navigateToProfileId != nil },
+                        set: { if !$0 { navigateToProfileId = nil } }
+                    )
+                ) { EmptyView() }
+                    .hidden()
+
+                NavigationLink(
+                    destination: Group {
+                        if let selectedPost = selectedPostForDetail {
+                            HangerTalkPostDetailView(postWithAuthor: selectedPost)
+                                .environmentObject(authService)
+                        }
+                    },
+                    isActive: Binding(
+                        get: { selectedPostForDetail != nil },
+                        set: { if !$0 { selectedPostForDetail = nil } }
+                    )
+                ) { EmptyView() }
+                    .hidden()
+            }
 
             ScrollView {
                 if isLoading && posts.isEmpty {
@@ -50,52 +67,52 @@ struct PilotPostsListView: View {
                 } else {
                     LazyVStack(spacing: 0) {
                         ForEach(posts) { postWithAuthor in
-                            NavigationLink(destination: HangerTalkPostDetailView(postWithAuthor: postWithAuthor).environmentObject(authService)) {
-                                HangerTalkPostCard(
-                                    postWithAuthor: postWithAuthor,
-                                    onLike: {
-                                        guard let userId = authService.activeUserId else { return }
-                                        Task {
-                                            try? await hangerTalkService.toggleLike(postId: postWithAuthor.id, userId: userId)
-                                            await refreshPosts()
-                                        }
-                                    },
-                                    onRepost: {
-                                        guard let userId = authService.activeUserId else { return }
-                                        Task {
-                                            try? await hangerTalkService.toggleRepost(postId: postWithAuthor.id, userId: userId)
-                                            await refreshPosts()
-                                        }
-                                    },
-                                    onBookmark: {
-                                        guard let userId = authService.activeUserId else { return }
-                                        Task {
-                                            try? await hangerTalkService.toggleBookmark(postId: postWithAuthor.id, userId: userId)
-                                            await refreshPosts()
-                                        }
-                                    },
-                                    onReply: {},
-                                    isOwnPost: postWithAuthor.post.authorId == authService.activeUserId,
-                                    onAuthorTap: {
-                                        navigateToProfileId = postWithAuthor.post.authorId
-                                    },
-                                    onMentionTap: { callSign in
-                                        Task {
-                                            if let profile = await hangerTalkService.resolveCallSign(callSign) {
-                                                navigateToProfileId = profile.id
-                                            }
-                                        }
-                                    },
-                                    onFollow: {
-                                        guard let userId = authService.activeUserId else { return }
-                                        Task {
-                                            _ = try? await hangerTalkService.toggleFollow(followerId: userId, followingId: postWithAuthor.post.authorId)
-                                            await refreshPosts()
+                            HangerTalkPostCard(
+                                postWithAuthor: postWithAuthor,
+                                onLike: {
+                                    guard let userId = authService.activeUserId else { return }
+                                    Task {
+                                        try? await hangerTalkService.toggleLike(postId: postWithAuthor.id, userId: userId)
+                                        await refreshPosts()
+                                    }
+                                },
+                                onRepost: {
+                                    guard let userId = authService.activeUserId else { return }
+                                    Task {
+                                        try? await hangerTalkService.toggleRepost(postId: postWithAuthor.id, userId: userId)
+                                        await refreshPosts()
+                                    }
+                                },
+                                onBookmark: {
+                                    guard let userId = authService.activeUserId else { return }
+                                    Task {
+                                        try? await hangerTalkService.toggleBookmark(postId: postWithAuthor.id, userId: userId)
+                                        await refreshPosts()
+                                    }
+                                },
+                                onReply: {},
+                                onPostTap: {
+                                    selectedPostForDetail = postWithAuthor
+                                },
+                                isOwnPost: postWithAuthor.post.authorId == authService.activeUserId,
+                                onAuthorTap: {
+                                    navigateToProfileId = postWithAuthor.post.authorId
+                                },
+                                onMentionTap: { callSign in
+                                    Task {
+                                        if let profile = await hangerTalkService.resolveCallSign(callSign) {
+                                            navigateToProfileId = profile.id
                                         }
                                     }
-                                )
-                            }
-                            .buttonStyle(.plain)
+                                },
+                                onFollow: {
+                                    guard let userId = authService.activeUserId else { return }
+                                    Task {
+                                        _ = try? await hangerTalkService.toggleFollow(followerId: userId, followingId: postWithAuthor.post.authorId)
+                                        await refreshPosts()
+                                    }
+                                }
+                            )
                         }
                     }
                 }
