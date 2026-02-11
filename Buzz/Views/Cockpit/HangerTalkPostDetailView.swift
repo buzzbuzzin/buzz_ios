@@ -49,7 +49,8 @@ struct HangerTalkPostDetailView: View {
                         .padding(.top, 12)
                         .padding(.bottom, 10)
 
-                    Divider()
+                    Color.clear
+                        .frame(height: 12)
 
                     statsBar
                         .padding(.horizontal, 16)
@@ -177,21 +178,15 @@ struct HangerTalkPostDetailView: View {
             .buttonStyle(.plain)
 
             VStack(alignment: .leading, spacing: 8) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Button {
-                        navigateToProfileId = currentPost.post.authorId
-                    } label: {
-                        Text(currentPost.authorCallSign ?? "Pilot")
-                            .font(.headline)
-                            .fontWeight(.semibold)
-                            .foregroundColor(.primary)
-                    }
-                    .buttonStyle(.plain)
-
-                    Text(authorHandle)
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
+                Button {
+                    navigateToProfileId = currentPost.post.authorId
+                } label: {
+                    Text(currentPost.authorCallSign ?? "Pilot")
+                        .font(.headline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.primary)
                 }
+                .buttonStyle(.plain)
 
                 TappableMentionText(currentPost.post.body, font: .body) { callSign in
                     Task {
@@ -204,14 +199,6 @@ struct HangerTalkPostDetailView: View {
                 if !currentPost.post.imageUrls.isEmpty {
                     HangerImageCarousel(imageUrls: currentPost.post.imageUrls, height: 300)
                 }
-
-                (
-                    Text(currentPost.post.createdAt, style: .date)
-                        .foregroundColor(.secondary)
-                    + Text(" · ").foregroundColor(.secondary)
-                    + Text(currentPost.post.createdAt, style: .time).foregroundColor(.secondary)
-                )
-                .font(.footnote)
             }
         }
     }
@@ -219,36 +206,14 @@ struct HangerTalkPostDetailView: View {
     // MARK: - Stats Bar
 
     private var statsBar: some View {
-        HStack(spacing: 16) {
-            if replyCount > 0 {
-                HStack(spacing: 4) {
-                    Text("\(replyCount)")
-                        .fontWeight(.semibold)
-                    Text(replyCount == 1 ? "Reply" : "Replies")
-                        .foregroundColor(.secondary)
-                }
-                .font(.subheadline)
-            }
-
-            if repostCount > 0 {
-                HStack(spacing: 4) {
-                    Text("\(repostCount)")
-                        .fontWeight(.semibold)
-                    Text(repostCount == 1 ? "Repost" : "Reposts")
-                        .foregroundColor(.secondary)
-                }
-                .font(.subheadline)
-            }
-
-            if likeCount > 0 {
-                HStack(spacing: 4) {
-                    Text("\(likeCount)")
-                        .fontWeight(.semibold)
-                    Text(likeCount == 1 ? "Like" : "Likes")
-                        .foregroundColor(.secondary)
-                }
-                .font(.subheadline)
-            }
+        HStack(spacing: 0) {
+            (
+                Text(currentPost.post.createdAt, style: .date)
+                + Text(" · ")
+                + Text(currentPost.post.createdAt, style: .time)
+            )
+            .font(.footnote)
+            .foregroundColor(.secondary)
 
             Spacer()
         }
@@ -463,13 +428,6 @@ struct HangerTalkPostDetailView: View {
                 }
             }
         }
-    }
-
-    private var authorHandle: String {
-        let normalized = (currentPost.authorCallSign ?? "pilot")
-            .lowercased()
-            .replacingOccurrences(of: " ", with: "")
-        return "@\(normalized)"
     }
 
     private func authorAvatar(size: CGFloat) -> some View {
