@@ -25,6 +25,10 @@ class HangerTalkService: ObservableObject {
 
     private let supabase = SupabaseClient.shared.client
 
+    private func sanitizeSearchPattern(_ query: String) -> String {
+        query.replacingOccurrences(of: "%", with: "\\%").replacingOccurrences(of: "_", with: "\\_")
+    }
+
     // MARK: - Fetch Feed (For You - all non-reply posts, newest first)
 
     func fetchFeed(currentUserId: UUID) async {
@@ -315,7 +319,7 @@ class HangerTalkService: ObservableObject {
                 .from("hanger_talk_posts")
                 .select("*, profiles(id, call_sign, profile_picture_url, first_name, last_name)")
                 .eq("is_reply", value: false)
-                .ilike("body", pattern: "%\(query)%")
+                .ilike("body", pattern: "%\(sanitizeSearchPattern(query))%")
                 .order("created_at", ascending: false)
                 .limit(50)
                 .execute()
@@ -343,7 +347,7 @@ class HangerTalkService: ObservableObject {
                 .from("profiles")
                 .select("id, call_sign, profile_picture_url, first_name, last_name")
                 .eq("user_type", value: "pilot")
-                .or("call_sign.ilike.%\(query)%,first_name.ilike.%\(query)%,last_name.ilike.%\(query)%")
+                .or("call_sign.ilike.%\(sanitizeSearchPattern(query))%,first_name.ilike.%\(sanitizeSearchPattern(query))%,last_name.ilike.%\(sanitizeSearchPattern(query))%")
                 .limit(20)
                 .execute()
                 .value
@@ -380,54 +384,66 @@ class HangerTalkService: ObservableObject {
             return
         }
 
-        let existing: [HangerTalkLike] = try await supabase
-            .from("hanger_talk_likes")
-            .select()
-            .eq("user_id", value: userId.uuidString)
-            .eq("post_id", value: postId.uuidString)
-            .execute()
-            .value
-        let isCurrentlyLiked = !existing.isEmpty
+        let isCurrentlyLiked = currentLikeState(postId: postId)
 
-        if let like = existing.first {
-            try await supabase
-                .from("hanger_talk_likes")
-                .delete()
-                .eq("id", value: like.id.uuidString)
-                .execute()
-        } else {
-            let data: [String: AnyJSON] = [
-                "user_id": .string(userId.uuidString),
-                "post_id": .string(postId.uuidString)
-            ]
-            try await supabase
-                .from("hanger_talk_likes")
-                .insert(data)
-                .execute()
-
-            // Notify post author about the like (remote push to author's device)
-            if let postAuthorId = await fetchPostAuthorId(postId: postId),
-               postAuthorId != userId,
-               let likerCallSign = await fetchCallSign(userId: userId) {
-                await NotificationManager.shared.notifyHangerTalkLike(
-                    postId: postId,
-                    postAuthorId: postAuthorId,
-                    likerCallSign: likerCallSign
-                )
-                await insertNotification(
-                    recipientId: postAuthorId,
-                    actorId: userId,
-                    type: .like,
-                    postId: postId
-                )
-            }
-        }
-
+        // Optimistic UI update
         applyInteractionUpdate(
             postId: postId,
             likeDelta: isCurrentlyLiked ? -1 : 1,
             isLikedByCurrentUser: !isCurrentlyLiked
         )
+
+        do {
+            let existing: [HangerTalkLike] = try await supabase
+                .from("hanger_talk_likes")
+                .select()
+                .eq("user_id", value: userId.uuidString)
+                .eq("post_id", value: postId.uuidString)
+                .execute()
+                .value
+
+            if let like = existing.first {
+                try await supabase
+                    .from("hanger_talk_likes")
+                    .delete()
+                    .eq("id", value: like.id.uuidString)
+                    .execute()
+            } else {
+                let data: [String: AnyJSON] = [
+                    "user_id": .string(userId.uuidString),
+                    "post_id": .string(postId.uuidString)
+                ]
+                try await supabase
+                    .from("hanger_talk_likes")
+                    .insert(data)
+                    .execute()
+
+                // Notify post author about the like (remote push to author's device)
+                if let postAuthorId = await fetchPostAuthorId(postId: postId),
+                   postAuthorId != userId,
+                   let likerCallSign = await fetchCallSign(userId: userId) {
+                    await NotificationManager.shared.notifyHangerTalkLike(
+                        postId: postId,
+                        postAuthorId: postAuthorId,
+                        likerCallSign: likerCallSign
+                    )
+                    await insertNotification(
+                        recipientId: postAuthorId,
+                        actorId: userId,
+                        type: .like,
+                        postId: postId
+                    )
+                }
+            }
+        } catch {
+            // Revert optimistic update on failure
+            applyInteractionUpdate(
+                postId: postId,
+                likeDelta: isCurrentlyLiked ? 1 : -1,
+                isLikedByCurrentUser: isCurrentlyLiked
+            )
+            throw error
+        }
     }
 
     // MARK: - Toggle Repost
@@ -443,37 +459,49 @@ class HangerTalkService: ObservableObject {
             return
         }
 
-        let existing: [HangerTalkRepost] = try await supabase
-            .from("hanger_talk_reposts")
-            .select()
-            .eq("user_id", value: userId.uuidString)
-            .eq("post_id", value: postId.uuidString)
-            .execute()
-            .value
-        let isCurrentlyReposted = !existing.isEmpty
+        let isCurrentlyReposted = currentRepostState(postId: postId)
 
-        if let repost = existing.first {
-            try await supabase
-                .from("hanger_talk_reposts")
-                .delete()
-                .eq("id", value: repost.id.uuidString)
-                .execute()
-        } else {
-            let data: [String: AnyJSON] = [
-                "user_id": .string(userId.uuidString),
-                "post_id": .string(postId.uuidString)
-            ]
-            try await supabase
-                .from("hanger_talk_reposts")
-                .insert(data)
-                .execute()
-        }
-
+        // Optimistic UI update
         applyInteractionUpdate(
             postId: postId,
             repostDelta: isCurrentlyReposted ? -1 : 1,
             isRepostedByCurrentUser: !isCurrentlyReposted
         )
+
+        do {
+            let existing: [HangerTalkRepost] = try await supabase
+                .from("hanger_talk_reposts")
+                .select()
+                .eq("user_id", value: userId.uuidString)
+                .eq("post_id", value: postId.uuidString)
+                .execute()
+                .value
+
+            if let repost = existing.first {
+                try await supabase
+                    .from("hanger_talk_reposts")
+                    .delete()
+                    .eq("id", value: repost.id.uuidString)
+                    .execute()
+            } else {
+                let data: [String: AnyJSON] = [
+                    "user_id": .string(userId.uuidString),
+                    "post_id": .string(postId.uuidString)
+                ]
+                try await supabase
+                    .from("hanger_talk_reposts")
+                    .insert(data)
+                    .execute()
+            }
+        } catch {
+            // Revert optimistic update on failure
+            applyInteractionUpdate(
+                postId: postId,
+                repostDelta: isCurrentlyReposted ? 1 : -1,
+                isRepostedByCurrentUser: isCurrentlyReposted
+            )
+            throw error
+        }
     }
 
     // MARK: - Toggle Bookmark
@@ -488,36 +516,47 @@ class HangerTalkService: ObservableObject {
             return
         }
 
-        let existing: [HangerTalkBookmark] = try await supabase
-            .from("hanger_talk_bookmarks")
-            .select()
-            .eq("user_id", value: userId.uuidString)
-            .eq("post_id", value: postId.uuidString)
-            .execute()
-            .value
-        let isCurrentlyBookmarked = !existing.isEmpty
+        let isCurrentlyBookmarked = currentBookmarkState(postId: postId)
 
-        if let bookmark = existing.first {
-            try await supabase
-                .from("hanger_talk_bookmarks")
-                .delete()
-                .eq("id", value: bookmark.id.uuidString)
-                .execute()
-        } else {
-            let data: [String: AnyJSON] = [
-                "user_id": .string(userId.uuidString),
-                "post_id": .string(postId.uuidString)
-            ]
-            try await supabase
-                .from("hanger_talk_bookmarks")
-                .insert(data)
-                .execute()
-        }
-
+        // Optimistic UI update
         applyInteractionUpdate(
             postId: postId,
             isBookmarkedByCurrentUser: !isCurrentlyBookmarked
         )
+
+        do {
+            let existing: [HangerTalkBookmark] = try await supabase
+                .from("hanger_talk_bookmarks")
+                .select()
+                .eq("user_id", value: userId.uuidString)
+                .eq("post_id", value: postId.uuidString)
+                .execute()
+                .value
+
+            if let bookmark = existing.first {
+                try await supabase
+                    .from("hanger_talk_bookmarks")
+                    .delete()
+                    .eq("id", value: bookmark.id.uuidString)
+                    .execute()
+            } else {
+                let data: [String: AnyJSON] = [
+                    "user_id": .string(userId.uuidString),
+                    "post_id": .string(postId.uuidString)
+                ]
+                try await supabase
+                    .from("hanger_talk_bookmarks")
+                    .insert(data)
+                    .execute()
+            }
+        } catch {
+            // Revert optimistic update on failure
+            applyInteractionUpdate(
+                postId: postId,
+                isBookmarkedByCurrentUser: isCurrentlyBookmarked
+            )
+            throw error
+        }
     }
 
     // MARK: - Fetch Following Feed
@@ -785,14 +824,14 @@ class HangerTalkService: ObservableObject {
         do {
             let followers: [UserFollow] = try await supabase
                 .from("user_follows")
-                .select()
+                .select("id")
                 .eq("following_id", value: userId.uuidString)
                 .execute()
                 .value
 
             let following: [UserFollow] = try await supabase
                 .from("user_follows")
-                .select()
+                .select("id")
                 .eq("follower_id", value: userId.uuidString)
                 .execute()
                 .value
@@ -832,7 +871,7 @@ class HangerTalkService: ObservableObject {
             let profiles: [HangerAuthorProfile] = try await supabase
                 .from("profiles")
                 .select("id, call_sign, profile_picture_url, first_name, last_name")
-                .ilike("call_sign", pattern: "%\(query)%")
+                .ilike("call_sign", pattern: "%\(sanitizeSearchPattern(query))%")
                 .limit(8)
                 .execute()
                 .value
@@ -958,12 +997,11 @@ class HangerTalkService: ObservableObject {
             newSize = size
         }
 
-        UIGraphicsBeginImageContextWithOptions(newSize, false, 1.0)
-        image.draw(in: CGRect(origin: .zero, size: newSize))
-        let resizedImage = UIGraphicsGetImageFromCurrentImageContext()
-        UIGraphicsEndImageContext()
-
-        return resizedImage?.jpegData(compressionQuality: 0.8)
+        let renderer = UIGraphicsImageRenderer(size: newSize)
+        let resizedImage = renderer.image { _ in
+            image.draw(in: CGRect(origin: .zero, size: newSize))
+        }
+        return resizedImage.jpegData(compressionQuality: 0.8)
     }
 
     // MARK: - Helpers
@@ -972,10 +1010,13 @@ class HangerTalkService: ObservableObject {
         guard !postIds.isEmpty else { return ([], [], [], []) }
 
         do {
+            let postIdStrings = postIds.map { $0.uuidString }
+
             let userLikes: [HangerTalkLike] = try await supabase
                 .from("hanger_talk_likes")
                 .select()
                 .eq("user_id", value: currentUserId.uuidString)
+                .in("post_id", values: postIdStrings)
                 .execute()
                 .value
             let likedIds = Set(userLikes.map { $0.postId })
@@ -984,6 +1025,7 @@ class HangerTalkService: ObservableObject {
                 .from("hanger_talk_reposts")
                 .select()
                 .eq("user_id", value: currentUserId.uuidString)
+                .in("post_id", values: postIdStrings)
                 .execute()
                 .value
             let repostedIds = Set(userReposts.map { $0.postId })
@@ -992,6 +1034,7 @@ class HangerTalkService: ObservableObject {
                 .from("hanger_talk_bookmarks")
                 .select()
                 .eq("user_id", value: currentUserId.uuidString)
+                .in("post_id", values: postIdStrings)
                 .execute()
                 .value
             let bookmarkedIds = Set(userBookmarks.map { $0.postId })
@@ -1146,9 +1189,10 @@ class HangerTalkService: ObservableObject {
         }
 
         do {
-            let response: [HangerTalkNotificationResponse] = try await supabase
+            struct IdOnly: Decodable { let id: UUID }
+            let response: [IdOnly] = try await supabase
                 .from("hanger_talk_notifications")
-                .select("id, recipient_id, actor_id, type, post_id, is_read, created_at")
+                .select("id")
                 .eq("recipient_id", value: userId.uuidString)
                 .eq("is_read", value: false)
                 .execute()

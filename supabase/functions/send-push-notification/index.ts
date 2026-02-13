@@ -46,58 +46,73 @@ interface APNsPayload {
 
 // Cache for JWT token (valid for 1 hour, we'll refresh after 50 minutes)
 let cachedJWT: { token: string; expiresAt: number } | null = null
+// Promise-based lock to prevent concurrent JWT generation
+let jwtGenerating: Promise<string> | null = null
 
 /**
  * Generate JWT token for APNs authentication
  */
 async function generateAPNsJWT(): Promise<string> {
   const now = Math.floor(Date.now() / 1000)
-  
+
   // Return cached token if still valid (with 10 minute buffer)
   if (cachedJWT && cachedJWT.expiresAt > now + 600) {
     return cachedJWT.token
   }
-  
-  if (!APNS_PRIVATE_KEY || !APNS_KEY_ID || !APNS_TEAM_ID) {
-    throw new Error("APNs credentials not configured")
+
+  // If a generation is already in progress, reuse its promise
+  if (jwtGenerating) {
+    return jwtGenerating
   }
-  
-  // Parse the private key (PEM format)
-  const pemContents = APNS_PRIVATE_KEY
-    .replace("-----BEGIN PRIVATE KEY-----", "")
-    .replace("-----END PRIVATE KEY-----", "")
-    .replace(/\s/g, "")
-  
-  // Import the private key for ES256
-  const binaryKey = Uint8Array.from(atob(pemContents), c => c.charCodeAt(0))
-  const cryptoKey = await crypto.subtle.importKey(
-    "pkcs8",
-    binaryKey,
-    { name: "ECDSA", namedCurve: "P-256" },
-    false,
-    ["sign"]
-  )
-  
-  // Create JWT payload
-  const payload = {
-    iss: APNS_TEAM_ID,
-    iat: getNumericDate(0), // Now
-  }
-  
-  // Create the JWT
-  const token = await create(
-    { alg: "ES256", typ: "JWT", kid: APNS_KEY_ID },
-    payload,
-    cryptoKey
-  )
-  
-  // Cache for 50 minutes (token valid for 1 hour)
-  cachedJWT = {
-    token,
-    expiresAt: now + 3000
-  }
-  
-  return token
+
+  jwtGenerating = (async () => {
+    try {
+      if (!APNS_PRIVATE_KEY || !APNS_KEY_ID || !APNS_TEAM_ID) {
+        throw new Error("APNs credentials not configured")
+      }
+
+      // Parse the private key (PEM format)
+      const pemContents = APNS_PRIVATE_KEY
+        .replace("-----BEGIN PRIVATE KEY-----", "")
+        .replace("-----END PRIVATE KEY-----", "")
+        .replace(/\s/g, "")
+
+      // Import the private key for ES256
+      const binaryKey = Uint8Array.from(atob(pemContents), c => c.charCodeAt(0))
+      const cryptoKey = await crypto.subtle.importKey(
+        "pkcs8",
+        binaryKey,
+        { name: "ECDSA", namedCurve: "P-256" },
+        false,
+        ["sign"]
+      )
+
+      // Create JWT payload
+      const payload = {
+        iss: APNS_TEAM_ID,
+        iat: getNumericDate(0), // Now
+      }
+
+      // Create the JWT
+      const token = await create(
+        { alg: "ES256", typ: "JWT", kid: APNS_KEY_ID },
+        payload,
+        cryptoKey
+      )
+
+      // Cache for 50 minutes (token valid for 1 hour)
+      cachedJWT = {
+        token,
+        expiresAt: Math.floor(Date.now() / 1000) + 3000
+      }
+
+      return token
+    } finally {
+      jwtGenerating = null
+    }
+  })()
+
+  return jwtGenerating
 }
 
 /**
@@ -118,7 +133,7 @@ async function sendAPNsPush(
         "apns-topic": APNS_BUNDLE_ID,
         "apns-push-type": "alert",
         "apns-priority": "10",
-        "apns-expiration": "0", // Immediate delivery only
+        "apns-expiration": String(Math.floor(Date.now() / 1000) + 86400), // 24 hours from now
         "content-type": "application/json",
       },
       body: JSON.stringify(payload),

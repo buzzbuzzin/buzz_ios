@@ -11,6 +11,9 @@ import XCTest
 @MainActor
 final class NotificationManagerTests: XCTestCase {
 
+    // Uses the shared singleton, which is safe here because isNotificationEnabled
+    // is a pure function: it reads only from the passed-in preferences struct and
+    // never mutates manager state, so tests remain independent.
     private let manager = NotificationManager.shared
 
     // MARK: - Booking Categories

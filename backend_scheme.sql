@@ -508,7 +508,7 @@ CREATE TABLE public.ground_school_test_results (
   CONSTRAINT ground_school_test_results_pilot_id_fkey FOREIGN KEY (pilot_id) REFERENCES public.profiles(id),
   CONSTRAINT ground_school_test_results_course_id_fkey FOREIGN KEY (course_id) REFERENCES public.training_courses(id)
 );
-CREATE TABLE public.hangar_comments (
+CREATE TABLE public.hanger_comments (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
   post_id uuid NOT NULL,
   parent_comment_id uuid,
@@ -518,50 +518,50 @@ CREATE TABLE public.hangar_comments (
   depth integer NOT NULL DEFAULT 0,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT hangar_comments_pkey PRIMARY KEY (id),
-  CONSTRAINT hangar_comments_post_id_fkey FOREIGN KEY (post_id) REFERENCES public.hangar_posts(id),
-  CONSTRAINT hangar_comments_parent_comment_id_fkey FOREIGN KEY (parent_comment_id) REFERENCES public.hangar_comments(id),
+  CONSTRAINT hanger_comments_pkey PRIMARY KEY (id),
+  CONSTRAINT hangar_comments_post_id_fkey FOREIGN KEY (post_id) REFERENCES public.hanger_posts(id),
+  CONSTRAINT hangar_comments_parent_comment_id_fkey FOREIGN KEY (parent_comment_id) REFERENCES public.hanger_comments(id),
   CONSTRAINT hangar_comments_author_id_fkey FOREIGN KEY (author_id) REFERENCES public.profiles(id)
 );
-CREATE TABLE public.hangar_followed_comments (
+CREATE TABLE public.hanger_followed_comments (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
   user_id uuid NOT NULL,
   comment_id uuid NOT NULL,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT hangar_followed_comments_pkey PRIMARY KEY (id),
+  CONSTRAINT hanger_followed_comments_pkey PRIMARY KEY (id),
   CONSTRAINT hangar_followed_comments_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id),
-  CONSTRAINT hangar_followed_comments_comment_id_fkey FOREIGN KEY (comment_id) REFERENCES public.hangar_comments(id)
+  CONSTRAINT hangar_followed_comments_comment_id_fkey FOREIGN KEY (comment_id) REFERENCES public.hanger_comments(id)
 );
-CREATE TABLE public.hangar_followed_posts (
+CREATE TABLE public.hanger_followed_posts (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
   user_id uuid NOT NULL,
   post_id uuid NOT NULL,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT hangar_followed_posts_pkey PRIMARY KEY (id),
+  CONSTRAINT hanger_followed_posts_pkey PRIMARY KEY (id),
   CONSTRAINT hangar_followed_posts_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id),
-  CONSTRAINT hangar_followed_posts_post_id_fkey FOREIGN KEY (post_id) REFERENCES public.hangar_posts(id)
+  CONSTRAINT hangar_followed_posts_post_id_fkey FOREIGN KEY (post_id) REFERENCES public.hanger_posts(id)
 );
-CREATE TABLE public.hangar_hidden_posts (
+CREATE TABLE public.hanger_hidden_posts (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
   user_id uuid NOT NULL,
   post_id uuid NOT NULL,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT hangar_hidden_posts_pkey PRIMARY KEY (id),
+  CONSTRAINT hanger_hidden_posts_pkey PRIMARY KEY (id),
   CONSTRAINT hangar_hidden_posts_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id),
-  CONSTRAINT hangar_hidden_posts_post_id_fkey FOREIGN KEY (post_id) REFERENCES public.hangar_posts(id)
+  CONSTRAINT hangar_hidden_posts_post_id_fkey FOREIGN KEY (post_id) REFERENCES public.hanger_posts(id)
 );
-CREATE TABLE public.hangar_likes (
+CREATE TABLE public.hanger_likes (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
   user_id uuid NOT NULL,
   post_id uuid,
   comment_id uuid,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT hangar_likes_pkey PRIMARY KEY (id),
+  CONSTRAINT hanger_likes_pkey PRIMARY KEY (id),
   CONSTRAINT hangar_likes_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id),
-  CONSTRAINT hangar_likes_post_id_fkey FOREIGN KEY (post_id) REFERENCES public.hangar_posts(id),
-  CONSTRAINT hangar_likes_comment_id_fkey FOREIGN KEY (comment_id) REFERENCES public.hangar_comments(id)
+  CONSTRAINT hangar_likes_post_id_fkey FOREIGN KEY (post_id) REFERENCES public.hanger_posts(id),
+  CONSTRAINT hangar_likes_comment_id_fkey FOREIGN KEY (comment_id) REFERENCES public.hanger_comments(id)
 );
-CREATE TABLE public.hangar_posts (
+CREATE TABLE public.hanger_posts (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
   topic_id uuid NOT NULL,
   author_id uuid NOT NULL,
@@ -573,29 +573,94 @@ CREATE TABLE public.hangar_posts (
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
   image_urls ARRAY DEFAULT '{}'::text[],
-  CONSTRAINT hangar_posts_pkey PRIMARY KEY (id),
-  CONSTRAINT hangar_posts_topic_id_fkey FOREIGN KEY (topic_id) REFERENCES public.hangar_topics(id),
+  CONSTRAINT hanger_posts_pkey PRIMARY KEY (id),
+  CONSTRAINT hangar_posts_topic_id_fkey FOREIGN KEY (topic_id) REFERENCES public.hanger_topics(id),
   CONSTRAINT hangar_posts_author_id_fkey FOREIGN KEY (author_id) REFERENCES public.profiles(id)
 );
-CREATE TABLE public.hangar_saved_comments (
+CREATE TABLE public.hanger_saved_comments (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
   user_id uuid NOT NULL,
   comment_id uuid NOT NULL,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT hangar_saved_comments_pkey PRIMARY KEY (id),
+  CONSTRAINT hanger_saved_comments_pkey PRIMARY KEY (id),
   CONSTRAINT hangar_saved_comments_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id),
-  CONSTRAINT hangar_saved_comments_comment_id_fkey FOREIGN KEY (comment_id) REFERENCES public.hangar_comments(id)
+  CONSTRAINT hangar_saved_comments_comment_id_fkey FOREIGN KEY (comment_id) REFERENCES public.hanger_comments(id)
 );
-CREATE TABLE public.hangar_saved_posts (
+CREATE TABLE public.hanger_saved_posts (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
   user_id uuid NOT NULL,
   post_id uuid NOT NULL,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT hangar_saved_posts_pkey PRIMARY KEY (id),
+  CONSTRAINT hanger_saved_posts_pkey PRIMARY KEY (id),
   CONSTRAINT hangar_saved_posts_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id),
-  CONSTRAINT hangar_saved_posts_post_id_fkey FOREIGN KEY (post_id) REFERENCES public.hangar_posts(id)
+  CONSTRAINT hangar_saved_posts_post_id_fkey FOREIGN KEY (post_id) REFERENCES public.hanger_posts(id)
 );
-CREATE TABLE public.hangar_topics (
+CREATE TABLE public.hanger_talk_bookmarks (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  user_id uuid NOT NULL,
+  post_id uuid NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT hanger_talk_bookmarks_pkey PRIMARY KEY (id),
+  CONSTRAINT hanger_talk_bookmarks_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id),
+  CONSTRAINT hanger_talk_bookmarks_post_id_fkey FOREIGN KEY (post_id) REFERENCES public.hanger_talk_posts(id)
+);
+CREATE TABLE public.hanger_talk_likes (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  user_id uuid NOT NULL,
+  post_id uuid NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT hanger_talk_likes_pkey PRIMARY KEY (id),
+  CONSTRAINT hanger_talk_likes_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id),
+  CONSTRAINT hanger_talk_likes_post_id_fkey FOREIGN KEY (post_id) REFERENCES public.hanger_talk_posts(id)
+);
+CREATE TABLE public.hanger_talk_mentions (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  post_id uuid NOT NULL,
+  mentioned_user_id uuid NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT hanger_talk_mentions_pkey PRIMARY KEY (id),
+  CONSTRAINT hanger_talk_mentions_post_id_fkey FOREIGN KEY (post_id) REFERENCES public.hanger_talk_posts(id),
+  CONSTRAINT hanger_talk_mentions_mentioned_user_id_fkey FOREIGN KEY (mentioned_user_id) REFERENCES public.profiles(id)
+);
+CREATE TABLE public.hanger_talk_notifications (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  recipient_id uuid NOT NULL,
+  actor_id uuid NOT NULL,
+  type text NOT NULL CHECK (type = ANY (ARRAY['like'::text, 'reply'::text, 'mention'::text, 'follow'::text, 'new_post'::text])),
+  post_id uuid,
+  is_read boolean NOT NULL DEFAULT false,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT hanger_talk_notifications_pkey PRIMARY KEY (id),
+  CONSTRAINT hanger_talk_notifications_recipient_id_fkey FOREIGN KEY (recipient_id) REFERENCES public.profiles(id),
+  CONSTRAINT hanger_talk_notifications_actor_id_fkey FOREIGN KEY (actor_id) REFERENCES public.profiles(id),
+  CONSTRAINT hanger_talk_notifications_post_id_fkey FOREIGN KEY (post_id) REFERENCES public.hanger_talk_posts(id)
+);
+CREATE TABLE public.hanger_talk_posts (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  author_id uuid NOT NULL,
+  body text NOT NULL,
+  image_urls ARRAY DEFAULT '{}'::text[],
+  like_count integer NOT NULL DEFAULT 0,
+  reply_count integer NOT NULL DEFAULT 0,
+  repost_count integer NOT NULL DEFAULT 0,
+  is_reply boolean NOT NULL DEFAULT false,
+  parent_post_id uuid,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT hanger_talk_posts_pkey PRIMARY KEY (id),
+  CONSTRAINT hanger_talk_posts_author_id_fkey FOREIGN KEY (author_id) REFERENCES public.profiles(id),
+  CONSTRAINT hanger_talk_posts_parent_post_id_fkey FOREIGN KEY (parent_post_id) REFERENCES public.hanger_talk_posts(id)
+);
+CREATE TABLE public.hanger_talk_reposts (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  user_id uuid NOT NULL,
+  post_id uuid NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT hanger_talk_reposts_pkey PRIMARY KEY (id),
+  CONSTRAINT hanger_talk_reposts_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id),
+  CONSTRAINT hanger_talk_reposts_post_id_fkey FOREIGN KEY (post_id) REFERENCES public.hanger_talk_posts(id)
+);
+CREATE TABLE public.hanger_topics (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
   name text NOT NULL,
   description text,
@@ -604,7 +669,7 @@ CREATE TABLE public.hangar_topics (
   display_order integer NOT NULL DEFAULT 0,
   is_active boolean NOT NULL DEFAULT true,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT hangar_topics_pkey PRIMARY KEY (id)
+  CONSTRAINT hanger_topics_pkey PRIMARY KEY (id)
 );
 CREATE TABLE public.incident_logs (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
@@ -866,6 +931,15 @@ CREATE TABLE public.unit_completions (
   CONSTRAINT unit_completions_pilot_id_fkey FOREIGN KEY (pilot_id) REFERENCES public.profiles(id),
   CONSTRAINT unit_completions_unit_id_fkey FOREIGN KEY (unit_id) REFERENCES public.course_units(id),
   CONSTRAINT unit_completions_course_id_fkey FOREIGN KEY (course_id) REFERENCES public.training_courses(id)
+);
+CREATE TABLE public.user_follows (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  follower_id uuid NOT NULL,
+  following_id uuid NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT user_follows_pkey PRIMARY KEY (id),
+  CONSTRAINT user_follows_follower_id_fkey FOREIGN KEY (follower_id) REFERENCES public.profiles(id),
+  CONSTRAINT user_follows_following_id_fkey FOREIGN KEY (following_id) REFERENCES public.profiles(id)
 );
 CREATE TABLE public.video_upload_reminders (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),

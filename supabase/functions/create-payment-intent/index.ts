@@ -30,8 +30,10 @@ const stripe = new Stripe(stripeSecretKey, {
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
+const ALLOWED_ORIGIN = Deno.env.get("ALLOWED_ORIGIN") || "*"
+
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": ALLOWED_ORIGIN,
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 }
 
@@ -42,13 +44,51 @@ serve(async (req) => {
   }
 
   try {
-    const { 
-      amount, 
-      currency = "usd", 
-      customer_id, 
+    // Verify the caller's identity via JWT
+    const authHeader = req.headers.get("Authorization")
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: "Missing Authorization header" }),
+        {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      )
+    }
+
+    const userClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY") || "", {
+      global: { headers: { Authorization: authHeader } },
+      auth: { autoRefreshToken: false, persistSession: false },
+    })
+    const { data: { user }, error: authError } = await userClient.auth.getUser()
+    if (authError || !user) {
+      return new Response(
+        JSON.stringify({ error: "Invalid or expired token" }),
+        {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      )
+    }
+
+    const {
+      amount,
+      currency = "usd",
+      customer_id,
       transfer_group,
       credits_to_use = 0  // Amount of referral credits to apply (in dollars)
     } = await req.json()
+
+    // Verify the authenticated user matches the customer_id
+    if (customer_id && user.id !== customer_id) {
+      return new Response(
+        JSON.stringify({ error: "Unauthorized: user does not match customer_id" }),
+        {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      )
+    }
 
     // Validate required fields
     if (!amount || !transfer_group) {

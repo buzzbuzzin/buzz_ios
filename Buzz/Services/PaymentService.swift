@@ -40,7 +40,7 @@ class PaymentService: ObservableObject {
             }
             
             let request = PaymentIntentRequest(
-                amount: Int(NSDecimalNumber(decimal: amount * 100).intValue),
+                amount: Int((NSDecimalNumber(decimal: amount * 100).doubleValue).rounded()),
                 currency: currency,
                 customer_id: customerId.uuidString,
                 transfer_group: transferGroup
@@ -83,7 +83,7 @@ class PaymentService: ObservableObject {
             }
             
             let request = PaymentIntentWithCreditsRequest(
-                amount: Int(NSDecimalNumber(decimal: amount * 100).intValue),
+                amount: Int((NSDecimalNumber(decimal: amount * 100).doubleValue).rounded()),
                 credits_to_use: NSDecimalNumber(decimal: creditsToUse).doubleValue,
                 currency: currency,
                 customer_id: customerId.uuidString,
@@ -221,7 +221,7 @@ class PaymentService: ObservableObject {
             
             let request = TransferRequest(
                 booking_id: bookingId.uuidString,
-                amount: Int(NSDecimalNumber(decimal: amount * 100).intValue),
+                amount: Int((NSDecimalNumber(decimal: amount * 100).doubleValue).rounded()),
                 currency: currency,
                 charge_id: chargeId
             )

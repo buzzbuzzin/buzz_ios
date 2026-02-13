@@ -209,15 +209,15 @@ class AuthService: ObservableObject {
                 password: password
             )
             
-            shouldDelayNavigation = true
             currentUser = response.user
-            
+
             // Load profile
             await loadUserProfile()
-            
+
             // Mark as authenticated
             if userProfile != nil {
                 isAuthenticated = true
+                shouldDelayNavigation = true
                 // Only show premium intro animation for customer accounts, not pilots
                 if userProfile?.userType == .customer {
                     shouldShowPremiumIntro = true
@@ -225,6 +225,8 @@ class AuthService: ObservableObject {
                     // For pilots, don't delay navigation since they won't see the animation
                     shouldDelayNavigation = false
                 }
+            } else {
+                shouldDelayNavigation = false
             }
             
             isLoading = false
@@ -712,17 +714,38 @@ class AuthService: ObservableObject {
         errorMessage = nil
         
         do {
+            // Clean up user data from related tables before profile deletion
+            // Each delete is wrapped in try? so one failure doesn't block others
+
+            // Tables with user_id column
+            try? await supabase.from("hanger_talk_likes").delete().eq("user_id", value: userId.uuidString).execute()
+            try? await supabase.from("hanger_talk_reposts").delete().eq("user_id", value: userId.uuidString).execute()
+            try? await supabase.from("hanger_talk_bookmarks").delete().eq("user_id", value: userId.uuidString).execute()
+            try? await supabase.from("device_tokens").delete().eq("user_id", value: userId.uuidString).execute()
+
+            // Clean up mentions where user is mentioned
+            try? await supabase.from("hanger_talk_mentions").delete().eq("mentioned_user_id", value: userId.uuidString).execute()
+
+            // Clean up follows where user is follower or being followed
+            try? await supabase.from("user_follows").delete().eq("follower_id", value: userId.uuidString).execute()
+            try? await supabase.from("user_follows").delete().eq("following_id", value: userId.uuidString).execute()
+
+            // Clean up notifications where user is recipient or actor
+            try? await supabase.from("hanger_talk_notifications").delete().eq("recipient_id", value: userId.uuidString).execute()
+            try? await supabase.from("hanger_talk_notifications").delete().eq("actor_id", value: userId.uuidString).execute()
+
+            // Delete user's posts (this should cascade to related data)
+            try? await supabase.from("hanger_talk_posts").delete().eq("author_id", value: userId.uuidString).execute()
+
             // Delete profile from database
             try await supabase
                 .from("profiles")
                 .delete()
                 .eq("id", value: userId.uuidString)
                 .execute()
-            
-            // Delete user from auth (this will cascade delete related data if RLS policies are set up)
+
+            // TODO: Delete auth user via server function or admin API
             // Note: Supabase doesn't have a direct API to delete auth users from client
-            // You may need to implement this via a server function or admin API
-            // For now, we'll sign out the user
             try await supabase.auth.signOut()
             
             currentUser = nil
