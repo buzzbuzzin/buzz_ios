@@ -22,6 +22,11 @@ struct HangerTalkView: View {
     @State private var selectedPostForDetail: HangerTalkPostWithAuthor?
     @State private var showInbox = false
 
+    /// Optional post ID to navigate to on load (from push notification deep link)
+    var deepLinkPostId: UUID? = nil
+    /// Opens inbox on load when triggered by a follow-notification deep link.
+    var deepLinkOpenInbox: Bool = false
+
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
             VStack(spacing: 0) {
@@ -158,6 +163,15 @@ struct HangerTalkView: View {
             guard let userId = authService.activeUserId else { return }
             await service.fetchFeed(currentUserId: userId)
             await service.fetchUnreadCount(userId: userId)
+
+            // If opened via deep link with a specific post, fetch and navigate to it
+            if let postId = deepLinkPostId {
+                if let post = await service.fetchPost(postId: postId, currentUserId: userId) {
+                    selectedPostForDetail = post
+                }
+            } else if deepLinkOpenInbox {
+                showInbox = true
+            }
 
             // Poll for new notifications every 30 seconds
             while !Task.isCancelled {

@@ -842,17 +842,16 @@ extension NotificationManager: UNUserNotificationCenterDelegate {
     
     /// Handle notification tap and navigate to appropriate screen
     private func handleNotificationTap(userInfo: [AnyHashable: Any]) async {
-        guard let type = userInfo["type"] as? String else { return }
-        
-        // Post notification for app to handle navigation
-        NotificationCenter.default.post(
-            name: NSNotification.Name("HandleNotificationTap"),
-            object: nil,
-            userInfo: userInfo
-        )
-        
-        print("Notification tapped: \(type)")
-        // Navigation handling will be done in the app's main view
+        // For remote push notifications, the custom data is nested under "data" key
+        var resolvedInfo = userInfo
+        if let data = userInfo["data"] as? [String: Any] {
+            // Merge data fields into top level for consistent handling
+            for (key, value) in data {
+                resolvedInfo[key] = value
+            }
+        }
+
+        DeepLinkManager.shared.handleNotificationTap(userInfo: resolvedInfo)
     }
 }
 

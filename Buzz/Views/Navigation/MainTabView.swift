@@ -11,10 +11,8 @@ import CoreLocation
 
 struct MainTabView: View {
     @EnvironmentObject var authService: AuthService
-    @State private var selectedTab = 0
-    @State private var navigationPath = NavigationPath()
-    @State private var notificationToHandle: [AnyHashable: Any]?
-    
+    @StateObject private var deepLinkManager = DeepLinkManager.shared
+
     var body: some View {
         Group {
             if authService.userProfile?.userType == .pilot {
@@ -23,55 +21,7 @@ struct MainTabView: View {
                 CustomerTabView()
             }
         }
-        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("HandleNotificationTap"))) { notification in
-            if let userInfo = notification.userInfo {
-                handleNotificationTap(userInfo: userInfo)
-            }
-        }
-    }
-    
-    private func handleNotificationTap(userInfo: [AnyHashable: Any]) {
-        guard let type = userInfo["type"] as? String else { return }
-        
-        // Handle different notification types
-        switch type {
-        case "booking_accepted", "booking_reminder":
-            // Navigate to bookings tab
-            // For customer: go to Home tab
-            // For pilot: go to My Flights tab
-            print("Navigating to booking: \(userInfo)")
-            
-        case "new_message":
-            // Navigate to messages (booking detail)
-            print("Navigating to message: \(userInfo)")
-            
-        case "nearby_booking":
-            // Navigate to Jobs tab for pilot
-            print("Navigating to nearby booking: \(userInfo)")
-            
-        case "drone_activity":
-            // Navigate to Flight Radar
-            print("Navigating to Flight Radar for drone activity")
-            
-        case "weather_change":
-            // Navigate to Weather view
-            print("Navigating to Weather view")
-            
-        case "received_review":
-            // Navigate to ratings/profile
-            print("Navigating to ratings")
-
-        case "hanger_talk_like", "hanger_talk_reply", "hanger_talk_mention":
-            // Navigate to Hanger Talk / specific post
-            print("Navigating to Hanger Talk post: \(userInfo)")
-
-        case "hanger_talk_follow":
-            // Navigate to Hanger Talk / follower profile
-            print("Navigating to Hanger Talk follow: \(userInfo)")
-
-        default:
-            print("Unknown notification type: \(type)")
-        }
+        .environmentObject(deepLinkManager)
     }
 }
 
@@ -79,37 +29,59 @@ struct MainTabView: View {
 
 struct PilotTabView: View {
     @EnvironmentObject var authService: AuthService
+    @EnvironmentObject var deepLinkManager: DeepLinkManager
     @StateObject private var bookingService = BookingService()
     @StateObject private var locationManager = BookingMapLocationManager()
     @State private var hasNearbyBeaconMissions = false
-    
+    @State private var selectedTab = 0
+    @State private var showConversations = false
+    @State private var deepLinkConversationId: UUID?
+
     var body: some View {
-        TabView {
+        TabView(selection: $selectedTab) {
             PilotBookingListView()
                 .tabItem {
                     Label("Jobs", systemImage: "drone.fill")
                 }
-            
+                .tag(0)
+
             MyFlightsView()
                 .tabItem {
                     Label("My Flights", systemImage: "list.bullet")
                 }
-            
+                .tag(1)
+
             CockpitView()
                 .tabItem {
                     Label("Cockpit", systemImage: "airplane.circle.fill")
                 }
+                .tag(2)
                 .badge(hasNearbyBeaconMissions ? 1 : 0)
-            
+
             AcademyView()
                 .tabItem {
                     Label("Academy", systemImage: "book.fill")
                 }
-            
+                .tag(3)
+
             ProfileView()
                 .tabItem {
                     Label("Account", systemImage: "person.fill")
                 }
+                .tag(4)
+        }
+        .onAppear {
+            handlePendingDeepLinkIfNeeded()
+        }
+        .onChange(of: deepLinkManager.pendingDestination) { destination in
+            guard let destination = destination else { return }
+            handleDeepLinkDestination(destination)
+        }
+        .sheet(isPresented: $showConversations, onDismiss: {
+            deepLinkConversationId = nil
+        }) {
+            ConversationsListView(deepLinkConversationId: deepLinkConversationId)
+                .environmentObject(authService)
         }
         .task {
             locationManager.requestPermission()
@@ -157,27 +129,105 @@ struct PilotTabView: View {
             }
         }
     }
+
+    private func handlePendingDeepLinkIfNeeded() {
+        guard let destination = deepLinkManager.pendingDestination else { return }
+        handleDeepLinkDestination(destination)
+    }
+
+    private func handleDeepLinkDestination(_ destination: DeepLinkDestination) {
+        switch destination {
+        case .jobs:
+            selectedTab = 0
+            deepLinkManager.pendingDestination = nil
+        case .bookingDetail:
+            // Go to My Flights tab; booking-level navigation would require more work
+            selectedTab = 1
+            deepLinkManager.pendingDestination = nil
+        case .weather, .flightRadar, .hangerTalkPost, .hangerTalkProfile, .hangerTalkInbox:
+            // These live inside CockpitView fullScreenCovers — switch to Cockpit tab
+            // and let CockpitView handle the rest
+            selectedTab = 2
+        case .profile:
+            selectedTab = 4
+            deepLinkManager.pendingDestination = nil
+        case .messages(let conversationId):
+            // Open conversations list and target the specific conversation when possible
+            selectedTab = 0
+            deepLinkConversationId = conversationId
+            showConversations = true
+            deepLinkManager.pendingDestination = nil
+        }
+    }
 }
 
 // MARK: - Customer Tab View
 
 struct CustomerTabView: View {
+    @EnvironmentObject var authService: AuthService
+    @EnvironmentObject var deepLinkManager: DeepLinkManager
+    @State private var selectedTab = 0
+    @State private var showConversations = false
+    @State private var deepLinkConversationId: UUID?
+
     var body: some View {
-        TabView {
+        TabView(selection: $selectedTab) {
             CustomerBookingView()
                 .tabItem {
                     Label("Home", systemImage: "house.fill")
                 }
-            
+                .tag(0)
+
             CustomerActivityView()
                 .tabItem {
                     Label("History", systemImage: "clock.fill")
                 }
-            
+                .tag(1)
+
             ProfileView()
                 .tabItem {
                     Label("Account", systemImage: "person.fill")
                 }
+                .tag(2)
+        }
+        .onAppear {
+            handlePendingDeepLinkIfNeeded()
+        }
+        .onChange(of: deepLinkManager.pendingDestination) { destination in
+            guard let destination = destination else { return }
+            handleDeepLinkDestination(destination)
+        }
+        .sheet(isPresented: $showConversations, onDismiss: {
+            deepLinkConversationId = nil
+        }) {
+            ConversationsListView(deepLinkConversationId: deepLinkConversationId)
+                .environmentObject(authService)
+        }
+    }
+
+    private func handlePendingDeepLinkIfNeeded() {
+        guard let destination = deepLinkManager.pendingDestination else { return }
+        handleDeepLinkDestination(destination)
+    }
+
+    private func handleDeepLinkDestination(_ destination: DeepLinkDestination) {
+        switch destination {
+        case .bookingDetail:
+            selectedTab = 0
+            deepLinkManager.pendingDestination = nil
+        case .messages(let conversationId):
+            selectedTab = 0
+            deepLinkConversationId = conversationId
+            showConversations = true
+            deepLinkManager.pendingDestination = nil
+        case .profile:
+            selectedTab = 2
+            deepLinkManager.pendingDestination = nil
+        default:
+            // If user type is still loading, keep the destination for the eventual correct tab host.
+            if authService.userProfile?.userType == .customer {
+                deepLinkManager.pendingDestination = nil
+            }
         }
     }
 }
@@ -365,4 +415,3 @@ struct MyFlightsBookingCard: View {
         }
     }
 }
-

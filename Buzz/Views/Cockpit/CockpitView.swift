@@ -12,6 +12,7 @@ import UIKit
 
 struct CockpitView: View {
     @EnvironmentObject var authService: AuthService
+    @EnvironmentObject var deepLinkManager: DeepLinkManager
     @StateObject private var bookingService = BookingService()
     @StateObject private var locationManager = BookingMapLocationManager()
     @StateObject private var hangerTalkService = HangerTalkService()
@@ -44,6 +45,10 @@ struct CockpitView: View {
     @State private var showFlightPlan = false
     @State private var showHangerTalk = false
     @State private var showEvents = false
+
+    // Deep link state for navigating to a specific post within HangerTalk
+    @State private var deepLinkPostId: UUID?
+    @State private var deepLinkOpenHangerTalkInbox = false
 
     var body: some View {
         NavigationView {
@@ -504,6 +509,9 @@ struct CockpitView: View {
                 hasUnreadHangerTalk = hangerTalkService.unreadCount > 0
             }
         }
+        .onAppear {
+            handlePendingDeepLinkIfNeeded()
+        }
         .onChange(of: bookingService.availableBookings.count) { _ in
             Task {
                 await checkForNearbyBeaconMissions()
@@ -888,6 +896,8 @@ struct CockpitView: View {
             }
         }
         .fullScreenCover(isPresented: $showHangerTalk, onDismiss: {
+            deepLinkPostId = nil
+            deepLinkOpenHangerTalkInbox = false
             Task {
                 if let userId = authService.activeUserId {
                     await hangerTalkService.fetchUnreadCount(userId: userId)
@@ -896,7 +906,10 @@ struct CockpitView: View {
             }
         }) {
             NavigationView {
-                HangerTalkView()
+                HangerTalkView(
+                    deepLinkPostId: deepLinkPostId,
+                    deepLinkOpenInbox: deepLinkOpenHangerTalkInbox
+                )
                     .environmentObject(authService)
                     .toolbar {
                         ToolbarItem(placement: .navigationBarLeading) {
@@ -910,6 +923,44 @@ struct CockpitView: View {
                         }
                     }
             }
+        }
+        .onChange(of: deepLinkManager.pendingDestination) { destination in
+            guard let destination = destination else { return }
+            handleDeepLinkDestination(destination)
+        }
+    }
+
+    private func handlePendingDeepLinkIfNeeded() {
+        guard let destination = deepLinkManager.pendingDestination else { return }
+        handleDeepLinkDestination(destination)
+    }
+
+    private func handleDeepLinkDestination(_ destination: DeepLinkDestination) {
+        switch destination {
+        case .weather:
+            showWeather = true
+            deepLinkManager.pendingDestination = nil
+        case .flightRadar:
+            showFlightRadar = true
+            deepLinkManager.pendingDestination = nil
+        case .hangerTalkPost(let postId):
+            deepLinkPostId = postId
+            deepLinkOpenHangerTalkInbox = false
+            showHangerTalk = true
+            deepLinkManager.pendingDestination = nil
+        case .hangerTalkProfile:
+            // Open HangerTalk; profile navigation would need further work
+            deepLinkPostId = nil
+            deepLinkOpenHangerTalkInbox = false
+            showHangerTalk = true
+            deepLinkManager.pendingDestination = nil
+        case .hangerTalkInbox:
+            deepLinkPostId = nil
+            deepLinkOpenHangerTalkInbox = true
+            showHangerTalk = true
+            deepLinkManager.pendingDestination = nil
+        default:
+            break
         }
     }
     

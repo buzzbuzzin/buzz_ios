@@ -19,6 +19,10 @@ struct ConversationsListView: View {
     @State private var showDeleteConfirmation = false
     @State private var conversationToDelete: UUID?
     @State private var isDirectMessageDelete = false
+    @State private var selectedBookingConversationId: UUID?
+    @State private var selectedDirectConversationId: UUID?
+    @State private var hasHandledDeepLink = false
+    var deepLinkConversationId: UUID? = nil
     
     var body: some View {
         NavigationView {
@@ -42,10 +46,14 @@ struct ConversationsListView: View {
                                 ForEach(directMessageConversations) { conversation in
                                     SwipeableConversationRow(
                                         content: {
-                                            NavigationLink(destination: DirectMessageView(
-                                                pilotId: conversation.partnerId,
-                                                pilotProfile: conversation.partnerProfile
-                                            )) {
+                                            NavigationLink(
+                                                destination: DirectMessageView(
+                                                    pilotId: conversation.partnerId,
+                                                    pilotProfile: conversation.partnerProfile
+                                                ),
+                                                tag: conversation.id,
+                                                selection: $selectedDirectConversationId
+                                            ) {
                                                 DirectMessageConversationRow(conversation: conversation)
                                             }
                                         },
@@ -70,10 +78,14 @@ struct ConversationsListView: View {
                                 ForEach(conversations) { conversation in
                                     SwipeableConversationRow(
                                         content: {
-                                            NavigationLink(destination: MessageView(
-                                                customerProfile: conversation.otherUserProfile,
-                                                booking: conversation.booking
-                                            )) {
+                                            NavigationLink(
+                                                destination: MessageView(
+                                                    customerProfile: conversation.otherUserProfile,
+                                                    booking: conversation.booking
+                                                ),
+                                                tag: conversation.id,
+                                                selection: $selectedBookingConversationId
+                                            ) {
                                                 ConversationRow(conversation: conversation)
                                             }
                                         },
@@ -186,10 +198,29 @@ struct ConversationsListView: View {
             }
             
             directMessageConversations = directItems
+            applyDeepLinkNavigationIfPossible()
             isLoading = false
         } catch {
             isLoading = false
             print("Error loading conversations: \(error)")
+        }
+    }
+
+    private func applyDeepLinkNavigationIfPossible() {
+        guard !hasHandledDeepLink, let deepLinkConversationId else { return }
+
+        if let bookingConversation = conversations.first(where: { $0.id == deepLinkConversationId }) {
+            selectedBookingConversationId = bookingConversation.id
+            hasHandledDeepLink = true
+            return
+        }
+
+        // Direct-message IDs have used both partnerId and conversationId in different flows.
+        if let directConversation = directMessageConversations.first(where: {
+            $0.id == deepLinkConversationId || $0.partnerId == deepLinkConversationId
+        }) {
+            selectedDirectConversationId = directConversation.id
+            hasHandledDeepLink = true
         }
     }
     
@@ -560,4 +591,3 @@ struct SwipeableConversationRow<Content: View>: View {
         }
     }
 }
-

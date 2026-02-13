@@ -8,6 +8,7 @@
 import Foundation
 import Supabase
 import Combine
+import CryptoKit
 
 @MainActor
 class MessageService: ObservableObject {
@@ -131,34 +132,27 @@ class MessageService: ObservableObject {
     // MARK: - Direct Messaging (without booking)
     
     /// Generate a consistent conversation ID from two user IDs
-    /// This ensures the same conversation always uses the same booking ID
+    /// This ensures the same conversation always uses the same ID across devices.
     static func conversationId(fromUserId: UUID, toUserId: UUID) -> UUID {
         // Sort UUIDs to ensure consistent conversation ID regardless of who initiated
         let sortedIds = [fromUserId.uuidString.lowercased(), toUserId.uuidString.lowercased()].sorted()
         let combined = sortedIds.joined(separator: "-direct-msg-")
-        
-        // Create a deterministic UUID v5-like from the combined string
-        // Using a simple hash-based approach
-        var hash = combined.hashValue
-        var uuidBytes = [UInt8](repeating: 0, count: 16)
-        
-        // Distribute hash across bytes
-        for i in 0..<16 {
-            uuidBytes[i] = UInt8(abs((hash >> (i * 2)) & 0xFF))
-        }
-        
-        // Set version (4) and variant bits for valid UUID v4 format
-        uuidBytes[6] = (uuidBytes[6] & 0x0F) | 0x40 // Version 4
+
+        // Create a deterministic UUID from the SHA-256 digest.
+        let digest = SHA256.hash(data: Data(combined.utf8))
+        var uuidBytes = Array(digest.prefix(16))
+
+        // Set version/variant bits to produce an RFC 4122-compatible UUID.
+        uuidBytes[6] = (uuidBytes[6] & 0x0F) | 0x50 // Version 5 style (name-based)
         uuidBytes[8] = (uuidBytes[8] & 0x3F) | 0x80 // Variant 10
-        
-        // Convert to UUID
-        let uuidString = String(format: "%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x",
-                                uuidBytes[0], uuidBytes[1], uuidBytes[2], uuidBytes[3],
-                                uuidBytes[4], uuidBytes[5], uuidBytes[6], uuidBytes[7],
-                                uuidBytes[8], uuidBytes[9], uuidBytes[10], uuidBytes[11],
-                                uuidBytes[12], uuidBytes[13], uuidBytes[14], uuidBytes[15])
-        
-        return UUID(uuidString: uuidString) ?? UUID()
+
+        let uuid = uuid_t(
+            uuidBytes[0], uuidBytes[1], uuidBytes[2], uuidBytes[3],
+            uuidBytes[4], uuidBytes[5], uuidBytes[6], uuidBytes[7],
+            uuidBytes[8], uuidBytes[9], uuidBytes[10], uuidBytes[11],
+            uuidBytes[12], uuidBytes[13], uuidBytes[14], uuidBytes[15]
+        )
+        return UUID(uuid: uuid)
     }
     
     /// Fetch direct messages between two users (not tied to a booking)
@@ -407,6 +401,7 @@ class MessageService: ObservableObject {
         
         return conversations.map { partnerId, lastMessage in
             DirectMessageConversation(
+                id: Self.conversationId(fromUserId: userId, toUserId: partnerId),
                 partnerId: partnerId,
                 lastMessage: lastMessage
             )
@@ -596,4 +591,3 @@ class MessageService: ObservableObject {
         }
     }
 }
-

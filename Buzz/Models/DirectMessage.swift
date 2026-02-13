@@ -29,11 +29,4 @@ struct DirectMessageConversation: Identifiable {
     let id: UUID
     let partnerId: UUID
     let lastMessage: DirectMessage
-    
-    init(partnerId: UUID, lastMessage: DirectMessage) {
-        self.id = partnerId // Use partnerId as ID for uniqueness
-        self.partnerId = partnerId
-        self.lastMessage = lastMessage
-    }
 }
-
