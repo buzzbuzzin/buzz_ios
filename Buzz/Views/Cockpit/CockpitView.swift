@@ -50,6 +50,11 @@ struct CockpitView: View {
     @State private var deepLinkPostId: UUID?
     @State private var deepLinkOpenHangerTalkInbox = false
 
+    private func logTap(_ component: String, section: String) {
+        guard let userId = authService.activeUserId else { return }
+        CockpitUsageService.shared.logComponentTap(userId: userId, component: component, section: section)
+    }
+
     var body: some View {
         NavigationView {
             ScrollView {
@@ -87,6 +92,7 @@ struct CockpitView: View {
                             LazyVGrid(columns: columns, spacing: 12) {
                                 // Fly Safe Card - Using fullScreenCover for stable presentation
                                 Button {
+                                    logTap("Fly Safe", section: "Flight")
                                     showSafeFly = true
                                 } label: {
                                     CockpitGridCard(
@@ -99,6 +105,7 @@ struct CockpitView: View {
 
                                 // METAR Card - Using fullScreenCover for stable presentation
                                 Button {
+                                    logTap("METAR", section: "Flight")
                                     showMETAR = true
                                 } label: {
                                     CockpitGridCard(
@@ -111,6 +118,7 @@ struct CockpitView: View {
 
                                 // NOTAMs Card - Using fullScreenCover for stable presentation
                                 Button {
+                                    logTap("NOTAMs", section: "Flight")
                                     showNOTAM = true
                                 } label: {
                                     CockpitGridCard(
@@ -123,6 +131,7 @@ struct CockpitView: View {
 
                                 // Charts Card - Using fullScreenCover for stable presentation
                                 Button {
+                                    logTap("Charts", section: "Flight")
                                     showCharts = true
                                 } label: {
                                     CockpitGridCard(
@@ -145,6 +154,7 @@ struct CockpitView: View {
 
                                 // Flight Plan Card - Using fullScreenCover for stable presentation
                                 Button {
+                                    logTap("Flight Plan", section: "Flight")
                                     showFlightPlan = true
                                 } label: {
                                     CockpitGridCard(
@@ -157,6 +167,7 @@ struct CockpitView: View {
 
                                 // Remote ID Card - Using fullScreenCover for stable presentation
                                 Button {
+                                    logTap("Remote ID", section: "Flight")
                                     showRemoteID = true
                                 } label: {
                                     CockpitGridCard(
@@ -169,6 +180,7 @@ struct CockpitView: View {
 
                                 // Flight Radar Card - Using fullScreenCover for stable presentation
                                 Button {
+                                    logTap("Flight Radar", section: "Flight")
                                     showFlightRadar = true
                                 } label: {
                                     CockpitGridCard(
@@ -181,6 +193,7 @@ struct CockpitView: View {
 
                                 // Weather Card - Using fullScreenCover for stable presentation
                                 Button {
+                                    logTap("Weather", section: "Flight")
                                     showWeather = true
                                 } label: {
                                     CockpitGridCard(
@@ -204,6 +217,7 @@ struct CockpitView: View {
                             LazyVGrid(columns: columns, spacing: 12) {
                                 // Phone Card
                                 Button(action: {
+                                    logTap("Phone", section: "Operations")
                                     showPhoneOptions = true
                                 }) {
                                     CockpitGridCard(
@@ -217,6 +231,7 @@ struct CockpitView: View {
                                 // Checklist Card - Using fullScreenCover for stable presentation
                                 // NavigationLink(isActive:) has a known bug where it resets on parent body re-evaluation
                                 Button {
+                                    logTap("Checklist", section: "Operations")
                                     showChecklistSelection = true
                                 } label: {
                                     CockpitGridCard(
@@ -229,6 +244,7 @@ struct CockpitView: View {
 
                                 // Logs Card - Using fullScreenCover for stable presentation
                                 Button {
+                                    logTap("Logs", section: "Operations")
                                     showLogs = true
                                 } label: {
                                     CockpitGridCard(
@@ -241,6 +257,7 @@ struct CockpitView: View {
 
                                 // SOP Card - Using fullScreenCover for stable presentation
                                 Button {
+                                    logTap("SOP", section: "Operations")
                                     showSOP = true
                                 } label: {
                                     CockpitGridCard(
@@ -253,6 +270,7 @@ struct CockpitView: View {
 
                                 // Portal Card - Opens external browser
                                 Button(action: {
+                                    logTap("Portal", section: "Operations")
                                     if let url = URL(string: "https://buzz-portal.vercel.app") {
                                         UIApplication.shared.open(url)
                                     }
@@ -278,6 +296,7 @@ struct CockpitView: View {
                             LazyVGrid(columns: columns, spacing: 12) {
                                 // Hanger Talk Card - Social Feed
                                 Button {
+                                    logTap("Hanger Talk", section: "Social")
                                     showHangerTalk = true
                                 } label: {
                                     ZStack(alignment: .topTrailing) {
@@ -303,6 +322,7 @@ struct CockpitView: View {
 
                                 // TopGun Card - Using fullScreenCover for stable presentation
                                 Button {
+                                    logTap("TopGun", section: "Social")
                                     showTopGun = true
                                 } label: {
                                     CockpitGridCard(
@@ -315,6 +335,7 @@ struct CockpitView: View {
 
                                 // Games Card - Using fullScreenCover for stable presentation
                                 Button {
+                                    logTap("Games", section: "Social")
                                     showGames = true
                                 } label: {
                                     CockpitGridCard(
@@ -338,6 +359,7 @@ struct CockpitView: View {
                             LazyVGrid(columns: columns, spacing: 12) {
                                 // Buzz Shop Card - Using fullScreenCover for stable presentation
                                 Button {
+                                    logTap("Buzz Shop", section: "Emporium")
                                     showShop = true
                                 } label: {
                                     CockpitGridCard(
@@ -350,6 +372,7 @@ struct CockpitView: View {
 
                                 // Marketplace Card - Using fullScreenCover for stable presentation
                                 Button {
+                                    logTap("Marketplace", section: "Emporium")
                                     showMarketplace = true
                                 } label: {
                                     CockpitGridCard(
@@ -373,6 +396,7 @@ struct CockpitView: View {
                             LazyVGrid(columns: columns, spacing: 12) {
                                 // Beacon Card - Using fullScreenCover for stable presentation
                                 Button {
+                                    logTap("Beacon", section: "Community")
                                     showBeacon = true
                                 } label: {
                                     ZStack(alignment: .topTrailing) {
@@ -398,6 +422,7 @@ struct CockpitView: View {
 
                                 // Racer Card - Using fullScreenCover for stable presentation
                                 Button {
+                                    logTap("Racer", section: "Community")
                                     showRacer = true
                                 } label: {
                                     CockpitGridCard(
@@ -410,6 +435,7 @@ struct CockpitView: View {
 
                                 // Events Card - Using fullScreenCover for stable presentation
                                 Button {
+                                    logTap("Events", section: "Community")
                                     showEvents = true
                                 } label: {
                                     CockpitGridCard(
@@ -422,6 +448,7 @@ struct CockpitView: View {
 
                                 // News Card - Using fullScreenCover for stable presentation
                                 Button {
+                                    logTap("News", section: "Community")
                                     showNews = true
                                 } label: {
                                     CockpitGridCard(
@@ -445,6 +472,7 @@ struct CockpitView: View {
                             LazyVGrid(columns: columns, spacing: 12) {
                                 // Leaderboard Card - Using fullScreenCover for stable presentation
                                 Button {
+                                    logTap("Leaderboard", section: "General")
                                     showLeaderboard = true
                                 } label: {
                                     CockpitGridCard(
@@ -457,6 +485,7 @@ struct CockpitView: View {
 
                                 // Revenue Card - Using fullScreenCover for stable presentation
                                 Button {
+                                    logTap("Revenue", section: "General")
                                     showRevenue = true
                                 } label: {
                                     CockpitGridCard(
@@ -469,6 +498,7 @@ struct CockpitView: View {
 
                                 // Availability Card - Using fullScreenCover for stable presentation
                                 Button {
+                                    logTap("Availability", section: "General")
                                     showAvailability = true
                                 } label: {
                                     CockpitGridCard(
@@ -481,6 +511,7 @@ struct CockpitView: View {
 
                                 // Progress Card - Using fullScreenCover for stable presentation
                                 Button {
+                                    logTap("Progress", section: "General")
                                     showProgress = true
                                 } label: {
                                     CockpitGridCard(
