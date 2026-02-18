@@ -693,15 +693,13 @@ final class MarketplaceServiceTests: XCTestCase {
     // MARK: - Initial Service State
 
     func testService_initialState() {
-        let freshService = MarketplaceService()
-
-        XCTAssertTrue(freshService.listings.isEmpty)
-        XCTAssertTrue(freshService.myListings.isEmpty)
-        XCTAssertTrue(freshService.favoriteListings.isEmpty)
-        XCTAssertTrue(freshService.offers.isEmpty)
-        XCTAssertTrue(freshService.transactions.isEmpty)
-        XCTAssertFalse(freshService.isLoading)
-        XCTAssertNil(freshService.errorMessage)
+        XCTAssertTrue(service.listings.isEmpty)
+        XCTAssertTrue(service.myListings.isEmpty)
+        XCTAssertTrue(service.favoriteListings.isEmpty)
+        XCTAssertTrue(service.offers.isEmpty)
+        XCTAssertTrue(service.transactions.isEmpty)
+        XCTAssertFalse(service.isLoading)
+        XCTAssertNil(service.errorMessage)
     }
 
     // MARK: - Favorite Toggle Local State
@@ -852,8 +850,8 @@ final class MarketplaceServiceTests: XCTestCase {
         let data = try encoder.encode(insert)
         let json = try JSONSerialization.jsonObject(with: data) as! [String: Any]
 
-        // nil message is encoded as null (Codable default)
-        XCTAssertTrue(json.keys.contains("message"))
+        // nil message is omitted by default JSONEncoder behavior
+        XCTAssertFalse(json.keys.contains("message"))
     }
 
     // MARK: - Payout Conversion for Edge Function
@@ -899,7 +897,7 @@ final class MarketplaceServiceTests: XCTestCase {
             ("99.99",    "10.00",   "89.99"),     // 9.999 → bankers 10.00
             ("150.00",   "15.00",   "135.00"),
             ("299.50",   "29.95",   "269.55"),
-            ("499.95",   "50.00",   "449.96"),    // 49.995 → bankers 50.00 (rounds to even)
+            ("499.95",   "50.00",   "449.95"),    // 49.995 → bankers 50.00; payout = 499.95 - 50.00
             ("1000.00",  "100.00",  "900.00"),
             ("2499.99",  "250.00",  "2249.99"),   // 249.999 → bankers 250.00
         ]
