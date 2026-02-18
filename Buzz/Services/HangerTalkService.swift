@@ -824,14 +824,14 @@ class HangerTalkService: ObservableObject {
         do {
             let followers: [UserFollow] = try await supabase
                 .from("user_follows")
-                .select("id")
+                .select()
                 .eq("following_id", value: userId.uuidString)
                 .execute()
                 .value
 
             let following: [UserFollow] = try await supabase
                 .from("user_follows")
-                .select("id")
+                .select()
                 .eq("follower_id", value: userId.uuidString)
                 .execute()
                 .value
