@@ -826,8 +826,9 @@ struct CockpitView: View {
             }
         }
         .fullScreenCover(isPresented: $showMarketplace) {
-            NavigationView {
-                MarketplaceComingSoonView()
+            NavigationStack {
+                MarketplaceView()
+                    .environmentObject(authService)
                     .toolbar {
                         ToolbarItem(placement: .navigationBarLeading) {
                             Button {

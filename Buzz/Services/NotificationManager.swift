@@ -47,6 +47,13 @@ class NotificationManager: NSObject, ObservableObject {
         case hangerTalkMention = "HANGER_TALK_MENTION"
         case hangerTalkFollow = "HANGER_TALK_FOLLOW"
         case hangerTalkNewPost = "HANGER_TALK_NEW_POST"
+        case marketplaceNewOffer = "MARKETPLACE_NEW_OFFER"
+        case marketplaceOfferAccepted = "MARKETPLACE_OFFER_ACCEPTED"
+        case marketplaceOfferDeclined = "MARKETPLACE_OFFER_DECLINED"
+        case marketplaceItemPurchased = "MARKETPLACE_ITEM_PURCHASED"
+        case marketplaceItemShipped = "MARKETPLACE_ITEM_SHIPPED"
+        case marketplaceDeliveryConfirmed = "MARKETPLACE_DELIVERY_CONFIRMED"
+        case marketplaceReviewReceived = "MARKETPLACE_REVIEW_RECEIVED"
     }
     
     // Published property for emergency flash effect
@@ -619,6 +626,111 @@ class NotificationManager: NSObject, ObservableObject {
         )
     }
 
+    // MARK: - Marketplace Notifications
+
+    func notifyMarketplaceNewOffer(recipientUserId: UUID, listingTitle: String, offerAmount: Decimal, buyerName: String, listingId: UUID, offerId: UUID? = nil) async {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .currency
+        let amountStr = formatter.string(from: offerAmount as NSDecimalNumber) ?? "$\(offerAmount)"
+        var data: [String: String] = [
+            "type": "marketplace_new_offer",
+            "listing_id": listingId.uuidString
+        ]
+        if let offerId = offerId {
+            data["offer_id"] = offerId.uuidString
+        }
+        await sendRemotePushNotification(
+            recipientUserId: recipientUserId,
+            title: "New Offer",
+            body: "\(buyerName) offered \(amountStr) for \(listingTitle)",
+            data: data
+        )
+    }
+
+    func notifyMarketplaceOfferAccepted(recipientUserId: UUID, listingTitle: String, listingId: UUID, offerId: UUID, transactionId: UUID? = nil) async {
+        var data: [String: String] = [
+            "type": "marketplace_offer_accepted",
+            "listing_id": listingId.uuidString,
+            "offer_id": offerId.uuidString
+        ]
+        if let transactionId = transactionId {
+            data["transaction_id"] = transactionId.uuidString
+        }
+        await sendRemotePushNotification(
+            recipientUserId: recipientUserId,
+            title: "Offer Accepted",
+            body: "Your offer on \(listingTitle) was accepted!",
+            data: data
+        )
+    }
+
+    func notifyMarketplaceOfferDeclined(recipientUserId: UUID, listingTitle: String, listingId: UUID, offerId: UUID) async {
+        await sendRemotePushNotification(
+            recipientUserId: recipientUserId,
+            title: "Offer Declined",
+            body: "Your offer on \(listingTitle) was declined",
+            data: [
+                "type": "marketplace_offer_declined",
+                "listing_id": listingId.uuidString,
+                "offer_id": offerId.uuidString
+            ]
+        )
+    }
+
+    func notifyMarketplaceItemPurchased(recipientUserId: UUID, listingTitle: String, buyerName: String, listingId: UUID, transactionId: UUID) async {
+        await sendRemotePushNotification(
+            recipientUserId: recipientUserId,
+            title: "Item Sold!",
+            body: "\(buyerName) purchased \(listingTitle)",
+            data: [
+                "type": "marketplace_item_purchased",
+                "listing_id": listingId.uuidString,
+                "transaction_id": transactionId.uuidString
+            ]
+        )
+    }
+
+    func notifyMarketplaceItemShipped(recipientUserId: UUID, listingTitle: String, transactionId: UUID) async {
+        await sendRemotePushNotification(
+            recipientUserId: recipientUserId,
+            title: "Item Shipped",
+            body: "Your order for \(listingTitle) has been shipped",
+            data: [
+                "type": "marketplace_item_shipped",
+                "transaction_id": transactionId.uuidString
+            ]
+        )
+    }
+
+    func notifyMarketplaceDeliveryConfirmed(recipientUserId: UUID, listingTitle: String, transactionId: UUID) async {
+        await sendRemotePushNotification(
+            recipientUserId: recipientUserId,
+            title: "Delivery Confirmed",
+            body: "Buyer confirmed receipt of \(listingTitle). Payment will be released.",
+            data: [
+                "type": "marketplace_delivery_confirmed",
+                "transaction_id": transactionId.uuidString
+            ]
+        )
+    }
+
+    func notifyMarketplaceReviewReceived(recipientUserId: UUID, reviewerName: String, rating: Int, transactionId: UUID, reviewId: UUID? = nil) async {
+        let stars = String(repeating: "★", count: rating) + String(repeating: "☆", count: 5 - rating)
+        var data: [String: String] = [
+            "type": "marketplace_review_received",
+            "transaction_id": transactionId.uuidString
+        ]
+        if let reviewId = reviewId {
+            data["review_id"] = reviewId.uuidString
+        }
+        await sendRemotePushNotification(
+            recipientUserId: recipientUserId,
+            title: "New Review",
+            body: "\(reviewerName) left you a \(stars) review",
+            data: data
+        )
+    }
+
     // MARK: - Booking Cancelled Notification
 
     /// Notify the other party that a booking has been cancelled
@@ -791,6 +903,12 @@ class NotificationManager: NSObject, ObservableObject {
             return preferences.hangerTalkFollows.system
         case .hangerTalkNewPost:
             return preferences.hangerTalkNewPosts.system
+        case .marketplaceNewOffer, .marketplaceOfferAccepted, .marketplaceOfferDeclined:
+            return preferences.marketplaceOffers.system
+        case .marketplaceItemPurchased, .marketplaceItemShipped, .marketplaceDeliveryConfirmed:
+            return preferences.marketplaceTransactions.system
+        case .marketplaceReviewReceived:
+            return preferences.marketplaceReviews.system
         }
     }
     

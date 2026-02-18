@@ -31,6 +31,10 @@ struct NotificationsView: View {
         case hangerTalkMentions
         case hangerTalkFollows
         case hangerTalkNewPosts
+        // Marketplace
+        case marketplaceOffers
+        case marketplaceTransactions
+        case marketplaceReviews
     }
 
     var body: some View {
@@ -180,6 +184,38 @@ struct NotificationsView: View {
                     }
                 )
             }
+
+            Section("Marketplace") {
+                NotificationPreferenceCard(
+                    title: "Offers",
+                    description: "New offers and offer updates on your listings",
+                    icon: "tag.fill",
+                    options: notificationService.preferences.marketplaceOffers,
+                    onEdit: {
+                        editingNotificationType = .marketplaceOffers
+                    }
+                )
+
+                NotificationPreferenceCard(
+                    title: "Transactions",
+                    description: "Purchases, shipping, and delivery updates",
+                    icon: "shippingbox.fill",
+                    options: notificationService.preferences.marketplaceTransactions,
+                    onEdit: {
+                        editingNotificationType = .marketplaceTransactions
+                    }
+                )
+
+                NotificationPreferenceCard(
+                    title: "Reviews",
+                    description: "When you receive a marketplace review",
+                    icon: "star.fill",
+                    options: notificationService.preferences.marketplaceReviews,
+                    onEdit: {
+                        editingNotificationType = .marketplaceReviews
+                    }
+                )
+            }
         }
         .navigationTitle("Notifications")
         .navigationBarTitleDisplayMode(.inline)
@@ -286,6 +322,9 @@ struct NotificationEditSheet: View {
         case .hangerTalkMentions: return "Mentions"
         case .hangerTalkFollows: return "Follows"
         case .hangerTalkNewPosts: return "New Posts"
+        case .marketplaceOffers: return "Offers"
+        case .marketplaceTransactions: return "Transactions"
+        case .marketplaceReviews: return "Reviews"
         }
     }
 
@@ -305,6 +344,9 @@ struct NotificationEditSheet: View {
         case .hangerTalkMentions: return "When someone @mentions you"
         case .hangerTalkFollows: return "When someone follows you"
         case .hangerTalkNewPosts: return "When someone you follow shares a post"
+        case .marketplaceOffers: return "New offers and offer updates on your listings"
+        case .marketplaceTransactions: return "Purchases, shipping, and delivery updates"
+        case .marketplaceReviews: return "When you receive a marketplace review"
         }
     }
 
@@ -324,6 +366,9 @@ struct NotificationEditSheet: View {
         case .hangerTalkMentions: return $preferences.hangerTalkMentions
         case .hangerTalkFollows: return $preferences.hangerTalkFollows
         case .hangerTalkNewPosts: return $preferences.hangerTalkNewPosts
+        case .marketplaceOffers: return $preferences.marketplaceOffers
+        case .marketplaceTransactions: return $preferences.marketplaceTransactions
+        case .marketplaceReviews: return $preferences.marketplaceReviews
         }
     }
 
@@ -362,6 +407,12 @@ struct NotificationEditSheet: View {
             _localOptions = State(initialValue: preferences.wrappedValue.hangerTalkFollows)
         case .hangerTalkNewPosts:
             _localOptions = State(initialValue: preferences.wrappedValue.hangerTalkNewPosts)
+        case .marketplaceOffers:
+            _localOptions = State(initialValue: preferences.wrappedValue.marketplaceOffers)
+        case .marketplaceTransactions:
+            _localOptions = State(initialValue: preferences.wrappedValue.marketplaceTransactions)
+        case .marketplaceReviews:
+            _localOptions = State(initialValue: preferences.wrappedValue.marketplaceReviews)
         }
     }
 
