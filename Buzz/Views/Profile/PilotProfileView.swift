@@ -242,8 +242,9 @@ struct PilotProfileView: View {
                                         .foregroundColor(.secondary)
                                         .padding(.vertical, 4)
                                 } else {
+                                    let previewBadges = Array(badgeService.badges.prefix(8))
                                     LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 4), spacing: 12) {
-                                        ForEach(badgeService.badges) { badge in
+                                        ForEach(previewBadges) { badge in
                                             BadgePreviewCard(badge: badge)
                                         }
                                     }
