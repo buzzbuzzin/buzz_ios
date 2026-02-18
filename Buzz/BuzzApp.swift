@@ -124,7 +124,7 @@ struct BuzzApp: App {
                 }
             }
             .onChange(of: authService.isAuthenticated) { _, isAuthenticated in
-                // Update location whenever authentication status changes
+                // Update location and track app version whenever authentication status changes
                 if isAuthenticated, let userId = authService.activeUserId {
                     Task {
                         do {
@@ -133,6 +133,7 @@ struct BuzzApp: App {
                             print("Failed to update user location on auth change: \(error.localizedDescription)")
                         }
                     }
+                    AppVersionTrackingService.shared.trackAppVersion(userId: userId)
                 }
             }
             .onAppear {
@@ -160,13 +161,14 @@ struct BuzzApp: App {
                         notificationManager.registerForRemoteNotifications()
                     }
 
-                    // Update user location if authenticated
+                    // Update user location and track app version if authenticated
                     if authService.isAuthenticated, let userId = authService.activeUserId {
                         do {
                             try await locationTrackingService.updateUserLocation(userId: userId)
                         } catch {
                             print("Failed to update user location: \(error.localizedDescription)")
                         }
+                        AppVersionTrackingService.shared.trackAppVersion(userId: userId)
                     }
 
                     // Check for app updates after a short delay to avoid blocking app launch

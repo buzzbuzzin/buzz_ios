@@ -163,6 +163,15 @@ CREATE TABLE public.bookings (
   CONSTRAINT bookings_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES public.profiles(id),
   CONSTRAINT bookings_pilot_id_fkey FOREIGN KEY (pilot_id) REFERENCES public.profiles(id)
 );
+CREATE TABLE public.cockpit_usage_logs (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  user_id uuid NOT NULL,
+  component_name text NOT NULL,
+  section_name text NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT cockpit_usage_logs_pkey PRIMARY KEY (id),
+  CONSTRAINT cockpit_usage_logs_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id)
+);
 CREATE TABLE public.contact_submissions (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
   name text NOT NULL,
@@ -712,6 +721,102 @@ CREATE TABLE public.maintenance_logs (
   is_locked boolean DEFAULT true,
   CONSTRAINT maintenance_logs_pkey PRIMARY KEY (id),
   CONSTRAINT maintenance_logs_pilot_id_fkey FOREIGN KEY (pilot_id) REFERENCES public.profiles(id)
+);
+CREATE TABLE public.marketplace_favorites (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  user_id uuid NOT NULL,
+  listing_id uuid NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT marketplace_favorites_pkey PRIMARY KEY (id),
+  CONSTRAINT marketplace_favorites_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id),
+  CONSTRAINT marketplace_favorites_listing_id_fkey FOREIGN KEY (listing_id) REFERENCES public.marketplace_listings(id)
+);
+CREATE TABLE public.marketplace_listings (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  seller_id uuid NOT NULL,
+  title text NOT NULL,
+  description text NOT NULL,
+  price numeric NOT NULL CHECK (price > 0::numeric),
+  category text NOT NULL CHECK (category = ANY (ARRAY['drones'::text, 'batteries'::text, 'propellers'::text, 'controllers'::text, 'camera_gimbal'::text, 'fpv_gear'::text, 'cases_bags'::text, 'accessories'::text, 'other'::text])),
+  condition text NOT NULL CHECK (condition = ANY (ARRAY['new'::text, 'like_new'::text, 'good'::text, 'fair'::text, 'parts_only'::text])),
+  transaction_type text NOT NULL CHECK (transaction_type = ANY (ARRAY['ship'::text, 'meetup'::text, 'both'::text])),
+  status text NOT NULL DEFAULT 'active'::text CHECK (status = ANY (ARRAY['active'::text, 'sold'::text, 'reserved'::text, 'expired'::text, 'removed'::text])),
+  image_urls ARRAY NOT NULL DEFAULT '{}'::text[],
+  location_name text,
+  location_lat double precision,
+  location_lng double precision,
+  brand text,
+  model text,
+  shipping_cost numeric,
+  view_count integer NOT NULL DEFAULT 0,
+  favorite_count integer NOT NULL DEFAULT 0,
+  offer_count integer NOT NULL DEFAULT 0,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  expires_at timestamp with time zone DEFAULT (now() + '30 days'::interval),
+  CONSTRAINT marketplace_listings_pkey PRIMARY KEY (id),
+  CONSTRAINT marketplace_listings_seller_id_fkey FOREIGN KEY (seller_id) REFERENCES public.profiles(id)
+);
+CREATE TABLE public.marketplace_offers (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  listing_id uuid NOT NULL,
+  buyer_id uuid NOT NULL,
+  amount numeric NOT NULL CHECK (amount > 0::numeric),
+  message text,
+  status text NOT NULL DEFAULT 'pending'::text CHECK (status = ANY (ARRAY['pending'::text, 'accepted'::text, 'declined'::text, 'withdrawn'::text, 'expired'::text])),
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT marketplace_offers_pkey PRIMARY KEY (id),
+  CONSTRAINT marketplace_offers_listing_id_fkey FOREIGN KEY (listing_id) REFERENCES public.marketplace_listings(id),
+  CONSTRAINT marketplace_offers_buyer_id_fkey FOREIGN KEY (buyer_id) REFERENCES public.profiles(id)
+);
+CREATE TABLE public.marketplace_reviews (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  transaction_id uuid NOT NULL,
+  from_user_id uuid NOT NULL,
+  to_user_id uuid NOT NULL,
+  rating integer NOT NULL CHECK (rating >= 1 AND rating <= 5),
+  comment text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT marketplace_reviews_pkey PRIMARY KEY (id),
+  CONSTRAINT marketplace_reviews_transaction_id_fkey FOREIGN KEY (transaction_id) REFERENCES public.marketplace_transactions(id),
+  CONSTRAINT marketplace_reviews_from_user_id_fkey FOREIGN KEY (from_user_id) REFERENCES public.profiles(id),
+  CONSTRAINT marketplace_reviews_to_user_id_fkey FOREIGN KEY (to_user_id) REFERENCES public.profiles(id)
+);
+CREATE TABLE public.marketplace_transactions (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  listing_id uuid NOT NULL,
+  buyer_id uuid NOT NULL,
+  seller_id uuid NOT NULL,
+  offer_id uuid,
+  transaction_type text NOT NULL CHECK (transaction_type = ANY (ARRAY['ship'::text, 'meetup'::text])),
+  status text NOT NULL DEFAULT 'pending_payment'::text CHECK (status = ANY (ARRAY['pending_payment'::text, 'paid'::text, 'shipped'::text, 'delivered'::text, 'releasing'::text, 'completed'::text, 'meetup_scheduled'::text, 'meetup_completed'::text, 'disputed'::text, 'refunded'::text, 'cancelled'::text])),
+  amount numeric NOT NULL CHECK (amount > 0::numeric),
+  platform_fee numeric NOT NULL DEFAULT 0,
+  seller_payout numeric NOT NULL DEFAULT 0,
+  payment_intent_id text,
+  charge_id text,
+  transfer_id text,
+  tracking_number text,
+  tracking_carrier text,
+  meetup_location_name text,
+  meetup_location_lat double precision,
+  meetup_location_lng double precision,
+  meetup_scheduled_at timestamp with time zone,
+  buyer_confirmed_at timestamp with time zone,
+  seller_confirmed_at timestamp with time zone,
+  shipped_at timestamp with time zone,
+  delivered_at timestamp with time zone,
+  completed_at timestamp with time zone,
+  cancelled_at timestamp with time zone,
+  cancellation_reason text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT marketplace_transactions_pkey PRIMARY KEY (id),
+  CONSTRAINT marketplace_transactions_listing_id_fkey FOREIGN KEY (listing_id) REFERENCES public.marketplace_listings(id),
+  CONSTRAINT marketplace_transactions_buyer_id_fkey FOREIGN KEY (buyer_id) REFERENCES public.profiles(id),
+  CONSTRAINT marketplace_transactions_seller_id_fkey FOREIGN KEY (seller_id) REFERENCES public.profiles(id),
+  CONSTRAINT marketplace_transactions_offer_id_fkey FOREIGN KEY (offer_id) REFERENCES public.marketplace_offers(id)
 );
 CREATE TABLE public.messages (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
