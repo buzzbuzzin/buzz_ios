@@ -436,7 +436,10 @@ struct CreateListingView: View {
                 LocationSearchView(
                     selectedLocation: $selectedLocation,
                     locationName: $locationName,
-                    isPresented: $showLocationSearch
+                    isPresented: $showLocationSearch,
+                    onLocationSelected: { _ in
+                        withAnimation { currentStep = 5 }
+                    }
                 )
             }
         }
