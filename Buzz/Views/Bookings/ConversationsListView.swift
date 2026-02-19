@@ -459,10 +459,17 @@ struct DirectMessageConversationRow: View {
                         .font(.headline)
                 }
                 
-                Text(conversation.lastMessage.text)
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                    .lineLimit(1)
+                HStack(spacing: 4) {
+                    if conversation.lastMessage.isListingCard {
+                        Image(systemName: "tag.fill")
+                            .font(.caption2)
+                            .foregroundColor(.orange)
+                    }
+                    Text(conversation.lastMessage.text)
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                }
             }
             
             Spacer()

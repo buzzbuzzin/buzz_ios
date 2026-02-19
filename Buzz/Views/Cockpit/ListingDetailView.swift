@@ -20,6 +20,10 @@ struct ListingDetailView: View {
     @State private var showMeetupLocation = false
     @State private var isProcessing = false
     @State private var isFavorited: Bool
+    @State private var showDirectMessage = false
+    @State private var sellerProfile: UserProfile?
+    @State private var isLoadingSellerProfile = false
+    @State private var showProfileLoadError = false
 
     init(listing: MarketplaceListingWithSeller) {
         self.listing = listing
@@ -232,6 +236,28 @@ struct ListingDetailView: View {
                 .environmentObject(authService)
             }
         }
+        .sheet(isPresented: $showDirectMessage) {
+            if let profile = sellerProfile {
+                DirectMessageView(
+                    pilotId: listing.listing.sellerId,
+                    pilotProfile: profile,
+                    initialListing: listing
+                )
+                .environmentObject(authService)
+            } else {
+                VStack {
+                    ProgressView()
+                    Text("Loading...")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+        }
+        .alert("Error", isPresented: $showProfileLoadError) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Could not load seller profile. Please try again.")
+        }
         .alert("Buy Now", isPresented: $showBuyConfirmation) {
             Button("Cancel", role: .cancel) {}
             Button("Proceed to Payment") {
@@ -250,22 +276,39 @@ struct ListingDetailView: View {
         VStack(spacing: 0) {
             Divider()
             HStack(spacing: 12) {
-                // Message Seller — TODO: Wire to DMs when infrastructure is ready
+                // Message Seller
                 Button {
-                    // Not yet implemented
+                    guard authService.currentUser != nil else { return }
+                    guard !isLoadingSellerProfile else { return }
+                    isLoadingSellerProfile = true
+                    Task {
+                        defer { isLoadingSellerProfile = false }
+                        do {
+                            let profileService = ProfileService()
+                            sellerProfile = try await profileService.getProfile(userId: listing.listing.sellerId)
+                            showDirectMessage = true
+                        } catch {
+                            showProfileLoadError = true
+                        }
+                    }
                 } label: {
                     VStack(spacing: 2) {
-                        Image(systemName: "message.fill")
-                            .font(.title3)
-                        Text("Soon")
+                        if isLoadingSellerProfile {
+                            ProgressView()
+                                .frame(width: 24, height: 24)
+                        } else {
+                            Image(systemName: "message.fill")
+                                .font(.title3)
+                        }
+                        Text("Message")
                             .font(.system(size: 9))
                     }
-                    .foregroundColor(.gray)
+                    .foregroundColor(.blue)
                     .frame(width: 50, height: 50)
-                    .background(Color(.systemGray5))
+                    .background(Color.blue.opacity(0.15))
                     .cornerRadius(12)
                 }
-                .disabled(true)
+                .disabled(isLoadingSellerProfile)
 
                 // Make Offer
                 Button {

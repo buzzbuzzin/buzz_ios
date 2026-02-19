@@ -12,43 +12,45 @@ struct DirectMessageView: View {
     @EnvironmentObject var authService: AuthService
     let pilotId: UUID
     let pilotProfile: UserProfile
+    var initialListing: MarketplaceListingWithSeller? = nil
     @StateObject private var messageService = MessageService()
     @State private var messageText = ""
     @FocusState private var isTextFieldFocused: Bool
     @State private var showLimitAlert = false
     @State private var showErrorAlert = false
     @State private var errorMessage = ""
-    
+    @State private var hasSentListingCard = false
+
     private let maxMessagesBeforeResponse = 3
-    
+
     var currentUserId: UUID? {
         authService.currentUser?.id
     }
-    
+
     var sentMessageCount: Int {
         guard let currentUserId = currentUserId else { return 0 }
         return messageService.countSentMessagesBeforeResponse(fromUserId: currentUserId, toUserId: pilotId)
     }
-    
+
     var hasResponse: Bool {
         guard let currentUserId = currentUserId else { return false }
         return messageService.hasResponse(fromUserId: currentUserId, toUserId: pilotId)
     }
-    
+
     var canSendMessage: Bool {
         if hasResponse {
             return true // Unlimited after response
         }
         return sentMessageCount < maxMessagesBeforeResponse
     }
-    
+
     var remainingMessages: Int {
         if hasResponse {
             return -1 // Unlimited
         }
         return max(0, maxMessagesBeforeResponse - sentMessageCount)
     }
-    
+
     var body: some View {
         NavigationView {
             VStack(spacing: 0) {
@@ -82,7 +84,7 @@ struct DirectMessageView: View {
                                 .foregroundColor(.blue)
                         }
                     }
-                    
+
                     VStack(alignment: .leading, spacing: 2) {
                         if let callSign = pilotProfile.callSign {
                             Text("@\(callSign)")
@@ -93,13 +95,13 @@ struct DirectMessageView: View {
                                 .font(.headline)
                         }
                     }
-                    
+
                     Spacer()
                 }
                 .padding(.horizontal)
                 .padding(.vertical, 12)
                 .background(Color(.systemGray6))
-                
+
                 // Message Limit Warning (only show if limit applies)
                 if !hasResponse && sentMessageCount > 0 {
                     HStack(spacing: 8) {
@@ -114,7 +116,7 @@ struct DirectMessageView: View {
                     .padding(.vertical, 8)
                     .background(Color.orange.opacity(0.1))
                 }
-                
+
                 // Messages List
                 ScrollViewReader { proxy in
                     ScrollView {
@@ -130,7 +132,7 @@ struct DirectMessageView: View {
                                     Text("No messages yet")
                                         .font(.subheadline)
                                         .foregroundColor(.secondary)
-                                    
+
                                     if !hasResponse {
                                         Text("You can send up to \(maxMessagesBeforeResponse) messages before \(pilotProfile.callSign ?? "the pilot") responds.")
                                             .font(.caption)
@@ -165,11 +167,11 @@ struct DirectMessageView: View {
                         }
                     }
                 }
-                
+
                 // Message Input Bar
                 VStack(spacing: 0) {
                     Divider()
-                    
+
                     HStack(spacing: 12) {
                         TextField("Type a message", text: $messageText)
                             .textFieldStyle(.plain)
@@ -182,7 +184,7 @@ struct DirectMessageView: View {
                                 sendMessage()
                             }
                             .disabled(!canSendMessage)
-                        
+
                         Button(action: {
                             if canSendMessage {
                                 sendMessage()
@@ -223,7 +225,7 @@ struct DirectMessageView: View {
             }
         }
     }
-    
+
     private func loadMessages() async {
         guard let currentUserId = currentUserId else {
             return
@@ -233,11 +235,31 @@ struct DirectMessageView: View {
             try await messageService.fetchDirectMessages(fromUserId: currentUserId, toUserId: pilotId)
             // Mark messages from partner as read
             try await messageService.markDirectMessagesAsRead(fromUserId: pilotId, toUserId: currentUserId)
+
+            // Auto-send listing card if opening from a marketplace listing
+            if let listing = initialListing, !hasSentListingCard {
+                hasSentListingCard = true
+                let alreadyHasCard = messageService.directMessages.contains { msg in
+                    msg.metadata?.listingCard?.listingId == listing.listing.id
+                }
+                if !alreadyHasCard {
+                    try await messageService.sendDirectMessageWithListing(
+                        fromUserId: currentUserId,
+                        toUserId: pilotId,
+                        listing: listing
+                    )
+                }
+            }
         } catch {
             print("Error loading messages: \(error)")
+            hasSentListingCard = false
+            await MainActor.run {
+                errorMessage = error.localizedDescription
+                showErrorAlert = true
+            }
         }
     }
-    
+
     private func sendMessage() {
         guard let currentUserId = currentUserId,
               !messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
@@ -247,11 +269,11 @@ struct DirectMessageView: View {
             }
             return
         }
-        
+
         let textToSend = messageText.trimmingCharacters(in: .whitespacesAndNewlines)
         messageText = ""
         isTextFieldFocused = false
-        
+
         Task {
             do {
                 try await messageService.sendDirectMessage(
@@ -275,31 +297,125 @@ struct DirectMessageView: View {
 struct DirectMessageBubble: View {
     let message: DirectMessage
     let isFromCurrentUser: Bool
-    
+
     var body: some View {
-        HStack {
-            if isFromCurrentUser {
-                Spacer(minLength: 60)
+        VStack(alignment: isFromCurrentUser ? .trailing : .leading, spacing: 4) {
+            if let listingCard = message.metadata?.listingCard,
+               message.metadata?.type == "listing_card" {
+                ListingCardBubble(
+                    listingCard: listingCard,
+                    isFromCurrentUser: isFromCurrentUser
+                )
+            } else {
+                HStack {
+                    if isFromCurrentUser {
+                        Spacer(minLength: 60)
+                    }
+
+                    Text(message.text)
+                        .font(.body)
+                        .foregroundColor(isFromCurrentUser ? .white : .primary)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                        .background(isFromCurrentUser ? Color.blue : Color(.systemGray5))
+                        .cornerRadius(18)
+
+                    if !isFromCurrentUser {
+                        Spacer(minLength: 60)
+                    }
+                }
             }
-            
-            VStack(alignment: isFromCurrentUser ? .trailing : .leading, spacing: 4) {
-                Text(message.text)
-                    .font(.body)
-                    .foregroundColor(isFromCurrentUser ? .white : .primary)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                    .background(isFromCurrentUser ? Color.blue : Color(.systemGray5))
-                    .cornerRadius(18)
-                
-                Text(message.createdAt.formatted(date: .omitted, time: .shortened))
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
-            }
-            
-            if !isFromCurrentUser {
-                Spacer(minLength: 60)
-            }
+
+            Text(message.createdAt.formatted(date: .omitted, time: .shortened))
+                .font(.caption2)
+                .foregroundColor(.secondary)
+                .padding(.horizontal, isFromCurrentUser ? 0 : 4)
         }
     }
 }
 
+// MARK: - Listing Card Bubble
+
+struct ListingCardBubble: View {
+    let listingCard: DirectMessageListingCard
+    let isFromCurrentUser: Bool
+
+    var body: some View {
+        HStack {
+            if isFromCurrentUser { Spacer(minLength: 60) }
+
+            VStack(alignment: .leading, spacing: 0) {
+                // Thumbnail image
+                if let imageUrl = listingCard.imageUrl,
+                   let url = URL(string: imageUrl) {
+                    AsyncImage(url: url) { phase in
+                        switch phase {
+                        case .success(let image):
+                            image
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                                .frame(height: 120)
+                                .clipped()
+                        case .failure:
+                            imagePlaceholder
+                        default:
+                            ProgressView()
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 120)
+                                .background(Color(.systemGray6))
+                        }
+                    }
+                } else {
+                    imagePlaceholder
+                }
+
+                // Title + Price
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(listingCard.title)
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.primary)
+                        .lineLimit(2)
+
+                    HStack {
+                        Text(listingCard.price)
+                            .font(.headline)
+                            .foregroundColor(.orange)
+
+                        Spacer()
+
+                        if let condition = listingCard.condition {
+                            Text(condition)
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Color(.systemGray5))
+                                .cornerRadius(4)
+                        }
+                    }
+                }
+                .padding(10)
+            }
+            .frame(maxWidth: 240)
+            .background(Color(.secondarySystemBackground))
+            .cornerRadius(12)
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(Color(.systemGray4), lineWidth: 0.5)
+            )
+
+            if !isFromCurrentUser { Spacer(minLength: 60) }
+        }
+    }
+
+    private var imagePlaceholder: some View {
+        ZStack {
+            Color(.systemGray5)
+            Image(systemName: "shippingbox.fill")
+                .font(.system(size: 30))
+                .foregroundColor(.gray)
+        }
+        .frame(height: 120)
+    }
+}

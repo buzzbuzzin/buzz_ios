@@ -220,20 +220,21 @@ class MessageService: ObservableObject {
             toUserId: toUserId,
             text: text,
             createdAt: Date(),
-            isRead: false
+            isRead: false,
+            metadata: nil
         )
-        
+
         // Add optimistically to UI immediately
         await MainActor.run {
             self.directMessages.append(optimisticMessage)
         }
-        
+
         // Check if demo mode is enabled
         if DemoModeManager.shared.isDemoModeEnabled {
             // Already added optimistically above
             return
         }
-        
+
         // Real backend call
         do {
             // Insert the direct message
@@ -244,7 +245,7 @@ class MessageService: ObservableObject {
                 "created_at": .string(ISO8601DateFormatter().string(from: Date())),
                 "is_read": .bool(false)
             ]
-            
+
             let insertedMessage: DirectMessage = try await supabase
                 .from("direct_messages")
                 .insert(messageData)
@@ -252,7 +253,7 @@ class MessageService: ObservableObject {
                 .single()
                 .execute()
                 .value
-            
+
             // Send notification to recipient
             Task {
                 await sendMessageNotification(
@@ -262,7 +263,7 @@ class MessageService: ObservableObject {
                     bookingId: nil
                 )
             }
-            
+
             // Replace optimistic message with real message from backend
             await MainActor.run {
                 if let index = self.directMessages.firstIndex(where: { $0.id == optimisticMessage.id }) {
@@ -285,6 +286,90 @@ class MessageService: ObservableObject {
             throw error
         }
     }
+
+    /// Send a direct message with an embedded marketplace listing card
+    func sendDirectMessageWithListing(
+        fromUserId: UUID,
+        toUserId: UUID,
+        listing: MarketplaceListingWithSeller
+    ) async throws {
+        let listingCard = DirectMessageListingCard(
+            listingId: listing.listing.id,
+            title: listing.listing.title,
+            price: listing.listing.formattedPrice,
+            imageUrl: listing.listing.imageUrls.first,
+            condition: listing.listing.condition.displayName
+        )
+        let metadata = DirectMessageMetadata(
+            type: "listing_card",
+            listingCard: listingCard
+        )
+
+        let text = "Interested in: \(listing.listing.title) (\(listing.listing.formattedPrice))"
+
+        // Create optimistic message
+        let optimisticMessage = DirectMessage(
+            id: UUID(),
+            fromUserId: fromUserId,
+            toUserId: toUserId,
+            text: text,
+            createdAt: Date(),
+            isRead: false,
+            metadata: metadata
+        )
+
+        await MainActor.run {
+            self.directMessages.append(optimisticMessage)
+        }
+
+        if DemoModeManager.shared.isDemoModeEnabled { return }
+
+        do {
+            let insertPayload = DirectMessageInsert(
+                fromUserId: fromUserId,
+                toUserId: toUserId,
+                text: text,
+                isRead: false,
+                metadata: metadata,
+                createdAt: ISO8601DateFormatter().string(from: Date())
+            )
+
+            let insertedMessage: DirectMessage = try await supabase
+                .from("direct_messages")
+                .insert(insertPayload)
+                .select()
+                .single()
+                .execute()
+                .value
+
+            Task {
+                await sendMessageNotification(
+                    toUserId: toUserId,
+                    fromUserId: fromUserId,
+                    messageText: text,
+                    bookingId: nil
+                )
+            }
+
+            await MainActor.run {
+                if let index = self.directMessages.firstIndex(where: { $0.id == optimisticMessage.id }) {
+                    self.directMessages[index] = insertedMessage
+                } else {
+                    Task {
+                        try? await self.fetchDirectMessages(fromUserId: fromUserId, toUserId: toUserId)
+                    }
+                }
+            }
+        } catch {
+            await MainActor.run {
+                if let index = self.directMessages.firstIndex(where: { $0.id == optimisticMessage.id }) {
+                    self.directMessages.remove(at: index)
+                }
+                self.errorMessage = error.localizedDescription
+            }
+            throw error
+        }
+    }
     
     /// Count messages sent by a user before the other user responds
     /// Returns the count of consecutive messages from the sender before any response
@@ -295,9 +380,10 @@ class MessageService: ObservableObject {
         let sortedMessages = directMessages.sorted(by: { $0.createdAt < $1.createdAt })
         
         // Count consecutive messages from sender before any response
+        // Listing card messages are a separate category and don't count toward the limit
         for message in sortedMessages {
             if message.fromUserId == fromUserId && message.toUserId == toUserId {
-                // This is a message from the sender
+                if message.isListingCard { continue }
                 count += 1
             } else if message.fromUserId == toUserId && message.toUserId == fromUserId {
                 // Found a response - stop counting
@@ -368,20 +454,7 @@ class MessageService: ObservableObject {
             return []
         }
         
-        // Get all unique conversations (distinct pairs of users)
-        // This query gets the latest message from each conversation
-        let query = """
-            SELECT DISTINCT ON (
-                LEAST(from_user_id, to_user_id),
-                GREATEST(from_user_id, to_user_id)
-            )
-            id, from_user_id, to_user_id, text, created_at, is_read
-            FROM direct_messages
-            WHERE from_user_id = '\(userId.uuidString)' OR to_user_id = '\(userId.uuidString)'
-            ORDER BY LEAST(from_user_id, to_user_id), GREATEST(from_user_id, to_user_id), created_at DESC
-        """
-        
-        // For now, use a simpler approach - get all messages and group them
+        // Get all unique conversations - fetch all messages and group by partner
         let allMessages: [DirectMessage] = try await supabase
             .from("direct_messages")
             .select()
@@ -468,8 +541,6 @@ class MessageService: ObservableObject {
         }
         
         // Real backend call - mark messages as deleted by current user
-        let conversationId = Self.conversationId(fromUserId: fromUserId, toUserId: toUserId)
-        
         let updates: [String: AnyJSON] = [
             "deleted_at": .string(ISO8601DateFormatter().string(from: Date())),
             "deleted_by": .string(fromUserId.uuidString)
