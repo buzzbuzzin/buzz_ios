@@ -19,6 +19,12 @@ struct ListingDetailView: View {
     @State private var showBuyConfirmation = false
     @State private var showMeetupLocation = false
     @State private var isProcessing = false
+    @State private var isFavorited: Bool
+
+    init(listing: MarketplaceListingWithSeller) {
+        self.listing = listing
+        self._isFavorited = State(initialValue: listing.isFavoritedByCurrentUser)
+    }
 
     private var isOwnListing: Bool {
         authService.currentUser?.id == listing.listing.sellerId
@@ -55,6 +61,7 @@ struct ListingDetailView: View {
                         // Favorite button
                         if !isOwnListing {
                             Button {
+                                isFavorited.toggle()
                                 Task {
                                     guard let userId = authService.currentUser?.id else { return }
                                     try? await marketplaceService.toggleFavorite(
@@ -63,9 +70,9 @@ struct ListingDetailView: View {
                                     )
                                 }
                             } label: {
-                                Image(systemName: listing.isFavoritedByCurrentUser ? "heart.fill" : "heart")
+                                Image(systemName: isFavorited ? "heart.fill" : "heart")
                                     .font(.title2)
-                                    .foregroundColor(listing.isFavoritedByCurrentUser ? .red : .secondary)
+                                    .foregroundColor(isFavorited ? .red : .secondary)
                             }
                         }
                     }
