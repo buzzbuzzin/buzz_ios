@@ -228,9 +228,11 @@ struct DirectMessageView: View {
         guard let currentUserId = currentUserId else {
             return
         }
-        
+
         do {
             try await messageService.fetchDirectMessages(fromUserId: currentUserId, toUserId: pilotId)
+            // Mark messages from partner as read
+            try await messageService.markDirectMessagesAsRead(fromUserId: pilotId, toUserId: currentUserId)
         } catch {
             print("Error loading messages: \(error)")
         }

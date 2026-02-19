@@ -405,7 +405,7 @@ class MessageService: ObservableObject {
                 partnerId: partnerId,
                 lastMessage: lastMessage
             )
-        }
+        }.sorted { $0.lastMessage.createdAt > $1.lastMessage.createdAt }
     }
     
     // MARK: - Sample Data for Demo
@@ -506,6 +506,29 @@ class MessageService: ObservableObject {
     
     // MARK: - Mark Messages as Unread
     
+    func markDirectMessagesAsRead(fromUserId: UUID, toUserId: UUID) async throws {
+        // Check if demo mode is enabled
+        if DemoModeManager.shared.isDemoModeEnabled {
+            for i in directMessages.indices {
+                if directMessages[i].fromUserId == fromUserId && directMessages[i].toUserId == toUserId {
+                    directMessages[i].isRead = true
+                }
+            }
+            return
+        }
+
+        // Mark messages FROM the partner TO the current user as read
+        let updates: [String: AnyJSON] = ["is_read": .bool(true)]
+
+        try await supabase
+            .from("direct_messages")
+            .update(updates)
+            .eq("from_user_id", value: fromUserId.uuidString)
+            .eq("to_user_id", value: toUserId.uuidString)
+            .eq("is_read", value: false)
+            .execute()
+    }
+
     func markDirectMessagesAsUnread(fromUserId: UUID, toUserId: UUID) async throws {
         // Check if demo mode is enabled
         if DemoModeManager.shared.isDemoModeEnabled {
