@@ -100,6 +100,171 @@ final class BookingServiceIntegrationTests: IntegrationTestCase {
         XCTAssertFalse(service.isLoading)
     }
 
+    // MARK: - Expiration Field Integration
+
+    func testCreateBooking_setsExpiresAtField() async throws {
+        let beforeCreate = Date()
+        let booking = try await service.createBooking(
+            customerId: TestUser.id,
+            location: CLLocationCoordinate2D(latitude: 37.0, longitude: -122.0),
+            locationName: "Expiry Integration Test",
+            scheduledDate: nil,
+            specialization: .realEstate,
+            description: "Test expiration",
+            paymentAmount: 50,
+            estimatedFlightHours: 1.0
+        )
+
+        trackForCleanup(table: "bookings", id: booking.id)
+
+        // Fetch back and verify expires_at is set
+        let fetched: Booking = try await supabase
+            .from("bookings")
+            .select()
+            .eq("id", value: booking.id.uuidString)
+            .single()
+            .execute()
+            .value
+
+        XCTAssertNotNil(fetched.expiresAt, "expires_at should be set on creation")
+        XCTAssertEqual(fetched.expirationNotified, false, "expiration_notified should be false")
+
+        // Without scheduledDate, expires_at should be ~7 days from creation
+        if let expiresAt = fetched.expiresAt {
+            let expectedExpiry = beforeCreate.addingTimeInterval(7 * 24 * 60 * 60)
+            let diff = abs(expiresAt.timeIntervalSince(expectedExpiry))
+            XCTAssertLessThan(diff, 10.0, "expires_at should be ~7 days from creation")
+        }
+    }
+
+    func testCreateBookingWithScheduledDate_setsExpiresAtToScheduledDate() async throws {
+        let scheduledDate = Date().addingTimeInterval(3 * 24 * 60 * 60) // 3 days from now
+        let booking = try await service.createBooking(
+            customerId: TestUser.id,
+            location: CLLocationCoordinate2D(latitude: 37.0, longitude: -122.0),
+            locationName: "Scheduled Expiry Integration",
+            scheduledDate: scheduledDate,
+            specialization: .realEstate,
+            description: "Test scheduled expiration",
+            paymentAmount: 50,
+            estimatedFlightHours: 1.0
+        )
+
+        trackForCleanup(table: "bookings", id: booking.id)
+
+        let fetched: Booking = try await supabase
+            .from("bookings")
+            .select()
+            .eq("id", value: booking.id.uuidString)
+            .single()
+            .execute()
+            .value
+
+        XCTAssertNotNil(fetched.expiresAt, "expires_at should be set")
+        // expires_at should match scheduledDate (within a few seconds of precision)
+        if let expiresAt = fetched.expiresAt {
+            let diff = abs(expiresAt.timeIntervalSince(scheduledDate))
+            XCTAssertLessThan(diff, 5.0, "expires_at should match scheduledDate")
+        }
+    }
+
+    // MARK: - State Transition Integration
+
+    func testBookingStatusTransition_availableToAccepted() async throws {
+        // Create a booking
+        let booking = try await service.createBooking(
+            customerId: TestUser.id,
+            location: CLLocationCoordinate2D(latitude: 37.0, longitude: -122.0),
+            locationName: "State Transition Test",
+            scheduledDate: Date().addingTimeInterval(86400),
+            specialization: .realEstate,
+            description: "Accept flow test",
+            paymentAmount: 50,
+            estimatedFlightHours: 1.0
+        )
+        trackForCleanup(table: "bookings", id: booking.id)
+        XCTAssertEqual(booking.status, .available)
+
+        // Accept the booking
+        try await service.acceptBooking(bookingId: booking.id, pilotId: TestUser.id)
+
+        let fetched: Booking = try await supabase
+            .from("bookings")
+            .select()
+            .eq("id", value: booking.id.uuidString)
+            .single()
+            .execute()
+            .value
+
+        XCTAssertEqual(fetched.status, .accepted)
+        XCTAssertEqual(fetched.pilotId, TestUser.id)
+    }
+
+    func testBookingStatusTransition_acceptedToInProgress() async throws {
+        // Create and accept a booking
+        let booking = try await service.createBooking(
+            customerId: TestUser.id,
+            location: CLLocationCoordinate2D(latitude: 37.0, longitude: -122.0),
+            locationName: "In Progress Test",
+            scheduledDate: Date().addingTimeInterval(86400),
+            specialization: .realEstate,
+            description: "In progress flow test",
+            paymentAmount: 50,
+            estimatedFlightHours: 1.0
+        )
+        trackForCleanup(table: "bookings", id: booking.id)
+
+        try await service.acceptBooking(bookingId: booking.id, pilotId: TestUser.id)
+
+        // Transition to in_progress
+        try await service.startBookingInProgress(bookingId: booking.id)
+
+        let fetched: Booking = try await supabase
+            .from("bookings")
+            .select()
+            .eq("id", value: booking.id.uuidString)
+            .single()
+            .execute()
+            .value
+
+        XCTAssertEqual(fetched.status, .inProgress)
+    }
+
+    func testExtendBooking_updatesExpiresAt() async throws {
+        let booking = try await service.createBooking(
+            customerId: TestUser.id,
+            location: CLLocationCoordinate2D(latitude: 37.0, longitude: -122.0),
+            locationName: "Extend Test",
+            scheduledDate: nil,
+            specialization: .realEstate,
+            description: "Extend booking test",
+            paymentAmount: 50,
+            estimatedFlightHours: 1.0
+        )
+        trackForCleanup(table: "bookings", id: booking.id)
+
+        // Extend with a new date 14 days from now
+        let newDate = Date().addingTimeInterval(14 * 24 * 60 * 60)
+        try await service.extendBooking(bookingId: booking.id, newScheduledDate: newDate, newEndDate: nil)
+
+        let fetched: Booking = try await supabase
+            .from("bookings")
+            .select()
+            .eq("id", value: booking.id.uuidString)
+            .single()
+            .execute()
+            .value
+
+        XCTAssertNotNil(fetched.expiresAt)
+        XCTAssertEqual(fetched.expirationNotified, false, "expiration_notified should be reset")
+        if let expiresAt = fetched.expiresAt {
+            let diff = abs(expiresAt.timeIntervalSince(newDate))
+            XCTAssertLessThan(diff, 5.0, "expires_at should match newScheduledDate")
+        }
+    }
+
+    // MARK: - Original Tests
+
     func testCreateBooking_fetchBackVerifiesMatch() async throws {
         let booking = try await service.createBooking(
             customerId: TestUser.id,

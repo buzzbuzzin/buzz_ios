@@ -549,7 +549,7 @@ class NotificationManager: NSObject, ObservableObject {
     }
 
     /// Send a remote push notification to a specific user via the Supabase edge function
-    private func sendRemotePushNotification(
+    func sendRemotePushNotification(
         recipientUserId: UUID,
         title: String,
         body: String,

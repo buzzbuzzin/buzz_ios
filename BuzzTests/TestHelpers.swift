@@ -118,7 +118,9 @@ final class MockBackend: BookingBackend {
         estimatedFlightHours: Double = 2.0,
         scheduledDate: Date? = nil,
         endDate: Date? = nil,
-        requiredMinimumRank: Int = 0
+        requiredMinimumRank: Int = 0,
+        expiresAt: Date? = nil,
+        expirationNotified: Bool? = nil
     ) -> Booking {
         Booking(
             id: id,
@@ -138,7 +140,34 @@ final class MockBackend: BookingBackend {
             estimatedFlightHours: estimatedFlightHours,
             pilotRated: nil,
             customerRated: nil,
-            requiredMinimumRank: requiredMinimumRank
+            requiredMinimumRank: requiredMinimumRank,
+            expiresAt: expiresAt,
+            expirationNotified: expirationNotified
+        )
+    }
+
+    static func sampleDispute(
+        id: UUID = UUID(),
+        bookingId: UUID = UUID(),
+        initiatedBy: UUID = UUID(),
+        reason: String = "quality_issue",
+        description: String? = "Test dispute description",
+        status: DisputeStatus = .open,
+        resolution: String? = nil,
+        resolvedAt: Date? = nil,
+        resolvedBy: UUID? = nil
+    ) -> BookingDispute {
+        BookingDispute(
+            id: id,
+            bookingId: bookingId,
+            initiatedBy: initiatedBy,
+            reason: reason,
+            description: description,
+            status: status,
+            resolution: resolution,
+            createdAt: Date(),
+            resolvedAt: resolvedAt,
+            resolvedBy: resolvedBy
         )
     }
 }

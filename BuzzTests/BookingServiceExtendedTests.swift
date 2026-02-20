@@ -487,6 +487,255 @@ final class BookingServiceExtendedTests: XCTestCase {
         XCTAssertNil(service.errorMessage)
     }
 
+    // MARK: - Expiration Payload Tests
+
+    func testCreateBookingPayloadHasExpiresAtWithScheduledDate() async throws {
+        let scheduledDate = Date().addingTimeInterval(48 * 60 * 60) // 2 days out
+        let booking = MockBackend.sampleBooking()
+        let backend = MockBackend(createBookingResult: booking)
+        let service = BookingService(
+            backend: backend,
+            notificationManager: MockNotificationManager(),
+            notificationPreferencesService: MockNotificationPreferences(),
+            skipNetworkCalls: true
+        )
+
+        _ = try await service.createBooking(
+            customerId: UUID(),
+            location: .init(latitude: 0, longitude: 0),
+            locationName: "Expiry With Schedule",
+            scheduledDate: scheduledDate,
+            specialization: nil,
+            description: nil,
+            paymentAmount: 100,
+            estimatedFlightHours: 1.0
+        )
+
+        let payload = backend.capturedPayload
+        // expires_at should be set to the scheduled date
+        let expiresAtStr = payload["expires_at"]?.stringValue
+        let scheduledDateStr = payload["scheduled_date"]?.stringValue
+        XCTAssertNotNil(expiresAtStr)
+        XCTAssertEqual(expiresAtStr, scheduledDateStr,
+                        "expires_at should equal scheduled_date when provided")
+        XCTAssertEqual(payload["expiration_notified"]?.boolValue, false)
+    }
+
+    func testCreateBookingPayloadHasExpiresAtWithout_ScheduledDate() async throws {
+        let booking = MockBackend.sampleBooking()
+        let backend = MockBackend(createBookingResult: booking)
+        let service = BookingService(
+            backend: backend,
+            notificationManager: MockNotificationManager(),
+            notificationPreferencesService: MockNotificationPreferences(),
+            skipNetworkCalls: true
+        )
+
+        let beforeCreate = Date()
+        _ = try await service.createBooking(
+            customerId: UUID(),
+            location: .init(latitude: 0, longitude: 0),
+            locationName: "Expiry No Schedule",
+            scheduledDate: nil,
+            specialization: nil,
+            description: nil,
+            paymentAmount: 100,
+            estimatedFlightHours: 1.0
+        )
+
+        let payload = backend.capturedPayload
+        XCTAssertNil(payload["scheduled_date"], "No scheduled_date in payload when nil")
+        let expiresAtStr = payload["expires_at"]?.stringValue
+        XCTAssertNotNil(expiresAtStr, "expires_at should still be set")
+
+        // Verify ~7 days from now
+        if let expiresAtDate = ISO8601DateFormatter().date(from: expiresAtStr!) {
+            let expected = beforeCreate.addingTimeInterval(7 * 24 * 60 * 60)
+            let diff = abs(expiresAtDate.timeIntervalSince(expected))
+            XCTAssertLessThan(diff, 5.0, "expires_at should be ~7 days from creation")
+        }
+    }
+
+    func testSearchRescueBookingPayloadHasExpiration() async throws {
+        let booking = MockBackend.sampleBooking(specialization: .searchRescue)
+        let backend = MockBackend(createBookingResult: booking)
+        let service = BookingService(
+            backend: backend,
+            notificationManager: MockNotificationManager(),
+            notificationPreferencesService: MockNotificationPreferences(),
+            skipNetworkCalls: true
+        )
+
+        _ = try await service.createSearchRescueBooking(
+            customerId: UUID(),
+            location: .init(latitude: 0, longitude: 0),
+            locationName: "SAR Expiry Test",
+            scheduledDate: nil,
+            description: "test",
+            isVoluntary: false,
+            hourlyRate: 25,
+            estimatedFlightHours: 2.0
+        )
+
+        let payload = backend.capturedPayload
+        XCTAssertNotNil(payload["expires_at"]?.stringValue, "SAR booking should have expires_at")
+        XCTAssertEqual(payload["expiration_notified"]?.boolValue, false)
+    }
+
+    // MARK: - Demo Mode Tests
+
+    func testStartBookingInProgress_demoMode_returnsWithoutError() async throws {
+        DemoModeManager.shared.isDemoModeEnabled = true
+        defer { DemoModeManager.shared.isDemoModeEnabled = false }
+
+        let service = BookingService(
+            backend: MockBackend(),
+            notificationManager: MockNotificationManager(),
+            notificationPreferencesService: MockNotificationPreferences(),
+            skipNetworkCalls: true
+        )
+
+        // Should not throw in demo mode
+        try await service.startBookingInProgress(bookingId: UUID())
+        XCTAssertFalse(service.isLoading)
+    }
+
+    func testMarkSearchRescueAsStaffed_demoMode_returnsWithoutError() async throws {
+        DemoModeManager.shared.isDemoModeEnabled = true
+        defer { DemoModeManager.shared.isDemoModeEnabled = false }
+
+        let service = BookingService(
+            backend: MockBackend(),
+            notificationManager: MockNotificationManager(),
+            notificationPreferencesService: MockNotificationPreferences(),
+            skipNetworkCalls: true
+        )
+
+        try await service.markSearchRescueAsStaffed(bookingId: UUID())
+        XCTAssertFalse(service.isLoading)
+    }
+
+    func testExtendBooking_demoMode_returnsWithoutError() async throws {
+        DemoModeManager.shared.isDemoModeEnabled = true
+        defer { DemoModeManager.shared.isDemoModeEnabled = false }
+
+        let service = BookingService(
+            backend: MockBackend(),
+            notificationManager: MockNotificationManager(),
+            notificationPreferencesService: MockNotificationPreferences(),
+            skipNetworkCalls: true
+        )
+
+        try await service.extendBooking(
+            bookingId: UUID(),
+            newScheduledDate: Date().addingTimeInterval(7 * 24 * 60 * 60),
+            newEndDate: nil
+        )
+        XCTAssertFalse(service.isLoading)
+    }
+
+    func testCreateDispute_demoMode_returnsDemoDispute() async throws {
+        DemoModeManager.shared.isDemoModeEnabled = true
+        defer { DemoModeManager.shared.isDemoModeEnabled = false }
+
+        let service = BookingService(
+            backend: MockBackend(),
+            notificationManager: MockNotificationManager(),
+            notificationPreferencesService: MockNotificationPreferences(),
+            skipNetworkCalls: true
+        )
+
+        let bookingId = UUID()
+        let dispute = try await service.createDispute(
+            bookingId: bookingId,
+            reason: "quality_issue",
+            description: "Demo test"
+        )
+
+        XCTAssertEqual(dispute.bookingId, bookingId)
+        XCTAssertEqual(dispute.reason, "quality_issue")
+        XCTAssertEqual(dispute.status, .open)
+        XCTAssertFalse(service.isLoading)
+    }
+
+    func testFetchDisputesForBooking_demoMode_returnsEmptyArray() async throws {
+        DemoModeManager.shared.isDemoModeEnabled = true
+        defer { DemoModeManager.shared.isDemoModeEnabled = false }
+
+        let service = BookingService(
+            backend: MockBackend(),
+            notificationManager: MockNotificationManager(),
+            notificationPreferencesService: MockNotificationPreferences(),
+            skipNetworkCalls: true
+        )
+
+        let disputes = try await service.fetchDisputesForBooking(bookingId: UUID())
+        XCTAssertTrue(disputes.isEmpty)
+    }
+
+    func testFetchMyDisputes_demoMode_setsEmptyDisputes() async throws {
+        DemoModeManager.shared.isDemoModeEnabled = true
+        defer { DemoModeManager.shared.isDemoModeEnabled = false }
+
+        let service = BookingService(
+            backend: MockBackend(),
+            notificationManager: MockNotificationManager(),
+            notificationPreferencesService: MockNotificationPreferences(),
+            skipNetworkCalls: true
+        )
+
+        try await service.fetchMyDisputes()
+        XCTAssertTrue(service.disputes.isEmpty)
+        XCTAssertFalse(service.isLoading)
+    }
+
+    func testResolveDispute_demoMode_returnsWithoutError() async throws {
+        DemoModeManager.shared.isDemoModeEnabled = true
+        defer { DemoModeManager.shared.isDemoModeEnabled = false }
+
+        let service = BookingService(
+            backend: MockBackend(),
+            notificationManager: MockNotificationManager(),
+            notificationPreferencesService: MockNotificationPreferences(),
+            skipNetworkCalls: true
+        )
+
+        try await service.resolveDispute(disputeId: UUID(), resolution: "Demo resolution")
+        XCTAssertFalse(service.isLoading)
+    }
+
+    func testCheckAndExpireBookings_demoMode_returnsWithoutError() async throws {
+        DemoModeManager.shared.isDemoModeEnabled = true
+        defer { DemoModeManager.shared.isDemoModeEnabled = false }
+
+        let service = BookingService(
+            backend: MockBackend(),
+            notificationManager: MockNotificationManager(),
+            notificationPreferencesService: MockNotificationPreferences(),
+            skipNetworkCalls: true
+        )
+
+        try await service.checkAndExpireBookings()
+        // Should return immediately in demo mode without error
+    }
+
+    func testNotifyExpiringBookings_demoMode_returnsWithoutError() async throws {
+        DemoModeManager.shared.isDemoModeEnabled = true
+        defer { DemoModeManager.shared.isDemoModeEnabled = false }
+
+        let service = BookingService(
+            backend: MockBackend(),
+            notificationManager: MockNotificationManager(),
+            notificationPreferencesService: MockNotificationPreferences(),
+            skipNetworkCalls: true
+        )
+
+        try await service.notifyExpiringBookings()
+        // Should return immediately in demo mode without error
+    }
+
+    // MARK: - Empty Description Tests
+
     func testCreateBookingDescriptionNotIncludedWhenEmpty() async throws {
         let booking = MockBackend.sampleBooking()
         let backend = MockBackend(createBookingResult: booking)

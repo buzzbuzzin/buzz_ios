@@ -11,17 +11,26 @@ import CoreLocation
 enum BookingStatus: String, Codable {
     case available
     case accepted
+    case staffed
+    case inProgress = "in_progress"
     case completed
+    case expired
     case cancelled
-    
+
     var displayName: String {
         switch self {
         case .available:
             return "standby"
         case .accepted:
             return "Active"
+        case .staffed:
+            return "Staffed"
+        case .inProgress:
+            return "In Progress"
         case .completed:
             return "completed"
+        case .expired:
+            return "Expired"
         case .cancelled:
             return "cancelled"
         }
@@ -191,9 +200,13 @@ struct Booking: Codable, Identifiable, Hashable {
     var usesBeaconProgram: Bool? // True if using Beacon volunteer pilots (government clients only)
     var numberOfPilots: Int? // Number of pilots requested for S&R mission
     
+    // Expiration tracking
+    var expiresAt: Date? // When the booking should auto-expire
+    var expirationNotified: Bool? // Whether customer was notified about upcoming expiration
+
     // Internal testing field
     var isInternalTest: Bool? // True if this is an internal test booking (hidden from non-Buzz pilots)
-    
+
     enum CodingKeys: String, CodingKey {
         case id
         case customerId = "customer_id"
@@ -226,6 +239,8 @@ struct Booking: Codable, Identifiable, Hashable {
         case governmentAgency = "government_agency"
         case usesBeaconProgram = "uses_beacon_program"
         case numberOfPilots = "number_of_pilots"
+        case expiresAt = "expires_at"
+        case expirationNotified = "expiration_notified"
         case isInternalTest = "is_internal_test"
     }
     
@@ -416,12 +431,55 @@ struct CrewStatusInfo: Codable {
     let maxCount: Int
     let hasQualifiedLead: Bool
     let bookingAccepted: Bool
-    
+
     enum CodingKeys: String, CodingKey {
         case currentCount = "current_count"
         case maxCount = "max_count"
         case hasQualifiedLead = "has_qualified_lead"
         case bookingAccepted = "booking_accepted"
+    }
+}
+
+// MARK: - Booking Disputes
+
+enum DisputeStatus: String, Codable {
+    case open
+    case underReview = "under_review"
+    case resolved
+    case dismissed
+}
+
+enum DisputeReason: String, Codable {
+    case incorrectCharge = "incorrect_charge"
+    case serviceNotProvided = "service_not_provided"
+    case qualityIssue = "quality_issue"
+    case safetyConcern = "safety_concern"
+    case other
+}
+
+struct BookingDispute: Codable, Identifiable {
+    let id: UUID
+    let bookingId: UUID
+    let initiatedBy: UUID
+    let reason: String
+    let description: String?
+    var status: DisputeStatus
+    var resolution: String?
+    let createdAt: Date
+    var resolvedAt: Date?
+    var resolvedBy: UUID?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case bookingId = "booking_id"
+        case initiatedBy = "initiated_by"
+        case reason
+        case description
+        case status
+        case resolution
+        case createdAt = "created_at"
+        case resolvedAt = "resolved_at"
+        case resolvedBy = "resolved_by"
     }
 }
 

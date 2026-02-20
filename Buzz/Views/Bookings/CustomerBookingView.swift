@@ -66,12 +66,14 @@ struct CustomerBookingView: View {
                 if bookingService.isLoading {
                     LoadingView(message: "Loading bookings...")
                 } else {
-                    // Filter: Only show available and accepted bookings (not completed or cancelled)
-                    let filteredBookings = bookingService.myBookings.filter { booking in
-                        booking.status == .available || booking.status == .accepted
+                    // Active bookings: available, accepted, staffed, in_progress
+                    let activeBookings = bookingService.myBookings.filter { booking in
+                        booking.status == .available || booking.status == .accepted || booking.status == .staffed || booking.status == .inProgress
                     }
-                    
-                    if filteredBookings.isEmpty {
+                    // Expired bookings
+                    let expiredBookings = bookingService.myBookings.filter { $0.status == .expired }
+
+                    if activeBookings.isEmpty && expiredBookings.isEmpty {
                         EmptyStateView(
                             icon: "doc.text.magnifyingglass",
                             title: "No Active Bookings",
@@ -81,9 +83,24 @@ struct CustomerBookingView: View {
                         )
                     } else {
                         List {
-                            ForEach(filteredBookings) { booking in
-                                NavigationLink(destination: CustomerBookingDetailView(booking: booking)) {
-                                    CustomerBookingCard(booking: booking)
+                            if !activeBookings.isEmpty {
+                                Section("Active") {
+                                    ForEach(activeBookings) { booking in
+                                        NavigationLink(destination: CustomerBookingDetailView(booking: booking)) {
+                                            CustomerBookingCard(booking: booking)
+                                        }
+                                    }
+                                }
+                            }
+
+                            if !expiredBookings.isEmpty {
+                                Section("Expired") {
+                                    ForEach(expiredBookings) { booking in
+                                        NavigationLink(destination: CustomerBookingDetailView(booking: booking)) {
+                                            CustomerBookingCard(booking: booking)
+                                                .opacity(0.6)
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -202,12 +219,25 @@ struct CustomerBookingCard: View {
                     Text(booking.locationName)
                         .font(.headline)
                     Spacer()
+                    // Expiration badge
+                    if booking.status == .available,
+                       let expiresAt = booking.expiresAt,
+                       expiresAt.timeIntervalSinceNow < 24 * 60 * 60 && expiresAt.timeIntervalSinceNow > 0 {
+                        Label("Expiring", systemImage: "clock.badge.exclamationmark")
+                            .font(.caption2)
+                            .fontWeight(.semibold)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 3)
+                            .background(Color.orange.opacity(0.2))
+                            .foregroundColor(.orange)
+                            .cornerRadius(6)
+                    }
                     StatusBadge(status: booking.status)
                 }
-                
-                // Show pilot callsign if assigned and within 24 hours (text only, no picture)
+
+                // Show pilot callsign if assigned (text only, no picture)
                 if let profile = pilotProfile,
-                   (booking.status == .accepted || booking.status == .completed),
+                   (booking.status == .accepted || booking.status == .staffed || booking.status == .inProgress || booking.status == .completed),
                    shouldShowPilotInfo {
                     HStack(spacing: 4) {
                         Image(systemName: "airplane.fill")
@@ -322,8 +352,14 @@ struct StatusBadge: View {
             return .green
         case .accepted:
             return .blue
+        case .staffed:
+            return .cyan
+        case .inProgress:
+            return .orange
         case .completed:
             return .gray
+        case .expired:
+            return .secondary
         case .cancelled:
             return .red
         }
@@ -1282,13 +1318,15 @@ struct CustomerBookingDetailView: View {
     @State private var showCompletionConfirmation = false
     @State private var showCompletionSuccess = false
     @State private var showSearchRescueCompletion = false
+    @State private var showExtendBookingSheet = false
+    @State private var showCreateDisputeSheet = false
     @Environment(\.dismiss) var dismiss
-    
+
     // Check if pilot info should be visible (always show if pilot is assigned)
     private var shouldShowPilotInfo: Bool {
         return currentBooking.pilotId != nil
     }
-    
+
     init(booking: Booking) {
         self.booking = booking
         _currentBooking = State(initialValue: booking)
@@ -1297,10 +1335,31 @@ struct CustomerBookingDetailView: View {
             span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
         ))
     }
-    
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
+                // Expiration Warning Banner
+                if currentBooking.status == .available,
+                   let expiresAt = currentBooking.expiresAt,
+                   expiresAt.timeIntervalSinceNow < 24 * 60 * 60 && expiresAt.timeIntervalSinceNow > 0 {
+                    HStack(spacing: 8) {
+                        Image(systemName: "clock.badge.exclamationmark")
+                            .foregroundColor(.orange)
+                        Text("This booking expires soon")
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                        Spacer()
+                        Text(expiresAt, style: .relative)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding()
+                    .background(Color.orange.opacity(0.15))
+                    .cornerRadius(12)
+                    .padding(.horizontal)
+                }
+
                 // Map
                 Map(coordinateRegion: .constant(region), annotationItems: [currentBooking]) { booking in
                     MapAnnotation(coordinate: booking.coordinate) {
@@ -1416,8 +1475,8 @@ struct CustomerBookingDetailView: View {
                 Divider()
                     .padding(.horizontal)
                 
-                // Pilot Info Section (for accepted/completed bookings)
-                if (currentBooking.status == .accepted || currentBooking.status == .completed), currentBooking.pilotId != nil {
+                // Pilot Info Section (for accepted/staffed/inProgress/completed bookings)
+                if (currentBooking.status == .accepted || currentBooking.status == .staffed || currentBooking.status == .inProgress || currentBooking.status == .completed), currentBooking.pilotId != nil {
                     VStack(alignment: .leading, spacing: 12) {
                         Label("Pilot", systemImage: "airplane.circle.fill")
                             .font(.headline)
@@ -1634,6 +1693,25 @@ struct CustomerBookingDetailView: View {
                     .padding(.horizontal)
                 }
                 
+                // Update Date button (for available bookings with expiration)
+                if currentBooking.status == .available && currentBooking.expiresAt != nil {
+                    Button(action: { showExtendBookingSheet = true }) {
+                        HStack {
+                            Image(systemName: "calendar.badge.clock")
+                            Text("Update Date")
+                        }
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .foregroundColor(.blue)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                        .frame(maxWidth: .infinity)
+                        .background(Color.blue.opacity(0.1))
+                        .cornerRadius(12)
+                    }
+                    .padding(.horizontal)
+                }
+
                 // Rate Pilot Button (for completed bookings)
                 if currentBooking.status == .completed && currentBooking.customerRated != true {
                     CustomButton(
@@ -1641,6 +1719,25 @@ struct CustomerBookingDetailView: View {
                         action: { showRatingSheet = true },
                         style: .primary
                     )
+                    .padding(.horizontal)
+                }
+
+                // File Dispute button (for completed bookings)
+                if currentBooking.status == .completed {
+                    Button(action: { showCreateDisputeSheet = true }) {
+                        HStack {
+                            Image(systemName: "exclamationmark.bubble.fill")
+                            Text("File Dispute")
+                        }
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .foregroundColor(.orange)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                        .frame(maxWidth: .infinity)
+                        .background(Color.orange.opacity(0.1))
+                        .cornerRadius(12)
+                    }
                     .padding(.horizontal)
                 }
             }
@@ -1746,6 +1843,16 @@ struct CustomerBookingDetailView: View {
                     await refreshBooking()
                 }
             }
+        }
+        .sheet(isPresented: $showExtendBookingSheet) {
+            ExtendBookingView(booking: currentBooking) {
+                Task {
+                    await refreshBooking()
+                }
+            }
+        }
+        .sheet(isPresented: $showCreateDisputeSheet) {
+            CreateDisputeView(bookingId: currentBooking.id)
         }
         .task {
             // Load pilot profile and refresh booking

@@ -39,6 +39,7 @@ protocol NotificationPreferencesProviding {
 class BookingService: ObservableObject {
     @Published var availableBookings: [Booking] = []
     @Published var myBookings: [Booking] = []
+    @Published var disputes: [BookingDispute] = []
     @Published var isLoading = false
     @Published var errorMessage: String?
     
@@ -119,7 +120,17 @@ class BookingService: ObservableObject {
             if let chargeId = chargeId {
                 booking["charge_id"] = .string(chargeId)
             }
-            
+
+            // Set expiration: scheduledDate if provided, otherwise created_at + 7 days
+            let expiresAt: Date
+            if let scheduledDate = scheduledDate {
+                expiresAt = scheduledDate
+            } else {
+                expiresAt = Date().addingTimeInterval(7 * 24 * 60 * 60) // 7 days from now
+            }
+            booking["expires_at"] = .string(ISO8601DateFormatter().string(from: expiresAt))
+            booking["expiration_notified"] = .bool(false)
+
             // Insert + fetch via backend so tests can inject a mock
             let createdBooking = try await backend.createBooking(payload: booking, bookingId: bookingId)
             
@@ -198,7 +209,17 @@ class BookingService: ObservableObject {
             if let governmentAgency = governmentAgency {
                 booking["government_agency"] = .string(governmentAgency.rawValue)
             }
-            
+
+            // Set expiration: scheduledDate if provided, otherwise created_at + 7 days
+            let expiresAt: Date
+            if let scheduledDate = scheduledDate {
+                expiresAt = scheduledDate
+            } else {
+                expiresAt = Date().addingTimeInterval(7 * 24 * 60 * 60) // 7 days from now
+            }
+            booking["expires_at"] = .string(ISO8601DateFormatter().string(from: expiresAt))
+            booking["expiration_notified"] = .bool(false)
+
             // Insert + fetch via backend
             let createdBooking = try await backend.createBooking(payload: booking, bookingId: bookingId)
             
@@ -569,7 +590,7 @@ class BookingService: ObservableObject {
                 // Fetch bookings where pilot is assigned
                 let pilotBookings: [Booking] = try await query
                     .eq("pilot_id", value: userId.uuidString)
-                    .in("status", values: [BookingStatus.accepted.rawValue, BookingStatus.completed.rawValue])
+                    .in("status", values: [BookingStatus.accepted.rawValue, BookingStatus.staffed.rawValue, BookingStatus.inProgress.rawValue, BookingStatus.completed.rawValue])
                     .order("created_at", ascending: false)
                     .execute()
                     .value
@@ -1995,8 +2016,465 @@ class BookingService: ObservableObject {
         ]
     }
     
+    // MARK: - Start Booking In Progress
+
+    /// Transitions a booking from accepted/staffed → in_progress.
+    /// Called when the pilot begins the job.
+    func startBookingInProgress(bookingId: UUID) async throws {
+        isLoading = true
+        errorMessage = nil
+
+        // Check if demo mode is enabled
+        if DemoModeManager.shared.isDemoModeEnabled {
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            isLoading = false
+            return
+        }
+
+        do {
+            // Get current booking state
+            let booking: Booking = try await supabase
+                .from("bookings")
+                .select()
+                .eq("id", value: bookingId.uuidString)
+                .single()
+                .execute()
+                .value
+
+            // Validate state transition: only accepted or staffed → in_progress
+            guard booking.status == .accepted || booking.status == .staffed else {
+                isLoading = false
+                throw NSError(domain: "BookingService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Booking must be in accepted or staffed status to start. Current status: \(booking.status.displayName)"])
+            }
+
+            let updateData: [String: AnyJSON] = [
+                "status": .string(BookingStatus.inProgress.rawValue)
+            ]
+
+            try await supabase
+                .from("bookings")
+                .update(updateData)
+                .eq("id", value: bookingId.uuidString)
+                .execute()
+
+            // Notify customer that their job has started
+            if !skipNetworkCalls {
+                Task {
+                    let aircraftType = booking.specialization?.displayName ?? "drone flight"
+                    await NotificationManager.shared.sendRemotePushNotification(
+                        recipientUserId: booking.customerId,
+                        title: "Job Started!",
+                        body: "Your \(aircraftType) booking at \(booking.locationName) is now in progress.",
+                        data: [
+                            "bookingId": bookingId.uuidString,
+                            "type": "booking_in_progress"
+                        ]
+                    )
+                }
+            }
+
+            isLoading = false
+        } catch {
+            isLoading = false
+            errorMessage = error.localizedDescription
+            throw error
+        }
+    }
+
+    // MARK: - Mark Search & Rescue as Staffed
+
+    /// Transitions a Search & Rescue booking from available → staffed
+    /// when enough pilots have joined (meets numberOfPilots threshold).
+    func markSearchRescueAsStaffed(bookingId: UUID) async throws {
+        isLoading = true
+        errorMessage = nil
+
+        // Check if demo mode is enabled
+        if DemoModeManager.shared.isDemoModeEnabled {
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            isLoading = false
+            return
+        }
+
+        do {
+            // Get current booking state
+            let booking: Booking = try await supabase
+                .from("bookings")
+                .select()
+                .eq("id", value: bookingId.uuidString)
+                .single()
+                .execute()
+                .value
+
+            // Validate: must be S&R and available
+            guard booking.isSearchRescueCrewBooking else {
+                isLoading = false
+                throw NSError(domain: "BookingService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Only Search & Rescue bookings can be marked as staffed"])
+            }
+
+            guard booking.status == .available else {
+                isLoading = false
+                throw NSError(domain: "BookingService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Booking must be available to mark as staffed. Current status: \(booking.status.displayName)"])
+            }
+
+            // Verify enough pilots have joined
+            let crewMembers: [BookingCrewMember] = try await supabase
+                .from("booking_crew")
+                .select()
+                .eq("booking_id", value: bookingId.uuidString)
+                .execute()
+                .value
+
+            let requiredPilots = booking.numberOfPilots ?? 1
+            guard crewMembers.count >= requiredPilots else {
+                isLoading = false
+                throw NSError(domain: "BookingService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Not enough pilots (\(crewMembers.count)/\(requiredPilots)) to mark as staffed"])
+            }
+
+            let updateData: [String: AnyJSON] = [
+                "status": .string(BookingStatus.staffed.rawValue)
+            ]
+
+            try await supabase
+                .from("bookings")
+                .update(updateData)
+                .eq("id", value: bookingId.uuidString)
+                .execute()
+
+            // Notify customer that their S&R mission is staffed
+            if !skipNetworkCalls {
+                Task {
+                    await NotificationManager.shared.sendRemotePushNotification(
+                        recipientUserId: booking.customerId,
+                        title: "Mission Staffed",
+                        body: "Your Search & Rescue mission has enough pilots and is ready to begin.",
+                        data: [
+                            "bookingId": bookingId.uuidString,
+                            "type": "booking_staffed"
+                        ]
+                    )
+                }
+            }
+
+            isLoading = false
+        } catch {
+            isLoading = false
+            errorMessage = error.localizedDescription
+            throw error
+        }
+    }
+
+    // MARK: - Expiration Logic
+
+    /// Check for and expire bookings that have passed their expires_at date.
+    /// Queries bookings where status = 'available' AND expires_at < now().
+    func checkAndExpireBookings() async throws {
+        // Check if demo mode is enabled
+        if DemoModeManager.shared.isDemoModeEnabled {
+            return
+        }
+
+        do {
+            let now = ISO8601DateFormatter().string(from: Date())
+
+            // Fetch available bookings that have expired
+            let expiredBookings: [Booking] = try await supabase
+                .from("bookings")
+                .select()
+                .eq("status", value: BookingStatus.available.rawValue)
+                .not("expires_at", operator: .is, value: "null")
+                .lte("expires_at", value: now)
+                .execute()
+                .value
+
+            // Update each expired booking
+            for booking in expiredBookings {
+                try await supabase
+                    .from("bookings")
+                    .update(["status": AnyJSON.string(BookingStatus.expired.rawValue)])
+                    .eq("id", value: booking.id.uuidString)
+                    .execute()
+
+                print("Expired booking \(booking.id)")
+            }
+        } catch {
+            print("Error checking for expired bookings: \(error)")
+            throw error
+        }
+    }
+
+    /// Notify customers whose bookings are expiring within 24 hours.
+    /// Only notifies bookings where expiration_notified = false.
+    func notifyExpiringBookings() async throws {
+        // Check if demo mode is enabled
+        if DemoModeManager.shared.isDemoModeEnabled {
+            return
+        }
+
+        do {
+            let now = Date()
+            let in24Hours = ISO8601DateFormatter().string(from: now.addingTimeInterval(24 * 60 * 60))
+            let nowString = ISO8601DateFormatter().string(from: now)
+
+            // Fetch bookings expiring within 24 hours that haven't been notified
+            let expiringBookings: [Booking] = try await supabase
+                .from("bookings")
+                .select()
+                .eq("status", value: BookingStatus.available.rawValue)
+                .eq("expiration_notified", value: false)
+                .not("expires_at", operator: .is, value: "null")
+                .gt("expires_at", value: nowString)
+                .lte("expires_at", value: in24Hours)
+                .execute()
+                .value
+
+            for booking in expiringBookings {
+                // Send push notification to customer
+                if !skipNetworkCalls {
+                    await NotificationManager.shared.sendRemotePushNotification(
+                        recipientUserId: booking.customerId,
+                        title: "Booking Expiring Soon",
+                        body: "Your booking for \(booking.locationName) is expiring soon. Update the date to keep it active.",
+                        data: [
+                            "bookingId": booking.id.uuidString,
+                            "type": "booking_expiring"
+                        ]
+                    )
+                }
+
+                // Mark as notified
+                try await supabase
+                    .from("bookings")
+                    .update(["expiration_notified": AnyJSON.bool(true)])
+                    .eq("id", value: booking.id.uuidString)
+                    .execute()
+            }
+        } catch {
+            print("Error notifying about expiring bookings: \(error)")
+            throw error
+        }
+    }
+
+    /// Extend a booking by updating its scheduled date and resetting expiration.
+    /// Only works if the booking is still available (not yet accepted or expired).
+    func extendBooking(bookingId: UUID, newScheduledDate: Date, newEndDate: Date?) async throws {
+        isLoading = true
+        errorMessage = nil
+
+        // Check if demo mode is enabled
+        if DemoModeManager.shared.isDemoModeEnabled {
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            isLoading = false
+            return
+        }
+
+        do {
+            // Verify booking is still available
+            let booking: Booking = try await supabase
+                .from("bookings")
+                .select()
+                .eq("id", value: bookingId.uuidString)
+                .single()
+                .execute()
+                .value
+
+            guard booking.status == .available else {
+                isLoading = false
+                throw NSError(domain: "BookingService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Can only extend bookings that are still available. Current status: \(booking.status.displayName)"])
+            }
+
+            var updateData: [String: AnyJSON] = [
+                "scheduled_date": .string(ISO8601DateFormatter().string(from: newScheduledDate)),
+                "expires_at": .string(ISO8601DateFormatter().string(from: newScheduledDate)),
+                "expiration_notified": .bool(false)
+            ]
+
+            if let newEndDate = newEndDate {
+                updateData["end_date"] = .string(ISO8601DateFormatter().string(from: newEndDate))
+            }
+
+            try await supabase
+                .from("bookings")
+                .update(updateData)
+                .eq("id", value: bookingId.uuidString)
+                .execute()
+
+            isLoading = false
+        } catch {
+            isLoading = false
+            errorMessage = error.localizedDescription
+            throw error
+        }
+    }
+
+    // MARK: - Booking Disputes
+
+    /// Create a new dispute for a booking.
+    func createDispute(bookingId: UUID, reason: String, description: String?) async throws -> BookingDispute {
+        isLoading = true
+        errorMessage = nil
+
+        // Check if demo mode is enabled
+        if DemoModeManager.shared.isDemoModeEnabled {
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            let demoDispute = BookingDispute(
+                id: UUID(),
+                bookingId: bookingId,
+                initiatedBy: UUID(),
+                reason: reason,
+                description: description,
+                status: .open,
+                resolution: nil,
+                createdAt: Date(),
+                resolvedAt: nil,
+                resolvedBy: nil
+            )
+            isLoading = false
+            return demoDispute
+        }
+
+        do {
+            guard let userId = try? await supabase.auth.session.user.id else {
+                isLoading = false
+                throw NSError(domain: "BookingService", code: -1, userInfo: [NSLocalizedDescriptionKey: "User not authenticated"])
+            }
+
+            let disputeId = UUID()
+            var insertData: [String: AnyJSON] = [
+                "id": .string(disputeId.uuidString),
+                "booking_id": .string(bookingId.uuidString),
+                "initiated_by": .string(userId.uuidString),
+                "reason": .string(reason),
+                "status": .string(DisputeStatus.open.rawValue),
+                "created_at": .string(ISO8601DateFormatter().string(from: Date()))
+            ]
+
+            if let description = description, !description.isEmpty {
+                insertData["description"] = .string(description)
+            }
+
+            try await supabase
+                .from("booking_disputes")
+                .insert(insertData)
+                .execute()
+
+            let dispute: BookingDispute = try await supabase
+                .from("booking_disputes")
+                .select()
+                .eq("id", value: disputeId.uuidString)
+                .single()
+                .execute()
+                .value
+
+            isLoading = false
+            return dispute
+        } catch {
+            isLoading = false
+            errorMessage = error.localizedDescription
+            throw error
+        }
+    }
+
+    /// Fetch all disputes for a specific booking.
+    func fetchDisputesForBooking(bookingId: UUID) async throws -> [BookingDispute] {
+        // Check if demo mode is enabled
+        if DemoModeManager.shared.isDemoModeEnabled {
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            return []
+        }
+
+        do {
+            let disputes: [BookingDispute] = try await supabase
+                .from("booking_disputes")
+                .select()
+                .eq("booking_id", value: bookingId.uuidString)
+                .order("created_at", ascending: false)
+                .execute()
+                .value
+
+            return disputes
+        } catch {
+            throw error
+        }
+    }
+
+    /// Fetch all disputes initiated by the current user.
+    func fetchMyDisputes() async throws {
+        isLoading = true
+        errorMessage = nil
+
+        // Check if demo mode is enabled
+        if DemoModeManager.shared.isDemoModeEnabled {
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            disputes = []
+            isLoading = false
+            return
+        }
+
+        do {
+            guard let userId = try? await supabase.auth.session.user.id else {
+                isLoading = false
+                throw NSError(domain: "BookingService", code: -1, userInfo: [NSLocalizedDescriptionKey: "User not authenticated"])
+            }
+
+            let fetchedDisputes: [BookingDispute] = try await supabase
+                .from("booking_disputes")
+                .select()
+                .eq("initiated_by", value: userId.uuidString)
+                .order("created_at", ascending: false)
+                .execute()
+                .value
+
+            disputes = fetchedDisputes
+            isLoading = false
+        } catch {
+            isLoading = false
+            errorMessage = error.localizedDescription
+            throw error
+        }
+    }
+
+    /// Resolve a dispute with a resolution description.
+    func resolveDispute(disputeId: UUID, resolution: String) async throws {
+        isLoading = true
+        errorMessage = nil
+
+        // Check if demo mode is enabled
+        if DemoModeManager.shared.isDemoModeEnabled {
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            isLoading = false
+            return
+        }
+
+        do {
+            guard let userId = try? await supabase.auth.session.user.id else {
+                isLoading = false
+                throw NSError(domain: "BookingService", code: -1, userInfo: [NSLocalizedDescriptionKey: "User not authenticated"])
+            }
+
+            let updateData: [String: AnyJSON] = [
+                "status": .string(DisputeStatus.resolved.rawValue),
+                "resolution": .string(resolution),
+                "resolved_at": .string(ISO8601DateFormatter().string(from: Date())),
+                "resolved_by": .string(userId.uuidString)
+            ]
+
+            try await supabase
+                .from("booking_disputes")
+                .update(updateData)
+                .eq("id", value: disputeId.uuidString)
+                .execute()
+
+            isLoading = false
+        } catch {
+            isLoading = false
+            errorMessage = error.localizedDescription
+            throw error
+        }
+    }
+
     // MARK: - Cancel Booking
-    
+
     func cancelBooking(bookingId: UUID) async throws {
         isLoading = true
         errorMessage = nil

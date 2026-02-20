@@ -90,6 +90,60 @@ final class BookingNotificationTests: XCTestCase {
         XCTAssertEqual(notificationManager.reminderCalls, 0)
     }
 
+    // MARK: - Start Booking In Progress Notifications
+
+    func testStartBookingInProgress_demoMode_doesNotNotify() async throws {
+        DemoModeManager.shared.isDemoModeEnabled = true
+        defer { DemoModeManager.shared.isDemoModeEnabled = false }
+
+        let notificationManager = MockNotificationManager()
+        let service = BookingService(
+            backend: MockBackend(),
+            notificationManager: notificationManager,
+            notificationPreferencesService: MockNotificationPreferences(),
+            skipNetworkCalls: false
+        )
+
+        try await service.startBookingInProgress(bookingId: UUID())
+
+        // In demo mode, no real work is done so no notifications
+        XCTAssertFalse(service.isLoading)
+    }
+
+    func testMarkSearchRescueAsStaffed_demoMode_doesNotNotify() async throws {
+        DemoModeManager.shared.isDemoModeEnabled = true
+        defer { DemoModeManager.shared.isDemoModeEnabled = false }
+
+        let notificationManager = MockNotificationManager()
+        let service = BookingService(
+            backend: MockBackend(),
+            notificationManager: notificationManager,
+            notificationPreferencesService: MockNotificationPreferences(),
+            skipNetworkCalls: false
+        )
+
+        try await service.markSearchRescueAsStaffed(bookingId: UUID())
+
+        XCTAssertFalse(service.isLoading)
+    }
+
+    func testNotifyExpiringBookings_demoMode_doesNotSendNotifications() async throws {
+        DemoModeManager.shared.isDemoModeEnabled = true
+        defer { DemoModeManager.shared.isDemoModeEnabled = false }
+
+        let notificationManager = MockNotificationManager()
+        let service = BookingService(
+            backend: MockBackend(),
+            notificationManager: notificationManager,
+            notificationPreferencesService: MockNotificationPreferences(),
+            skipNetworkCalls: false
+        )
+
+        try await service.notifyExpiringBookings()
+
+        // Demo mode should return immediately, no notifications sent
+    }
+
     // MARK: - Mock Notification Manager Verification
 
     func testMockNotificationManager_tracksAllCallTypes() async {

@@ -27,26 +27,37 @@ struct PilotBookingListView: View {
     private let maxRadius: Double = 200
     
     var filteredBookings: [Booking] {
-        var bookings = bookingService.availableBookings
-        
+        // Exclude expired bookings from available list
+        var bookings = bookingService.availableBookings.filter { $0.status != .expired }
+
         // Filter by category
         if let category = selectedCategory {
             bookings = bookings.filter { $0.specialization == category }
         }
-        
+
         // Filter by radius if location is available
         if let pilotLocation = locationManager.currentLocation {
             let pilotCLLocation = CLLocation(latitude: pilotLocation.latitude, longitude: pilotLocation.longitude)
             let radiusMeters = radiusMiles * 1609.34 // Convert miles to meters
-            
+
             bookings = bookings.filter { booking in
                 let bookingLocation = CLLocation(latitude: booking.locationLat, longitude: booking.locationLng)
                 let distance = pilotCLLocation.distance(from: bookingLocation)
                 return distance <= radiusMeters
             }
         }
-        
+
         return bookings
+    }
+
+    /// Bookings that are in progress (active jobs for the current pilot)
+    var inProgressBookings: [Booking] {
+        bookingService.myBookings.filter { $0.status == .inProgress }
+    }
+
+    /// S&R bookings that are staffed and ready to start
+    var staffedBookings: [Booking] {
+        bookingService.myBookings.filter { $0.status == .staffed }
     }
     
     var body: some View {
@@ -184,15 +195,79 @@ struct PilotBookingListView: View {
                                 .padding(.horizontal)
                                 .padding(.top, 8)
                             }
-                            
-                            if filteredBookings.isEmpty {
+
+                            // Active Jobs Section (in_progress bookings)
+                            if !inProgressBookings.isEmpty {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Label("Active Jobs", systemImage: "bolt.fill")
+                                        .font(.headline)
+                                        .foregroundColor(.orange)
+                                        .padding(.horizontal)
+
+                                    ForEach(inProgressBookings) { booking in
+                                        NavigationLink(destination: BookingDetailView(booking: booking)) {
+                                            BookingCard(booking: booking)
+                                                .overlay(
+                                                    RoundedRectangle(cornerRadius: 12)
+                                                        .stroke(Color.orange, lineWidth: 2)
+                                                )
+                                        }
+                                        .padding(.horizontal)
+                                    }
+                                }
+                                .padding(.top, 4)
+
+                                Divider()
+                                    .padding(.horizontal)
+                            }
+
+                            // Staffed S&R Section
+                            if !staffedBookings.isEmpty {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Label("Staffed - Ready to Start", systemImage: "person.3.fill")
+                                        .font(.headline)
+                                        .foregroundColor(.cyan)
+                                        .padding(.horizontal)
+
+                                    ForEach(staffedBookings) { booking in
+                                        NavigationLink(destination: BookingDetailView(booking: booking)) {
+                                            HStack {
+                                                BookingCard(booking: booking)
+                                                Spacer()
+                                                Text("Staffed")
+                                                    .font(.caption)
+                                                    .fontWeight(.bold)
+                                                    .foregroundColor(.cyan)
+                                                    .padding(.horizontal, 8)
+                                                    .padding(.vertical, 4)
+                                                    .background(Color.cyan.opacity(0.15))
+                                                    .cornerRadius(6)
+                                            }
+                                        }
+                                        .padding(.horizontal)
+                                    }
+                                }
+                                .padding(.top, 4)
+
+                                Divider()
+                                    .padding(.horizontal)
+                            }
+
+                            // Available Bookings
+                            if filteredBookings.isEmpty && inProgressBookings.isEmpty && staffedBookings.isEmpty {
                                 EmptyStateView(
                                     icon: "airplane.departure",
                                     title: selectedCategory == nil ? "No Available Bookings" : "No \(selectedCategory?.displayName ?? "") Jobs",
                                     message: selectedCategory == nil ? "Check back later for new drone pilot opportunities" : "Try selecting a different category"
                                 )
                                 .padding(.top, 40)
-                            } else {
+                            } else if !filteredBookings.isEmpty {
+                                if !inProgressBookings.isEmpty || !staffedBookings.isEmpty {
+                                    Text("Available Jobs")
+                                        .font(.headline)
+                                        .padding(.horizontal)
+                                }
+
                                 ForEach(filteredBookings) { booking in
                                     NavigationLink(destination: BookingDetailView(booking: booking)) {
                                         BookingCard(booking: booking)
@@ -272,6 +347,10 @@ struct PilotBookingListView: View {
     private func loadBookings() async {
         // Pass pilot ID to filter bookings based on eligibility (rank requirements)
         try? await bookingService.fetchAvailableBookings(forPilotId: authService.activeUserId)
+        // Also fetch pilot's own bookings for in-progress and staffed sections
+        if let pilotId = authService.activeUserId {
+            try? await bookingService.fetchMyBookings(userId: pilotId, isPilot: true)
+        }
     }
     
     private func acceptFirstAvailableBookingForUITest() async {

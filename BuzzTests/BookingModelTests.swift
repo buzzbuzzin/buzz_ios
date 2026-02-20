@@ -96,11 +96,232 @@ final class BookingModelTests: XCTestCase {
         XCTAssertEqual(BookingStatus.cancelled.displayName, "cancelled")
     }
 
+    func testBookingStatusDisplayNames_newCases() {
+        XCTAssertEqual(BookingStatus.staffed.displayName, "Staffed")
+        XCTAssertEqual(BookingStatus.inProgress.displayName, "In Progress")
+        XCTAssertEqual(BookingStatus.expired.displayName, "Expired")
+    }
+
     func testBookingStatusRawValues() {
         XCTAssertEqual(BookingStatus.available.rawValue, "available")
         XCTAssertEqual(BookingStatus.accepted.rawValue, "accepted")
         XCTAssertEqual(BookingStatus.completed.rawValue, "completed")
         XCTAssertEqual(BookingStatus.cancelled.rawValue, "cancelled")
+    }
+
+    func testBookingStatusRawValues_newCases() {
+        XCTAssertEqual(BookingStatus.staffed.rawValue, "staffed")
+        XCTAssertEqual(BookingStatus.inProgress.rawValue, "in_progress")
+        XCTAssertEqual(BookingStatus.expired.rawValue, "expired")
+    }
+
+    func testBookingStatusHasAll7Cases() {
+        let allCases: [BookingStatus] = [
+            .available, .accepted, .staffed, .inProgress,
+            .completed, .expired, .cancelled
+        ]
+        XCTAssertEqual(allCases.count, 7)
+        // Verify each decodes from its raw value
+        for status in allCases {
+            let decoded = BookingStatus(rawValue: status.rawValue)
+            XCTAssertEqual(decoded, status, "\(status.rawValue) should decode back to \(status)")
+        }
+    }
+
+    func testBookingStatusDecodesFromJSON() throws {
+        let testCases: [(String, BookingStatus)] = [
+            ("\"available\"", .available),
+            ("\"accepted\"", .accepted),
+            ("\"staffed\"", .staffed),
+            ("\"in_progress\"", .inProgress),
+            ("\"completed\"", .completed),
+            ("\"expired\"", .expired),
+            ("\"cancelled\"", .cancelled)
+        ]
+
+        let decoder = JSONDecoder()
+        for (json, expected) in testCases {
+            let data = json.data(using: .utf8)!
+            let decoded = try decoder.decode(BookingStatus.self, from: data)
+            XCTAssertEqual(decoded, expected, "JSON \(json) should decode to \(expected)")
+        }
+    }
+
+    // MARK: - DisputeStatus Enum
+
+    func testDisputeStatusRawValues() {
+        XCTAssertEqual(DisputeStatus.open.rawValue, "open")
+        XCTAssertEqual(DisputeStatus.underReview.rawValue, "under_review")
+        XCTAssertEqual(DisputeStatus.resolved.rawValue, "resolved")
+        XCTAssertEqual(DisputeStatus.dismissed.rawValue, "dismissed")
+    }
+
+    func testDisputeStatusDecodesFromJSON() throws {
+        let testCases: [(String, DisputeStatus)] = [
+            ("\"open\"", .open),
+            ("\"under_review\"", .underReview),
+            ("\"resolved\"", .resolved),
+            ("\"dismissed\"", .dismissed)
+        ]
+
+        let decoder = JSONDecoder()
+        for (json, expected) in testCases {
+            let data = json.data(using: .utf8)!
+            let decoded = try decoder.decode(DisputeStatus.self, from: data)
+            XCTAssertEqual(decoded, expected, "JSON \(json) should decode to \(expected)")
+        }
+    }
+
+    // MARK: - DisputeReason Enum
+
+    func testDisputeReasonRawValues() {
+        XCTAssertEqual(DisputeReason.incorrectCharge.rawValue, "incorrect_charge")
+        XCTAssertEqual(DisputeReason.serviceNotProvided.rawValue, "service_not_provided")
+        XCTAssertEqual(DisputeReason.qualityIssue.rawValue, "quality_issue")
+        XCTAssertEqual(DisputeReason.safetyConcern.rawValue, "safety_concern")
+        XCTAssertEqual(DisputeReason.other.rawValue, "other")
+    }
+
+    func testDisputeReasonDecodesFromJSON() throws {
+        let testCases: [(String, DisputeReason)] = [
+            ("\"incorrect_charge\"", .incorrectCharge),
+            ("\"service_not_provided\"", .serviceNotProvided),
+            ("\"quality_issue\"", .qualityIssue),
+            ("\"safety_concern\"", .safetyConcern),
+            ("\"other\"", .other)
+        ]
+
+        let decoder = JSONDecoder()
+        for (json, expected) in testCases {
+            let data = json.data(using: .utf8)!
+            let decoded = try decoder.decode(DisputeReason.self, from: data)
+            XCTAssertEqual(decoded, expected, "JSON \(json) should decode to \(expected)")
+        }
+    }
+
+    // MARK: - BookingDispute Model
+
+    func testBookingDisputeCodableRoundtrip() throws {
+        let disputeId = UUID()
+        let bookingId = UUID()
+        let userId = UUID()
+        let now = Date()
+
+        let dispute = BookingDispute(
+            id: disputeId,
+            bookingId: bookingId,
+            initiatedBy: userId,
+            reason: "quality_issue",
+            description: "Poor footage quality",
+            status: .open,
+            resolution: nil,
+            createdAt: now,
+            resolvedAt: nil,
+            resolvedBy: nil
+        )
+
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let data = try encoder.encode(dispute)
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let decoded = try decoder.decode(BookingDispute.self, from: data)
+
+        XCTAssertEqual(decoded.id, disputeId)
+        XCTAssertEqual(decoded.bookingId, bookingId)
+        XCTAssertEqual(decoded.initiatedBy, userId)
+        XCTAssertEqual(decoded.reason, "quality_issue")
+        XCTAssertEqual(decoded.description, "Poor footage quality")
+        XCTAssertEqual(decoded.status, .open)
+        XCTAssertNil(decoded.resolution)
+        XCTAssertNil(decoded.resolvedAt)
+        XCTAssertNil(decoded.resolvedBy)
+    }
+
+    func testBookingDisputeCodingKeys_snakeCaseMapping() throws {
+        let json = """
+        {
+            "id": "11111111-1111-1111-1111-111111111111",
+            "booking_id": "22222222-2222-2222-2222-222222222222",
+            "initiated_by": "33333333-3333-3333-3333-333333333333",
+            "reason": "safety_concern",
+            "description": "Safety issue during flight",
+            "status": "under_review",
+            "resolution": null,
+            "created_at": "2026-01-15T10:00:00Z",
+            "resolved_at": null,
+            "resolved_by": null
+        }
+        """.data(using: .utf8)!
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let dispute = try decoder.decode(BookingDispute.self, from: json)
+
+        XCTAssertEqual(dispute.id, UUID(uuidString: "11111111-1111-1111-1111-111111111111"))
+        XCTAssertEqual(dispute.bookingId, UUID(uuidString: "22222222-2222-2222-2222-222222222222"))
+        XCTAssertEqual(dispute.initiatedBy, UUID(uuidString: "33333333-3333-3333-3333-333333333333"))
+        XCTAssertEqual(dispute.reason, "safety_concern")
+        XCTAssertEqual(dispute.status, .underReview)
+    }
+
+    func testBookingDisputeResolvedFields() throws {
+        let resolverId = UUID()
+        let now = Date()
+        var dispute = MockBackend.sampleDispute(status: .open)
+        dispute.status = .resolved
+        dispute.resolution = "Refund issued"
+        dispute.resolvedAt = now
+        dispute.resolvedBy = resolverId
+
+        XCTAssertEqual(dispute.status, .resolved)
+        XCTAssertEqual(dispute.resolution, "Refund issued")
+        XCTAssertNotNil(dispute.resolvedAt)
+        XCTAssertEqual(dispute.resolvedBy, resolverId)
+    }
+
+    // MARK: - Booking Expiration Fields
+
+    func testBookingWithExpirationFields() {
+        let expiresAt = Date().addingTimeInterval(7 * 24 * 60 * 60)
+        let booking = MockBackend.sampleBooking(
+            expiresAt: expiresAt,
+            expirationNotified: false
+        )
+        XCTAssertEqual(booking.expiresAt, expiresAt)
+        XCTAssertEqual(booking.expirationNotified, false)
+    }
+
+    func testBookingWithNilExpirationFields() {
+        let booking = MockBackend.sampleBooking()
+        XCTAssertNil(booking.expiresAt)
+        XCTAssertNil(booking.expirationNotified)
+    }
+
+    func testBookingExpirationFieldsCodable() throws {
+        let json = """
+        {
+            "id": "11111111-1111-1111-1111-111111111111",
+            "customer_id": "22222222-2222-2222-2222-222222222222",
+            "location_lat": 37.7749,
+            "location_lng": -122.4194,
+            "location_name": "Test",
+            "payment_amount": 100,
+            "status": "available",
+            "created_at": "2026-01-15T10:00:00Z",
+            "estimated_flight_hours": 2.0,
+            "expires_at": "2026-01-22T10:00:00Z",
+            "expiration_notified": false
+        }
+        """.data(using: .utf8)!
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let booking = try decoder.decode(Booking.self, from: json)
+
+        XCTAssertNotNil(booking.expiresAt)
+        XCTAssertEqual(booking.expirationNotified, false)
     }
 
     // MARK: - BookingSpecialization Enum

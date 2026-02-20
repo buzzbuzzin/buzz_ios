@@ -36,6 +36,9 @@ struct BookingDetailView: View {
     @State private var showFinishBookingAlert = false
     @State private var showCompletionConfirmation = false
     @State private var showCompletionSuccess = false
+    @State private var showStartJobAlert = false
+    @State private var showExtendBookingSheet = false
+    @State private var showCreateDisputeSheet = false
     @State private var currentBooking: Booking
     
     // Crew-related state (for automotive bookings)
@@ -57,6 +60,27 @@ struct BookingDetailView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
+                // Expiration Warning Banner
+                if currentBooking.status == .available,
+                   let expiresAt = currentBooking.expiresAt,
+                   expiresAt.timeIntervalSinceNow < 24 * 60 * 60 && expiresAt.timeIntervalSinceNow > 0 {
+                    HStack(spacing: 8) {
+                        Image(systemName: "clock.badge.exclamationmark")
+                            .foregroundColor(.orange)
+                        Text("This booking expires soon")
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                        Spacer()
+                        Text(expiresAt, style: .relative)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding()
+                    .background(Color.orange.opacity(0.15))
+                    .cornerRadius(12)
+                    .padding(.horizontal)
+                }
+
                 // Map
                 Map(coordinateRegion: .constant(region), annotationItems: [booking]) { booking in
                     MapAnnotation(coordinate: booking.coordinate) {
@@ -66,7 +90,7 @@ struct BookingDetailView: View {
                 .frame(height: 250)
                 .cornerRadius(12)
                 .padding(.horizontal)
-                
+
                 // Location
                 VStack(alignment: .leading, spacing: 8) {
                     Label("Location", systemImage: "mappin.circle.fill")
@@ -157,8 +181,8 @@ struct BookingDetailView: View {
                             
                             Spacer()
                             
-                            // Message Button (only for accepted/completed bookings)
-                            if currentBooking.status == .accepted || currentBooking.status == .completed {
+                            // Message Button (for accepted/staffed/inProgress/completed bookings)
+                            if currentBooking.status == .accepted || currentBooking.status == .staffed || currentBooking.status == .inProgress || currentBooking.status == .completed {
                                 Button(action: {
                                     showMessageSheet = true
                                 }) {
@@ -697,7 +721,16 @@ struct BookingDetailView: View {
                                     .padding(.horizontal)
                                 }
                             }
-                        } else if currentBooking.status == .accepted && currentBooking.pilotId == authService.currentUser?.id {
+                        } else if (currentBooking.status == .accepted || currentBooking.status == .staffed) && currentBooking.pilotId == authService.currentUser?.id {
+                            // Start Job button - transitions to in_progress
+                            CustomButton(
+                                title: "Start Job",
+                                action: { showStartJobAlert = true },
+                                style: .primary,
+                                isLoading: bookingService.isLoading
+                            )
+                            .padding(.horizontal)
+
                             // Show Finish Booking button if pilot hasn't completed yet and customer hasn't completed yet
                             if currentBooking.pilotCompleted != true && currentBooking.customerCompleted != true {
                                 CustomButton(
@@ -743,12 +776,77 @@ struct BookingDetailView: View {
                                 }
                                 .padding(.horizontal)
                             }
-                        } else if currentBooking.status == .completed && currentBooking.pilotId == authService.currentUser?.id && currentBooking.pilotRated != true {
-                            CustomButton(
-                                title: "Rate Customer",
-                                action: { showRatingSheet = true },
-                                style: .primary
-                            )
+                        } else if currentBooking.status == .inProgress && currentBooking.pilotId == authService.currentUser?.id {
+                            // In Progress - show Finish Booking button
+                            if currentBooking.pilotCompleted != true && currentBooking.customerCompleted != true {
+                                CustomButton(
+                                    title: "Finish Booking",
+                                    action: { showFinishBookingAlert = true },
+                                    style: .primary,
+                                    isLoading: bookingService.isLoading
+                                )
+                                .padding(.horizontal)
+                            }
+
+                            // Show waiting message if pilot has completed but customer hasn't
+                            if currentBooking.pilotCompleted == true && currentBooking.customerCompleted != true {
+                                VStack(spacing: 12) {
+                                    Text("Booking finish is waiting to be confirmed by customer")
+                                        .font(.subheadline)
+                                        .foregroundColor(.orange)
+                                        .multilineTextAlignment(.center)
+                                        .padding()
+                                        .background(Color.orange.opacity(0.1))
+                                        .cornerRadius(8)
+                                }
+                                .padding(.horizontal)
+                            }
+
+                            // Completion Confirmation (when customer has marked as finished)
+                            if currentBooking.customerCompleted == true && currentBooking.pilotCompleted != true {
+                                VStack(spacing: 12) {
+                                    Text("Customer has marked this booking as finished")
+                                        .font(.subheadline)
+                                        .foregroundColor(.blue)
+                                        .multilineTextAlignment(.center)
+                                        .padding()
+                                        .background(Color.blue.opacity(0.1))
+                                        .cornerRadius(8)
+
+                                    CustomButton(
+                                        title: "Confirm Completion",
+                                        action: { showCompletionConfirmation = true },
+                                        style: .primary,
+                                        isLoading: bookingService.isLoading
+                                    )
+                                }
+                                .padding(.horizontal)
+                            }
+                        } else if currentBooking.status == .completed && currentBooking.pilotId == authService.currentUser?.id {
+                            // File Dispute button for completed bookings
+                            if currentBooking.pilotRated != true {
+                                CustomButton(
+                                    title: "Rate Customer",
+                                    action: { showRatingSheet = true },
+                                    style: .primary
+                                )
+                                .padding(.horizontal)
+                            }
+
+                            Button(action: { showCreateDisputeSheet = true }) {
+                                HStack {
+                                    Image(systemName: "exclamationmark.bubble.fill")
+                                    Text("File Dispute")
+                                }
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                                .foregroundColor(.orange)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 10)
+                                .frame(maxWidth: .infinity)
+                                .background(Color.orange.opacity(0.1))
+                                .cornerRadius(12)
+                            }
                             .padding(.horizontal)
                         }
                     }
@@ -796,6 +894,14 @@ struct BookingDetailView: View {
             }
         } message: {
             Text("Confirm that this booking is complete? This will finalize the booking and update your balance.")
+        }
+        .alert("Start Job", isPresented: $showStartJobAlert) {
+            Button("Cancel", role: .cancel) {}
+            Button("Start") {
+                startJob()
+            }
+        } message: {
+            Text("Start this job? The booking will be marked as In Progress and the customer will be notified.")
         }
         .alert("Booking Completed", isPresented: $showCompletionSuccess) {
             Button("OK") {
@@ -877,6 +983,16 @@ struct BookingDetailView: View {
             .presentationDetents([.height(214)])
             .presentationDragIndicator(.hidden)
             .presentationBackground(.clear)
+        }
+        .sheet(isPresented: $showExtendBookingSheet) {
+            ExtendBookingView(booking: currentBooking) {
+                Task {
+                    await refreshBooking()
+                }
+            }
+        }
+        .sheet(isPresented: $showCreateDisputeSheet) {
+            CreateDisputeView(bookingId: currentBooking.id)
         }
         .alert("Copied!", isPresented: $showCopyConfirmation) {
             Button("OK", role: .cancel) {}
@@ -981,8 +1097,14 @@ struct BookingDetailView: View {
             return .green
         case .accepted:
             return .blue
+        case .staffed:
+            return .cyan
+        case .inProgress:
+            return .orange
         case .completed:
             return .gray
+        case .expired:
+            return .secondary
         case .cancelled:
             return .red
         }
@@ -1086,6 +1208,18 @@ struct BookingDetailView: View {
         }
     }
     
+    private func startJob() {
+        Task {
+            do {
+                try await bookingService.startBookingInProgress(bookingId: currentBooking.id)
+                await refreshBooking()
+            } catch {
+                errorMessage = error.localizedDescription
+                showError = true
+            }
+        }
+    }
+
     private func submitRating(rating: Int, comment: String?) {
         guard let currentUser = authService.currentUser else { return }
         let customerId = currentBooking.customerId
