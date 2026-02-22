@@ -47,6 +47,7 @@ class NotificationManager: NSObject, ObservableObject {
         case hangerTalkMention = "HANGER_TALK_MENTION"
         case hangerTalkFollow = "HANGER_TALK_FOLLOW"
         case hangerTalkNewPost = "HANGER_TALK_NEW_POST"
+        case hangerTalkSpaceLive = "HANGER_TALK_SPACE_LIVE"
         case marketplaceNewOffer = "MARKETPLACE_NEW_OFFER"
         case marketplaceOfferAccepted = "MARKETPLACE_OFFER_ACCEPTED"
         case marketplaceOfferDeclined = "MARKETPLACE_OFFER_DECLINED"
@@ -863,6 +864,21 @@ class NotificationManager: NSObject, ObservableObject {
         )
     }
 
+    // MARK: - Hanger Talk Space Live Notification
+
+    /// Notify a follower that someone they follow started a live Space
+    func notifyHangerTalkSpaceLive(spaceId: UUID, followerUserId: UUID, hostCallSign: String, spaceTitle: String) async {
+        await sendRemotePushNotification(
+            recipientUserId: followerUserId,
+            title: "Live Space",
+            body: "\(hostCallSign) is live: \(spaceTitle)",
+            data: [
+                "spaceId": spaceId.uuidString,
+                "type": "hanger_talk_space_live"
+            ]
+        )
+    }
+
     // MARK: - Utility Methods
 
     /// Check if a specific notification type is enabled in user preferences
@@ -903,6 +919,8 @@ class NotificationManager: NSObject, ObservableObject {
             return preferences.hangerTalkFollows.system
         case .hangerTalkNewPost:
             return preferences.hangerTalkNewPosts.system
+        case .hangerTalkSpaceLive:
+            return preferences.hangerTalkSpaces.system
         case .marketplaceNewOffer, .marketplaceOfferAccepted, .marketplaceOfferDeclined:
             return preferences.marketplaceOffers.system
         case .marketplaceItemPurchased, .marketplaceItemShipped, .marketplaceDeliveryConfirmed:

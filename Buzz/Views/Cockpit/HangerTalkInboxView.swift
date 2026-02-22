@@ -105,6 +105,7 @@ enum InboxCategory: String, CaseIterable, Identifiable {
     case likes
     case replies
     case mentions
+    case spaces
 
     var id: String { rawValue }
 
@@ -114,6 +115,7 @@ enum InboxCategory: String, CaseIterable, Identifiable {
         case .likes: return "Likes"
         case .replies: return "Comments"
         case .mentions: return "Mentions"
+        case .spaces: return "Spaces"
         }
     }
 
@@ -123,6 +125,7 @@ enum InboxCategory: String, CaseIterable, Identifiable {
         case .likes: return "heart.fill"
         case .replies: return "arrowshape.turn.up.left.fill"
         case .mentions: return "at"
+        case .spaces: return "antenna.radiowaves.left.and.right"
         }
     }
 
@@ -132,6 +135,7 @@ enum InboxCategory: String, CaseIterable, Identifiable {
         case .likes: return .red
         case .replies: return .blue
         case .mentions: return .blue
+        case .spaces: return .purple
         }
     }
 
@@ -141,6 +145,7 @@ enum InboxCategory: String, CaseIterable, Identifiable {
         case .likes: return .red.opacity(0.15)
         case .replies: return .blue.opacity(0.15)
         case .mentions: return .blue.opacity(0.15)
+        case .spaces: return .purple.opacity(0.15)
         }
     }
 
@@ -150,6 +155,7 @@ enum InboxCategory: String, CaseIterable, Identifiable {
         case .likes: return .like
         case .replies: return .reply
         case .mentions: return .mention
+        case .spaces: return .spaceLive
         }
     }
 
@@ -159,6 +165,7 @@ enum InboxCategory: String, CaseIterable, Identifiable {
         case .likes: return "When someone likes your posts, you'll see it here."
         case .replies: return "When someone replies to your posts, you'll see it here."
         case .mentions: return "When someone mentions you, you'll see it here."
+        case .spaces: return "When someone you follow starts a live Space, you'll see it here."
         }
     }
 }

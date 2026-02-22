@@ -280,6 +280,7 @@ enum HangerTalkNotificationType: String, Codable, CaseIterable {
     case mention
     case follow
     case newPost = "new_post"
+    case spaceLive = "space_live"
 }
 
 // MARK: - Hanger Talk Notification Insert
@@ -368,6 +369,8 @@ struct HangerTalkNotificationItem: Identifiable {
             return "\(name) started following you"
         case .newPost:
             return "\(name) shared a new post"
+        case .spaceLive:
+            return "\(name) started a live Space"
         }
     }
 
@@ -378,6 +381,7 @@ struct HangerTalkNotificationItem: Identifiable {
         case .mention: return "at"
         case .follow: return "person.badge.plus"
         case .newPost: return "text.bubble.fill"
+        case .spaceLive: return "antenna.radiowaves.left.and.right"
         }
     }
 
@@ -388,6 +392,7 @@ struct HangerTalkNotificationItem: Identifiable {
         case .mention: return .blue
         case .follow: return .orange
         case .newPost: return .green
+        case .spaceLive: return .purple
         }
     }
 }

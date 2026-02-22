@@ -19,8 +19,12 @@ struct PublicProfileView: View {
     @StateObject private var droneRegistrationService = DroneRegistrationService()
     @StateObject private var academyService = AcademyService()
     @StateObject private var hangerTalkService = HangerTalkService()
+    @StateObject private var spaceService = HangerSpaceService()
 
     @State private var pilotProfile: UserProfile?
+    @State private var isPilotLive = false
+    @State private var pilotLiveSpace: HangerSpace?
+    @State private var showSpaceRoom = false
     @State private var isFollowingPilot = false
     @State private var followerCount = 0
     @State private var followingCount = 0
@@ -106,10 +110,16 @@ struct PublicProfileView: View {
                                 }
                             }
                             .overlay(
-                                Circle()
-                                    .stroke(Color.blue.opacity(0.3), lineWidth: 2)
+                                Group {
+                                    if isPilotLive {
+                                        LiveRingView(size: 98, showLabel: true)
+                                    } else {
+                                        Circle()
+                                            .stroke(Color.blue.opacity(0.3), lineWidth: 2)
+                                    }
+                                }
                             )
-                            
+
                             // Name, Call Sign, and Ratings below picture
                             VStack(alignment: .center, spacing: 4) {
                                 // Show callsign for pilots
@@ -219,6 +229,31 @@ struct PublicProfileView: View {
                     .padding(.vertical, 8)
                 }
                 
+                // Join Space button (show when pilot is live)
+                if isPilotLive, let liveSpace = pilotLiveSpace {
+                    Section {
+                        Button {
+                            showSpaceRoom = true
+                        } label: {
+                            HStack {
+                                Image(systemName: "antenna.radiowaves.left.and.right")
+                                    .font(.title3)
+                                    .foregroundColor(.purple)
+                                Text("Join Live Space")
+                                    .font(.headline)
+                                    .foregroundColor(.purple)
+                                Spacer()
+                                Text(liveSpace.title)
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                    .lineLimit(1)
+                            }
+                            .padding(.vertical, 8)
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                    }
+                }
+
                 // Message & Follow Buttons (only show if not own profile)
                 if !isOwnProfile {
                     Section {
@@ -363,6 +398,15 @@ struct PublicProfileView: View {
         } message: {
             Text(errorMessage)
         }
+        .sheet(isPresented: $showSpaceRoom) {
+            if let liveSpace = pilotLiveSpace {
+                HangerSpaceRoomView(
+                    spaceService: spaceService,
+                    space: liveSpace
+                )
+                .environmentObject(authService)
+            }
+        }
         .task {
             await loadProfileData()
         }
@@ -419,6 +463,13 @@ struct PublicProfileView: View {
             // Load pilot's hanger talk posts
             let currentUserId = authService.currentUser?.id ?? UUID()
             pilotPosts = await hangerTalkService.fetchUserPosts(authorId: pilotId, currentUserId: currentUserId)
+
+            // Check if pilot is currently live
+            isPilotLive = await spaceService.isUserLive(userId: pilotId)
+            if isPilotLive {
+                await spaceService.fetchLiveSpaces()
+                pilotLiveSpace = spaceService.liveSpaces.first(where: { $0.space.hostId == pilotId })?.space
+            }
 
             isLoading = false
         } catch {

@@ -10,6 +10,7 @@ import SwiftUI
 struct HangerTalkView: View {
     @EnvironmentObject var authService: AuthService
     @StateObject private var service = HangerTalkService()
+    @StateObject private var spaceService = HangerSpaceService()
     @State private var selectedTab: HangerTalkFeedTab = .forYou
     @State private var showCompose = false
     @State private var showDeletePostConfirmation = false
@@ -21,6 +22,9 @@ struct HangerTalkView: View {
     @State private var navigateToProfileId: UUID?
     @State private var selectedPostForDetail: HangerTalkPostWithAuthor?
     @State private var showInbox = false
+    @State private var showCreateSpace = false
+    @State private var activeSpaceWithHost: HangerSpaceWithHost?
+    @State private var showSpaceRoom = false
 
     /// Optional post ID to navigate to on load (from push notification deep link)
     var deepLinkPostId: UUID? = nil
@@ -30,6 +34,20 @@ struct HangerTalkView: View {
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
             VStack(spacing: 0) {
+                // Live Spaces Bar
+                if !spaceService.liveSpaces.isEmpty || true {
+                    HangerSpacesBar(
+                        spaces: spaceService.liveSpaces,
+                        onSpaceTap: { spaceWithHost in
+                            activeSpaceWithHost = spaceWithHost
+                            showSpaceRoom = true
+                        },
+                        onCreateTap: {
+                            showCreateSpace = true
+                        }
+                    )
+                }
+
                 // Tab Bar
                 feedTabBar
 
@@ -142,6 +160,33 @@ struct HangerTalkView: View {
             HangerTalkInboxView(service: service)
                 .environmentObject(authService)
         }
+        .sheet(isPresented: $showCreateSpace) {
+            CreateSpaceView(spaceService: spaceService) { newSpace in
+                Task {
+                    await spaceService.fetchLiveSpaces()
+                    // Open the room for the newly created space
+                    let host = HangerSpaceWithHost(
+                        id: newSpace.id,
+                        space: newSpace,
+                        hostCallSign: nil,
+                        hostProfilePictureUrl: nil,
+                        hostFullName: ""
+                    )
+                    activeSpaceWithHost = host
+                    showSpaceRoom = true
+                }
+            }
+            .environmentObject(authService)
+        }
+        .sheet(isPresented: $showSpaceRoom) {
+            if let spaceWithHost = activeSpaceWithHost {
+                HangerSpaceRoomView(
+                    spaceService: spaceService,
+                    space: spaceWithHost.space
+                )
+                .environmentObject(authService)
+            }
+        }
         .alert("Delete Post", isPresented: $showDeletePostConfirmation) {
             Button("Cancel", role: .cancel) {
                 postToDelete = nil
@@ -163,6 +208,13 @@ struct HangerTalkView: View {
             guard let userId = authService.activeUserId else { return }
             await service.fetchFeed(currentUserId: userId)
             await service.fetchUnreadCount(userId: userId)
+            await spaceService.fetchLiveSpaces()
+
+            // Fetch live host IDs for LIVE indicators on post cards
+            let authorIds = service.feedPosts.map { $0.post.authorId }
+            if !authorIds.isEmpty {
+                await spaceService.fetchLiveHostIds(authorIds: authorIds)
+            }
 
             // If opened via deep link with a specific post, fetch and navigate to it
             if let postId = deepLinkPostId {
@@ -172,6 +224,9 @@ struct HangerTalkView: View {
             } else if deepLinkOpenInbox {
                 showInbox = true
             }
+
+            // Subscribe to live spaces feed for real-time updates
+            await spaceService.subscribeToLiveSpacesFeed()
 
             // Poll for new notifications every 30 seconds
             while !Task.isCancelled {
@@ -251,6 +306,7 @@ struct HangerTalkView: View {
                     ForEach(currentPosts) { postWithAuthor in
                         HangerTalkPostCard(
                             postWithAuthor: postWithAuthor,
+                            isAuthorLive: spaceService.liveHostIds.contains(postWithAuthor.post.authorId),
                             onLike: {
                                 guard let userId = authService.activeUserId else { return }
                                 Task {

@@ -28,6 +28,7 @@ struct NotificationPreferences: Codable {
     var hangerTalkMentions: NotificationDeliveryOptions
     var hangerTalkFollows: NotificationDeliveryOptions
     var hangerTalkNewPosts: NotificationDeliveryOptions
+    var hangerTalkSpaces: NotificationDeliveryOptions
 
     // Marketplace
     var marketplaceOffers: NotificationDeliveryOptions
@@ -51,6 +52,7 @@ struct NotificationPreferences: Codable {
         self.hangerTalkMentions = NotificationDeliveryOptions(system: true, email: false, text: false)
         self.hangerTalkFollows = NotificationDeliveryOptions(system: true, email: false, text: false)
         self.hangerTalkNewPosts = NotificationDeliveryOptions(system: true, email: false, text: false)
+        self.hangerTalkSpaces = NotificationDeliveryOptions(system: true, email: false, text: false)
         self.marketplaceOffers = NotificationDeliveryOptions(system: true, email: false, text: false)
         self.marketplaceTransactions = NotificationDeliveryOptions(system: true, email: false, text: false)
         self.marketplaceReviews = NotificationDeliveryOptions(system: true, email: false, text: false)
@@ -72,6 +74,7 @@ struct NotificationPreferences: Codable {
         case hangerTalkMentions = "hanger_talk_mentions"
         case hangerTalkFollows = "hanger_talk_follows"
         case hangerTalkNewPosts = "hanger_talk_new_posts"
+        case hangerTalkSpaces = "hanger_talk_spaces"
         case marketplaceOffers = "marketplace_offers"
         case marketplaceTransactions = "marketplace_transactions"
         case marketplaceReviews = "marketplace_reviews"
@@ -98,6 +101,7 @@ struct NotificationPreferences: Codable {
         hangerTalkMentions = (try? container.decode(NotificationDeliveryOptions.self, forKey: .hangerTalkMentions)) ?? defaults
         hangerTalkFollows = (try? container.decode(NotificationDeliveryOptions.self, forKey: .hangerTalkFollows)) ?? defaults
         hangerTalkNewPosts = (try? container.decode(NotificationDeliveryOptions.self, forKey: .hangerTalkNewPosts)) ?? defaults
+        hangerTalkSpaces = (try? container.decode(NotificationDeliveryOptions.self, forKey: .hangerTalkSpaces)) ?? defaults
         marketplaceOffers = (try? container.decode(NotificationDeliveryOptions.self, forKey: .marketplaceOffers)) ?? defaults
         marketplaceTransactions = (try? container.decode(NotificationDeliveryOptions.self, forKey: .marketplaceTransactions)) ?? defaults
         marketplaceReviews = (try? container.decode(NotificationDeliveryOptions.self, forKey: .marketplaceReviews)) ?? defaults

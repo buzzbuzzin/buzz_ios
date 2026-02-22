@@ -9,6 +9,7 @@ import SwiftUI
 
 struct HangerTalkPostCard: View {
     let postWithAuthor: HangerTalkPostWithAuthor
+    var isAuthorLive: Bool = false
     let onLike: () -> Void
     let onRepost: () -> Void
     let onBookmark: () -> Void
@@ -81,7 +82,7 @@ struct HangerTalkPostCard: View {
                     onAuthorTap?()
                 }
             } label: {
-                Group {
+                ZStack {
                     if let urlString = postWithAuthor.authorProfilePictureUrl,
                        let url = URL(string: urlString) {
                         AsyncImage(url: url) { image in
@@ -95,6 +96,10 @@ struct HangerTalkPostCard: View {
                         Image(systemName: "person.circle.fill")
                             .font(.system(size: 40))
                             .foregroundColor(.secondary)
+                    }
+
+                    if isAuthorLive {
+                        LiveRingView(size: 46, showLabel: true)
                     }
                 }
             }
