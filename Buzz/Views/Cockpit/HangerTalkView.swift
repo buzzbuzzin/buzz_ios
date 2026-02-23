@@ -65,7 +65,7 @@ struct HangerTalkView: View {
                 NavigationLink(
                     destination: Group {
                         if let profileId = navigateToProfileId {
-                            PublicProfileView(pilotId: profileId)
+                            PublicProfileView(pilotId: profileId, sharedSpaceService: spaceService)
                                 .environmentObject(authService)
                         }
                     },

@@ -14,6 +14,8 @@ struct HangerSpaceRoomView: View {
     @Environment(\.dismiss) var dismiss
 
     @State private var showEndConfirmation = false
+    @State private var showError = false
+    @State private var actionErrorMessage = ""
 
     private var isHost: Bool {
         space.hostId == authService.activeUserId
@@ -80,12 +82,22 @@ struct HangerSpaceRoomView: View {
                 Button("Cancel", role: .cancel) {}
                 Button("End Space", role: .destructive) {
                     Task {
-                        try? await spaceService.endSpace(spaceId: space.id)
-                        dismiss()
+                        do {
+                            try await spaceService.endSpace(spaceId: space.id)
+                            dismiss()
+                        } catch {
+                            actionErrorMessage = error.localizedDescription
+                            showError = true
+                        }
                     }
                 }
             } message: {
                 Text("This will end the Space for all participants.")
+            }
+            .alert("Error", isPresented: $showError) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(actionErrorMessage)
             }
             .onChange(of: spaceService.currentSpace?.status) { newStatus in
                 if newStatus == .ended {
@@ -105,8 +117,13 @@ struct HangerSpaceRoomView: View {
                 } else {
                     Task {
                         guard let userId = authService.activeUserId else { return }
-                        try? await spaceService.leaveSpace(spaceId: space.id, userId: userId)
-                        dismiss()
+                        do {
+                            try await spaceService.leaveSpace(spaceId: space.id, userId: userId)
+                            dismiss()
+                        } catch {
+                            actionErrorMessage = error.localizedDescription
+                            showError = true
+                        }
                     }
                 }
             } label: {
@@ -254,8 +271,13 @@ struct HangerSpaceRoomView: View {
                 Button {
                     Task {
                         guard let userId = authService.activeUserId else { return }
-                        try? await spaceService.leaveSpace(spaceId: space.id, userId: userId)
-                        dismiss()
+                        do {
+                            try await spaceService.leaveSpace(spaceId: space.id, userId: userId)
+                            dismiss()
+                        } catch {
+                            actionErrorMessage = error.localizedDescription
+                            showError = true
+                        }
                     }
                 } label: {
                     Text("Leave")

@@ -19,7 +19,9 @@ struct PublicProfileView: View {
     @StateObject private var droneRegistrationService = DroneRegistrationService()
     @StateObject private var academyService = AcademyService()
     @StateObject private var hangerTalkService = HangerTalkService()
-    @StateObject private var spaceService = HangerSpaceService()
+    @StateObject private var localSpaceService = HangerSpaceService()
+    var sharedSpaceService: HangerSpaceService?
+    private var spaceService: HangerSpaceService { sharedSpaceService ?? localSpaceService }
 
     @State private var pilotProfile: UserProfile?
     @State private var isPilotLive = false
@@ -467,8 +469,7 @@ struct PublicProfileView: View {
             // Check if pilot is currently live
             isPilotLive = await spaceService.isUserLive(userId: pilotId)
             if isPilotLive {
-                await spaceService.fetchLiveSpaces()
-                pilotLiveSpace = spaceService.liveSpaces.first(where: { $0.space.hostId == pilotId })?.space
+                pilotLiveSpace = await spaceService.fetchLiveSpaceForHost(hostId: pilotId)
             }
 
             isLoading = false

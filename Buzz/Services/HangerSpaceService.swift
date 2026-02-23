@@ -34,6 +34,8 @@ class HangerSpaceService: ObservableObject {
     private let supabase = SupabaseClient.shared.client
     private var realtimeChannel: RealtimeChannelV2?
     private var feedRealtimeChannel: RealtimeChannelV2?
+    private var realtimeTasks: [Task<Void, Never>] = []
+    private var feedRealtimeTasks: [Task<Void, Never>] = []
 
     // MARK: - Fetch Live Spaces (for horizontal scroll at top of feed)
 
@@ -218,10 +220,7 @@ class HangerSpaceService: ObservableObject {
 
         currentSpace = space
 
-        // Subscribe to realtime updates
-        await subscribeToSpaceUpdates(spaceId: spaceId)
-
-        // Fetch current participants
+        // Fetch current participants (realtime subscription handled by HangerSpaceRoomView)
         await refreshParticipants(spaceId: spaceId)
     }
 
@@ -252,6 +251,12 @@ class HangerSpaceService: ObservableObject {
 
     func leaveSpace(spaceId: UUID, userId: UUID) async throws {
         if DemoModeManager.shared.isDemoModeEnabled { return }
+
+        // If the host leaves, auto-end the space for all participants
+        if currentSpace?.hostId == userId {
+            try await endSpace(spaceId: spaceId)
+            return
+        }
 
         try await supabase
             .from("hanger_space_participants")
@@ -456,6 +461,9 @@ class HangerSpaceService: ObservableObject {
     // MARK: - Supabase Realtime Subscriptions
 
     func subscribeToSpaceUpdates(spaceId: UUID) async {
+        // Cancel any existing subscription first to prevent leaks
+        await cancelSpaceSubscription()
+
         let channel = supabase.realtimeV2.channel("space_\(spaceId.uuidString)")
 
         let participantChanges = channel.postgresChange(
@@ -481,27 +489,30 @@ class HangerSpaceService: ObservableObject {
 
         await channel.subscribe()
 
-        Task {
+        let t1 = Task {
             for await _ in participantChanges {
                 await refreshParticipants(spaceId: spaceId)
             }
         }
-        Task {
+        let t2 = Task {
             for await _ in spaceChanges {
-                // Refresh the space status - check if ended
                 await refreshSpaceStatus(spaceId: spaceId)
             }
         }
-        Task {
+        let t3 = Task {
             for await _ in requestChanges {
                 await refreshSpeakerRequests(spaceId: spaceId)
             }
         }
 
+        realtimeTasks = [t1, t2, t3]
         self.realtimeChannel = channel
     }
 
     func subscribeToLiveSpacesFeed() async {
+        // Skip if already subscribed
+        guard feedRealtimeChannel == nil else { return }
+
         let channel = supabase.realtimeV2.channel("live_spaces_feed")
 
         let changes = channel.postgresChange(
@@ -512,31 +523,39 @@ class HangerSpaceService: ObservableObject {
 
         await channel.subscribe()
 
-        Task {
+        let t1 = Task {
             for await _ in changes {
                 await fetchLiveSpaces()
             }
         }
 
+        feedRealtimeTasks = [t1]
         self.feedRealtimeChannel = channel
     }
 
-    func unsubscribeFromSpaceUpdates() {
-        Task {
-            if let channel = realtimeChannel {
-                await channel.unsubscribe()
-            }
-            realtimeChannel = nil
+    private func cancelSpaceSubscription() async {
+        for task in realtimeTasks { task.cancel() }
+        realtimeTasks = []
+        if let channel = realtimeChannel {
+            await channel.unsubscribe()
         }
+        realtimeChannel = nil
+    }
+
+    func unsubscribeFromSpaceUpdates() {
+        for task in realtimeTasks { task.cancel() }
+        realtimeTasks = []
+        let channel = realtimeChannel
+        realtimeChannel = nil
+        Task { await channel?.unsubscribe() }
     }
 
     func unsubscribeFromFeedUpdates() {
-        Task {
-            if let channel = feedRealtimeChannel {
-                await channel.unsubscribe()
-            }
-            feedRealtimeChannel = nil
-        }
+        for task in feedRealtimeTasks { task.cancel() }
+        feedRealtimeTasks = []
+        let channel = feedRealtimeChannel
+        feedRealtimeChannel = nil
+        Task { await channel?.unsubscribe() }
     }
 
     // MARK: - Refresh Space Status
