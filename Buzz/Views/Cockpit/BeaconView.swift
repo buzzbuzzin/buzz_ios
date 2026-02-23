@@ -10,18 +10,21 @@ import Auth
 
 struct BeaconView: View {
     @EnvironmentObject var authService: AuthService
+    @Environment(\.dismiss) private var dismiss
     @State private var isLoading: Bool = true
+    @State private var hasLoadedOnce: Bool = false
     @State private var activeMissions: [BeaconMission] = []
     @State private var showOnboarding: Bool = false
     @State private var isBeaconVolunteer: Bool = false
     @State private var trainingProgress: [BeaconTrainingProgress] = []
     @State private var showAboutProgram: Bool = false
-    
+
     var body: some View {
         Group {
-            if isLoading {
-                // Show nothing while loading to prevent flash
-                Color.clear
+            if isLoading && !hasLoadedOnce {
+                ProgressView()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(Color(.systemBackground))
             } else if isBeaconVolunteer {
                 // Active volunteers see dashboard directly
                 BeaconVolunteerDashboardView(showAboutProgram: $showAboutProgram)
@@ -32,6 +35,17 @@ struct BeaconView: View {
                     showOnboarding: $showOnboarding,
                     onLoadData: loadData
                 )
+            }
+        }
+        .toolbar {
+            ToolbarItem(placement: .navigationBarLeading) {
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.title2)
+                        .foregroundColor(.secondary)
+                }
             }
         }
         .task {
@@ -63,12 +77,15 @@ struct BeaconView: View {
             }
         }
     }
-    
+
     private func loadData() async {
-        isLoading = true
-        
-        // Check if user is a beacon volunteer
-        if let userId = authService.currentUser?.id {
+        // Only show full loading state on first load to prevent flashing
+        if !hasLoadedOnce {
+            isLoading = true
+        }
+
+        // Use activeUserId which handles auth timing better on physical devices
+        if let userId = authService.activeUserId {
             do {
                 let beaconService = BeaconService()
                 isBeaconVolunteer = try await beaconService.isUserBeaconVolunteer(userId: userId)
@@ -77,11 +94,12 @@ struct BeaconView: View {
                 print("Error loading beacon status: \(error)")
             }
         }
-        
+
         // Demo data - will be replaced with actual beacon missions
         activeMissions = []
-        
+
         isLoading = false
+        hasLoadedOnce = true
     }
 }
 

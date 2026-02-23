@@ -847,17 +847,6 @@ struct CockpitView: View {
             NavigationView {
                 BeaconView()
                     .environmentObject(authService)
-                    .toolbar {
-                        ToolbarItem(placement: .navigationBarLeading) {
-                            Button {
-                                showBeacon = false
-                            } label: {
-                                Image(systemName: "xmark.circle.fill")
-                                    .font(.title2)
-                                    .foregroundColor(.secondary)
-                            }
-                        }
-                    }
             }
         }
         .fullScreenCover(isPresented: $showTopGun) {
