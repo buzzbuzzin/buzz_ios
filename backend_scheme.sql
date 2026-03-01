@@ -1,6 +1,15 @@
 -- WARNING: This schema is for context only and is not meant to be run.
 -- Table order and constraints may not be valid for execution.
 
+CREATE TABLE public.app_version_tracking (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  user_id uuid NOT NULL UNIQUE,
+  platform text NOT NULL,
+  app_version text NOT NULL,
+  last_seen_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT app_version_tracking_pkey PRIMARY KEY (id),
+  CONSTRAINT app_version_tracking_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id)
+);
 CREATE TABLE public.availability_blockouts (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
   pilot_id uuid NOT NULL,
@@ -97,6 +106,22 @@ CREATE TABLE public.booking_crew (
   CONSTRAINT booking_crew_booking_id_fkey FOREIGN KEY (booking_id) REFERENCES public.bookings(id),
   CONSTRAINT booking_crew_pilot_id_fkey FOREIGN KEY (pilot_id) REFERENCES public.profiles(id)
 );
+CREATE TABLE public.booking_disputes (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  booking_id uuid NOT NULL,
+  initiated_by uuid NOT NULL,
+  reason text NOT NULL,
+  description text,
+  status text NOT NULL DEFAULT 'open'::text CHECK (status = ANY (ARRAY['open'::text, 'under_review'::text, 'resolved'::text, 'dismissed'::text])),
+  resolution text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  resolved_at timestamp with time zone,
+  resolved_by uuid,
+  CONSTRAINT booking_disputes_pkey PRIMARY KEY (id),
+  CONSTRAINT booking_disputes_booking_id_fkey FOREIGN KEY (booking_id) REFERENCES public.bookings(id),
+  CONSTRAINT booking_disputes_initiated_by_fkey FOREIGN KEY (initiated_by) REFERENCES public.profiles(id),
+  CONSTRAINT booking_disputes_resolved_by_fkey FOREIGN KEY (resolved_by) REFERENCES public.profiles(id)
+);
 CREATE TABLE public.booking_editors (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
   booking_id uuid NOT NULL,
@@ -132,7 +157,7 @@ CREATE TABLE public.bookings (
   location_name text NOT NULL,
   description text NOT NULL,
   payment_amount numeric NOT NULL,
-  status text NOT NULL DEFAULT 'available'::text CHECK (status = ANY (ARRAY['available'::text, 'accepted'::text, 'completed'::text, 'cancelled'::text])),
+  status text NOT NULL DEFAULT 'available'::text CHECK (status = ANY (ARRAY['available'::text, 'accepted'::text, 'staffed'::text, 'in_progress'::text, 'completed'::text, 'expired'::text, 'cancelled'::text])),
   estimated_flight_hours double precision,
   created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
   scheduled_date timestamp with time zone,
@@ -159,6 +184,8 @@ CREATE TABLE public.bookings (
   government_agency text CHECK (government_agency IS NULL OR (government_agency = ANY (ARRAY['police_department'::text, 'fire_department'::text, 'sheriff_office'::text, 'state_emergency_management'::text]))),
   uses_beacon_program boolean DEFAULT false,
   number_of_pilots integer DEFAULT 1,
+  expires_at timestamp with time zone,
+  expiration_notified boolean DEFAULT false,
   CONSTRAINT bookings_pkey PRIMARY KEY (id),
   CONSTRAINT bookings_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES public.profiles(id),
   CONSTRAINT bookings_pilot_id_fkey FOREIGN KEY (pilot_id) REFERENCES public.profiles(id)
@@ -342,6 +369,7 @@ CREATE TABLE public.direct_messages (
   created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
   deleted_at timestamp with time zone,
   deleted_by uuid,
+  metadata jsonb,
   CONSTRAINT direct_messages_pkey PRIMARY KEY (id),
   CONSTRAINT direct_messages_from_user_id_fkey FOREIGN KEY (from_user_id) REFERENCES public.profiles(id),
   CONSTRAINT direct_messages_to_user_id_fkey FOREIGN KEY (to_user_id) REFERENCES public.profiles(id),
@@ -603,6 +631,44 @@ CREATE TABLE public.hanger_saved_posts (
   CONSTRAINT hanger_saved_posts_pkey PRIMARY KEY (id),
   CONSTRAINT hangar_saved_posts_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id),
   CONSTRAINT hangar_saved_posts_post_id_fkey FOREIGN KEY (post_id) REFERENCES public.hanger_posts(id)
+);
+CREATE TABLE public.hanger_space_participants (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  space_id uuid NOT NULL,
+  user_id uuid NOT NULL,
+  role text NOT NULL DEFAULT 'listener'::text CHECK (role = ANY (ARRAY['host'::text, 'speaker'::text, 'listener'::text])),
+  joined_at timestamp with time zone NOT NULL DEFAULT now(),
+  left_at timestamp with time zone,
+  CONSTRAINT hanger_space_participants_pkey PRIMARY KEY (id),
+  CONSTRAINT hanger_space_participants_space_id_fkey FOREIGN KEY (space_id) REFERENCES public.hanger_spaces(id),
+  CONSTRAINT hanger_space_participants_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id)
+);
+CREATE TABLE public.hanger_space_speaker_requests (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  space_id uuid NOT NULL,
+  user_id uuid NOT NULL,
+  status text NOT NULL DEFAULT 'pending'::text CHECK (status = ANY (ARRAY['pending'::text, 'approved'::text, 'declined'::text])),
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT hanger_space_speaker_requests_pkey PRIMARY KEY (id),
+  CONSTRAINT hanger_space_speaker_requests_space_id_fkey FOREIGN KEY (space_id) REFERENCES public.hanger_spaces(id),
+  CONSTRAINT hanger_space_speaker_requests_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id)
+);
+CREATE TABLE public.hanger_spaces (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  host_id uuid NOT NULL,
+  title text NOT NULL,
+  description text,
+  status text NOT NULL DEFAULT 'live'::text CHECK (status = ANY (ARRAY['scheduled'::text, 'live'::text, 'ended'::text])),
+  livekit_room_name text NOT NULL UNIQUE,
+  started_at timestamp with time zone,
+  ended_at timestamp with time zone,
+  scheduled_at timestamp with time zone,
+  listener_count integer NOT NULL DEFAULT 0,
+  speaker_count integer NOT NULL DEFAULT 1,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT hanger_spaces_pkey PRIMARY KEY (id),
+  CONSTRAINT hanger_spaces_host_id_fkey FOREIGN KEY (host_id) REFERENCES public.profiles(id)
 );
 CREATE TABLE public.hanger_talk_bookmarks (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
