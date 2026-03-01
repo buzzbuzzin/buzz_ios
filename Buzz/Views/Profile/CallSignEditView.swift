@@ -146,7 +146,17 @@ struct CallSignEditView: View {
             callSignValidationError = "Call sign 'Maverick' is reserved and cannot be used"
             return
         }
-        
+
+        // Check if callsign matches real name
+        if let nameError = CallSignValidator.realNameViolation(
+            callSign: normalizedCallSign,
+            firstName: authService.userProfile?.firstName ?? "",
+            lastName: authService.userProfile?.lastName ?? ""
+        ) {
+            callSignValidationError = nameError
+            return
+        }
+
         // Check uniqueness (only if changed from current)
         let currentCallSign = authService.userProfile?.callSign?.uppercased().trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         if normalizedCallSign != currentCallSign {
@@ -204,15 +214,26 @@ struct CallSignEditView: View {
                 showError = true
                 return
             }
-            
+
             // Ensure callsign only contains letters
             if !normalizedCallSign.allSatisfy({ $0.isLetter }) {
                 errorMessage = "Call sign can only contain letters"
                 showError = true
                 return
             }
+
+            // Check if callsign matches real name
+            if let nameError = CallSignValidator.realNameViolation(
+                callSign: normalizedCallSign,
+                firstName: authService.userProfile?.firstName ?? "",
+                lastName: authService.userProfile?.lastName ?? ""
+            ) {
+                errorMessage = nameError
+                showError = true
+                return
+            }
         }
-        
+
         guard let currentUser = authService.currentUser else { return }
         
         isLoading = true

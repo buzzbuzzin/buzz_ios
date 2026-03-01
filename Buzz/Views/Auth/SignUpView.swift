@@ -427,7 +427,15 @@ struct SignUpView: View {
             callSignValidationError = "Call sign 'Maverick' is reserved and cannot be used"
             return
         }
-        
+
+        // Check if callsign matches real name
+        if let nameError = CallSignValidator.realNameViolation(
+            callSign: normalizedCallSign, firstName: firstName, lastName: lastName
+        ) {
+            callSignValidationError = nameError
+            return
+        }
+
         // Check uniqueness (async)
         checkCallSignAvailability()
     }
@@ -900,7 +908,7 @@ struct SignUpView: View {
     }
     
     // MARK: - Pilot Sign Up Fields
-    
+
     private var pilotSignUpFields: some View {
         Group {
             // First Name
@@ -911,11 +919,14 @@ struct SignUpView: View {
                     .foregroundColor(.primary)
                 TextField("Enter your first name", text: $firstName)
                     .textContentType(.givenName)
+                    .onChange(of: firstName) { _, _ in
+                        if !callSign.isEmpty { validateCallSign() }
+                    }
                     .padding()
                     .background(Color(.systemGray6))
                     .cornerRadius(10)
             }
-            
+
             // Last Name
             VStack(alignment: .leading, spacing: 8) {
                 Text("Last Name")
@@ -924,6 +935,9 @@ struct SignUpView: View {
                     .foregroundColor(.primary)
                 TextField("Enter your last name", text: $lastName)
                     .textContentType(.familyName)
+                    .onChange(of: lastName) { _, _ in
+                        if !callSign.isEmpty { validateCallSign() }
+                    }
                     .padding()
                     .background(Color(.systemGray6))
                     .cornerRadius(10)
@@ -1135,15 +1149,24 @@ struct SignUpView: View {
                 showError = true
                 return
             }
-            
+
             // Ensure callsign only contains letters
             if !normalizedCallSign.allSatisfy({ $0.isLetter }) {
                 errorMessage = "Call sign can only contain letters"
                 showError = true
                 return
             }
+
+            // Check if callsign matches real name
+            if let nameError = CallSignValidator.realNameViolation(
+                callSign: normalizedCallSign, firstName: firstName, lastName: lastName
+            ) {
+                errorMessage = nameError
+                showError = true
+                return
+            }
         }
-        
+
         // Validate password before signup
         if !isValidPassword(password) {
             errorMessage = "Password must be at least 8 characters and include uppercase, lowercase, and a digit"
