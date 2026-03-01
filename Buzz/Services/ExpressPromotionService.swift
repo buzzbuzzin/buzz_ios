@@ -61,7 +61,7 @@ class ExpressPromotionService: ObservableObject {
             
             for (index, document) in documents.enumerated() {
                 let fileName = fileNames[index]
-                let filePath = "\(pilotId.uuidString)/\(UUID().uuidString)_\(fileName)"
+                let filePath = "\(pilotId.uuidString.lowercased())/\(UUID().uuidString.lowercased())_\(fileName)"
                 
                 // Determine content type
                 let contentType: String

@@ -48,7 +48,7 @@ class ProfilePictureService: ObservableObject {
                 throw NSError(domain: "ProfilePictureService", code: 0, userInfo: [NSLocalizedDescriptionKey: "Failed to compress image"])
             }
             
-            let fileName = "\(userId.uuidString)/profile.jpg"
+            let fileName = "\(userId.uuidString.lowercased())/profile.jpg"
             print("DEBUG: Uploading to path: \(fileName)")
             print("DEBUG: Current auth.uid(): \(session.user.id.uuidString)")
             print("DEBUG: Access token length: \(session.accessToken.count)")
@@ -126,8 +126,8 @@ class ProfilePictureService: ObservableObject {
         errorMessage = nil
         
         do {
-            let fileName = "\(userId.uuidString)/profile.jpg"
-            
+            let fileName = "\(userId.uuidString.lowercased())/profile.jpg"
+
             // Delete from storage
             try await supabase.storage
                 .from(bucketName)

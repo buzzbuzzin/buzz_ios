@@ -61,7 +61,7 @@ class LicenseUploadService: ObservableObject {
                 )
             }
             
-            let filePath = "\(pilotId.uuidString)/\(fileName)"
+            let filePath = "\(pilotId.uuidString.lowercased())/\(fileName)"
             print("DEBUG LicenseUpload: Uploading to path: \(filePath)")
             
             // Upload to Supabase Storage
