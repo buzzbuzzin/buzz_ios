@@ -786,7 +786,7 @@ struct BeaconVolunteerDashboardView: View {
             try await bookingService.fetchAvailableBookings(forPilotId: userId)
             searchRescueBookings = bookingService.availableBookings.filter { booking in
                 booking.specialization == .searchRescue &&
-                (booking.status == .available || booking.status == .accepted)
+                booking.status == .available
             }
         } catch {
             print("Error loading S&R bookings: \(error)")
