@@ -16,6 +16,7 @@ struct CockpitView: View {
     @StateObject private var bookingService = BookingService()
     @StateObject private var locationManager = BookingMapLocationManager()
     @StateObject private var hangerTalkService = HangerTalkService()
+    @StateObject private var beaconService = BeaconService()
     @State private var hasNearbyBeaconMissions = false
     @State private var hasUnreadHangerTalk = false
     @State private var showChecklistSelection = false
@@ -534,6 +535,9 @@ struct CockpitView: View {
         .task {
             locationManager.requestPermission()
             locationManager.startLocationUpdates()
+            if let userId = authService.activeUserId {
+                try? await beaconService.getVolunteerStatus(userId: userId)
+            }
             await checkForNearbyBeaconMissions()
             if let userId = authService.activeUserId {
                 await hangerTalkService.fetchUnreadCount(userId: userId)
@@ -986,29 +990,42 @@ struct CockpitView: View {
     }
     
     private func checkForNearbyBeaconMissions() async {
-        // Load available bookings first
-        if let pilotId = authService.activeUserId {
-            try? await bookingService.fetchAvailableBookings(forPilotId: pilotId)
+        // Only show beacon notifications for enrolled and available volunteers
+        guard authService.userProfile?.isBeaconVolunteer == true,
+              beaconService.volunteerStatus?.isAvailable == true else {
+            hasNearbyBeaconMissions = false
+            return
         }
-        
+
+        guard let pilotId = authService.activeUserId else { return }
+
+        // Load available bookings first
+        try? await bookingService.fetchAvailableBookings(forPilotId: pilotId)
+
+        // Get bookings the pilot already joined so we can exclude them
+        let joinedBookingIds = Set(
+            (try? await bookingService.fetchPilotCrewMemberships(pilotId: pilotId))?.map(\.bookingId) ?? []
+        )
+
         // Check for beacon missions (S&R bookings with usesBeaconProgram == true)
         let beaconMissions = bookingService.availableBookings.filter { booking in
             booking.specialization == .searchRescue &&
             booking.usesBeaconProgram == true &&
-            booking.status == .available
+            booking.status == .available &&
+            !joinedBookingIds.contains(booking.id)
         }
-        
+
         // Filter by proximity if location is available
         if let pilotLocation = locationManager.currentLocation {
             let pilotCLLocation = CLLocation(latitude: pilotLocation.latitude, longitude: pilotLocation.longitude)
             let radiusMeters = 25.0 * 1609.34 // 25 miles default radius
-            
+
             let nearbyBeaconMissions = beaconMissions.filter { booking in
                 let bookingLocation = CLLocation(latitude: booking.locationLat, longitude: booking.locationLng)
                 let distance = pilotCLLocation.distance(from: bookingLocation)
                 return distance <= radiusMeters
             }
-            
+
             await MainActor.run {
                 hasNearbyBeaconMissions = !nearbyBeaconMissions.isEmpty
             }
