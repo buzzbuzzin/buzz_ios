@@ -84,6 +84,112 @@ function extractImageFromHtml(html: string): string | null {
   return null
 }
 
+function isValidImageUrl(url: string): boolean {
+  if (!url || url.length < 10) return false
+  // Skip tiny icons, SVGs, tracking pixels, data URIs
+  if (url.includes(".svg") || url.includes("data:") || url.includes("1x1") ||
+      url.includes("pixel") || url.includes("gravatar") || url.includes("favicon") ||
+      url.includes("logo") || url.includes("icon") || url.includes("badge") ||
+      url.includes("spinner") || url.includes("loading") || url.includes("flag")) {
+    return false
+  }
+  return true
+}
+
+/**
+ * Fetch an article's web page and extract the first meaningful image.
+ * Priority: og:image > JSON-LD image > first content <img>
+ */
+async function extractImageFromPage(url: string): Promise<string | null> {
+  try {
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 5000)
+
+    const response = await fetch(url, {
+      headers: {
+        "User-Agent": "Buzz/1.0",
+        "Accept": "text/html",
+      },
+      signal: controller.signal,
+    })
+    clearTimeout(timeoutId)
+
+    if (!response.ok) return null
+
+    const html = await response.text()
+
+    // 1. Try og:image meta tag
+    const ogImageMatch = html.match(/<meta\s+(?:property|name)=["']og:image["']\s+content=["']([^"']+)["']/i)
+      || html.match(/<meta\s+content=["']([^"']+)["']\s+(?:property|name)=["']og:image["']/i)
+    if (ogImageMatch && ogImageMatch[1] && isValidImageUrl(ogImageMatch[1])) {
+      return ogImageMatch[1]
+    }
+
+    // 2. Try twitter:image meta tag
+    const twitterImageMatch = html.match(/<meta\s+(?:property|name)=["']twitter:image["']\s+content=["']([^"']+)["']/i)
+      || html.match(/<meta\s+content=["']([^"']+)["']\s+(?:property|name)=["']twitter:image["']/i)
+    if (twitterImageMatch && twitterImageMatch[1] && isValidImageUrl(twitterImageMatch[1])) {
+      return twitterImageMatch[1]
+    }
+
+    // 3. Try JSON-LD structured data
+    const jsonLdMatch = html.match(/<script\s+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/i)
+    if (jsonLdMatch && jsonLdMatch[1]) {
+      try {
+        const jsonLd = JSON.parse(jsonLdMatch[1])
+        const imageData = jsonLd.image || jsonLd.thumbnailUrl
+        if (imageData) {
+          const imageUrl = typeof imageData === "string" ? imageData
+            : (imageData.url || imageData[0]?.url || (Array.isArray(imageData) ? imageData[0] : null))
+          if (imageUrl && typeof imageUrl === "string" && isValidImageUrl(imageUrl)) {
+            return imageUrl
+          }
+        }
+      } catch {
+        // Invalid JSON-LD, skip
+      }
+    }
+
+    // 4. Fallback: first meaningful <img> in the article body
+    const imgRegex = /<img[^>]+src=["']([^"']+)["'][^>]*>/gi
+    let imgMatch
+    while ((imgMatch = imgRegex.exec(html)) !== null) {
+      const src = imgMatch[1]
+      if (isValidImageUrl(src) && (src.includes(".jpg") || src.includes(".jpeg") ||
+          src.includes(".png") || src.includes(".webp") || src.includes("wp-content") ||
+          src.includes("uploads") || src.includes("images"))) {
+        return src
+      }
+    }
+
+    return null
+  } catch {
+    // Timeout or network error — silently return null
+    return null
+  }
+}
+
+/**
+ * Enrich articles with images by fetching each article's page in parallel.
+ * Only fetches for articles that don't already have an imageUrl.
+ */
+async function enrichArticlesWithImages(articles: NewsArticle[]): Promise<NewsArticle[]> {
+  const results = await Promise.allSettled(
+    articles.map(async (article) => {
+      if (article.imageUrl) return article
+      const imageUrl = await extractImageFromPage(article.url)
+      return { ...article, imageUrl }
+    })
+  )
+
+  return results.map((result, index) => {
+    if (result.status === "fulfilled") {
+      return result.value
+    }
+    return articles[index] // Keep original on failure
+  })
+}
+
 // --- FAA News ---
 
 async function fetchFAANews(): Promise<NewsArticle[]> {
@@ -355,6 +461,9 @@ serve(async (req) => {
         articles = await fetchGlobalNews()
         break
     }
+
+    // Enrich articles with images from their web pages
+    articles = await enrichArticlesWithImages(articles)
 
     return new Response(
       JSON.stringify({
