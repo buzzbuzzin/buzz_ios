@@ -196,7 +196,7 @@ struct NOTAMSchedule: Codable, Identifiable {
     var id: String { source }
     let description: String
     let source: String
-    let durationHours: Int?
+    let durationHours: Double?
     let isSunriseSunset: Bool
     
     enum CodingKeys: String, CodingKey {

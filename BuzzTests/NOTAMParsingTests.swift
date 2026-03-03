@@ -37,7 +37,7 @@ struct NOTAMParsingTests {
                     {
                         "description": "Daily 0600-1800 UTC",
                         "source": "NOTAM text",
-                        "durationHours": 12,
+                        "durationHours": 11.5666666667,
                         "isSunriseSunset": false
                     }
                 ]
@@ -65,7 +65,7 @@ struct NOTAMParsingTests {
         #expect(notam.interpretation.affectedElements.count == 1)
         #expect(notam.interpretation.affectedElements.first?.identifier == "05/23")
         #expect(notam.interpretation.schedules.count == 1)
-        #expect(notam.interpretation.schedules.first?.durationHours == 12)
+        #expect(notam.interpretation.schedules.first?.durationHours == 11.5666666667)
     }
 
     @Test func notamDecodesWithNullOptionalFields() throws {
