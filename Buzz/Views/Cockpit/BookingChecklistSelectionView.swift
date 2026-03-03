@@ -68,8 +68,7 @@ struct BookingChecklistSelectionView: View {
     
     private var acceptedBookings: [Booking] {
         bookingService.myBookings.filter { booking in
-            booking.status == .accepted ||
-            (booking.isAutomotiveCrewBooking && booking.status == .available)
+            booking.status == .accepted || booking.status == .available
         }
     }
     
