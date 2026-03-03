@@ -27,95 +27,176 @@ class WeatherService: ObservableObject {
     private var lastNotificationTime: Date?
     
     // MARK: - Fetch Weather for Current Location
-    
+
     func fetchWeatherForLocation(coordinate: CLLocationCoordinate2D, locationName: String) async throws -> Weather {
         isLoading = true
         errorMessage = nil
-        
+
         do {
-            // Step 1: Get grid point from coordinates
-            let gridPointURL = "\(baseURL)/points/\(coordinate.latitude),\(coordinate.longitude)"
-            guard let url = URL(string: gridPointURL) else {
-                throw WeatherError.invalidURL
-            }
-            
-            var request = URLRequest(url: url)
-            request.setValue("Buzz/1.0", forHTTPHeaderField: "User-Agent")
-            request.setValue("application/json", forHTTPHeaderField: "Accept")
-            
-            let (data, response) = try await URLSession.shared.data(for: request)
-            
-            guard let httpResponse = response as? HTTPURLResponse,
-                  httpResponse.statusCode == 200 else {
-                throw WeatherError.invalidResponse
-            }
-            
-            let gridPointResponse = try JSONDecoder().decode(GridPointResponse.self, from: data)
-            
-            // Step 2: Get forecast from grid point
-            guard let forecastURLString = gridPointResponse.properties.forecast,
-                  let forecastURL = URL(string: forecastURLString) else {
-                throw WeatherError.missingForecastURL
-            }
-            
-            var forecastRequest = URLRequest(url: forecastURL)
-            forecastRequest.setValue("Buzz/1.0", forHTTPHeaderField: "User-Agent")
-            forecastRequest.setValue("application/json", forHTTPHeaderField: "Accept")
-            
-            let (forecastData, forecastResponse) = try await URLSession.shared.data(for: forecastRequest)
-            
-            guard let forecastHttpResponse = forecastResponse as? HTTPURLResponse,
-                  forecastHttpResponse.statusCode == 200 else {
-                throw WeatherError.invalidResponse
-            }
-            
-            let forecast = try JSONDecoder().decode(ForecastResponse.self, from: forecastData)
-            
-            // Step 3: Get observation/stations for current conditions
-            var observation: ObservationResponse?
-            if let observationStationsURLString = gridPointResponse.properties.observationStations,
-               let observationStationsURL = URL(string: observationStationsURLString) {
-                do {
-                    var stationsRequest = URLRequest(url: observationStationsURL)
-                    stationsRequest.setValue("Buzz/1.0", forHTTPHeaderField: "User-Agent")
-                    stationsRequest.setValue("application/json", forHTTPHeaderField: "Accept")
-                    
-                    let (stationsData, _) = try await URLSession.shared.data(for: stationsRequest)
-                    let stationsResponse = try JSONDecoder().decode(StationsResponse.self, from: stationsData)
-                    
-                    if let nearestStation = stationsResponse.features.first?.properties.stationIdentifier {
-                        let observationURLString = "\(baseURL)/stations/\(nearestStation)/observations/latest"
-                        if let observationURL = URL(string: observationURLString) {
-                            var obsRequest = URLRequest(url: observationURL)
-                            obsRequest.setValue("Buzz/1.0", forHTTPHeaderField: "User-Agent")
-                            obsRequest.setValue("application/json", forHTTPHeaderField: "Accept")
-                            
-                            let (obsData, _) = try await URLSession.shared.data(for: obsRequest)
-                            observation = try? JSONDecoder().decode(ObservationResponse.self, from: obsData)
-                        }
-                    }
-                } catch {
-                    // Observation is optional, continue without it
-                    print("Could not fetch observation: \(error.localizedDescription)")
-                }
-            }
-            
-            // Parse weather data
-            let weather = parseWeatherData(
-                forecast: forecast,
-                observation: observation,
-                coordinate: coordinate,
-                locationName: locationName
-            )
-            
+            // Try NWS first (works for US locations)
+            let weather = try await fetchWeatherFromNWS(coordinate: coordinate, locationName: locationName)
             isLoading = false
             return weather
-            
         } catch {
-            isLoading = false
-            errorMessage = error.localizedDescription
-            throw error
+            // NWS failed (likely non-US location) -- fall back to Open-Meteo
+            print("NWS weather failed, falling back to Open-Meteo: \(error.localizedDescription)")
+            do {
+                let weather = try await fetchWeatherFromOpenMeteo(coordinate: coordinate, locationName: locationName)
+                isLoading = false
+                return weather
+            } catch {
+                isLoading = false
+                errorMessage = error.localizedDescription
+                throw error
+            }
         }
+    }
+
+    // MARK: - NWS Weather (US only)
+
+    private func fetchWeatherFromNWS(coordinate: CLLocationCoordinate2D, locationName: String) async throws -> Weather {
+        // Step 1: Get grid point from coordinates
+        let gridPointURL = "\(baseURL)/points/\(coordinate.latitude),\(coordinate.longitude)"
+        guard let url = URL(string: gridPointURL) else {
+            throw WeatherError.invalidURL
+        }
+
+        var request = URLRequest(url: url)
+        request.setValue("Buzz/1.0", forHTTPHeaderField: "User-Agent")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse,
+              httpResponse.statusCode == 200 else {
+            throw WeatherError.invalidResponse
+        }
+
+        let gridPointResponse = try JSONDecoder().decode(GridPointResponse.self, from: data)
+
+        // Step 2: Get forecast from grid point
+        guard let forecastURLString = gridPointResponse.properties.forecast,
+              let forecastURL = URL(string: forecastURLString) else {
+            throw WeatherError.missingForecastURL
+        }
+
+        var forecastRequest = URLRequest(url: forecastURL)
+        forecastRequest.setValue("Buzz/1.0", forHTTPHeaderField: "User-Agent")
+        forecastRequest.setValue("application/json", forHTTPHeaderField: "Accept")
+
+        let (forecastData, forecastResponse) = try await URLSession.shared.data(for: forecastRequest)
+
+        guard let forecastHttpResponse = forecastResponse as? HTTPURLResponse,
+              forecastHttpResponse.statusCode == 200 else {
+            throw WeatherError.invalidResponse
+        }
+
+        let forecast = try JSONDecoder().decode(ForecastResponse.self, from: forecastData)
+
+        // Step 3: Get observation/stations for current conditions
+        var observation: ObservationResponse?
+        if let observationStationsURLString = gridPointResponse.properties.observationStations,
+           let observationStationsURL = URL(string: observationStationsURLString) {
+            do {
+                var stationsRequest = URLRequest(url: observationStationsURL)
+                stationsRequest.setValue("Buzz/1.0", forHTTPHeaderField: "User-Agent")
+                stationsRequest.setValue("application/json", forHTTPHeaderField: "Accept")
+
+                let (stationsData, _) = try await URLSession.shared.data(for: stationsRequest)
+                let stationsResponse = try JSONDecoder().decode(StationsResponse.self, from: stationsData)
+
+                if let nearestStation = stationsResponse.features.first?.properties.stationIdentifier {
+                    let observationURLString = "\(baseURL)/stations/\(nearestStation)/observations/latest"
+                    if let observationURL = URL(string: observationURLString) {
+                        var obsRequest = URLRequest(url: observationURL)
+                        obsRequest.setValue("Buzz/1.0", forHTTPHeaderField: "User-Agent")
+                        obsRequest.setValue("application/json", forHTTPHeaderField: "Accept")
+
+                        let (obsData, _) = try await URLSession.shared.data(for: obsRequest)
+                        observation = try? JSONDecoder().decode(ObservationResponse.self, from: obsData)
+                    }
+                }
+            } catch {
+                // Observation is optional, continue without it
+                print("Could not fetch observation: \(error.localizedDescription)")
+            }
+        }
+
+        // Parse weather data
+        return parseWeatherData(
+            forecast: forecast,
+            observation: observation,
+            coordinate: coordinate,
+            locationName: locationName
+        )
+    }
+
+    // MARK: - Open-Meteo Weather (Global fallback)
+
+    private func fetchWeatherFromOpenMeteo(coordinate: CLLocationCoordinate2D, locationName: String) async throws -> Weather {
+        let urlString = "https://api.open-meteo.com/v1/forecast?" +
+            "latitude=\(coordinate.latitude)&longitude=\(coordinate.longitude)" +
+            "&current=temperature_2m,relative_humidity_2m,wind_speed_10m,wind_direction_10m,wind_gusts_10m,weather_code,cloud_cover" +
+            "&daily=temperature_2m_max,temperature_2m_min,sunrise,sunset" +
+            "&temperature_unit=fahrenheit&wind_speed_unit=mph&forecast_days=1&timezone=auto"
+
+        guard let url = URL(string: urlString) else {
+            throw WeatherError.invalidURL
+        }
+
+        var request = URLRequest(url: url)
+        request.setValue("Buzz/1.0", forHTTPHeaderField: "User-Agent")
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse,
+              httpResponse.statusCode == 200 else {
+            throw WeatherError.invalidResponse
+        }
+
+        let omResponse = try JSONDecoder().decode(WeatherOpenMeteoResponse.self, from: data)
+        let current = omResponse.current
+
+        let (conditionText, conditionIcon) = OpenMeteoUtils.mapWMOWeatherCode(current.weatherCode)
+        let windDir = OpenMeteoUtils.cardinalDirection(from: current.windDirection10m)
+
+        // Parse sunrise/sunset from daily data
+        var sunrise: Date? = nil
+        var sunset: Date? = nil
+        if let daily = omResponse.daily {
+            let isoFormatter = ISO8601DateFormatter()
+            isoFormatter.formatOptions = [.withFullDate, .withTime, .withDashSeparatorInDate, .withColonSeparatorInTime]
+            if let srString = daily.sunrise.first ?? nil {
+                sunrise = isoFormatter.date(from: srString)
+            }
+            if let ssString = daily.sunset.first ?? nil {
+                sunset = isoFormatter.date(from: ssString)
+            }
+        }
+
+        let temperatureMin = omResponse.daily?.temperature2mMin.first.flatMap { $0 }
+        let temperatureMax = omResponse.daily?.temperature2mMax.first.flatMap { $0 }
+
+        return Weather(
+            location: locationName,
+            coordinate: coordinate,
+            temperature: current.temperature2m,
+            temperatureMin: temperatureMin,
+            temperatureMax: temperatureMax,
+            condition: conditionText,
+            conditionIcon: conditionIcon,
+            windSpeed: current.windSpeed10m,
+            windDirection: windDir,
+            windDirectionDegrees: current.windDirection10m,
+            windGust: current.windGusts10m > 0 ? current.windGusts10m : nil,
+            humidity: current.relativeHumidity2m,
+            cloudCover: current.cloudCover,
+            precipitation: nil, // Open-Meteo provides mm, not probability %
+            lowAltCloud: nil,
+            highAltCloud: current.cloudCover,
+            sunrise: sunrise,
+            sunset: sunset,
+            lastUpdated: Date()
+        )
     }
     
     // MARK: - Private Helpers
@@ -501,5 +582,46 @@ struct HumidityValue: Codable {
 
 struct DistanceValue: Codable {
     let value: Double? // meters
+}
+
+// MARK: - Open-Meteo Response Models (Global fallback)
+
+struct WeatherOpenMeteoResponse: Codable {
+    let current: WeatherOpenMeteoCurrent
+    let daily: WeatherOpenMeteoDaily?
+}
+
+struct WeatherOpenMeteoCurrent: Codable {
+    let temperature2m: Double
+    let relativeHumidity2m: Int
+    let windSpeed10m: Double
+    let windDirection10m: Int
+    let windGusts10m: Double
+    let weatherCode: Int
+    let cloudCover: Int
+
+    enum CodingKeys: String, CodingKey {
+        case temperature2m = "temperature_2m"
+        case relativeHumidity2m = "relative_humidity_2m"
+        case windSpeed10m = "wind_speed_10m"
+        case windDirection10m = "wind_direction_10m"
+        case windGusts10m = "wind_gusts_10m"
+        case weatherCode = "weather_code"
+        case cloudCover = "cloud_cover"
+    }
+}
+
+struct WeatherOpenMeteoDaily: Codable {
+    let temperature2mMax: [Double?]
+    let temperature2mMin: [Double?]
+    let sunrise: [String?]
+    let sunset: [String?]
+
+    enum CodingKeys: String, CodingKey {
+        case temperature2mMax = "temperature_2m_max"
+        case temperature2mMin = "temperature_2m_min"
+        case sunrise
+        case sunset
+    }
 }
 

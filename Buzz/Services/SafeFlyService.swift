@@ -82,12 +82,28 @@ class SafeFlyService: ObservableObject {
         errorMessage = nil
 
         do {
-            // Fetch in parallel: weather, KP index, Open-Meteo data for gusts/visibility
-            async let hourlyResult = fetchHourlyForecast(coordinate: coordinate)
+            // Fetch KP index and Open-Meteo in parallel (both global, always work)
             async let kpResult = fetchKPIndex()
             async let openMeteoResult = fetchOpenMeteoData(coordinate: coordinate)
 
-            let (hourlyData, kpData, openMeteoData) = try await (hourlyResult, kpResult, openMeteoResult)
+            // Try NWS hourly (may fail for non-US locations)
+            var nwsHourlyData: [HourlyForecast]? = nil
+            do {
+                nwsHourlyData = try await fetchHourlyForecast(coordinate: coordinate)
+            } catch {
+                print("NWS hourly forecast unavailable (likely non-US location): \(error.localizedDescription)")
+            }
+
+            let (kpData, openMeteoData) = try await (kpResult, openMeteoResult)
+
+            // Build hourly data: prefer NWS, fall back to Open-Meteo
+            let hourlyData: [HourlyForecast]
+            if let nwsData = nwsHourlyData {
+                hourlyData = nwsData
+            } else {
+                // Construct HourlyForecast array from Open-Meteo data alone
+                hourlyData = buildHourlyForecastFromOpenMeteo(openMeteoData)
+            }
 
             // Combine and evaluate safety using Open-Meteo data
             hourlyForecasts = evaluateSafety(hourly: hourlyData, kpIndex: kpData, openMeteoData: openMeteoData)
@@ -154,10 +170,12 @@ class SafeFlyService: ObservableObject {
     }
 
 
-    // MARK: - Fetch Wind Gusts and Visibility from Open-Meteo
+    // MARK: - Fetch Hourly Data from Open-Meteo (Global)
 
-    private func fetchOpenMeteoData(coordinate: CLLocationCoordinate2D) async throws -> [Date: (gust: Double?, visibility: Double?)] {
-        let urlString = "\(openMeteoURL)?latitude=\(coordinate.latitude)&longitude=\(coordinate.longitude)&hourly=wind_gusts_10m,visibility&forecast_days=2"
+    private func fetchOpenMeteoData(coordinate: CLLocationCoordinate2D) async throws -> [Date: OpenMeteoHourlyEntry] {
+        let urlString = "\(openMeteoURL)?latitude=\(coordinate.latitude)&longitude=\(coordinate.longitude)" +
+            "&hourly=temperature_2m,wind_speed_10m,wind_direction_10m,wind_gusts_10m,precipitation_probability,visibility,cloud_cover,weather_code,relative_humidity_2m" +
+            "&temperature_unit=fahrenheit&wind_speed_unit=mph&forecast_days=2"
         guard let url = URL(string: urlString) else {
             throw SafeFlyError.invalidURL
         }
@@ -179,22 +197,60 @@ class SafeFlyService: ObservableObject {
         dateFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm"
         dateFormatter.timeZone = TimeZone(secondsFromGMT: 0) // Open-Meteo returns UTC times
 
-        var result: [Date: (gust: Double?, visibility: Double?)] = [:]
+        var result: [Date: OpenMeteoHourlyEntry] = [:]
+        let hourly = openMeteoResponse.hourly
 
-        for (index, timeString) in openMeteoResponse.hourly.time.enumerated() {
+        for (index, timeString) in hourly.time.enumerated() {
             guard let date = dateFormatter.date(from: timeString) else { continue }
 
-            let gustKmh = openMeteoResponse.hourly.windGusts10m[index]
-            let visibilityMeters = openMeteoResponse.hourly.visibility[index]
+            // Visibility is always in meters from Open-Meteo regardless of unit settings
+            let visibilityMiles = hourly.visibility[index].map { $0 / 1609.34 }
 
-            // Convert units: km/h to mph, meters to miles
-            let gustMph = gustKmh.map { $0 * 0.621371 } // km/h to mph
-            let visibilityMiles = visibilityMeters.map { $0 / 1609.34 } // meters to miles
+            // With wind_speed_unit=mph, gusts come in mph -- no conversion needed
+            let gustMph = hourly.windGusts10m[index]
 
-            result[date] = (gust: gustMph, visibility: visibilityMiles)
+            // Helper to safely get optional array element
+            func safeGet<T>(_ array: [T?]?) -> T? {
+                guard let arr = array, index < arr.count else { return nil }
+                return arr[index]
+            }
+
+            result[date] = OpenMeteoHourlyEntry(
+                gust: gustMph,
+                visibility: visibilityMiles,
+                temperature: safeGet(hourly.temperature2m),
+                windSpeed: safeGet(hourly.windSpeed10m),
+                windDirection: safeGet(hourly.windDirection10m),
+                precipitation: safeGet(hourly.precipitationProbability),
+                cloudCover: safeGet(hourly.cloudCover),
+                weatherCode: safeGet(hourly.weatherCode),
+                humidity: safeGet(hourly.relativeHumidity2m)
+            )
         }
 
         return result
+    }
+
+    // MARK: - Build Hourly Forecast from Open-Meteo (when NWS unavailable)
+
+    func buildHourlyForecastFromOpenMeteo(_ data: [Date: OpenMeteoHourlyEntry]) -> [HourlyForecast] {
+        return data.sorted { $0.key < $1.key }.prefix(48).compactMap { (date, entry) -> HourlyForecast? in
+            let (forecastText, _) = OpenMeteoUtils.mapWMOWeatherCode(entry.weatherCode ?? 0)
+
+            return HourlyForecast(
+                time: date,
+                temperature: entry.temperature ?? 0,
+                windSpeed: entry.windSpeed ?? 0,
+                windGust: entry.gust,
+                windDirection: OpenMeteoUtils.cardinalDirection(from: entry.windDirection ?? 0),
+                windDirectionDegrees: entry.windDirection,
+                precipitation: entry.precipitation ?? 0,
+                cloudCover: entry.cloudCover,
+                humidity: entry.humidity,
+                shortForecast: forecastText,
+                visibility: entry.visibility
+            )
+        }
     }
 
     // MARK: - Fetch KP Index from NOAA
@@ -221,7 +277,7 @@ class SafeFlyService: ObservableObject {
 
     // MARK: - Safety Evaluation
 
-    private func evaluateSafety(hourly: [HourlyForecast], kpIndex: KPIndexData?, openMeteoData: [Date: (gust: Double?, visibility: Double?)]) -> [SafeFlyHour] {
+    private func evaluateSafety(hourly: [HourlyForecast], kpIndex: KPIndexData?, openMeteoData: [Date: OpenMeteoHourlyEntry]) -> [SafeFlyHour] {
         return hourly.map { forecast in
             var violations: [SafetyViolation] = []
             var severity: FlyingSafetyStatus = .good
@@ -332,10 +388,20 @@ class SafeFlyService: ObservableObject {
         // Re-evaluate safety with new thresholds
         if !hourlyForecasts.isEmpty {
             let forecasts = hourlyForecasts.map { $0.forecast }
-            // Create a dummy Open-Meteo data dict with current values for re-evaluation
-            var openMeteoData: [Date: (gust: Double?, visibility: Double?)] = [:]
+            // Create Open-Meteo data dict with current values for re-evaluation
+            var openMeteoData: [Date: OpenMeteoHourlyEntry] = [:]
             for hour in hourlyForecasts {
-                openMeteoData[hour.time] = (gust: hour.forecast.windGust, visibility: hour.visibility)
+                openMeteoData[hour.time] = OpenMeteoHourlyEntry(
+                    gust: hour.forecast.windGust,
+                    visibility: hour.visibility,
+                    temperature: nil,
+                    windSpeed: nil,
+                    windDirection: nil,
+                    precipitation: nil,
+                    cloudCover: nil,
+                    weatherCode: nil,
+                    humidity: nil
+                )
             }
             hourlyForecasts = evaluateSafety(hourly: forecasts, kpIndex: currentKPIndex, openMeteoData: openMeteoData)
 

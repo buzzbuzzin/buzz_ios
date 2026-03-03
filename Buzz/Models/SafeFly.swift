@@ -216,10 +216,38 @@ struct OpenMeteoHourlyData: Codable {
     let time: [String]
     let windGusts10m: [Double?]
     let visibility: [Double?]
+    // Extended fields for full hourly forecast (used when NWS is unavailable)
+    let temperature2m: [Double?]?
+    let windSpeed10m: [Double?]?
+    let windDirection10m: [Int?]?
+    let precipitationProbability: [Int?]?
+    let cloudCover: [Int?]?
+    let weatherCode: [Int?]?
+    let relativeHumidity2m: [Int?]?
 
     enum CodingKeys: String, CodingKey {
         case time
         case windGusts10m = "wind_gusts_10m"
         case visibility
+        case temperature2m = "temperature_2m"
+        case windSpeed10m = "wind_speed_10m"
+        case windDirection10m = "wind_direction_10m"
+        case precipitationProbability = "precipitation_probability"
+        case cloudCover = "cloud_cover"
+        case weatherCode = "weather_code"
+        case relativeHumidity2m = "relative_humidity_2m"
     }
+}
+
+/// Rich container for parsed Open-Meteo hourly data
+struct OpenMeteoHourlyEntry {
+    let gust: Double?        // mph
+    let visibility: Double?  // miles
+    let temperature: Double? // Fahrenheit
+    let windSpeed: Double?   // mph
+    let windDirection: Int?  // degrees
+    let precipitation: Int?  // probability %
+    let cloudCover: Int?     // %
+    let weatherCode: Int?    // WMO code
+    let humidity: Int?       // %
 }

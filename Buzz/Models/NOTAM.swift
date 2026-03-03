@@ -22,7 +22,29 @@ struct NOTAM: Identifiable, Codable {
     let isPermanent: Bool
     let isEstimated: Bool
     let interpretation: NOTAMInterpretation
-    
+
+    enum CodingKeys: String, CodingKey {
+        case id, notamNumber, icaoCode, location, message, rawText
+        case startsAt, endsAt, issuedAt, isPermanent, isEstimated, interpretation
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        notamNumber = try container.decodeIfPresent(String.self, forKey: .notamNumber) ?? ""
+        icaoCode = try container.decodeIfPresent(String.self, forKey: .icaoCode) ?? ""
+        location = try container.decodeIfPresent(String.self, forKey: .location) ?? ""
+        message = try container.decodeIfPresent(String.self, forKey: .message) ?? ""
+        rawText = try container.decodeIfPresent(String.self, forKey: .rawText) ?? ""
+        startsAt = try container.decodeIfPresent(String.self, forKey: .startsAt) ?? ISO8601DateFormatter().string(from: Date())
+        endsAt = try container.decodeIfPresent(String.self, forKey: .endsAt) ?? ISO8601DateFormatter().string(from: Date.distantFuture)
+        issuedAt = try container.decodeIfPresent(String.self, forKey: .issuedAt) ?? ISO8601DateFormatter().string(from: Date())
+        isPermanent = try container.decodeIfPresent(Bool.self, forKey: .isPermanent) ?? false
+        isEstimated = try container.decodeIfPresent(Bool.self, forKey: .isEstimated) ?? false
+        interpretation = try container.decodeIfPresent(NOTAMInterpretation.self, forKey: .interpretation)
+            ?? NOTAMInterpretation(category: "OTHER", subcategory: nil, excerpt: "", description: "")
+    }
+
     // MARK: - Date Parsing
     
     private static let iso8601Formatter: ISO8601DateFormatter = {
@@ -257,4 +279,17 @@ struct NOTAMResponse: Codable {
     let totalCount: Int?
     let message: String?
     let error: String?
+
+    enum CodingKeys: String, CodingKey {
+        case notams, airports, totalCount, message, error
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        notams = try container.decodeIfPresent([NOTAM].self, forKey: .notams) ?? []
+        airports = try container.decodeIfPresent([String].self, forKey: .airports) ?? []
+        totalCount = try container.decodeIfPresent(Int.self, forKey: .totalCount)
+        message = try container.decodeIfPresent(String.self, forKey: .message)
+        error = try container.decodeIfPresent(String.self, forKey: .error)
+    }
 }

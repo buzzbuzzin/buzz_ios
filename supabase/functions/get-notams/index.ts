@@ -145,33 +145,40 @@ async function fetchNotams(icaoCodes: string[]): Promise<NotamifyNotam[]> {
 function transformNotams(notams: NotamifyNotam[]) {
   return notams.map(notam => ({
     id: notam.id,
-    notamNumber: notam.notam_number,
-    icaoCode: notam.icao_code,
-    location: notam.location,
-    message: notam.message,
-    rawText: notam.icao_message,
-    startsAt: notam.starts_at,
-    endsAt: notam.ends_at,
-    issuedAt: notam.issued_at,
-    isPermanent: notam.is_permanent,
-    isEstimated: notam.is_estimated,
-    interpretation: {
-      category: notam.interpretation.category,
+    notamNumber: notam.notam_number || "",
+    icaoCode: notam.icao_code || "",
+    location: notam.location || "",
+    message: notam.message || "",
+    rawText: notam.icao_message || "",
+    startsAt: notam.starts_at || new Date().toISOString(),
+    endsAt: notam.ends_at || new Date(2099, 0, 1).toISOString(),
+    issuedAt: notam.issued_at || new Date().toISOString(),
+    isPermanent: notam.is_permanent ?? false,
+    isEstimated: notam.is_estimated ?? false,
+    interpretation: notam.interpretation ? {
+      category: notam.interpretation.category || "OTHER",
       subcategory: notam.interpretation.subcategory || null,
-      excerpt: notam.interpretation.excerpt,
-      description: notam.interpretation.description,
+      excerpt: notam.interpretation.excerpt || "",
+      description: notam.interpretation.description || "",
       affectedElements: notam.interpretation.affected_elements?.map(el => ({
-        type: el.type,
-        identifier: el.identifier,
-        effect: el.effect,
-        details: el.details,
+        type: el.type || "",
+        identifier: el.identifier || "",
+        effect: el.effect || "",
+        details: el.details || "",
       })) || [],
       schedules: notam.interpretation.schedules?.map(s => ({
-        description: s.description,
-        source: s.source,
+        description: s.description || "",
+        source: s.source || "",
         durationHours: s.duration_hrs || null,
-        isSunriseSunset: s.is_sunrise_sunset,
+        isSunriseSunset: s.is_sunrise_sunset ?? false,
       })) || [],
+    } : {
+      category: "OTHER",
+      subcategory: null,
+      excerpt: "",
+      description: "No interpretation available",
+      affectedElements: [],
+      schedules: [],
     },
   }))
 }
@@ -192,8 +199,11 @@ serve(async (req) => {
     // Validate required fields
     if (latitude === undefined || longitude === undefined) {
       return new Response(
-        JSON.stringify({ 
-          error: "Missing required fields: latitude, longitude" 
+        JSON.stringify({
+          error: "Missing required fields: latitude, longitude",
+          notams: [],
+          airports: [],
+          totalCount: 0
         }),
         {
           status: 400,
@@ -205,8 +215,11 @@ serve(async (req) => {
     // Validate coordinates
     if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
       return new Response(
-        JSON.stringify({ 
-          error: "Invalid coordinates" 
+        JSON.stringify({
+          error: "Invalid coordinates",
+          notams: [],
+          airports: [],
+          totalCount: 0
         }),
         {
           status: 400,
@@ -258,7 +271,12 @@ serve(async (req) => {
     console.error("Error fetching NOTAMs:", error)
     
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({
+        error: error.message,
+        notams: [],
+        airports: [],
+        totalCount: 0
+      }),
       {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
