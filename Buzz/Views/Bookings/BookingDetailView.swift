@@ -887,6 +887,7 @@ struct BookingDetailView: View {
         .modifier(WithdrawModifier(
             booking: currentBooking,
             crewInfo: crewInfo,
+            isLoadingCrew: isLoadingCrew,
             currentUserId: authService.currentUser?.id,
             isPilot: authService.userProfile?.userType == .pilot,
             isPresented: $showWithdrawAlert,
@@ -1499,17 +1500,25 @@ struct DirectionsBottomSheet: View {
 struct WithdrawModifier: ViewModifier {
     let booking: Booking
     let crewInfo: BookingCrewResponse?
+    let isLoadingCrew: Bool
     let currentUserId: UUID?
     let isPilot: Bool
     @Binding var isPresented: Bool
     let onConfirm: () -> Void
 
     private var canWithdraw: Bool {
-        let isInCrew = crewInfo?.crew?.contains(where: { $0.pilotId == currentUserId }) ?? false
-        let isAssigned = booking.pilotId == currentUserId
-        return isPilot
-            && (booking.status == .available || booking.status == .accepted)
-            && (isInCrew || isAssigned)
+        guard isPilot,
+              booking.status == .available || booking.status == .accepted
+        else { return false }
+
+        // For crew bookings: show menu if confirmed in crew, or optimistically while still loading
+        if booking.isCrewBooking {
+            let isInCrew = crewInfo?.crew?.contains(where: { $0.pilotId == currentUserId }) ?? false
+            return isInCrew || isLoadingCrew
+        }
+
+        // For non-crew bookings: check if pilot is assigned
+        return booking.pilotId == currentUserId
     }
 
     private var alertTitle: String {
