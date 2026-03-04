@@ -110,31 +110,16 @@ class RankingService: ObservableObject {
     
     // MARK: - Get Leaderboard
     
-    func fetchLeaderboard(limit: Int = 100) async throws {
+    func fetchLeaderboard(limit: Int = 10) async throws {
         isLoading = true
         errorMessage = nil
         
-        // Check if demo mode is enabled
-        if DemoModeManager.shared.isDemoModeEnabled {
-            // Simulate API call delay
-            try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
-            
-            // SAMPLE DATA FOR DEMO PURPOSES
-            let sampleLeaderboard = createSampleLeaderboard()
-            
-            await MainActor.run {
-                self.leaderboard = sampleLeaderboard
-                self.isLoading = false
-            }
-            return
-        }
-        
-        // Real backend call
         do {
             // Join with profiles to get callsign
             let response = try await supabase
                 .from("pilot_stats")
                 .select("*, profiles(call_sign)")
+                .order("tier", ascending: false)
                 .order("total_flight_hours", ascending: false)
                 .limit(limit)
                 .execute()
@@ -162,141 +147,6 @@ class RankingService: ObservableObject {
             }
             throw error
         }
-    }
-    
-    // MARK: - Sample Data for Demo (Leaderboard)
-    // TODO: Remove this function when connecting to real backend
-    
-    private func createSampleLeaderboard() -> [PilotStats] {
-        return [
-            // Top pilots competing for rankings (Naval rank system)
-            PilotStats(
-                pilotId: UUID(),
-                totalFlightHours: 850.5,
-                completedBookings: 187,
-                tier: 4, // Captain
-                callsign: "WOLF"
-            ),
-            PilotStats(
-                pilotId: UUID(),
-                totalFlightHours: 720.3,
-                completedBookings: 165,
-                tier: 4, // Captain
-                callsign: "EAGLE"
-            ),
-            PilotStats(
-                pilotId: UUID(),
-                totalFlightHours: 680.2,
-                completedBookings: 142,
-                tier: 4, // Captain
-                callsign: "FALCON"
-            ),
-            PilotStats(
-                pilotId: UUID(),
-                totalFlightHours: 550.8,
-                completedBookings: 128,
-                tier: 4, // Captain
-                callsign: "HAWK"
-            ),
-            PilotStats(
-                pilotId: UUID(),
-                totalFlightHours: 485.4,
-                completedBookings: 115,
-                tier: 4, // Captain
-                callsign: "RAVEN"
-            ),
-            PilotStats(
-                pilotId: UUID(),
-                totalFlightHours: 420.2,
-                completedBookings: 98,
-                tier: 4, // Captain
-                callsign: "PHOENIX"
-            ),
-            PilotStats(
-                pilotId: UUID(),
-                totalFlightHours: 385.6,
-                completedBookings: 87,
-                tier: 3, // Commander
-                callsign: "THUNDER"
-            ),
-            PilotStats(
-                pilotId: UUID(),
-                totalFlightHours: 350.3,
-                completedBookings: 76,
-                tier: 3, // Commander
-                callsign: "STORM"
-            ),
-            PilotStats(
-                pilotId: UUID(),
-                totalFlightHours: 320.1,
-                completedBookings: 65,
-                tier: 3, // Commander
-                callsign: "LIGHTNING"
-            ),
-            PilotStats(
-                pilotId: UUID(),
-                totalFlightHours: 275.7,
-                completedBookings: 58,
-                tier: 3, // Commander
-                callsign: "BLAZE"
-            ),
-            PilotStats(
-                pilotId: UUID(),
-                totalFlightHours: 185.4,
-                completedBookings: 52,
-                tier: 2, // Lieutenant
-                callsign: "SKY"
-            ),
-            PilotStats(
-                pilotId: UUID(),
-                totalFlightHours: 145.8,
-                completedBookings: 45,
-                tier: 2, // Lieutenant
-                callsign: "CLOUD"
-            ),
-            PilotStats(
-                pilotId: UUID(),
-                totalFlightHours: 120.3,
-                completedBookings: 32,
-                tier: 2, // Lieutenant
-                callsign: "WIND"
-            ),
-            PilotStats(
-                pilotId: UUID(),
-                totalFlightHours: 85.2,
-                completedBookings: 28,
-                tier: 2, // Lieutenant
-                callsign: "BREEZE"
-            ),
-            PilotStats(
-                pilotId: UUID(),
-                totalFlightHours: 60.6,
-                completedBookings: 18,
-                tier: 1, // Sub Lieutenant
-                callsign: "WAVE"
-            ),
-            PilotStats(
-                pilotId: UUID(),
-                totalFlightHours: 42.3,
-                completedBookings: 12,
-                tier: 1, // Sub Lieutenant
-                callsign: "TIDE"
-            ),
-            PilotStats(
-                pilotId: UUID(),
-                totalFlightHours: 18.5,
-                completedBookings: 6,
-                tier: 0, // Ensign
-                callsign: "RIFFLE"
-            ),
-            PilotStats(
-                pilotId: UUID(),
-                totalFlightHours: 7.2,
-                completedBookings: 3,
-                tier: 0, // Ensign
-                callsign: "STREAM"
-            )
-        ]
     }
 }
 
