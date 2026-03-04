@@ -481,8 +481,8 @@ struct BookingDetailView: View {
                     .padding(.horizontal)
                 }
                 
-                // Crew Status Section (for automotive bookings)
-                if currentBooking.isAutomotiveCrewBooking {
+                // Crew Status Section (for automotive and multi-pilot S&R bookings)
+                if currentBooking.isAutomotiveCrewBooking || (currentBooking.isSearchRescueCrewBooking && (currentBooking.numberOfPilots ?? 1) > 1) {
                     Divider()
                         .padding(.horizontal)
                     
