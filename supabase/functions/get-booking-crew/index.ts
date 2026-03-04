@@ -47,7 +47,7 @@ serve(async (req) => {
     // Get booking to verify it exists and check specialization
     const { data: booking, error: bookingError } = await supabase
       .from("bookings")
-      .select("id, specialization, customer_id, pilot_id, status, required_minimum_rank")
+      .select("id, specialization, customer_id, pilot_id, status, required_minimum_rank, number_of_pilots")
       .eq("id", booking_id)
       .single()
 
@@ -163,7 +163,7 @@ serve(async (req) => {
           is_automotive: isAutomotive,
           is_search_rescue: isSearchRescue,
           crew_count: crewWithProfiles.length,
-          max_crew: isSearchRescue ? 999 : 4, // S&R has no limit
+          max_crew: isSearchRescue ? (booking.number_of_pilots || 999) : 4,
           status: booking.status,
           has_qualified_lead: isSearchRescue ? true : hasQualifiedLead, // S&R doesn't need a lead
           lead_pilot: leadPilot ? {
@@ -192,11 +192,11 @@ serve(async (req) => {
         is_search_rescue: isSearchRescue,
         crew: crewWithProfiles,
         crew_count: crewWithProfiles.length,
-        max_crew: isSearchRescue ? 999 : 4, // S&R has no limit
+        max_crew: isSearchRescue ? (booking.number_of_pilots || 999) : 4,
         status: booking.status,
         has_qualified_lead: isSearchRescue ? true : hasQualifiedLead, // S&R doesn't need a lead
-        is_crew_full: isSearchRescue ? false : crewWithProfiles.length >= 4, // S&R never full
-        is_ready: isSearchRescue ? crewWithProfiles.length > 0 : (crewWithProfiles.length >= 4 && hasQualifiedLead),
+        is_crew_full: isSearchRescue ? crewWithProfiles.length >= (booking.number_of_pilots || 999) : crewWithProfiles.length >= 4,
+        is_ready: isSearchRescue ? crewWithProfiles.length >= (booking.number_of_pilots || 1) : (crewWithProfiles.length >= 4 && hasQualifiedLead),
         lead_pilot: leadPilot,
         total_payout: crewWithProfiles.reduce((sum, m) => sum + Number(m.payout_amount), 0),
         min_lead_rank: isSearchRescue ? 0 : minLeadRank, // S&R has no rank requirement
