@@ -47,6 +47,7 @@ struct BookingDetailView: View {
     @State private var showJoinCrewAlert = false
     @State private var joinCrewResult: JoinCrewResponse?
     @State private var showJoinCrewSuccess = false
+    @State private var showWithdrawAlert = false
     
     init(booking: Booking) {
         self.booking = booking
@@ -883,6 +884,14 @@ struct BookingDetailView: View {
         }
         .navigationTitle("Booking Details")
         .navigationBarTitleDisplayMode(.inline)
+        .modifier(WithdrawModifier(
+            booking: currentBooking,
+            crewInfo: crewInfo,
+            currentUserId: authService.currentUser?.id,
+            isPilot: authService.userProfile?.userType == .pilot,
+            isPresented: $showWithdrawAlert,
+            onConfirm: { withdrawFromBooking() }
+        ))
         .alert("Accept Booking", isPresented: $showAcceptAlert) {
             Button("Cancel", role: .cancel) {}
             Button("Accept") {
@@ -1386,6 +1395,35 @@ struct BookingDetailView: View {
             }
         }
     }
+
+    private func withdrawFromBooking() {
+        guard let currentUser = authService.currentUser else { return }
+
+        Task {
+            do {
+                if currentBooking.isAutomotiveCrewBooking {
+                    _ = try await bookingService.leaveAutomotiveBooking(
+                        bookingId: currentBooking.id,
+                        pilotId: currentUser.id
+                    )
+                } else if currentBooking.isSearchRescueCrewBooking {
+                    _ = try await bookingService.leaveSearchRescueBooking(
+                        bookingId: currentBooking.id,
+                        pilotId: currentUser.id
+                    )
+                } else {
+                    _ = try await bookingService.withdrawFromBooking(
+                        bookingId: currentBooking.id,
+                        pilotId: currentUser.id
+                    )
+                }
+                dismiss()
+            } catch {
+                errorMessage = error.localizedDescription
+                showError = true
+            }
+        }
+    }
 }
 
 // MARK: - Directions Bottom Sheet
@@ -1453,6 +1491,75 @@ struct DirectionsBottomSheet: View {
         .frame(maxWidth: .infinity)
         .background(Color.clear)
         .ignoresSafeArea(edges: .bottom)
+    }
+}
+
+// MARK: - Withdraw Modifier
+
+struct WithdrawModifier: ViewModifier {
+    let booking: Booking
+    let crewInfo: BookingCrewResponse?
+    let currentUserId: UUID?
+    let isPilot: Bool
+    @Binding var isPresented: Bool
+    let onConfirm: () -> Void
+
+    private var canWithdraw: Bool {
+        let isInCrew = crewInfo?.crew?.contains(where: { $0.pilotId == currentUserId }) ?? false
+        let isAssigned = booking.pilotId == currentUserId
+        return isPilot
+            && (booking.status == .available || booking.status == .accepted)
+            && (isInCrew || isAssigned)
+    }
+
+    private var alertTitle: String {
+        if booking.isAutomotiveCrewBooking { return "Leave Crew" }
+        if booking.isSearchRescueCrewBooking { return "Leave Mission" }
+        return "Withdraw from Booking"
+    }
+
+    private var alertMessage: String {
+        if booking.isAutomotiveCrewBooking {
+            return "Are you sure you want to leave this crew? Your spot will be opened for another pilot."
+        } else if booking.isSearchRescueCrewBooking {
+            return "Are you sure you want to leave this mission? Your spot will be opened for another pilot."
+        }
+        return "Are you sure you want to withdraw from this booking? It will become available for other pilots."
+    }
+
+    func body(content: Content) -> some View {
+        content
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    if canWithdraw {
+                        Menu {
+                            Button(role: .destructive) {
+                                isPresented = true
+                            } label: {
+                                Label(
+                                    booking.isAutomotiveCrewBooking ? "Leave Crew" :
+                                    booking.isSearchRescueCrewBooking ? "Leave Mission" : "Withdraw",
+                                    systemImage: booking.isCrewBooking ? "person.badge.minus" : "xmark.circle"
+                                )
+                            }
+                        } label: {
+                            Image(systemName: "ellipsis")
+                                .font(.body)
+                                .foregroundColor(.primary)
+                                .frame(width: 44, height: 44)
+                                .contentShape(Rectangle())
+                        }
+                    }
+                }
+            }
+            .alert(alertTitle, isPresented: $isPresented) {
+                Button("Cancel", role: .cancel) {}
+                Button(booking.isCrewBooking ? "Leave" : "Withdraw", role: .destructive) {
+                    onConfirm()
+                }
+            } message: {
+                Text(alertMessage)
+            }
     }
 }
 

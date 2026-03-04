@@ -1249,6 +1249,84 @@ class BookingService: ObservableObject {
         }
     }
 
+    func leaveAutomotiveBooking(bookingId: UUID, pilotId: UUID) async throws -> JoinCrewResponse {
+        isLoading = true
+        errorMessage = nil
+
+        do {
+            struct LeaveResult: Codable {
+                let success: Bool
+                let error: String?
+                let message: String?
+            }
+
+            let result: LeaveResult = try await supabase
+                .rpc("leave_automotive_booking", params: [
+                    "p_booking_id": bookingId.uuidString,
+                    "p_pilot_id": pilotId.uuidString
+                ])
+                .execute()
+                .value
+
+            isLoading = false
+
+            if !result.success {
+                throw NSError(domain: "BookingService", code: -1, userInfo: [NSLocalizedDescriptionKey: result.error ?? "Failed to leave crew"])
+            }
+
+            return JoinCrewResponse(
+                success: result.success,
+                message: result.message,
+                crewMember: nil,
+                crewStatus: nil,
+                error: result.error
+            )
+        } catch {
+            isLoading = false
+            errorMessage = error.localizedDescription
+            throw error
+        }
+    }
+
+    func withdrawFromBooking(bookingId: UUID, pilotId: UUID) async throws -> JoinCrewResponse {
+        isLoading = true
+        errorMessage = nil
+
+        do {
+            struct LeaveResult: Codable {
+                let success: Bool
+                let error: String?
+                let message: String?
+            }
+
+            let result: LeaveResult = try await supabase
+                .rpc("withdraw_from_booking", params: [
+                    "p_booking_id": bookingId.uuidString,
+                    "p_pilot_id": pilotId.uuidString
+                ])
+                .execute()
+                .value
+
+            isLoading = false
+
+            if !result.success {
+                throw NSError(domain: "BookingService", code: -1, userInfo: [NSLocalizedDescriptionKey: result.error ?? "Failed to withdraw from booking"])
+            }
+
+            return JoinCrewResponse(
+                success: result.success,
+                message: result.message,
+                crewMember: nil,
+                crewStatus: nil,
+                error: result.error
+            )
+        } catch {
+            isLoading = false
+            errorMessage = error.localizedDescription
+            throw error
+        }
+    }
+
     // MARK: - Fetch Booking Crew
 
     /// Fetch crew members for a booking. For automotive bookings, returns crew details.
