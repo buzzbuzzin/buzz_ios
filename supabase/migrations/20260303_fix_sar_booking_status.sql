@@ -18,6 +18,7 @@ AS $$
 DECLARE
     v_booking RECORD;
     v_crew_count INT;
+    v_pilot_rank INT;
 BEGIN
     -- Lock the booking row to prevent race conditions
     SELECT *
@@ -60,9 +61,21 @@ BEGIN
         RETURN jsonb_build_object('success', false, 'error', 'Mission crew is already full');
     END IF;
 
+    -- Get pilot rank (1-4 range, default 1 = Ensign)
+    SELECT COALESCE(tier, 1) INTO v_pilot_rank
+    FROM pilot_stats
+    WHERE pilot_id = p_pilot_id;
+
+    IF NOT FOUND THEN
+        v_pilot_rank := 1;
+    END IF;
+
+    -- Clamp to valid range
+    v_pilot_rank := GREATEST(1, LEAST(4, v_pilot_rank));
+
     -- Insert crew member
-    INSERT INTO booking_crew (booking_id, pilot_id, joined_at)
-    VALUES (p_booking_id, p_pilot_id, NOW());
+    INSERT INTO booking_crew (booking_id, pilot_id, role, rank_at_acceptance, payout_amount, joined_at)
+    VALUES (p_booking_id, p_pilot_id, 'crew', v_pilot_rank, 0, NOW());
 
     -- Update crew count
     v_crew_count := v_crew_count + 1;

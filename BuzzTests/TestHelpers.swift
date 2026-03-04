@@ -24,6 +24,19 @@ final class MockBackend: BookingBackend {
     var shouldThrowOnCreate = false
     var shouldThrowOnUpdate = false
     var shouldThrowOnFetch = false
+    var joinSARCalled = false
+    var leaveSARCalled = false
+    var fetchCrewCalled = false
+    var shouldThrowOnJoinSAR = false
+    var shouldThrowOnLeaveSAR = false
+    var shouldThrowOnFetchCrew = false
+    var joinSARResponse: JoinCrewResponse = JoinCrewResponse(
+        success: true, message: "Joined mission", crewMember: nil, crewStatus: nil, error: nil
+    )
+    var leaveSARResponse: JoinCrewResponse = JoinCrewResponse(
+        success: true, message: "Left mission", crewMember: nil, crewStatus: nil, error: nil
+    )
+    var crewMembers: [BookingCrewMember] = []
 
     init(
         createBookingResult: Booking? = nil,
@@ -68,6 +81,30 @@ final class MockBackend: BookingBackend {
 
     func fetchUserProfile(userId: UUID) async throws -> UserProfile {
         userProfileResult
+    }
+
+    func joinSearchRescueBooking(bookingId: UUID, pilotId: UUID) async throws -> JoinCrewResponse {
+        joinSARCalled = true
+        if shouldThrowOnJoinSAR {
+            throw NSError(domain: "MockBackend", code: -1, userInfo: [NSLocalizedDescriptionKey: "Mock join SAR error"])
+        }
+        return joinSARResponse
+    }
+
+    func leaveSearchRescueBooking(bookingId: UUID, pilotId: UUID) async throws -> JoinCrewResponse {
+        leaveSARCalled = true
+        if shouldThrowOnLeaveSAR {
+            throw NSError(domain: "MockBackend", code: -1, userInfo: [NSLocalizedDescriptionKey: "Mock leave SAR error"])
+        }
+        return leaveSARResponse
+    }
+
+    func fetchBookingCrew(bookingId: UUID) async throws -> [BookingCrewMember] {
+        fetchCrewCalled = true
+        if shouldThrowOnFetchCrew {
+            throw NSError(domain: "MockBackend", code: -1, userInfo: [NSLocalizedDescriptionKey: "Mock fetch crew error"])
+        }
+        return crewMembers
     }
 
     // MARK: - Sample Data Factories
@@ -120,7 +157,11 @@ final class MockBackend: BookingBackend {
         endDate: Date? = nil,
         requiredMinimumRank: Int = 0,
         expiresAt: Date? = nil,
-        expirationNotified: Bool? = nil
+        expirationNotified: Bool? = nil,
+        numberOfPilots: Int? = nil,
+        usesBeaconProgram: Bool? = nil,
+        assignmentType: SARAssignmentType? = nil,
+        finalHoursWorked: Double? = nil
     ) -> Booking {
         Booking(
             id: id,
@@ -141,6 +182,10 @@ final class MockBackend: BookingBackend {
             pilotRated: nil,
             customerRated: nil,
             requiredMinimumRank: requiredMinimumRank,
+            finalHoursWorked: finalHoursWorked,
+            assignmentType: assignmentType,
+            usesBeaconProgram: usesBeaconProgram,
+            numberOfPilots: numberOfPilots,
             expiresAt: expiresAt,
             expirationNotified: expirationNotified
         )
@@ -168,6 +213,25 @@ final class MockBackend: BookingBackend {
             createdAt: Date(),
             resolvedAt: resolvedAt,
             resolvedBy: resolvedBy
+        )
+    }
+
+    static func sampleCrewMember(
+        id: UUID = UUID(),
+        bookingId: UUID = UUID(),
+        pilotId: UUID = UUID(),
+        role: CrewRole = .crew,
+        rankAtAcceptance: Int = 0,
+        payoutAmount: Decimal = 0
+    ) -> BookingCrewMember {
+        BookingCrewMember(
+            id: id,
+            bookingId: bookingId,
+            pilotId: pilotId,
+            role: role,
+            rankAtAcceptance: rankAtAcceptance,
+            payoutAmount: payoutAmount,
+            joinedAtString: ISO8601DateFormatter().string(from: Date())
         )
     }
 }

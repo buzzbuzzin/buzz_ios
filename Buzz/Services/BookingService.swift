@@ -16,6 +16,10 @@ protocol BookingBackend {
     func updateBooking(id: UUID, values: [String: AnyJSON]) async throws
     func joinAutomotiveBooking(bookingId: UUID, pilotId: UUID) async throws -> JoinCrewResponse
     func fetchUserProfile(userId: UUID) async throws -> UserProfile
+    // S&R crew operations
+    func joinSearchRescueBooking(bookingId: UUID, pilotId: UUID) async throws -> JoinCrewResponse
+    func leaveSearchRescueBooking(bookingId: UUID, pilotId: UUID) async throws -> JoinCrewResponse
+    func fetchBookingCrew(bookingId: UUID) async throws -> [BookingCrewMember]
 }
 
 protocol BookingNotificationManaging {
@@ -1156,26 +1160,8 @@ class BookingService: ObservableObject {
         errorMessage = nil
 
         do {
-            // Call the database function to join S&R booking
-            struct JoinResult: Codable {
-                let success: Bool
-                let error: String?
-                let message: String?
-            }
-            
-            let result: JoinResult = try await supabase
-                .rpc("join_search_rescue_booking", params: [
-                    "p_booking_id": bookingId.uuidString,
-                    "p_pilot_id": pilotId.uuidString
-                ])
-                .execute()
-                .value
-            
+            let response = try await backend.joinSearchRescueBooking(bookingId: bookingId, pilotId: pilotId)
             isLoading = false
-            
-            if !result.success {
-                throw NSError(domain: "BookingService", code: -1, userInfo: [NSLocalizedDescriptionKey: result.error ?? "Failed to join mission"])
-            }
 
             // Notify the beacon creator that a volunteer accepted
             if !skipNetworkCalls {
@@ -1184,7 +1170,7 @@ class BookingService: ObservableObject {
                     let pilotProfile = try? await backend.fetchUserProfile(userId: pilotId)
                     let volunteerCallSign = pilotProfile?.callSign ?? "A volunteer"
                     let missionType = booking?.specialization?.displayName ?? "Search & Rescue"
-                    if let booking = booking {
+                    if booking != nil {
                         await notificationManager.notifyBeaconAccepted(
                             bookingId: bookingId,
                             volunteerCallSign: volunteerCallSign,
@@ -1194,13 +1180,7 @@ class BookingService: ObservableObject {
                 }
             }
 
-            return JoinCrewResponse(
-                success: result.success,
-                message: result.message,
-                crewMember: nil,
-                crewStatus: nil,
-                error: result.error
-            )
+            return response
         } catch {
             isLoading = false
             errorMessage = error.localizedDescription
@@ -1215,33 +1195,9 @@ class BookingService: ObservableObject {
         errorMessage = nil
 
         do {
-            struct LeaveResult: Codable {
-                let success: Bool
-                let error: String?
-                let message: String?
-            }
-
-            let result: LeaveResult = try await supabase
-                .rpc("leave_search_rescue_booking", params: [
-                    "p_booking_id": bookingId.uuidString,
-                    "p_pilot_id": pilotId.uuidString
-                ])
-                .execute()
-                .value
-
+            let response = try await backend.leaveSearchRescueBooking(bookingId: bookingId, pilotId: pilotId)
             isLoading = false
-
-            if !result.success {
-                throw NSError(domain: "BookingService", code: -1, userInfo: [NSLocalizedDescriptionKey: result.error ?? "Failed to leave mission"])
-            }
-
-            return JoinCrewResponse(
-                success: result.success,
-                message: result.message,
-                crewMember: nil,
-                crewStatus: nil,
-                error: result.error
-            )
+            return response
         } catch {
             isLoading = false
             errorMessage = error.localizedDescription
@@ -1647,12 +1603,8 @@ class BookingService: ObservableObject {
                 "charge_id": .string(chargeId)
             ]
             
-            try await supabase
-                .from("bookings")
-                .update(updateData)
-                .eq("id", value: bookingId.uuidString)
-                .execute()
-            
+            try await backend.updateBooking(id: bookingId, values: updateData)
+
             // Trigger transfer to pilots
             struct TransferRequest: Codable {
                 let booking_id: String
@@ -1675,13 +1627,8 @@ class BookingService: ObservableObject {
                 ))
             
             // Update flight hours for all participating pilots
-            let crewMemberships: [BookingCrewMember] = try await supabase
-                .from("booking_crew")
-                .select()
-                .eq("booking_id", value: bookingId.uuidString)
-                .execute()
-                .value
-            
+            let crewMemberships = try await backend.fetchBookingCrew(bookingId: bookingId)
+
             let rankingService = RankingService()
             for crewMember in crewMemberships {
                 try? await rankingService.updateFlightHours(pilotId: crewMember.pilotId, additionalHours: hoursWorked)
@@ -1720,27 +1667,12 @@ class BookingService: ObservableObject {
                 "pilot_completed": .bool(true)
             ]
             
-            try await supabase
-                .from("bookings")
-                .update(updateData)
-                .eq("id", value: bookingId.uuidString)
-                .execute()
-            
+            try await backend.updateBooking(id: bookingId, values: updateData)
+
             // Update flight hours for all participating pilots
-            let booking: Booking = try await supabase
-                .from("bookings")
-                .select()
-                .eq("id", value: bookingId.uuidString)
-                .single()
-                .execute()
-                .value
-            
-            let crewMemberships: [BookingCrewMember] = try await supabase
-                .from("booking_crew")
-                .select()
-                .eq("booking_id", value: bookingId.uuidString)
-                .execute()
-                .value
+            let booking = try await backend.fetchBooking(id: bookingId)
+
+            let crewMemberships = try await backend.fetchBookingCrew(bookingId: bookingId)
             
             let hoursWorked = booking.finalHoursWorked ?? booking.estimatedFlightHours ?? 0
             let rankingService = RankingService()
@@ -2218,13 +2150,7 @@ class BookingService: ObservableObject {
 
         do {
             // Get current booking state
-            let booking: Booking = try await supabase
-                .from("bookings")
-                .select()
-                .eq("id", value: bookingId.uuidString)
-                .single()
-                .execute()
-                .value
+            let booking = try await backend.fetchBooking(id: bookingId)
 
             // Validate: must be S&R and available
             guard booking.isSearchRescueCrewBooking else {
@@ -2238,12 +2164,7 @@ class BookingService: ObservableObject {
             }
 
             // Verify enough pilots have joined
-            let crewMembers: [BookingCrewMember] = try await supabase
-                .from("booking_crew")
-                .select()
-                .eq("booking_id", value: bookingId.uuidString)
-                .execute()
-                .value
+            let crewMembers = try await backend.fetchBookingCrew(bookingId: bookingId)
 
             let requiredPilots = booking.numberOfPilots ?? 1
             guard crewMembers.count >= requiredPilots else {
@@ -2255,11 +2176,7 @@ class BookingService: ObservableObject {
                 "status": .string(BookingStatus.staffed.rawValue)
             ]
 
-            try await supabase
-                .from("bookings")
-                .update(updateData)
-                .eq("id", value: bookingId.uuidString)
-                .execute()
+            try await backend.updateBooking(id: bookingId, values: updateData)
 
             // Notify customer that their S&R mission is staffed
             if !skipNetworkCalls {
@@ -2826,6 +2743,57 @@ private struct SupabaseBookingBackend: BookingBackend {
             .select()
             .eq("id", value: userId.uuidString)
             .single()
+            .execute()
+            .value
+    }
+
+    func joinSearchRescueBooking(bookingId: UUID, pilotId: UUID) async throws -> JoinCrewResponse {
+        struct JoinResult: Codable {
+            let success: Bool
+            let error: String?
+            let message: String?
+        }
+        let result: JoinResult = try await client
+            .rpc("join_search_rescue_booking", params: [
+                "p_booking_id": bookingId.uuidString,
+                "p_pilot_id": pilotId.uuidString
+            ])
+            .execute()
+            .value
+        if !result.success {
+            throw NSError(domain: "BookingService", code: -1,
+                          userInfo: [NSLocalizedDescriptionKey: result.error ?? "Failed to join mission"])
+        }
+        return JoinCrewResponse(success: result.success, message: result.message,
+                                crewMember: nil, crewStatus: nil, error: result.error)
+    }
+
+    func leaveSearchRescueBooking(bookingId: UUID, pilotId: UUID) async throws -> JoinCrewResponse {
+        struct LeaveResult: Codable {
+            let success: Bool
+            let error: String?
+            let message: String?
+        }
+        let result: LeaveResult = try await client
+            .rpc("leave_search_rescue_booking", params: [
+                "p_booking_id": bookingId.uuidString,
+                "p_pilot_id": pilotId.uuidString
+            ])
+            .execute()
+            .value
+        if !result.success {
+            throw NSError(domain: "BookingService", code: -1,
+                          userInfo: [NSLocalizedDescriptionKey: result.error ?? "Failed to leave mission"])
+        }
+        return JoinCrewResponse(success: result.success, message: result.message,
+                                crewMember: nil, crewStatus: nil, error: result.error)
+    }
+
+    func fetchBookingCrew(bookingId: UUID) async throws -> [BookingCrewMember] {
+        try await client
+            .from("booking_crew")
+            .select()
+            .eq("booking_id", value: bookingId.uuidString)
             .execute()
             .value
     }
