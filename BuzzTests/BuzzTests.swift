@@ -12,12 +12,13 @@ import Testing
 struct BuzzTests {
     @Test func hangerTalkNotificationTypeCoversAllCases() async throws {
         let allCases = HangerTalkNotificationType.allCases
-        #expect(allCases.count == 5)
+        #expect(allCases.count == 6)
         #expect(allCases.contains(.like))
         #expect(allCases.contains(.reply))
         #expect(allCases.contains(.mention))
         #expect(allCases.contains(.follow))
         #expect(allCases.contains(.newPost))
+        #expect(allCases.contains(.spaceLive))
     }
 
     @Test func hangerAuthorProfileFullNameWithBothNames() async throws {

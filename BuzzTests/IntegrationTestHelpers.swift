@@ -33,8 +33,29 @@ class IntegrationTestCase: XCTestCase {
 
     override func setUp() async throws {
         try await super.setUp()
-        // Sign in the test user so RLS passes
-        try await supabase.auth.signIn(email: TestUser.email, password: TestUser.password)
+        // Sign in the test user with retry to handle Supabase rate limits
+        try await signInWithRetry()
+    }
+
+    /// Signs in the test user, retrying with exponential backoff on rate-limit (429) errors.
+    private func signInWithRetry(maxAttempts: Int = 4) async throws {
+        var lastError: Error?
+        for attempt in 0..<maxAttempts {
+            do {
+                try await supabase.auth.signIn(email: TestUser.email, password: TestUser.password)
+                return
+            } catch {
+                lastError = error
+                let isRateLimit = "\(error)".contains("over_request_rate_limit") || "\(error)".contains("429")
+                guard isRateLimit, attempt < maxAttempts - 1 else {
+                    if !isRateLimit { throw error }
+                    break
+                }
+                let delay = UInt64(pow(2.0, Double(attempt))) * 1_000_000_000 // 1s, 2s, 4s
+                try await Task.sleep(nanoseconds: delay)
+            }
+        }
+        throw lastError!
     }
 
     override func tearDown() async throws {

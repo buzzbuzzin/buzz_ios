@@ -33,9 +33,14 @@ struct IndustryNewsView: View {
                 VStack(spacing: 0) {
                     // Source Header
                     HStack(spacing: 8) {
-                        Image(systemName: selectedSource.icon)
-                            .font(.system(size: 24, weight: .bold))
-                            .foregroundColor(sourceColor)
+                        if selectedSource == .global {
+                            Image(systemName: selectedSource.icon)
+                                .font(.system(size: 24, weight: .bold))
+                                .foregroundColor(sourceColor)
+                        } else {
+                            Text(selectedSource.icon)
+                                .font(.system(size: 24))
+                        }
                         Text(selectedSource.displayName + " News")
                             .font(.system(size: 28, weight: .bold))
                             .foregroundColor(.primary)

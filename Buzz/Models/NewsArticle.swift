@@ -54,8 +54,8 @@ enum NewsSource: String, CaseIterable {
 
     var icon: String {
         switch self {
-        case .faa: return "flag.fill"
-        case .transportCanada: return "leaf.fill"
+        case .faa: return "🇺🇸"
+        case .transportCanada: return "🇨🇦"
         case .global: return "globe"
         }
     }
