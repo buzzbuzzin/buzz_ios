@@ -675,8 +675,20 @@ struct LicenseCard: View {
                     Text("Uploaded \(license.uploadedAt.formatted(date: .abbreviated, time: .shortened))")
                         .font(.caption)
                         .foregroundColor(.secondary)
+
+                    // Approval status badge
+                    if let status = license.approvalStatusEnum {
+                        Text(status.displayName)
+                            .font(.caption2)
+                            .fontWeight(.semibold)
+                            .foregroundColor(status.color)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(status.color.opacity(0.12))
+                            .clipShape(Capsule())
+                    }
                 }
-                
+
                 Spacer()
                 
                 // Action buttons
@@ -809,6 +821,23 @@ struct LicenseCard: View {
                             )
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
+                }
+
+                // Reviewer notes for rejected licenses
+                if license.approvalStatusEnum == .rejected,
+                   let notes = license.reviewerNotes, !notes.isEmpty {
+                    HStack(spacing: 6) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.caption)
+                            .foregroundColor(.red)
+                        Text(notes)
+                            .font(.caption)
+                            .foregroundColor(.red)
+                    }
+                    .padding(10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.red.opacity(0.08))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
                 }
             }
             .padding(16)

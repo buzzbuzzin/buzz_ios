@@ -6,6 +6,29 @@
 //
 
 import Foundation
+import SwiftUI
+
+enum LicenseApprovalStatus: String, Codable {
+    case pending = "pending"
+    case approved = "approved"
+    case rejected = "rejected"
+
+    var displayName: String {
+        switch self {
+        case .pending: return "Under Review"
+        case .approved: return "Approved"
+        case .rejected: return "Rejected"
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .pending: return .orange
+        case .approved: return .green
+        case .rejected: return .red
+        }
+    }
+}
 
 enum LicenseFileType: String, Codable {
     case pdf
@@ -90,7 +113,13 @@ struct PilotLicense: Codable, Identifiable {
     let courseCompleted: String?
     let completionDate: String?
     let certificateNumber: String?
-    
+
+    // Approval workflow fields
+    let approvalStatus: String?
+    let reviewedAt: Date?
+    let reviewedBy: UUID?
+    let reviewerNotes: String?
+
     enum CodingKeys: String, CodingKey {
         case id
         case pilotId = "pilot_id"
@@ -102,6 +131,23 @@ struct PilotLicense: Codable, Identifiable {
         case courseCompleted = "course_completed"
         case completionDate = "completion_date"
         case certificateNumber = "certificate_number"
+        case approvalStatus = "approval_status"
+        case reviewedAt = "reviewed_at"
+        case reviewedBy = "reviewed_by"
+        case reviewerNotes = "reviewer_notes"
+    }
+
+    /// Whether this license type requires admin approval
+    var needsApproval: Bool {
+        guard let type = licenseType else { return false }
+        return type == LicenseType.rpaFlightReviewer.rawValue ||
+               type == LicenseType.rocaExaminerCertificate.rawValue
+    }
+
+    /// Parsed approval status enum
+    var approvalStatusEnum: LicenseApprovalStatus? {
+        guard let status = approvalStatus else { return nil }
+        return LicenseApprovalStatus(rawValue: status)
     }
 }
 

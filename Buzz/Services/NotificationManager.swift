@@ -55,6 +55,8 @@ class NotificationManager: NSObject, ObservableObject {
         case marketplaceItemShipped = "MARKETPLACE_ITEM_SHIPPED"
         case marketplaceDeliveryConfirmed = "MARKETPLACE_DELIVERY_CONFIRMED"
         case marketplaceReviewReceived = "MARKETPLACE_REVIEW_RECEIVED"
+        case licenseApproved = "LICENSE_APPROVED"
+        case licenseRejected = "LICENSE_REJECTED"
     }
     
     // Published property for emergency flash effect
@@ -927,6 +929,9 @@ class NotificationManager: NSObject, ObservableObject {
             return preferences.marketplaceTransactions.system
         case .marketplaceReviewReceived:
             return preferences.marketplaceReviews.system
+        case .licenseApproved, .licenseRejected:
+            // License approval notifications are always enabled
+            return true
         }
     }
     

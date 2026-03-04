@@ -142,6 +142,12 @@ class LicenseUploadService: ObservableObject {
             // Add license type if provided
             if let licenseType = licenseType, !licenseType.isEmpty {
                 license["license_type"] = .string(licenseType)
+
+                // Set pending approval status for reviewable license types
+                if licenseType == LicenseType.rpaFlightReviewer.rawValue ||
+                   licenseType == LicenseType.rocaExaminerCertificate.rawValue {
+                    license["approval_status"] = .string("pending")
+                }
             }
             
             // Add OCR extracted fields if available
