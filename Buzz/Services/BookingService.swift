@@ -134,13 +134,13 @@ class BookingService: ObservableObject {
             // Insert + fetch via backend so tests can inject a mock
             let createdBooking = try await backend.createBooking(payload: booking, bookingId: bookingId)
             
-            // Notify nearby pilots about the new booking
+            // Fire-and-forget: notification should complete even if caller is cancelled
             if !skipNetworkCalls {
-                Task {
+                Task { [createdBooking] in
                     await notifyNearbyPilotsAboutNewBooking(booking: createdBooking)
                 }
             }
-            
+
             isLoading = false
             return createdBooking
         } catch {
@@ -149,7 +149,7 @@ class BookingService: ObservableObject {
             throw error
         }
     }
-    
+
     // MARK: - Create Search & Rescue Booking (Customer)
     
     /// Creates a Search & Rescue booking without upfront payment.
@@ -223,13 +223,13 @@ class BookingService: ObservableObject {
             // Insert + fetch via backend
             let createdBooking = try await backend.createBooking(payload: booking, bookingId: bookingId)
             
-            // Notify nearby pilots about the new booking
+            // Fire-and-forget: notification should complete even if caller is cancelled
             if !skipNetworkCalls {
-                Task {
+                Task { [createdBooking] in
                     await notifyNearbyPilotsAboutNewBooking(booking: createdBooking)
                 }
             }
-            
+
             isLoading = false
             return createdBooking
         } catch {
@@ -546,7 +546,7 @@ class BookingService: ObservableObject {
                 estimatedFlightHours: 5.0,
                 pilotRated: nil,
                 customerRated: nil
-            )
+            ),
         ]
     }
     
@@ -611,6 +611,7 @@ class BookingService: ObservableObject {
                         .from("bookings")
                         .select()
                         .in("id", values: crewBookingIds)
+                        .in("status", values: [BookingStatus.available.rawValue, BookingStatus.accepted.rawValue, BookingStatus.staffed.rawValue, BookingStatus.inProgress.rawValue, BookingStatus.completed.rawValue])
                         .execute()
                         .value
                 }
@@ -643,7 +644,7 @@ class BookingService: ObservableObject {
                 }
                 
                 // Sort by created_at descending
-                realBookings = allBookings.sorted { ($0.createdAt ?? Date.distantPast) > ($1.createdAt ?? Date.distantPast) }
+                realBookings = allBookings.sorted { $0.createdAt > $1.createdAt }
             } else {
                 realBookings = try await query
                     .eq("customer_id", value: userId.uuidString)
@@ -1153,7 +1154,7 @@ class BookingService: ObservableObject {
     func joinSearchRescueBooking(bookingId: UUID, pilotId: UUID) async throws -> JoinCrewResponse {
         isLoading = true
         errorMessage = nil
-        
+
         do {
             // Call the database function to join S&R booking
             struct JoinResult: Codable {

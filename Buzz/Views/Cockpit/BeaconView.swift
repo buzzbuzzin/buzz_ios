@@ -11,6 +11,7 @@ import Auth
 struct BeaconView: View {
     @EnvironmentObject var authService: AuthService
     @Environment(\.dismiss) private var dismiss
+    @StateObject private var beaconService = BeaconService()
     @State private var isLoading: Bool = true
     @State private var hasLoadedOnce: Bool = false
     @State private var activeMissions: [BeaconMission] = []
@@ -29,6 +30,7 @@ struct BeaconView: View {
                 // Active volunteers see dashboard directly
                 BeaconVolunteerDashboardView(showAboutProgram: $showAboutProgram)
                     .environmentObject(authService)
+                    .environmentObject(beaconService)
             } else {
                 // Non-volunteers see the info/signup view
                 BeaconInfoView(
@@ -87,7 +89,6 @@ struct BeaconView: View {
         // Use activeUserId which handles auth timing better on physical devices
         if let userId = authService.activeUserId {
             do {
-                let beaconService = BeaconService()
                 isBeaconVolunteer = try await beaconService.isUserBeaconVolunteer(userId: userId)
                 trainingProgress = try await beaconService.getTrainingProgress(userId: userId)
             } catch {
@@ -597,12 +598,15 @@ struct MissionTypeCard: View {
 struct BeaconVolunteerDashboardView: View {
     @EnvironmentObject var authService: AuthService
     @StateObject private var bookingService = BookingService()
-    @StateObject private var beaconService = BeaconService()
+    @EnvironmentObject var beaconService: BeaconService
     @State private var isAvailable: Bool = true
     @State private var isLoading: Bool = true
     @State private var searchRescueBookings: [Booking] = []
     @State private var myActiveMissions: [Booking] = []
     @State private var volunteerStats: BeaconVolunteer?
+    @State private var joiningMissionIds: Set<UUID> = []
+    @State private var showJoinSuccess: Bool = false
+    @State private var joinError: String?
     @Binding var showAboutProgram: Bool
     
     var body: some View {
@@ -714,7 +718,7 @@ struct BeaconVolunteerDashboardView: View {
                             .padding(.horizontal)
                     } else {
                         ForEach(searchRescueBookings) { booking in
-                            SearchRescueMissionCard(booking: booking) {
+                            SearchRescueMissionCard(booking: booking, isJoining: joiningMissionIds.contains(booking.id)) {
                                 Task {
                                     await joinMission(booking: booking)
                                 }
@@ -763,8 +767,21 @@ struct BeaconVolunteerDashboardView: View {
         .refreshable {
             await loadData()
         }
+        .alert("Mission Joined", isPresented: $showJoinSuccess) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("You've joined the mission! Check My Active Missions for details.")
+        }
+        .alert("Unable to Join", isPresented: Binding(
+            get: { joinError != nil },
+            set: { if !$0 { joinError = nil } }
+        )) {
+            Button("OK", role: .cancel) { joinError = nil }
+        } message: {
+            Text(joinError ?? "An unknown error occurred.")
+        }
     }
-    
+
     private func loadData() async {
         isLoading = true
         
@@ -781,26 +798,27 @@ struct BeaconVolunteerDashboardView: View {
             print("Error loading volunteer stats: \(error)")
         }
         
-        // Load available S&R bookings (available status, not yet joined)
-        do {
-            try await bookingService.fetchAvailableBookings(forPilotId: userId)
-            searchRescueBookings = bookingService.availableBookings.filter { booking in
-                booking.specialization == .searchRescue &&
-                booking.status == .available
-            }
-        } catch {
-            print("Error loading S&R bookings: \(error)")
-        }
-        
-        // Load my active S&R missions (ones I've joined)
+        // Load my active S&R missions first (ones I've joined)
         do {
             try await bookingService.fetchMyBookings(userId: userId, isPilot: true)
             myActiveMissions = bookingService.myBookings.filter { booking in
                 booking.specialization == .searchRescue &&
-                (booking.status == .accepted)
+                (booking.status == .accepted || booking.status == .staffed || booking.status == .inProgress || booking.status == .available)
             }
         } catch {
             print("Error loading my missions: \(error)")
+        }
+
+        // Load available S&R bookings, excluding ones already joined
+        do {
+            try await bookingService.fetchAvailableBookings(forPilotId: userId)
+            searchRescueBookings = bookingService.availableBookings.filter { booking in
+                booking.specialization == .searchRescue &&
+                booking.status == .available &&
+                !myActiveMissions.contains(where: { $0.id == booking.id })
+            }
+        } catch {
+            print("Error loading S&R bookings: \(error)")
         }
         
         isLoading = false
@@ -808,14 +826,16 @@ struct BeaconVolunteerDashboardView: View {
     
     private func joinMission(booking: Booking) async {
         guard let userId = authService.activeUserId else { return }
-        
+
+        joiningMissionIds.insert(booking.id)
         do {
-            // Use the search rescue join function
             _ = try await bookingService.joinSearchRescueBooking(bookingId: booking.id, pilotId: userId)
-            // Reload data after joining
+            joiningMissionIds.remove(booking.id)
             await loadData()
+            showJoinSuccess = true
         } catch {
-            print("Error joining mission: \(error)")
+            joiningMissionIds.remove(booking.id)
+            joinError = error.localizedDescription
         }
     }
 }
@@ -824,6 +844,7 @@ struct BeaconVolunteerDashboardView: View {
 
 struct SearchRescueMissionCard: View {
     let booking: Booking
+    var isJoining: Bool = false
     let onJoin: () -> Void
     
     var body: some View {
@@ -901,16 +922,24 @@ struct SearchRescueMissionCard: View {
             // Join Button
             Button(action: onJoin) {
                 HStack {
-                    Image(systemName: "hand.raised.fill")
-                    Text("Join Mission")
-                        .fontWeight(.semibold)
+                    if isJoining {
+                        ProgressView()
+                            .tint(.white)
+                        Text("Joining...")
+                            .fontWeight(.semibold)
+                    } else {
+                        Image(systemName: "hand.raised.fill")
+                        Text("Join Mission")
+                            .fontWeight(.semibold)
+                    }
                 }
                 .foregroundColor(.white)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 12)
-                .background(Color.red)
+                .background(isJoining ? Color.red.opacity(0.6) : Color.red)
                 .cornerRadius(10)
             }
+            .disabled(isJoining)
         }
         .padding()
         .background(Color(.secondarySystemBackground))
@@ -990,8 +1019,8 @@ struct StatCard: View {
 struct EmergencyFlashOverlay: View {
     @ObservedObject var notificationManager = NotificationManager.shared
     @State private var isFlashing: Bool = false
-    @State private var flashCount: Int = 0
-    
+    @State private var flashTask: Task<Void, Never>?
+
     var body: some View {
         ZStack {
             if notificationManager.showEmergencyFlash {
@@ -1000,19 +1029,19 @@ struct EmergencyFlashOverlay: View {
                     .ignoresSafeArea()
                     .animation(.easeInOut(duration: 0.3), value: isFlashing)
                     .allowsHitTesting(false)
-                
+
                 VStack(spacing: 20) {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .font(.system(size: 80))
                         .foregroundColor(.white)
                         .shadow(color: .black.opacity(0.3), radius: 10)
-                    
+
                     Text("EMERGENCY")
                         .font(.largeTitle)
                         .fontWeight(.bold)
                         .foregroundColor(.white)
                         .shadow(color: .black.opacity(0.3), radius: 10)
-                    
+
                     Text("Tap to respond")
                         .font(.headline)
                         .foregroundColor(.white.opacity(0.9))
@@ -1022,18 +1051,18 @@ struct EmergencyFlashOverlay: View {
                 .animation(.easeInOut(duration: 0.3), value: isFlashing)
             }
         }
-        .onChange(of: notificationManager.showEmergencyFlash) { shouldFlash in
+        .onChange(of: notificationManager.showEmergencyFlash) { _, shouldFlash in
             if shouldFlash {
                 startFlashing()
             } else {
+                flashTask?.cancel()
+                flashTask = nil
                 isFlashing = false
-                flashCount = 0
             }
         }
         .onTapGesture {
             if notificationManager.showEmergencyFlash {
                 notificationManager.stopEmergencyFlash()
-                // Navigate to the emergency booking if ID is available
                 if let bookingId = notificationManager.emergencyBookingId {
                     NotificationCenter.default.post(
                         name: NSNotification.Name("NavigateToEmergencyBooking"),
@@ -1044,23 +1073,14 @@ struct EmergencyFlashOverlay: View {
             }
         }
     }
-    
+
     private func startFlashing() {
-        flashCount = 0
-        performFlash()
-    }
-    
-    private func performFlash() {
-        guard flashCount < 10 else { // Flash 5 times (on/off = 10 changes)
-            return
-        }
-        
-        isFlashing.toggle()
-        flashCount += 1
-        
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-            if notificationManager.showEmergencyFlash {
-                performFlash()
+        flashTask?.cancel()
+        flashTask = Task { @MainActor in
+            for _ in 0..<10 {
+                guard !Task.isCancelled else { return }
+                isFlashing.toggle()
+                try? await Task.sleep(nanoseconds: 300_000_000)
             }
         }
     }

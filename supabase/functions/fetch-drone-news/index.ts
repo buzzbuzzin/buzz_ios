@@ -3,6 +3,9 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { XMLParser } from "https://esm.sh/fast-xml-parser@4.3.2"
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3"
+
+const CACHE_TTL_SECONDS = 30 * 60 // 30 minutes
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -431,9 +434,27 @@ serve(async (req) => {
   }
 
   try {
-    const { source }: FetchDroneNewsRequest = await req.json()
+    let body: FetchDroneNewsRequest
+    try {
+      body = await req.json()
+    } catch {
+      return new Response(
+        JSON.stringify({
+          error: "Invalid or missing JSON body",
+          articles: [],
+          source: "",
+          fetchedAt: new Date().toISOString(),
+        }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      )
+    }
 
-    if (!["faa", "transport_canada", "global"].includes(source)) {
+    const { source } = body
+
+    if (!source || !["faa", "transport_canada", "global"].includes(source)) {
       return new Response(
         JSON.stringify({
           error: "Invalid source. Must be 'faa', 'transport_canada', or 'global'.",
@@ -448,6 +469,38 @@ serve(async (req) => {
       )
     }
 
+    // Initialize Supabase client for cache access
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+    const supabase = createClient(supabaseUrl, supabaseKey)
+
+    // Check server-side cache
+    const { data: cached } = await supabase
+      .from("news_cache")
+      .select("articles, fetched_at")
+      .eq("source", source)
+      .single()
+
+    if (cached) {
+      const cacheAge = (Date.now() - new Date(cached.fetched_at).getTime()) / 1000
+      if (cacheAge < CACHE_TTL_SECONDS) {
+        console.log(`Cache hit for ${source} (age: ${Math.round(cacheAge)}s)`)
+        return new Response(
+          JSON.stringify({
+            articles: cached.articles,
+            source,
+            fetchedAt: cached.fetched_at,
+          }),
+          {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+            status: 200,
+          }
+        )
+      }
+    }
+
+    // Cache miss or stale — fetch from external sources
+    console.log(`Cache miss for ${source}, fetching from external sources`)
     let articles: NewsArticle[] = []
 
     switch (source) {
@@ -465,11 +518,26 @@ serve(async (req) => {
     // Enrich articles with images from their web pages
     articles = await enrichArticlesWithImages(articles)
 
+    const fetchedAt = new Date().toISOString()
+
+    // Update cache (upsert)
+    const { error: upsertError } = await supabase
+      .from("news_cache")
+      .upsert({
+        source,
+        articles,
+        fetched_at: fetchedAt,
+      }, { onConflict: "source" })
+
+    if (upsertError) {
+      console.error("Cache upsert failed:", upsertError.message)
+    }
+
     return new Response(
       JSON.stringify({
         articles,
         source,
-        fetchedAt: new Date().toISOString(),
+        fetchedAt,
       }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },

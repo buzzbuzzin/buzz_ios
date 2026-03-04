@@ -92,6 +92,9 @@ struct PilotTabView: View {
             }
             await checkForNearbyBeaconMissions()
         }
+        .onDisappear {
+            locationManager.stopLocationUpdates()
+        }
         .onChange(of: bookingService.availableBookings.count) { _ in
             Task {
                 await checkForNearbyBeaconMissions()
@@ -270,7 +273,9 @@ struct MyFlightsView: View {
                     List {
                         let activeBookings = bookingService.myBookings.filter { booking in
                             booking.status == .accepted ||
-                            (booking.isAutomotiveCrewBooking && booking.status == .available)
+                            booking.status == .staffed ||
+                            booking.status == .inProgress ||
+                            (booking.isCrewBooking && booking.status == .available)
                         }
                         
                         Section("Active") {

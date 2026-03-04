@@ -436,7 +436,7 @@ struct BookingDetailView: View {
                     Label("Status", systemImage: "info.circle.fill")
                         .font(.headline)
                     
-                    Text(booking.status.displayName.capitalized)
+                    Text(currentBooking.status.displayName.capitalized)
                         .font(.body)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 6)
@@ -690,8 +690,39 @@ struct BookingDetailView: View {
                                         }
                                         .padding(.horizontal)
                                     }
+                                } else if currentBooking.isSearchRescueCrewBooking {
+                                    // S&R crew booking
+                                    if isAlreadyInCrew {
+                                        VStack(spacing: 8) {
+                                            HStack {
+                                                Image(systemName: "checkmark.circle.fill")
+                                                    .foregroundColor(.green)
+                                                Text("You've joined this mission")
+                                                    .fontWeight(.semibold)
+                                            }
+                                            .foregroundColor(.green)
+                                            .padding()
+                                            .frame(maxWidth: .infinity)
+                                            .background(Color.green.opacity(0.1))
+                                            .cornerRadius(12)
+                                            .padding(.horizontal)
+
+                                            if let crew = crewInfo {
+                                                Text("Waiting for \(crew.maxCrew - crew.crewCount) more pilot(s) to join")
+                                                    .font(.caption)
+                                                    .foregroundColor(.secondary)
+                                            }
+                                        }
+                                    } else {
+                                        CustomButton(
+                                            title: "Join Mission",
+                                            action: { showJoinCrewAlert = true },
+                                            isLoading: bookingService.isLoading
+                                        )
+                                        .padding(.horizontal)
+                                    }
                                 } else {
-                                    // Non-automotive booking - regular accept
+                                    // Non-crew booking - regular accept
                                     CustomButton(
                                         title: "Accept Booking",
                                         action: { showAcceptAlert = true },
@@ -702,7 +733,7 @@ struct BookingDetailView: View {
                             } else {
                                 VStack(spacing: 8) {
                                     CustomButton(
-                                        title: currentBooking.isAutomotiveCrewBooking ? "Join Crew" : "Accept Booking",
+                                        title: currentBooking.isCrewBooking ? (currentBooking.isSearchRescueCrewBooking ? "Join Mission" : "Join Crew") : "Accept Booking",
                                         action: { showVerificationRequiredAlert = true },
                                         isLoading: false
                                     )
@@ -731,17 +762,6 @@ struct BookingDetailView: View {
                             )
                             .padding(.horizontal)
 
-                            // Show Finish Booking button if pilot hasn't completed yet and customer hasn't completed yet
-                            if currentBooking.pilotCompleted != true && currentBooking.customerCompleted != true {
-                                CustomButton(
-                                    title: "Finish Booking",
-                                    action: { showFinishBookingAlert = true },
-                                    style: .primary,
-                                    isLoading: bookingService.isLoading
-                                )
-                                .padding(.horizontal)
-                            }
-                            
                             // Show waiting message if pilot has completed but customer hasn't
                             if currentBooking.pilotCompleted == true && currentBooking.customerCompleted != true {
                                 VStack(spacing: 12) {
@@ -923,13 +943,15 @@ struct BookingDetailView: View {
         } message: {
             Text("You must verify your identity before accepting bookings. Please complete identity verification in your Profile settings.")
         }
-        .alert("Join Crew", isPresented: $showJoinCrewAlert) {
+        .alert(currentBooking.isSearchRescueCrewBooking ? "Join Mission" : "Join Crew", isPresented: $showJoinCrewAlert) {
             Button("Cancel", role: .cancel) {}
             Button("Join") {
                 joinCrew()
             }
         } message: {
-            Text("Join this automotive booking crew? You'll be paid based on your current rank when the booking is completed.")
+            Text(currentBooking.isSearchRescueCrewBooking
+                ? "Join this Search & Rescue mission?"
+                : "Join this automotive booking crew? You'll be paid based on your current rank when the booking is completed.")
         }
         .alert("Joined Crew!", isPresented: $showJoinCrewSuccess) {
             Button("OK") {
@@ -1003,16 +1025,11 @@ struct BookingDetailView: View {
             await loadCustomerProfile()
             await checkIdentityVerification()
             await refreshBooking()
-            if currentBooking.isAutomotiveCrewBooking {
+            if currentBooking.isCrewBooking {
                 await loadCrewInfo()
             }
         }
-        .onAppear {
-            // Refresh booking when view appears to get latest status
-            Task {
-                await refreshBooking()
-            }
-        }
+        // Bug fix: removed duplicate .onAppear refreshBooking() — .task already calls it
     }
     
     private func checkIdentityVerification() async {
@@ -1059,40 +1076,30 @@ struct BookingDetailView: View {
     }
     
     private var detailedAddress: String {
-        // Return detailed street addresses for famous tourist locations
-        // These are actual addresses for demo purposes
-        switch booking.locationName {
-        case "Golden Gate Bridge, San Francisco":
-            return "Golden Gate Bridge, San Francisco, CA 94129"
-        case "Hollywood Hills, Los Angeles":
-            return "Hollywood Hills, Los Angeles, CA 90068"
-        case "Brooklyn Bridge, New York":
-            return "Brooklyn Bridge, New York, NY 10038"
-        case "Millennium Park, Chicago":
-            return "201 E Randolph St, Chicago, IL 60602"
-        case "Independence Hall, Philadelphia":
-            return "520 Chestnut St, Philadelphia, PA 19106"
-        case "Downtown Houston, Texas":
-            return "Downtown Houston, TX 77002"
-        case "Coit Tower, San Francisco":
-            return "1 Telegraph Hill Blvd, San Francisco, CA 94133"
-        case "Griffith Observatory, Los Angeles":
-            return "2800 E Observatory Rd, Los Angeles, CA 90027"
-        case "Central Park, New York":
-            return "Central Park, New York, NY 10024"
-        case "Navy Pier, Chicago":
-            return "600 E Grand Ave, Chicago, IL 60611"
-        case "South Beach, Miami":
-            return "South Beach, Miami Beach, FL 33139"
-        case "Space Needle, Seattle":
-            return "400 Broad St, Seattle, WA 98109"
-        default:
-            return booking.locationName
+        // Return detailed street addresses for famous tourist locations (demo data)
+        let demoAddresses: [String: String] = [
+            "Golden Gate Bridge, San Francisco": "Golden Gate Bridge, San Francisco, CA 94129",
+            "Hollywood Hills, Los Angeles": "Hollywood Hills, Los Angeles, CA 90068",
+            "Brooklyn Bridge, New York": "Brooklyn Bridge, New York, NY 10038",
+            "Millennium Park, Chicago": "201 E Randolph St, Chicago, IL 60602",
+            "Independence Hall, Philadelphia": "520 Chestnut St, Philadelphia, PA 19106",
+            "Downtown Houston, Texas": "Downtown Houston, TX 77002",
+            "Coit Tower, San Francisco": "1 Telegraph Hill Blvd, San Francisco, CA 94133",
+            "Griffith Observatory, Los Angeles": "2800 E Observatory Rd, Los Angeles, CA 90027",
+            "Central Park, New York": "Central Park, New York, NY 10024",
+            "Navy Pier, Chicago": "600 E Grand Ave, Chicago, IL 60611",
+            "South Beach, Miami": "South Beach, Miami Beach, FL 33139",
+            "Space Needle, Seattle": "400 Broad St, Seattle, WA 98109",
+        ]
+        if let address = demoAddresses[currentBooking.locationName] {
+            return address
         }
+        // For real bookings, show coordinates instead of duplicating the location name
+        return String(format: "%.4f, %.4f", currentBooking.locationLat, currentBooking.locationLng)
     }
     
     private var statusColor: Color {
-        switch booking.status {
+        switch currentBooking.status {
         case .available:
             return .green
         case .accepted:
@@ -1308,14 +1315,14 @@ struct BookingDetailView: View {
         return String(format: "%02d%02d%02dZ", day, hour, minute)
     }
     
-    // MARK: - Crew Functions (Automotive Bookings)
-    
+    // MARK: - Crew Functions (Automotive & S&R Bookings)
+
     private func loadCrewInfo() async {
-        guard currentBooking.isAutomotiveCrewBooking else { return }
+        guard currentBooking.isCrewBooking else { return }
         
         isLoadingCrew = true
         do {
-            let requesterType = authService.userProfile?.userType == .pilot ? "pilot" : "crew"
+            let requesterType = authService.userProfile?.userType == .pilot ? "pilot" : "customer"
             crewInfo = try await bookingService.fetchBookingCrew(
                 bookingId: currentBooking.id,
                 requesterId: authService.currentUser?.id,
@@ -1335,13 +1342,21 @@ struct BookingDetailView: View {
     
     private func joinCrew() {
         guard let currentUser = authService.currentUser else { return }
-        
+
         Task {
             do {
-                let result = try await bookingService.joinAutomotiveBooking(
-                    bookingId: currentBooking.id,
-                    pilotId: currentUser.id
-                )
+                let result: JoinCrewResponse
+                if currentBooking.isSearchRescueCrewBooking {
+                    result = try await bookingService.joinSearchRescueBooking(
+                        bookingId: currentBooking.id,
+                        pilotId: currentUser.id
+                    )
+                } else {
+                    result = try await bookingService.joinAutomotiveBooking(
+                        bookingId: currentBooking.id,
+                        pilotId: currentUser.id
+                    )
+                }
                 joinCrewResult = result
                 
                 if result.success {

@@ -18,21 +18,25 @@ class BeaconService: ObservableObject {
     @Published var errorMessage: String?
     
     private let supabase = SupabaseClient.shared.client
-    
+    private var hasSyncedBadges = false
+
     // MARK: - Training Progress
-    
+
     /// Sync existing badges to training progress records
     /// This allows pilots who already earned badges to have training requirements fulfilled
     func syncBadgesToTraining(userId: UUID) async throws {
         try await supabase
             .rpc("sync_badges_to_beacon_training", params: ["p_pilot_id": userId.uuidString])
             .execute()
+        hasSyncedBadges = true
     }
-    
+
     /// Get all training progress for a user
     func getTrainingProgress(userId: UUID) async throws -> [BeaconTrainingProgress] {
-        // First sync any badges to training progress
-        try await syncBadgesToTraining(userId: userId)
+        // Only sync badges once per session to avoid redundant RPC calls
+        if !hasSyncedBadges {
+            try await syncBadgesToTraining(userId: userId)
+        }
         
         let progress: [BeaconTrainingProgress] = try await supabase
             .from("beacon_training_progress")
@@ -41,10 +45,7 @@ class BeaconService: ObservableObject {
             .execute()
             .value
         
-        await MainActor.run {
-            self.trainingProgress = progress
-        }
-        
+        self.trainingProgress = progress
         return progress
     }
     
@@ -110,12 +111,10 @@ class BeaconService: ObservableObject {
             .value
         
         // Update local state
-        await MainActor.run {
-            if let index = self.trainingProgress.firstIndex(where: { $0.trainingType == trainingType }) {
-                self.trainingProgress[index] = insertedProgress
-            } else {
-                self.trainingProgress.append(insertedProgress)
-            }
+        if let index = self.trainingProgress.firstIndex(where: { $0.trainingType == trainingType }) {
+            self.trainingProgress[index] = insertedProgress
+        } else {
+            self.trainingProgress.append(insertedProgress)
         }
         
         return insertedProgress
@@ -150,10 +149,7 @@ class BeaconService: ObservableObject {
                 .execute()
                 .value
             
-            await MainActor.run {
-                self.volunteerStatus = volunteer
-            }
-            
+            self.volunteerStatus = volunteer
             return volunteer
         } catch {
             return nil
@@ -190,9 +186,7 @@ class BeaconService: ObservableObject {
             .eq("pilot_id", value: userId.uuidString)
             .execute()
         
-        await MainActor.run {
-            self.volunteerStatus?.isAvailable = isAvailable
-        }
+        self.volunteerStatus?.isAvailable = isAvailable
     }
     
     /// Update volunteer location
@@ -218,9 +212,7 @@ class BeaconService: ObservableObject {
             .eq("pilot_id", value: userId.uuidString)
             .execute()
         
-        await MainActor.run {
-            self.volunteerStatus?.notificationRadiusMiles = radiusMiles
-        }
+        self.volunteerStatus?.notificationRadiusMiles = radiusMiles
     }
     
     // MARK: - Emergency Dispatch

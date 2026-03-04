@@ -59,6 +59,34 @@ struct IndustryNewsView: View {
                     } else if currentArticles.isEmpty {
                         emptyView
                     } else {
+                        // Show refresh error banner when stale articles are displayed
+                        if let error = newsService.errorMessage {
+                            HStack(spacing: 8) {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .foregroundColor(.orange)
+                                    .font(.caption)
+                                Text("Refresh failed: \(error)")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                    .lineLimit(1)
+                                Spacer()
+                                Button {
+                                    Task {
+                                        await newsService.fetchArticles(source: selectedSource, forceRefresh: true)
+                                    }
+                                } label: {
+                                    Text("Retry")
+                                        .font(.caption.weight(.medium))
+                                        .foregroundColor(sourceColor)
+                                }
+                            }
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 8)
+                            .background(Color.orange.opacity(0.1))
+                            .cornerRadius(8)
+                            .padding(.horizontal, 16)
+                            .padding(.bottom, 8)
+                        }
                         articleListView(currentArticles)
                     }
                 }
