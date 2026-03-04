@@ -3,7 +3,7 @@
 //  BuzzTests
 //
 //  Tests for license approval workflow: PilotLicense model, LicenseApprovalStatus enum,
-//  approval-status logic in upload service, and storage path RLS compliance.
+//  LicenseApprovalRequest model, and storage path RLS compliance.
 //
 
 import XCTest
@@ -80,63 +80,78 @@ final class LicenseApprovalTests: XCTestCase {
         XCTAssertFalse(license.needsApproval, "nil license type should NOT need approval")
     }
 
-    // MARK: - PilotLicense approvalStatusEnum
+    // MARK: - LicenseApprovalRequest Model
 
-    func testApprovalStatusEnum_pending() {
-        let license = makeLicense(approvalStatus: "pending")
-        XCTAssertEqual(license.approvalStatusEnum, .pending)
-    }
-
-    func testApprovalStatusEnum_approved() {
-        let license = makeLicense(approvalStatus: "approved")
-        XCTAssertEqual(license.approvalStatusEnum, .approved)
-    }
-
-    func testApprovalStatusEnum_rejected() {
-        let license = makeLicense(approvalStatus: "rejected")
-        XCTAssertEqual(license.approvalStatusEnum, .rejected)
-    }
-
-    func testApprovalStatusEnum_nil() {
-        let license = makeLicense(approvalStatus: nil)
-        XCTAssertNil(license.approvalStatusEnum)
-    }
-
-    func testApprovalStatusEnum_invalid() {
-        let license = makeLicense(approvalStatus: "unknown_status")
-        XCTAssertNil(license.approvalStatusEnum)
-    }
-
-    // MARK: - PilotLicense JSON Decoding
-
-    func testDecode_withApprovalFields() throws {
+    func testApprovalRequest_decoding() throws {
         let reviewerId = UUID()
         let json: [String: Any] = [
             "id": UUID().uuidString,
             "pilot_id": UUID().uuidString,
-            "file_url": "https://example.com/license.jpg",
-            "file_type": "image",
-            "uploaded_at": "2026-03-04T12:00:00Z",
+            "license_id": UUID().uuidString,
             "license_type": "Flight Reviewer (CAN)",
-            "approval_status": "pending",
+            "file_url": "https://example.com/license.jpg",
+            "status": "pending",
+            "submitted_at": "2026-03-04T12:00:00Z",
             "reviewed_at": "2026-03-04T13:00:00Z",
             "reviewed_by": reviewerId.uuidString,
-            "reviewer_notes": "Needs additional verification"
+            "reviewer_notes": "Needs additional verification",
+            "created_at": "2026-03-04T12:00:00Z",
+            "updated_at": "2026-03-04T13:00:00Z"
         ]
 
         let data = try JSONSerialization.data(withJSONObject: json)
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
 
-        let license = try decoder.decode(PilotLicense.self, from: data)
-        XCTAssertEqual(license.licenseType, "Flight Reviewer (CAN)")
-        XCTAssertEqual(license.approvalStatus, "pending")
-        XCTAssertEqual(license.approvalStatusEnum, .pending)
-        XCTAssertTrue(license.needsApproval)
-        XCTAssertNotNil(license.reviewedAt)
-        XCTAssertEqual(license.reviewedBy, reviewerId)
-        XCTAssertEqual(license.reviewerNotes, "Needs additional verification")
+        let request = try decoder.decode(LicenseApprovalRequest.self, from: data)
+        XCTAssertEqual(request.licenseType, "Flight Reviewer (CAN)")
+        XCTAssertEqual(request.status, "pending")
+        XCTAssertEqual(request.statusEnum, .pending)
+        XCTAssertNotNil(request.reviewedAt)
+        XCTAssertEqual(request.reviewedBy, reviewerId)
+        XCTAssertEqual(request.reviewerNotes, "Needs additional verification")
     }
+
+    func testApprovalRequest_statusEnum_approved() throws {
+        let request = makeApprovalRequest(status: "approved")
+        XCTAssertEqual(request.statusEnum, .approved)
+    }
+
+    func testApprovalRequest_statusEnum_rejected() throws {
+        let request = makeApprovalRequest(status: "rejected")
+        XCTAssertEqual(request.statusEnum, .rejected)
+    }
+
+    func testApprovalRequest_statusEnum_invalid() throws {
+        let request = makeApprovalRequest(status: "unknown_status")
+        XCTAssertNil(request.statusEnum)
+    }
+
+    func testApprovalRequest_minimalFields() throws {
+        let json: [String: Any] = [
+            "id": UUID().uuidString,
+            "pilot_id": UUID().uuidString,
+            "license_id": UUID().uuidString,
+            "license_type": "Flight Reviewer (CAN)",
+            "file_url": "https://example.com/license.jpg",
+            "status": "pending",
+            "submitted_at": "2026-03-04T12:00:00Z",
+            "created_at": "2026-03-04T12:00:00Z",
+            "updated_at": "2026-03-04T12:00:00Z"
+        ]
+
+        let data = try JSONSerialization.data(withJSONObject: json)
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+
+        let request = try decoder.decode(LicenseApprovalRequest.self, from: data)
+        XCTAssertEqual(request.status, "pending")
+        XCTAssertNil(request.reviewedAt)
+        XCTAssertNil(request.reviewedBy)
+        XCTAssertNil(request.reviewerNotes)
+    }
+
+    // MARK: - PilotLicense JSON Decoding (without approval fields)
 
     func testDecode_withoutApprovalFields() throws {
         let json: [String: Any] = [
@@ -154,12 +169,7 @@ final class LicenseApprovalTests: XCTestCase {
 
         let license = try decoder.decode(PilotLicense.self, from: data)
         XCTAssertEqual(license.licenseType, "Part 107 (US)")
-        XCTAssertNil(license.approvalStatus)
-        XCTAssertNil(license.approvalStatusEnum)
         XCTAssertFalse(license.needsApproval)
-        XCTAssertNil(license.reviewedAt)
-        XCTAssertNil(license.reviewedBy)
-        XCTAssertNil(license.reviewerNotes)
     }
 
     func testDecode_minimalFields() throws {
@@ -178,7 +188,6 @@ final class LicenseApprovalTests: XCTestCase {
         let license = try decoder.decode(PilotLicense.self, from: data)
         XCTAssertNil(license.licenseType)
         XCTAssertNil(license.name)
-        XCTAssertNil(license.approvalStatus)
         XCTAssertFalse(license.needsApproval)
     }
 
@@ -295,8 +304,7 @@ final class LicenseApprovalTests: XCTestCase {
     // MARK: - Helpers
 
     private func makeLicense(
-        licenseType: String? = nil,
-        approvalStatus: String? = nil
+        licenseType: String? = nil
     ) -> PilotLicense {
         var json: [String: Any] = [
             "id": UUID().uuidString,
@@ -308,12 +316,29 @@ final class LicenseApprovalTests: XCTestCase {
         if let licenseType = licenseType {
             json["license_type"] = licenseType
         }
-        if let approvalStatus = approvalStatus {
-            json["approval_status"] = approvalStatus
-        }
         let data = try! JSONSerialization.data(withJSONObject: json)
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         return try! decoder.decode(PilotLicense.self, from: data)
+    }
+
+    private func makeApprovalRequest(
+        status: String = "pending"
+    ) -> LicenseApprovalRequest {
+        let json: [String: Any] = [
+            "id": UUID().uuidString,
+            "pilot_id": UUID().uuidString,
+            "license_id": UUID().uuidString,
+            "license_type": "Flight Reviewer (CAN)",
+            "file_url": "https://example.com/license.jpg",
+            "status": status,
+            "submitted_at": "2026-03-04T12:00:00Z",
+            "created_at": "2026-03-04T12:00:00Z",
+            "updated_at": "2026-03-04T12:00:00Z"
+        ]
+        let data = try! JSONSerialization.data(withJSONObject: json)
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return try! decoder.decode(LicenseApprovalRequest.self, from: data)
     }
 }

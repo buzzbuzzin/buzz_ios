@@ -1,4 +1,5 @@
-// Supabase Edge Function to update license approval status
+// Supabase Edge Function to update license approval status (v3)
+// Uses dedicated license_approval_requests table
 // Allows admins to approve or reject Flight Reviewer and ROC-A Examiner license uploads
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
@@ -62,12 +63,12 @@ serve(async (req) => {
       )
     }
 
-    // Parse request body
-    const { licenseId, status, reviewerNotes } = await req.json()
+    // Parse request body — now uses requestId instead of licenseId
+    const { requestId, status, reviewerNotes } = await req.json()
 
-    if (!licenseId || !status) {
+    if (!requestId || !status) {
       return new Response(
-        JSON.stringify({ error: "Missing required fields: licenseId, status" }),
+        JSON.stringify({ error: "Missing required fields: requestId, status" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       )
     }
@@ -79,36 +80,37 @@ serve(async (req) => {
       )
     }
 
-    // Get the license record
-    const { data: license, error: licenseError } = await supabase
-      .from("pilot_licenses")
+    // Get the approval request record
+    const { data: approvalRequest, error: requestError } = await supabase
+      .from("license_approval_requests")
       .select("*")
-      .eq("id", licenseId)
+      .eq("id", requestId)
       .single()
 
-    if (licenseError || !license) {
+    if (requestError || !approvalRequest) {
       return new Response(
-        JSON.stringify({ error: "License not found" }),
+        JSON.stringify({ error: "Approval request not found" }),
         { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       )
     }
 
-    // Fix #3: Prevent overwriting already-final decisions
-    if (license.approval_status && license.approval_status !== "pending") {
+    // Prevent overwriting already-final decisions
+    if (approvalRequest.status && approvalRequest.status !== "pending") {
       return new Response(
-        JSON.stringify({ error: "License has already been reviewed" }),
+        JSON.stringify({ error: "Request has already been reviewed" }),
         { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       )
     }
 
-    // Update license approval status
+    // Update approval request status
     const updateData: Record<string, unknown> = {
-      approval_status: status,
+      status: status,
       reviewed_at: new Date().toISOString(),
       reviewed_by: user.id,
+      updated_at: new Date().toISOString(),
     }
 
-    // Fix #4: Always set reviewer_notes explicitly for both statuses
+    // Always set reviewer_notes explicitly
     if (status === "rejected") {
       updateData.reviewer_notes = reviewerNotes || null
     } else if (status === "approved") {
@@ -116,20 +118,20 @@ serve(async (req) => {
     }
 
     const { error: updateError } = await supabase
-      .from("pilot_licenses")
+      .from("license_approval_requests")
       .update(updateData)
-      .eq("id", licenseId)
+      .eq("id", requestId)
 
     if (updateError) {
-      console.error("Error updating license:", updateError)
+      console.error("Error updating approval request:", updateError)
       return new Response(
-        JSON.stringify({ error: "Failed to update license" }),
+        JSON.stringify({ error: "Failed to update approval request" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       )
     }
 
     // Send push notification to pilot
-    const licenseType = license.license_type || "License"
+    const licenseType = approvalRequest.license_type || "License"
     let notifTitle: string
     let notifBody: string
     let notifData: Record<string, string>
@@ -139,7 +141,7 @@ serve(async (req) => {
       notifBody = `Your ${licenseType} has been approved!`
       notifData = {
         type: "license_approved",
-        license_id: licenseId,
+        license_id: approvalRequest.license_id,
       }
     } else {
       notifTitle = "License Needs Attention"
@@ -148,7 +150,7 @@ serve(async (req) => {
         : `Your ${licenseType} needs attention. Please check and re-upload.`
       notifData = {
         type: "license_rejected",
-        license_id: licenseId,
+        license_id: approvalRequest.license_id,
       }
     }
 
@@ -156,7 +158,7 @@ serve(async (req) => {
     try {
       await supabase.functions.invoke("send-push-notification", {
         body: {
-          user_id: license.pilot_id,
+          user_id: approvalRequest.pilot_id,
           title: notifTitle,
           body: notifBody,
           data: notifData,

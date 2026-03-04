@@ -13,6 +13,7 @@ import Combine
 @MainActor
 class LicenseUploadService: ObservableObject {
     @Published var licenses: [PilotLicense] = []
+    @Published var approvalRequests: [LicenseApprovalRequest] = []
     @Published var isLoading = false
     @Published var uploadProgress: Double = 0.0
     @Published var errorMessage: String?
@@ -131,23 +132,18 @@ class LicenseUploadService: ObservableObject {
             }
             
             // Save license record to database
+            let licenseId = UUID()
             var license: [String: AnyJSON] = [
-                "id": .string(UUID().uuidString),
+                "id": .string(licenseId.uuidString),
                 "pilot_id": .string(pilotId.uuidString),
                 "file_url": .string(publicURL.absoluteString),
                 "file_type": .string(fileType.rawValue),
                 "uploaded_at": .string(ISO8601DateFormatter().string(from: Date()))
             ]
-            
+
             // Add license type if provided
             if let licenseType = licenseType, !licenseType.isEmpty {
                 license["license_type"] = .string(licenseType)
-
-                // Set pending approval status for reviewable license types
-                if licenseType == LicenseType.rpaFlightReviewer.rawValue ||
-                   licenseType == LicenseType.rocaExaminerCertificate.rawValue {
-                    license["approval_status"] = .string("pending")
-                }
             }
             
             // Add OCR extracted fields if available
@@ -181,11 +177,10 @@ class LicenseUploadService: ObservableObject {
                     .insert(license)
                     .execute()
                 print("DEBUG LicenseUpload: Database insert successful")
-                // Note: Permit badges are automatically awarded by database trigger
             } catch {
                 print("DEBUG LicenseUpload: Database insert failed: \(error.localizedDescription)")
                 print("DEBUG LicenseUpload: Error details: \(error)")
-                
+
                 // Try to provide more helpful error message
                 let errorMsg = error.localizedDescription
                 if errorMsg.contains("row-level security") {
@@ -202,6 +197,32 @@ class LicenseUploadService: ObservableObject {
                     )
                 } else {
                     throw error
+                }
+            }
+
+            // Insert approval request for reviewable license types (separate do-catch
+            // so a failure here doesn't orphan the already-inserted license record)
+            if let licenseType = licenseType,
+               (licenseType == LicenseType.rpaFlightReviewer.rawValue ||
+                licenseType == LicenseType.rocaExaminerCertificate.rawValue) {
+                do {
+                    let approvalRequest: [String: AnyJSON] = [
+                        "pilot_id": .string(pilotId.uuidString),
+                        "license_id": .string(licenseId.uuidString),
+                        "license_type": .string(licenseType),
+                        "file_url": .string(publicURL.absoluteString),
+                        "status": .string("pending"),
+                    ]
+                    try await supabase
+                        .from("license_approval_requests")
+                        .insert(approvalRequest)
+                        .execute()
+                    print("DEBUG LicenseUpload: Approval request inserted")
+                } catch {
+                    print("DEBUG LicenseUpload: Approval request insert failed: \(error.localizedDescription)")
+                    print("DEBUG LicenseUpload: Error details: \(error)")
+                    // License record exists — don't throw, so the upload is still considered successful.
+                    // The approval request can be re-created manually or on next upload.
                 }
             }
             
@@ -243,8 +264,18 @@ class LicenseUploadService: ObservableObject {
                 print("   - File URL: \(license.fileUrl)")
             }
             
+            // Fetch associated approval requests
+            let requests: [LicenseApprovalRequest] = try await supabase
+                .from("license_approval_requests")
+                .select()
+                .eq("pilot_id", value: pilotId.uuidString)
+                .order("submitted_at", ascending: false)
+                .execute()
+                .value
+
             await MainActor.run {
                 self.licenses = licenses
+                self.approvalRequests = requests
                 self.isLoading = false
             }
         } catch {
@@ -258,6 +289,12 @@ class LicenseUploadService: ObservableObject {
         }
     }
     
+    // MARK: - Approval Requests
+
+    func approvalRequest(for licenseId: UUID) -> LicenseApprovalRequest? {
+        approvalRequests.first(where: { $0.licenseId == licenseId })
+    }
+
     // MARK: - Delete License
     
     func deleteLicense(license: PilotLicense) async throws {

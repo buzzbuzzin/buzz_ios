@@ -84,6 +84,7 @@ struct LicenseManagementView: View {
                                     LicenseCategorySection(
                                         category: .dronePilot,
                                         licenses: groupedLicenses[.dronePilot]!,
+                                        approvalRequestForLicense: { licenseService.approvalRequest(for: $0) },
                                         onView: { license in
                                         print("DEBUG LicenseView: Eye icon tapped")
                                         print("DEBUG LicenseView: License ID: \(license.id)")
@@ -110,6 +111,7 @@ struct LicenseManagementView: View {
                                     LicenseCategorySection(
                                         category: .radioOperator,
                                         licenses: groupedLicenses[.radioOperator]!,
+                                        approvalRequestForLicense: { licenseService.approvalRequest(for: $0) },
                                         onView: { license in
                                             Task { @MainActor in
                                                 self.selectedLicense = license
@@ -131,6 +133,7 @@ struct LicenseManagementView: View {
                                     LicenseCategorySection(
                                         category: .flightReviewer,
                                         licenses: groupedLicenses[.flightReviewer]!,
+                                        approvalRequestForLicense: { licenseService.approvalRequest(for: $0) },
                                         onView: { license in
                                             Task { @MainActor in
                                                 self.selectedLicense = license
@@ -152,6 +155,7 @@ struct LicenseManagementView: View {
                                     LicenseCategorySection(
                                         category: .examiner,
                                         licenses: groupedLicenses[.examiner]!,
+                                        approvalRequestForLicense: { licenseService.approvalRequest(for: $0) },
                                         onView: { license in
                                             Task { @MainActor in
                                                 self.selectedLicense = license
@@ -173,6 +177,7 @@ struct LicenseManagementView: View {
                                     LicenseCategorySection(
                                         category: .other,
                                         licenses: groupedLicenses[.other]!,
+                                        approvalRequestForLicense: { licenseService.approvalRequest(for: $0) },
                                         onView: { license in
                                             Task { @MainActor in
                                                 self.selectedLicense = license
@@ -563,6 +568,7 @@ struct LicenseManagementView: View {
 struct LicenseCategorySection: View {
     let category: LicenseCategory
     let licenses: [PilotLicense]
+    let approvalRequestForLicense: (UUID) -> LicenseApprovalRequest?
     let onView: (PilotLicense) -> Void
     let onDelete: (PilotLicense) -> Void
     let onEdit: (PilotLicense) -> Void
@@ -604,6 +610,7 @@ struct LicenseCategorySection: View {
                     ForEach(licenses) { license in
                         LicenseCard(
                             license: license,
+                            approvalRequest: approvalRequestForLicense(license.id),
                             onView: { onView(license) },
                             onDelete: { onDelete(license) },
                             onEdit: { onEdit(license) }
@@ -629,6 +636,7 @@ struct LicenseCategorySection: View {
 
 struct LicenseCard: View {
     let license: PilotLicense
+    let approvalRequest: LicenseApprovalRequest?
     let onView: () -> Void
     let onDelete: () -> Void
     let onEdit: () -> Void
@@ -677,7 +685,7 @@ struct LicenseCard: View {
                         .foregroundColor(.secondary)
 
                     // Approval status badge
-                    if let status = license.approvalStatusEnum {
+                    if let status = approvalRequest?.statusEnum {
                         Text(status.displayName)
                             .font(.caption2)
                             .fontWeight(.semibold)
@@ -824,8 +832,8 @@ struct LicenseCard: View {
                 }
 
                 // Reviewer notes for rejected licenses
-                if license.approvalStatusEnum == .rejected,
-                   let notes = license.reviewerNotes, !notes.isEmpty {
+                if approvalRequest?.statusEnum == .rejected,
+                   let notes = approvalRequest?.reviewerNotes, !notes.isEmpty {
                     HStack(spacing: 6) {
                         Image(systemName: "exclamationmark.triangle.fill")
                             .font(.caption)

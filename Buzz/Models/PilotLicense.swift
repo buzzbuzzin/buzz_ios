@@ -104,21 +104,15 @@ struct PilotLicense: Codable, Identifiable {
     let fileUrl: String
     let fileType: LicenseFileType
     let uploadedAt: Date
-    
+
     // License type
     let licenseType: String?
-    
+
     // OCR extracted fields
     let name: String?
     let courseCompleted: String?
     let completionDate: String?
     let certificateNumber: String?
-
-    // Approval workflow fields
-    let approvalStatus: String?
-    let reviewedAt: Date?
-    let reviewedBy: UUID?
-    let reviewerNotes: String?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -131,10 +125,6 @@ struct PilotLicense: Codable, Identifiable {
         case courseCompleted = "course_completed"
         case completionDate = "completion_date"
         case certificateNumber = "certificate_number"
-        case approvalStatus = "approval_status"
-        case reviewedAt = "reviewed_at"
-        case reviewedBy = "reviewed_by"
-        case reviewerNotes = "reviewer_notes"
     }
 
     /// Whether this license type requires admin approval
@@ -143,11 +133,39 @@ struct PilotLicense: Codable, Identifiable {
         return type == LicenseType.rpaFlightReviewer.rawValue ||
                type == LicenseType.rocaExaminerCertificate.rawValue
     }
+}
 
-    /// Parsed approval status enum
-    var approvalStatusEnum: LicenseApprovalStatus? {
-        guard let status = approvalStatus else { return nil }
-        return LicenseApprovalStatus(rawValue: status)
+struct LicenseApprovalRequest: Codable, Identifiable {
+    let id: UUID
+    let pilotId: UUID
+    let licenseId: UUID
+    let licenseType: String
+    let fileUrl: String
+    let status: String
+    let submittedAt: Date
+    let reviewedAt: Date?
+    let reviewedBy: UUID?
+    let reviewerNotes: String?
+    let createdAt: Date
+    let updatedAt: Date
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case pilotId = "pilot_id"
+        case licenseId = "license_id"
+        case licenseType = "license_type"
+        case fileUrl = "file_url"
+        case status
+        case submittedAt = "submitted_at"
+        case reviewedAt = "reviewed_at"
+        case reviewedBy = "reviewed_by"
+        case reviewerNotes = "reviewer_notes"
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+    }
+
+    var statusEnum: LicenseApprovalStatus? {
+        LicenseApprovalStatus(rawValue: status)
     }
 }
 
