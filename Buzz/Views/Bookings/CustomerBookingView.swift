@@ -2041,9 +2041,7 @@ struct EditBookingView: View {
     @State private var showSuccess = false
     @State private var showRankInfo = false
     @State private var showIndustryWarning = false
-    
-    // Supported industries
-    private let supportedIndustries: [BookingSpecialization] = [.automotive, .realEstate]
+    @ObservedObject private var configService = BookingConfigService.shared
     
     init(booking: Booking) {
         self.booking = booking
@@ -2266,14 +2264,15 @@ struct EditBookingView: View {
             .alert("Coming Soon", isPresented: $showIndustryWarning) {
                 Button("OK", role: .cancel) { }
             } message: {
-                Text("Launching in 2026! We are currently only supporting Automotive and Real Estate.")
+                Text(configService.config.comingSoonMessage)
             }
+            .task { await configService.ensureConfigLoaded() }
         }
     }
     
     private func handleSpecializationSelection(_ specialization: BookingSpecialization) {
         // Check if this is a supported industry
-        if supportedIndustries.contains(specialization) {
+        if configService.config.isSpecializationEnabled(specialization, forEditing: true) {
             // Toggle selection: if already selected, deselect it
             if selectedSpecialization == specialization {
                 selectedSpecialization = nil
@@ -2286,7 +2285,7 @@ struct EditBookingView: View {
             // Don't select unsupported industries
         }
     }
-    
+
     private var isFormValid: Bool {
         !paymentAmount.isEmpty &&
         !estimatedHours.isEmpty &&

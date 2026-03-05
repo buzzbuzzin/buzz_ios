@@ -9,13 +9,11 @@ import SwiftUI
 
 struct CreateBookingStep1IndustryView: View {
     @Binding var selectedSpecialization: BookingSpecialization?
-    
+
     @State private var showIndustryWarning = false
-    
+    @ObservedObject private var configService = BookingConfigService.shared
+
     let onNext: () -> Void
-    
-    // Supported industries
-    private let supportedIndustries: [BookingSpecialization] = [.automotive, .realEstate, .searchRescue]
     
     var body: some View {
         ScrollView {
@@ -61,13 +59,14 @@ struct CreateBookingStep1IndustryView: View {
         .alert("Coming Soon", isPresented: $showIndustryWarning) {
             Button("OK", role: .cancel) { }
         } message: {
-            Text("Launching in 2026! We are currently only supporting:\n\n• Automotive\n• Real Estate\n• Search & Rescue")
+            Text(configService.config.comingSoonMessage)
         }
+        .task { await configService.ensureConfigLoaded() }
     }
     
     private func handleSpecializationSelection(_ specialization: BookingSpecialization) {
         // Check if this is a supported industry
-        if supportedIndustries.contains(specialization) {
+        if configService.config.isSpecializationEnabled(specialization, forEditing: false) {
             // Toggle selection: if already selected, deselect it
             if selectedSpecialization == specialization {
                 selectedSpecialization = nil

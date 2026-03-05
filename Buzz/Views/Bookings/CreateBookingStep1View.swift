@@ -21,14 +21,8 @@ struct CreateBookingStep1View: View {
     @State private var showRankInfo = false
     @State private var showIndustryWarning = false
     @State private var showLocationWarning = false
-    
-    // Supported industries
-    private let supportedIndustries: [BookingSpecialization] = [.automotive, .realEstate, .searchRescue]
-    
-    // Ithaca NY coordinates (center of service area)
-    private let ithacaNY = CLLocationCoordinate2D(latitude: 42.4434, longitude: -76.5017)
-    private let serviceRadiusMiles: Double = 100.0
-    
+    @ObservedObject private var configService = BookingConfigService.shared
+
     let onNext: () -> Void
     
     var body: some View {
@@ -194,7 +188,7 @@ struct CreateBookingStep1View: View {
         .alert("Coming Soon", isPresented: $showIndustryWarning) {
             Button("OK", role: .cancel) { }
         } message: {
-            Text("Launching in 2026! We are currently only supporting:\n\n• Automotive\n• Real Estate\n• Search & Rescue")
+            Text(configService.config.comingSoonMessage)
         }
         .alert("Location Out of Range", isPresented: $showLocationWarning) {
             Button("OK", role: .cancel) {
@@ -203,13 +197,14 @@ struct CreateBookingStep1View: View {
                 locationName = ""
             }
         } message: {
-            Text("As a first to market app, we currently do not service your area. Please continue to check the app as we are growing and rolling out in many more locations in 2026")
+            Text(configService.config.locationOutOfRangeMessage)
         }
+        .task { await configService.ensureConfigLoaded() }
     }
     
     private func handleSpecializationSelection(_ specialization: BookingSpecialization) {
         // Check if this is a supported industry
-        if supportedIndustries.contains(specialization) {
+        if configService.config.isSpecializationEnabled(specialization, forEditing: false) {
             // Toggle selection: if already selected, deselect it
             if selectedSpecialization == specialization {
                 selectedSpecialization = nil
@@ -224,8 +219,7 @@ struct CreateBookingStep1View: View {
     }
     
     private func checkLocationDistance(coordinate: CLLocationCoordinate2D) {
-        let distance = coordinate.distance(to: ithacaNY)
-        if distance > serviceRadiusMiles {
+        if !configService.config.isLocationInServiceArea(coordinate) {
             showLocationWarning = true
         }
     }

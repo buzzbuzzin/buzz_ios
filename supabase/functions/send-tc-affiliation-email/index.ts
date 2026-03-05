@@ -7,8 +7,9 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 const supabaseUrl = Deno.env.get("SUPABASE_URL") as string
 const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") as string
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY")
-const FROM_EMAIL = Deno.env.get("EXAM_EMAIL_FROM") || "hello@buzzacademy.world"
-const FROM_NAME = Deno.env.get("EXAM_EMAIL_FROM_NAME") || "Buzz Academy"
+// Use Resend's test sender if domain not yet verified in Resend
+const FROM_EMAIL = "onboarding@resend.dev"
+const FROM_NAME = "Buzz Academy"
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",

@@ -25,16 +25,9 @@ struct LocationSearchView: View {
     @State private var isSearching = false
     @State private var showLocationWarning = false
     @FocusState private var isSearchFocused: Bool
-    
-    // Ithaca NY coordinates (center of service area)
-    private let ithacaNY = CLLocationCoordinate2D(latitude: 42.4434, longitude: -76.5017)
-    private let serviceRadiusMiles: Double = 100.0
-    
+    @ObservedObject private var configService = BookingConfigService.shared
+
     private let searchCompleter = MKLocalSearchCompleter()
-    
-    // Ithaca, NY coordinates (center point)
-    private let ithacaCenter = CLLocationCoordinate2D(latitude: 42.4430, longitude: -76.5019)
-    private let supportedRadiusMiles: Double = 100.0
     
     var body: some View {
         NavigationView {
@@ -176,8 +169,9 @@ struct LocationSearchView: View {
                     locationName = ""
                 }
             } message: {
-                Text("As a first to market app, we currently do not service your area. Please continue to check the app as we are growing and rolling out in many more locations in 2026")
+                Text(configService.config.locationOutOfRangeMessage)
             }
+            .task { await configService.ensureConfigLoaded() }
         }
     }
     
@@ -218,16 +212,15 @@ struct LocationSearchView: View {
     private func selectLocation(item: MKMapItem) {
         guard let coordinate = item.placemark.location?.coordinate else { return }
         
-        // Check distance from Ithaca NY
-        let distance = coordinate.distance(to: ithacaNY)
-        if distance > serviceRadiusMiles {
+        // Check if location is within any service area
+        if !configService.config.isLocationInServiceArea(coordinate) {
             showLocationWarning = true
             return
         }
-        
+
         region.center = coordinate
         selectedLocation = coordinate
-        
+
         // Get address name
         let geocoder = CLGeocoder()
         geocoder.reverseGeocodeLocation(item.placemark.location!) { placemarks, error in
@@ -246,9 +239,8 @@ struct LocationSearchView: View {
     private func selectCurrentLocation() {
         guard let coordinate = mapCenterCoordinate else { return }
         
-        // Check distance from Ithaca NY
-        let distance = coordinate.distance(to: ithacaNY)
-        if distance > serviceRadiusMiles {
+        // Check if location is within any service area
+        if !configService.config.isLocationInServiceArea(coordinate) {
             showLocationWarning = true
             return
         }
@@ -274,21 +266,7 @@ struct LocationSearchView: View {
             }
         }
     }
-    
-    /// Checks if a location is within the supported radius (100 miles) of Ithaca, NY
-    private func isLocationWithinRadius(_ coordinate: CLLocationCoordinate2D) -> Bool {
-        let ithacaLocation = CLLocation(latitude: ithacaCenter.latitude, longitude: ithacaCenter.longitude)
-        let selectedLocation = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
-        
-        // Calculate distance in meters
-        let distanceInMeters = ithacaLocation.distance(from: selectedLocation)
-        
-        // Convert to miles (1 mile = 1609.34 meters)
-        let distanceInMiles = distanceInMeters / 1609.34
-        
-        return distanceInMiles <= supportedRadiusMiles
-    }
-    
+
     private func formatAddress(from placemark: CLPlacemark) -> String {
         var components: [String] = []
         
