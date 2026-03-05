@@ -544,10 +544,6 @@ struct ProctoredMultipleChoiceTestView: View {
         isLoading = true
         errorMessage = nil
         
-        if !wasAutoSubmitted {
-            wasAutoSubmitted = false
-        }
-        
         var correctAnswers = 0
         for question in questions {
             if let selectedAnswer = selectedAnswers[question.id],
@@ -567,14 +563,29 @@ struct ProctoredMultipleChoiceTestView: View {
     private func saveTestResults(score: Int, passed: Bool) async {
         do {
             let supabase = SupabaseClient.shared.client
-            
+
+            // Fetch previous attempt count
+            let previousResults = try await supabase
+                .from("test_results")
+                .select("attempt_number")
+                .eq("pilot_id", value: pilotId.uuidString)
+                .eq("test_id", value: testId.uuidString)
+                .execute()
+
+            var attemptNumber = 1
+            if let jsonArray = try? JSONSerialization.jsonObject(with: previousResults.data) as? [[String: Any]],
+               let lastResult = jsonArray.first,
+               let previousAttempt = lastResult["attempt_number"] as? Int {
+                attemptNumber = previousAttempt + 1
+            }
+
             var answersDict: [String: AnyJSON] = [:]
             for question in questions {
                 if let selectedAnswer = selectedAnswers[question.id] {
                     answersDict["question_\(question.id.uuidString)"] = .integer(selectedAnswer)
                 }
             }
-            
+
             // Include proctor_name in test results
             let testResult: [String: AnyJSON] = [
                 "pilot_id": .string(pilotId.uuidString),
@@ -583,10 +594,10 @@ struct ProctoredMultipleChoiceTestView: View {
                 "score": .integer(score),
                 "passed": .bool(passed),
                 "answers": .object(answersDict),
-                "attempt_number": .integer(1),
-                "proctor_name": .string(proctorName)  // Add proctor name
+                "attempt_number": .integer(attemptNumber),
+                "proctor_name": .string(proctorName)
             ]
-            
+
             try await supabase
                 .from("test_results")
                 .upsert(testResult, onConflict: "pilot_id,test_id")

@@ -237,7 +237,8 @@ struct TestResultUploadView: View {
     
     private func loadSelectedPhotos(_ items: [PhotosPickerItem]) async {
         isProcessing = true
-        
+        selectedFiles.removeAll()
+
         for item in items {
             if let data = try? await item.loadTransferable(type: Data.self) {
                 // Get file name from identifier or create a default one

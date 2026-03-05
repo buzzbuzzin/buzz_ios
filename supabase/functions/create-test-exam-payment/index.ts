@@ -11,7 +11,13 @@ const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY') as string, {
 })
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL') as string
+const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') as string
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') as string
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
 
 interface PaymentRequest {
   test_id: string
@@ -23,7 +29,32 @@ interface PaymentRequest {
 }
 
 serve(async (req) => {
+  // Handle CORS preflight requests
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders })
+  }
+
   try {
+    // Authenticate the caller
+    const authHeader = req.headers.get('Authorization')
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: 'Missing authorization header' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    const authClient = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } }
+    })
+    const { data: { user }, error: authError } = await authClient.auth.getUser()
+    if (authError || !user) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
     // Parse request body
     const {
       test_id,
@@ -34,6 +65,14 @@ serve(async (req) => {
       location_address,
     }: PaymentRequest = await req.json()
 
+    // Verify caller matches pilot_id
+    if (pilot_id !== user.id) {
+      return new Response(
+        JSON.stringify({ error: 'Forbidden: pilot_id does not match authenticated user' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
     // Validate required fields
     if (!test_id || !pilot_id || !amount || !scheduled_date || !location_type) {
       return new Response(
@@ -42,7 +81,7 @@ serve(async (req) => {
         }),
         {
           status: 400,
-          headers: { 'Content-Type': 'application/json' },
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         }
       )
     }
@@ -53,12 +92,12 @@ serve(async (req) => {
         JSON.stringify({ error: 'Amount must be greater than 0' }),
         {
           status: 400,
-          headers: { 'Content-Type': 'application/json' },
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         }
       )
     }
 
-    // Initialize Supabase client
+    // Initialize Supabase service client for DB queries
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
     // Fetch test details to verify price and get test name
@@ -73,7 +112,7 @@ serve(async (req) => {
         JSON.stringify({ error: 'Test not found' }),
         {
           status: 404,
-          headers: { 'Content-Type': 'application/json' },
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         }
       )
     }
@@ -88,7 +127,7 @@ serve(async (req) => {
         }),
         {
           status: 400,
-          headers: { 'Content-Type': 'application/json' },
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         }
       )
     }
@@ -105,21 +144,39 @@ serve(async (req) => {
         JSON.stringify({ error: 'Pilot not found', details: pilotError?.message }),
         {
           status: 404,
-          headers: { 'Content-Type': 'application/json' },
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         }
       )
     }
 
-    // Create a new Stripe customer for each payment (or you could store customer_id separately)
-    const customer = await stripe.customers.create({
-      email: pilot.email,
-      name: `${pilot.first_name || ''} ${pilot.last_name || ''}`.trim() || 'Buzz Pilot',
-      metadata: {
-        pilot_id: pilot_id,
-      },
+    // Search for existing Stripe customer or create a new one
+    let customerId: string
+    const existingCustomers = await stripe.customers.search({
+      query: `metadata['user_id']:'${pilot_id}'`,
     })
 
-    const customerId = customer.id
+    if (existingCustomers.data.length > 0) {
+      customerId = existingCustomers.data[0].id
+    } else {
+      // Also try searching by pilot_id metadata key (for backwards compatibility)
+      const existingByPilotId = await stripe.customers.search({
+        query: `metadata['pilot_id']:'${pilot_id}'`,
+      })
+
+      if (existingByPilotId.data.length > 0) {
+        customerId = existingByPilotId.data[0].id
+      } else {
+        const customer = await stripe.customers.create({
+          email: pilot.email,
+          name: `${pilot.first_name || ''} ${pilot.last_name || ''}`.trim() || 'Buzz Pilot',
+          metadata: {
+            user_id: pilot_id,
+            pilot_id: pilot_id,
+          },
+        })
+        customerId = customer.id
+      }
+    }
 
     // Create Stripe Payment Intent
     const paymentIntent = await stripe.paymentIntents.create({
@@ -158,7 +215,7 @@ serve(async (req) => {
       }),
       {
         status: 200,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       }
     )
   } catch (error) {
@@ -169,7 +226,7 @@ serve(async (req) => {
       }),
       {
         status: 500,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       }
     )
   }

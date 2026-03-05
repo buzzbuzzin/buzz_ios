@@ -20,7 +20,7 @@ struct ExamPaymentView: View {
     var onBookingComplete: (() -> Void)?
     
     @EnvironmentObject var authService: AuthService
-    @StateObject private var examService = ExamService()
+    @ObservedObject private var examService = ExamService.shared
     @StateObject private var paymentService = PaymentService()
     @Environment(\.dismiss) private var dismiss
     
@@ -250,26 +250,34 @@ struct ExamPaymentView: View {
             switch result {
             case .completed:
                 // Payment successful - create appointment
-                let appointment = try await examService.createExamAppointment(
-                    pilotId: currentUser.id,
-                    examType: examType,
-                    scheduledDate: scheduledDate,
-                    locationType: locationType,
-                    locationAddress: locationAddress,
-                    paymentIntentId: paymentIntent.paymentIntentId,
-                    chargeId: nil,
-                    paymentAmount: paymentIntent.decimalAmount,
-                    pilotEmail: currentUser.email
-                )
-                
-                createdAppointment = appointment
-                isProcessingPayment = false
-                showSuccess = true
-                
+                do {
+                    let appointment = try await examService.createExamAppointment(
+                        pilotId: currentUser.id,
+                        examType: examType,
+                        scheduledDate: scheduledDate,
+                        locationType: locationType,
+                        locationAddress: locationAddress,
+                        paymentIntentId: paymentIntent.paymentIntentId,
+                        chargeId: nil,
+                        paymentAmount: paymentIntent.decimalAmount,
+                        pilotEmail: currentUser.email
+                    )
+
+                    createdAppointment = appointment
+                    isProcessingPayment = false
+                    showSuccess = true
+                } catch {
+                    // Payment succeeded but appointment creation failed
+                    // Show the payment ID so user can contact support
+                    isProcessingPayment = false
+                    errorMessage = "Payment was successful but we couldn't create your appointment. Please contact support with payment ID: \(paymentIntent.paymentIntentId)"
+                    showError = true
+                }
+
             case .cancelled:
                 isProcessingPayment = false
                 // User cancelled - do nothing
-                
+
             case .failed(let error):
                 isProcessingPayment = false
                 errorMessage = "Payment failed: \(error.localizedDescription)"

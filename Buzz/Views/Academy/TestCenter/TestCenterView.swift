@@ -10,7 +10,7 @@ import Auth
 
 struct TestCenterView: View {
     @EnvironmentObject var authService: AuthService
-    @StateObject private var examService = ExamService()
+    @ObservedObject private var examService = ExamService.shared
     @StateObject private var academyService = AcademyService()
     @StateObject private var uploadService = ExamResultUploadService()
     @State private var prerequisitesStatus: ExamPrerequisitesStatus?
@@ -528,8 +528,9 @@ struct AppointmentDetailSheet: View {
     }
     
     private var canCancel: Bool {
-        // Can only cancel pending or confirmed appointments
-        appointment.status == .pending || appointment.status == .confirmed
+        // Can only cancel pending or confirmed appointments that are in the future
+        (appointment.status == .pending || appointment.status == .confirmed) &&
+        appointment.scheduledDate > Date()
     }
     
     private var isWithin24Hours: Bool {
@@ -1959,7 +1960,7 @@ struct ProctorTestIntroView: View {
     var hasPassed: Bool = false
     
     @StateObject private var academyService = AcademyService()
-    @StateObject private var examService = ExamService()
+    @ObservedObject private var examService = ExamService.shared
     @EnvironmentObject var authService: AuthService
     @Environment(\.dismiss) private var dismiss
     
@@ -2374,7 +2375,7 @@ struct GenericExamSchedulingView: View {
     var onBookingComplete: (() -> Void)?
     
     @EnvironmentObject var authService: AuthService
-    @StateObject private var examService = ExamService()
+    @ObservedObject private var examService = ExamService.shared
     @Environment(\.dismiss) private var dismiss
     
     @State private var selectedDate = Date()

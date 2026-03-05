@@ -1112,7 +1112,7 @@ struct AvailabilityView: View {
     @EnvironmentObject var authService: AuthService
     @StateObject private var bookingService = BookingService()
     @StateObject private var blockoutService = AvailabilityBlockoutService()
-    @StateObject private var examService = ExamService()
+    @ObservedObject private var examService = ExamService.shared
     @State private var selectedDate = Date()
     @State private var currentMonth = Date()
     @State private var showBlockoutSheet = false

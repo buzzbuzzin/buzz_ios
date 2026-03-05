@@ -2,6 +2,10 @@
 // Uses Server-to-Server OAuth for authentication
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
+
+const supabaseUrl = Deno.env.get("SUPABASE_URL") as string
+const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") as string
 
 const ZOOM_ACCOUNT_ID = Deno.env.get("ZOOM_ACCOUNT_ID")
 const ZOOM_CLIENT_ID = Deno.env.get("ZOOM_CLIENT_ID")
@@ -122,19 +126,50 @@ serve(async (req) => {
   }
 
   try {
-    const { 
-      topic, 
-      scheduled_date, 
+    // Authenticate the caller
+    const authHeader = req.headers.get("Authorization")
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: "Missing authorization header" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      )
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } }
+    })
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    if (authError || !user) {
+      return new Response(
+        JSON.stringify({ error: "Unauthorized" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      )
+    }
+
+    const {
+      topic,
+      scheduled_date,
       duration_minutes,
-      pilot_email 
+      pilot_email
     }: CreateMeetingRequest = await req.json()
 
     // Validate required fields
     if (!topic || !scheduled_date || !duration_minutes) {
       return new Response(
-        JSON.stringify({ 
-          error: "Missing required fields: topic, scheduled_date, duration_minutes" 
+        JSON.stringify({
+          error: "Missing required fields: topic, scheduled_date, duration_minutes"
         }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      )
+    }
+
+    // Validate duration bounds
+    if (duration_minutes < 1 || duration_minutes > 480) {
+      return new Response(
+        JSON.stringify({ error: "duration_minutes must be between 1 and 480" }),
         {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },

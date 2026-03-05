@@ -12,7 +12,7 @@ struct ExamIntroView: View {
     let examType: ExamType
     
     @EnvironmentObject var authService: AuthService
-    @StateObject private var examService = ExamService()
+    @ObservedObject private var examService = ExamService.shared
     @StateObject private var uploadService = ExamResultUploadService()
     @Environment(\.dismiss) private var dismiss
     @State private var priceInfo: ExamPriceResponse?

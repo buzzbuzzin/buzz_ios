@@ -14,7 +14,7 @@ struct ExamSchedulingView: View {
     var onBookingComplete: (() -> Void)?
     
     @EnvironmentObject var authService: AuthService
-    @StateObject private var examService = ExamService()
+    @ObservedObject private var examService = ExamService.shared
     @Environment(\.dismiss) private var dismiss
     
     @State private var selectedDate = Date()
@@ -292,9 +292,7 @@ struct ExamSchedulingView: View {
         .task {
             // Load configs if not already loaded
             await examService.ensureConfigsLoaded()
-        }
-        .onAppear {
-            // Set default location type based on exam
+            // Set default location type based on exam (after configs are loaded)
             if !config.allowsOnline {
                 locationType = .inPerson
             }

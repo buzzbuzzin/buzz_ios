@@ -2,7 +2,11 @@
 // This function creates a PaymentIntent for exam bookings (Flight Review / ROC-A)
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 import Stripe from "https://esm.sh/stripe@14.21.0?target=deno"
+
+const supabaseUrl = Deno.env.get("SUPABASE_URL") as string
+const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") as string
 
 const stripeSecretKey = Deno.env.get("STRIPE_SECRET_KEY")
 if (!stripeSecretKey) {
@@ -34,14 +38,42 @@ serve(async (req) => {
   }
 
   try {
-    const { 
-      product_id, 
-      pilot_id, 
-      exam_type, 
-      scheduled_date, 
+    // Authenticate the caller
+    const authHeader = req.headers.get("Authorization")
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: "Missing authorization header" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      )
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } }
+    })
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    if (authError || !user) {
+      return new Response(
+        JSON.stringify({ error: "Unauthorized" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      )
+    }
+
+    const {
+      product_id,
+      pilot_id,
+      exam_type,
+      scheduled_date,
       location_type,
-      location_address 
+      location_address
     }: ExamPaymentRequest = await req.json()
+
+    // Verify caller matches pilot_id
+    if (pilot_id !== user.id) {
+      return new Response(
+        JSON.stringify({ error: "Forbidden: pilot_id does not match authenticated user" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      )
+    }
 
     // Validate required fields
     if (!product_id || !pilot_id || !exam_type || !scheduled_date || !location_type) {

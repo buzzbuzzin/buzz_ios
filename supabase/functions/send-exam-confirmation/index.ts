@@ -2,7 +2,11 @@
 // Uses direct SMTP connection to your mail server
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts"
+
+const supabaseUrl = Deno.env.get("SUPABASE_URL") as string
+const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") as string
 
 // SMTP Configuration - uses EXAM_EMAIL_ prefix to avoid conflicts with other SMTP configs
 const SMTP_HOST = Deno.env.get("EXAM_EMAIL_HOST") || "mail.buzzacademy.world"
@@ -194,7 +198,35 @@ serve(async (req) => {
   }
 
   try {
+    // Authenticate the caller
+    const authHeader = req.headers.get("Authorization")
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: "Missing authorization header" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      )
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } }
+    })
+    const { data: authData, error: authError } = await supabase.auth.getUser()
+    if (authError || !authData.user) {
+      return new Response(
+        JSON.stringify({ error: "Unauthorized" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      )
+    }
+
     const data: ExamConfirmationRequest = await req.json()
+
+    // Verify caller matches pilot_id
+    if (data.pilot_id !== authData.user.id) {
+      return new Response(
+        JSON.stringify({ error: "Forbidden: pilot_id does not match authenticated user" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      )
+    }
 
     // Validate required fields
     if (!data.pilot_email || !data.exam_type || !data.scheduled_date) {

@@ -154,6 +154,7 @@ struct ExamAppointment: Identifiable, Codable {
     let meetingLink: String?
     let zoomMeetingId: String?
     let zoomMeetingPassword: String?
+    let startUrl: String?
     let status: ExamAppointmentStatus
     let stripePaymentIntentId: String?
     let stripeChargeId: String?
@@ -174,6 +175,7 @@ struct ExamAppointment: Identifiable, Codable {
         case meetingLink = "meeting_link"
         case zoomMeetingId = "zoom_meeting_id"
         case zoomMeetingPassword = "zoom_meeting_password"
+        case startUrl = "start_url"
         case status
         case stripePaymentIntentId = "stripe_payment_intent_id"
         case stripeChargeId = "stripe_charge_id"
@@ -197,6 +199,7 @@ struct ExamAppointment: Identifiable, Codable {
         meetingLink = try container.decodeIfPresent(String.self, forKey: .meetingLink)
         zoomMeetingId = try container.decodeIfPresent(String.self, forKey: .zoomMeetingId)
         zoomMeetingPassword = try container.decodeIfPresent(String.self, forKey: .zoomMeetingPassword)
+        startUrl = try container.decodeIfPresent(String.self, forKey: .startUrl)
         status = try container.decode(ExamAppointmentStatus.self, forKey: .status)
         stripePaymentIntentId = try container.decodeIfPresent(String.self, forKey: .stripePaymentIntentId)
         stripeChargeId = try container.decodeIfPresent(String.self, forKey: .stripeChargeId)
@@ -251,6 +254,7 @@ struct ExamAppointment: Identifiable, Codable {
         meetingLink: String? = nil,
         zoomMeetingId: String? = nil,
         zoomMeetingPassword: String? = nil,
+        startUrl: String? = nil,
         status: ExamAppointmentStatus = .pending,
         stripePaymentIntentId: String? = nil,
         stripeChargeId: String? = nil,
@@ -270,6 +274,7 @@ struct ExamAppointment: Identifiable, Codable {
         self.meetingLink = meetingLink
         self.zoomMeetingId = zoomMeetingId
         self.zoomMeetingPassword = zoomMeetingPassword
+        self.startUrl = startUrl
         self.status = status
         self.stripePaymentIntentId = stripePaymentIntentId
         self.stripeChargeId = stripeChargeId

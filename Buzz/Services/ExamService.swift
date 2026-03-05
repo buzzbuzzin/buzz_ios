@@ -18,7 +18,8 @@ class ExamService: ObservableObject {
     @Published var prerequisitesStatus: ExamPrerequisitesStatus?
     @Published var examConfigs: [ExamType: ExamTypeConfig] = [:]
     @Published var isLoadingConfigs = false
-    
+    private var configsLoadedFromServer = false
+
     private let supabase = SupabaseClient.shared.client
     
     // Singleton for shared config access
@@ -50,6 +51,7 @@ class ExamService: ObservableObject {
             }
             
             examConfigs = configs
+            configsLoadedFromServer = true
             isLoadingConfigs = false
             print("✅ [ExamService] Loaded \(configs.count) exam configurations")
         } catch {
@@ -71,7 +73,7 @@ class ExamService: ObservableObject {
     
     /// Ensures configs are loaded, fetching if needed
     func ensureConfigsLoaded() async {
-        if examConfigs.isEmpty && !isLoadingConfigs {
+        if !configsLoadedFromServer && !isLoadingConfigs {
             await fetchExamConfigs()
         }
     }
@@ -311,7 +313,8 @@ class ExamService: ObservableObject {
             var meetingLink: String? = nil
             var zoomMeetingId: String? = nil
             var zoomMeetingPassword: String? = nil
-            
+            var startUrl: String? = nil
+
             if locationType == .online {
                 do {
                     let zoomMeeting = try await createZoomMeeting(
@@ -323,6 +326,7 @@ class ExamService: ObservableObject {
                     meetingLink = zoomMeeting.joinUrl
                     zoomMeetingId = zoomMeeting.meetingId
                     zoomMeetingPassword = zoomMeeting.password
+                    startUrl = zoomMeeting.startUrl
                     print("✅ [ExamService] Created Zoom meeting: \(zoomMeeting.meetingId)")
                 } catch {
                     // Log error but continue with placeholder - meeting can be created manually if needed
@@ -330,7 +334,7 @@ class ExamService: ObservableObject {
                     meetingLink = "https://zoom.us/j/pending"
                 }
             }
-            
+
             var appointmentData: [String: AnyJSON] = [
                 "pilot_id": .string(pilotId.uuidString),
                 "exam_type": .string(examType.rawValue),
@@ -351,6 +355,9 @@ class ExamService: ObservableObject {
             }
             if let zoomPassword = zoomMeetingPassword {
                 appointmentData["zoom_meeting_password"] = .string(zoomPassword)
+            }
+            if let startUrl = startUrl {
+                appointmentData["start_url"] = .string(startUrl)
             }
             
             let response: [ExamAppointment] = try await supabase
@@ -517,7 +524,8 @@ class ExamService: ObservableObject {
             var meetingLink: String? = nil
             var zoomMeetingId: String? = nil
             var zoomMeetingPassword: String? = nil
-            
+            var startUrl: String? = nil
+
             if locationType == .online {
                 do {
                     let zoomMeeting = try await createZoomMeeting(
@@ -529,20 +537,22 @@ class ExamService: ObservableObject {
                     meetingLink = zoomMeeting.joinUrl
                     zoomMeetingId = zoomMeeting.meetingId
                     zoomMeetingPassword = zoomMeeting.password
+                    startUrl = zoomMeeting.startUrl
                     print("✅ [ExamService] Created new Zoom meeting for reschedule: \(zoomMeeting.meetingId)")
                 } catch {
                     print("⚠️ [ExamService] Failed to create Zoom meeting for reschedule: \(error.localizedDescription)")
                     meetingLink = "https://zoom.us/j/pending"
                 }
             }
-            
+
             var updateData: [String: AnyJSON] = [
                 "scheduled_date": .string(dateFormatter.string(from: newScheduledDate)),
                 "location_type": .string(locationType.rawValue),
                 "location_address": locationAddress.map { .string($0) } ?? .null,
                 "meeting_link": meetingLink.map { .string($0) } ?? .null,
                 "zoom_meeting_id": zoomMeetingId.map { .string($0) } ?? .null,
-                "zoom_meeting_password": zoomMeetingPassword.map { .string($0) } ?? .null
+                "zoom_meeting_password": zoomMeetingPassword.map { .string($0) } ?? .null,
+                "start_url": startUrl.map { .string($0) } ?? .null
             ]
             
             let response: [ExamAppointment] = try await supabase

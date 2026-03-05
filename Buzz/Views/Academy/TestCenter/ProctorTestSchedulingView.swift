@@ -17,7 +17,7 @@ struct ProctorTestSchedulingView: View {
     let pilotId: UUID
     
     @EnvironmentObject var authService: AuthService
-    @StateObject private var examService = ExamService()
+    @ObservedObject private var examService = ExamService.shared
     @Environment(\.dismiss) private var dismiss
     
     @State private var selectedDate = Date()
@@ -32,6 +32,7 @@ struct ProctorTestSchedulingView: View {
     @State private var paymentSheet: PaymentSheet?
     @State private var showPaymentSuccess = false
     @State private var presentPayment = false
+    @State private var currentPaymentIntent: ExamPaymentIntentResponse?
     
     // Minimum scheduling date is tomorrow
     private var minimumDate: Date {
@@ -346,6 +347,9 @@ struct ProctorTestSchedulingView: View {
                 scheduledDate: dateTime
             )
             
+            // Store payment intent for use after payment completes
+            currentPaymentIntent = paymentIntent
+
             // Configure payment sheet
             var configuration = PaymentSheet.Configuration()
             configuration.merchantDisplayName = "Buzz Academy"
@@ -406,20 +410,70 @@ struct ProctorTestSchedulingView: View {
     
     private func createFreeAppointment() async {
         guard let dateTime = scheduledDateTime else { return }
-        
-        // Create appointment without payment for free exams
-        // Implementation would go here
-        showPaymentSuccess = true
+
+        isProcessingPayment = true
+
+        do {
+            _ = try await examService.createExamAppointment(
+                pilotId: pilotId,
+                examType: .groundSchoolTest,
+                scheduledDate: dateTime,
+                locationType: locationType,
+                locationAddress: locationType == .inPerson ? locationAddress : nil,
+                paymentIntentId: "free_\(UUID().uuidString)",
+                chargeId: nil,
+                paymentAmount: 0,
+                pilotEmail: authService.currentUser?.email
+            )
+            isProcessingPayment = false
+            showPaymentSuccess = true
+        } catch {
+            isProcessingPayment = false
+            errorMessage = "Failed to create appointment: \(error.localizedDescription)"
+            showError = true
+        }
     }
-    
+
     private func handlePaymentCompletion(_ result: PaymentSheetResult) {
         switch result {
         case .completed:
-            showPaymentSuccess = true
+            // Payment successful - create the appointment record
+            guard let dateTime = scheduledDateTime,
+                  let paymentIntent = currentPaymentIntent else {
+                errorMessage = "Payment succeeded but could not create appointment. Please contact support with your payment confirmation."
+                showError = true
+                return
+            }
+
+            Task {
+                isProcessingPayment = true
+                do {
+                    _ = try await examService.createExamAppointment(
+                        pilotId: pilotId,
+                        examType: .groundSchoolTest,
+                        scheduledDate: dateTime,
+                        locationType: locationType,
+                        locationAddress: locationType == .inPerson ? locationAddress : nil,
+                        paymentIntentId: paymentIntent.paymentIntentId,
+                        chargeId: nil,
+                        paymentAmount: paymentIntent.decimalAmount,
+                        pilotEmail: authService.currentUser?.email
+                    )
+                    isProcessingPayment = false
+                    showPaymentSuccess = true
+                } catch {
+                    isProcessingPayment = false
+                    errorMessage = "Payment was successful but we couldn't create your appointment. Please contact support with payment ID: \(paymentIntent.paymentIntentId)"
+                    showError = true
+                }
+            }
+
         case .cancelled:
-            errorMessage = "Payment was cancelled"
-            showError = true
+            currentPaymentIntent = nil
+            // User cancelled - do nothing
+
         case .failed(let error):
+            currentPaymentIntent = nil
             errorMessage = "Payment failed: \(error.localizedDescription)"
             showError = true
         }
