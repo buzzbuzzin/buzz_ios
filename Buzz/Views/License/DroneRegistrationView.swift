@@ -576,6 +576,7 @@ struct EditDroneRegistrationView: View {
     @State private var registrationNumber: String
     @State private var issued: Date
     @State private var expires: Date
+    @State private var hasExpirationDate: Bool
     @State private var isSaving = false
     @State private var errorMessage: String?
     @State private var showError = false
@@ -613,6 +614,9 @@ struct EditDroneRegistrationView: View {
         }
         _issued = State(initialValue: parsedIssued)
         
+        let hasExpiry = registration.expires != nil && !registration.expires!.isEmpty
+        _hasExpirationDate = State(initialValue: hasExpiry)
+
         let parsedExpires: Date
         if let expiresString = registration.expires, !expiresString.isEmpty {
             parsedExpires = dateFormatter.date(from: expiresString) ?? Date()
@@ -704,45 +708,51 @@ struct EditDroneRegistrationView: View {
                     }
                 }
                 
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Expires")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    
-                    if showExpiresPicker {
-                        VStack(alignment: .leading, spacing: 8) {
-                            DatePicker(
-                                "",
-                                selection: $expires,
-                                displayedComponents: [.date]
-                            )
-                            .datePickerStyle(.wheel)
-                            
-                            Button(action: {
-                                withAnimation {
-                                    showExpiresPicker = false
+                Toggle("Has Expiration Date", isOn: $hasExpirationDate.animation())
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+
+                if hasExpirationDate {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Expires")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+
+                        if showExpiresPicker {
+                            VStack(alignment: .leading, spacing: 8) {
+                                DatePicker(
+                                    "",
+                                    selection: $expires,
+                                    displayedComponents: [.date]
+                                )
+                                .datePickerStyle(.wheel)
+
+                                Button(action: {
+                                    withAnimation {
+                                        showExpiresPicker = false
+                                    }
+                                }) {
+                                    Text("Done")
+                                        .font(.system(size: 16, weight: .medium))
+                                        .foregroundColor(.blue)
+                                        .frame(maxWidth: .infinity)
+                                        .padding(.vertical, 8)
                                 }
-                            }) {
-                                Text("Done")
-                                    .font(.system(size: 16, weight: .medium))
-                                    .foregroundColor(.blue)
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 8)
                             }
-                        }
-                    } else {
-                        HStack {
-                            Text(dateFormatter.string(from: expires))
-                                .foregroundColor(.primary)
-                            Spacer()
-                            Button(action: {
-                                withAnimation {
-                                    showExpiresPicker = true
+                        } else {
+                            HStack {
+                                Text(dateFormatter.string(from: expires))
+                                    .foregroundColor(.primary)
+                                Spacer()
+                                Button(action: {
+                                    withAnimation {
+                                        showExpiresPicker = true
+                                    }
+                                }) {
+                                    Image(systemName: "calendar")
+                                        .font(.system(size: 16, weight: .medium))
+                                        .foregroundColor(.blue)
                                 }
-                            }) {
-                                Image(systemName: "calendar")
-                                    .font(.system(size: 16, weight: .medium))
-                                    .foregroundColor(.blue)
                             }
                         }
                     }
@@ -777,8 +787,8 @@ struct EditDroneRegistrationView: View {
             do {
                 // Format dates as MM/dd/yyyy strings
                 let issuedString = dateFormatter.string(from: issued)
-                let expiresString = dateFormatter.string(from: expires)
-                
+                let expiresString: String? = hasExpirationDate ? dateFormatter.string(from: expires) : nil
+
                 try await registrationService.updateRegistrationOCRFields(
                     registrationId: registration.id,
                     registeredOwner: registeredOwner.isEmpty ? nil : registeredOwner,
