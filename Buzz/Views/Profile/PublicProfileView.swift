@@ -38,6 +38,8 @@ struct PublicProfileView: View {
     @State private var errorMessage = ""
     @State private var showError = false
     @State private var navigateToProfileId: UUID?
+    @State private var showFollowList = false
+    @State private var followListInitialTab: FollowListTab = .followers
     
     var isOwnProfile: Bool {
         authService.currentUser?.id == pilotId
@@ -208,23 +210,35 @@ struct PublicProfileView: View {
 
                             // Followers
                             HStack(spacing: 16) {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text("\(followerCount)")
-                                        .font(.title2)
-                                        .fontWeight(.bold)
-                                    Text("Followers")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
+                                Button {
+                                    followListInitialTab = .followers
+                                    showFollowList = true
+                                } label: {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text("\(followerCount)")
+                                            .font(.title2)
+                                            .fontWeight(.bold)
+                                        Text("Followers")
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                    }
                                 }
+                                .buttonStyle(.plain)
 
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text("\(followingCount)")
-                                        .font(.title2)
-                                        .fontWeight(.bold)
-                                    Text("Following")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
+                                Button {
+                                    followListInitialTab = .following
+                                    showFollowList = true
+                                } label: {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text("\(followingCount)")
+                                            .font(.title2)
+                                            .fontWeight(.bold)
+                                        Text("Following")
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                    }
                                 }
+                                .buttonStyle(.plain)
                             }
                         }
                     }
@@ -408,6 +422,17 @@ struct PublicProfileView: View {
                 )
                 .environmentObject(authService)
             }
+        }
+        .sheet(isPresented: $showFollowList, onDismiss: {
+            Task {
+                let counts = await hangerTalkService.fetchFollowCounts(userId: pilotId)
+                followerCount = counts.followers
+                followingCount = counts.following
+            }
+        }) {
+            FollowListView(pilotId: pilotId, initialTab: followListInitialTab,
+                           hangerTalkService: hangerTalkService)
+                .environmentObject(authService)
         }
         .task {
             await loadProfileData()

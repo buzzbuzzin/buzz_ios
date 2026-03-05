@@ -246,6 +246,13 @@ struct UserFollow: Codable, Identifiable {
     }
 }
 
+// MARK: - Follow List Tab
+
+enum FollowListTab: String, CaseIterable {
+    case followers = "Followers"
+    case following = "Following"
+}
+
 // MARK: - Hanger Talk Mention
 
 struct HangerTalkMention: Codable, Identifiable {

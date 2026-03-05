@@ -862,6 +862,70 @@ class HangerTalkService: ObservableObject {
         }
     }
 
+    // MARK: - Fetch Follower Profiles
+
+    func fetchFollowerProfiles(userId: UUID) async -> [HangerAuthorProfile] {
+        if DemoModeManager.shared.isDemoModeEnabled { return [] }
+
+        do {
+            let follows: [UserFollow] = try await supabase
+                .from("user_follows")
+                .select()
+                .eq("following_id", value: userId.uuidString)
+                .order("created_at", ascending: false)
+                .execute()
+                .value
+
+            guard !follows.isEmpty else { return [] }
+
+            let followerIds = follows.map { $0.followerId.uuidString }
+            let profiles: [HangerAuthorProfile] = try await supabase
+                .from("profiles")
+                .select("id, call_sign, profile_picture_url, first_name, last_name")
+                .in("id", values: followerIds)
+                .execute()
+                .value
+
+            let profileMap = Dictionary(uniqueKeysWithValues: profiles.map { ($0.id, $0) })
+            return follows.compactMap { profileMap[$0.followerId] }
+        } catch {
+            print("Error fetching follower profiles: \(error)")
+            return []
+        }
+    }
+
+    // MARK: - Fetch Following Profiles
+
+    func fetchFollowingProfiles(userId: UUID) async -> [HangerAuthorProfile] {
+        if DemoModeManager.shared.isDemoModeEnabled { return [] }
+
+        do {
+            let follows: [UserFollow] = try await supabase
+                .from("user_follows")
+                .select()
+                .eq("follower_id", value: userId.uuidString)
+                .order("created_at", ascending: false)
+                .execute()
+                .value
+
+            guard !follows.isEmpty else { return [] }
+
+            let followingIds = follows.map { $0.followingId.uuidString }
+            let profiles: [HangerAuthorProfile] = try await supabase
+                .from("profiles")
+                .select("id, call_sign, profile_picture_url, first_name, last_name")
+                .in("id", values: followingIds)
+                .execute()
+                .value
+
+            let profileMap = Dictionary(uniqueKeysWithValues: profiles.map { ($0.id, $0) })
+            return follows.compactMap { profileMap[$0.followingId] }
+        } catch {
+            print("Error fetching following profiles: \(error)")
+            return []
+        }
+    }
+
     // MARK: - Search Pilots for Mention Autocomplete
 
     func searchPilotsForMention(query: String) async -> [HangerAuthorProfile] {
