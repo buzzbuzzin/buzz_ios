@@ -126,11 +126,7 @@ struct CourseContentView: View {
                         .onDisappear {
                             Task {
                                 if let user = authService.currentUser {
-                                    do {
-                                        hasPassedGroundSchoolTest = try await academyService.checkGroundSchoolTestStatus(pilotId: user.id)
-                                    } catch {
-                                        print("Error refreshing test status: \(error)")
-                                    }
+                                    await loadPassedTests(pilotId: user.id)
                                 }
                             }
                         }
@@ -158,18 +154,11 @@ struct CourseContentView: View {
             _ = await storeKitManager.checkAllSubscriptions(pilotId: currentUser.id)
             print("📋 [CourseContentView] Subscription status: \(hasSubscription) (source: \(entitlementManager.subscriptionSourceDisplayName))")
             
-            do {
-                print("🔄 [CourseContentView] Checking Ground School Test status...")
-                hasPassedGroundSchoolTest = try await academyService.checkGroundSchoolTestStatus(pilotId: currentUser.id)
-                print("📋 [CourseContentView] Ground School Test passed: \(hasPassedGroundSchoolTest)")
-            } catch {
-                print("❌ [CourseContentView] Error checking test status: \(error)")
-            }
-            
             // Fetch completed unit IDs
             await loadCompletedUnits(pilotId: currentUser.id)
-            
+
             // Fetch passed test IDs for prerequisite checking
+            // This also derives hasPassedGroundSchoolTest from the results
             await loadPassedTests(pilotId: currentUser.id)
         }
     }
@@ -250,7 +239,8 @@ struct CourseContentView: View {
                     }
                 }
                 passedTestIds = testIds
-                print("✅ [CourseContentView] Loaded \(passedTestIds.count) passed tests")
+                hasPassedGroundSchoolTest = !testIds.isEmpty
+                print("✅ [CourseContentView] Loaded \(passedTestIds.count) passed tests, hasPassedGroundSchoolTest: \(hasPassedGroundSchoolTest)")
             }
         } catch {
             print("❌ [CourseContentView] Error loading passed tests: \(error)")
