@@ -21,6 +21,7 @@ struct HangerSpacesBar: View {
                 // Live spaces
                 ForEach(spaces) { spaceWithHost in
                     SpacePill(spaceWithHost: spaceWithHost)
+                        .contentShape(Rectangle())
                         .onTapGesture { onSpaceTap(spaceWithHost) }
                 }
             }
@@ -87,9 +88,10 @@ struct SpacePill: View {
                 }
             }
 
-            // Space title (truncated)
-            Text(spaceWithHost.space.title)
+            // Host callSign
+            Text(spaceWithHost.hostCallSign ?? "Pilot")
                 .font(.caption2)
+                .fontWeight(.medium)
                 .lineLimit(1)
                 .frame(width: 64)
 

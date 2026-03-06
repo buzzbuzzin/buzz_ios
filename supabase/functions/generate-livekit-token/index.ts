@@ -61,6 +61,41 @@ serve(async (req) => {
       )
     }
 
+    // Verify user is a participant in this space (or the host)
+    const { data: spaceRows, error: spaceError } = await supabase
+      .from("hanger_spaces")
+      .select("id, host_id")
+      .eq("livekit_room_name", data.room_name)
+      .eq("status", "live")
+      .limit(1)
+
+    if (spaceError || !spaceRows || spaceRows.length === 0) {
+      return new Response(
+        JSON.stringify({ error: "Space not found or not live" }),
+        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      )
+    }
+
+    const space = spaceRows[0]
+    const isHost = space.host_id === user.id
+
+    if (!isHost) {
+      const { data: participantRows } = await supabase
+        .from("hanger_space_participants")
+        .select("id")
+        .eq("space_id", space.id)
+        .eq("user_id", user.id)
+        .is("left_at", null)
+        .limit(1)
+
+      if (!participantRows || participantRows.length === 0) {
+        return new Response(
+          JSON.stringify({ error: "You are not a participant in this space" }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        )
+      }
+    }
+
     const at = new AccessToken(LIVEKIT_API_KEY, LIVEKIT_API_SECRET, {
       identity: user.id,
       name: data.user_name,

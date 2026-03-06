@@ -25,28 +25,39 @@ struct HangerTalkView: View {
     @State private var showCreateSpace = false
     @State private var activeSpaceWithHost: HangerSpaceWithHost?
     @State private var showSpaceRoom = false
+    @State private var isJoiningSpace = false
 
     /// Optional post ID to navigate to on load (from push notification deep link)
     var deepLinkPostId: UUID? = nil
     /// Opens inbox on load when triggered by a follow-notification deep link.
     var deepLinkOpenInbox: Bool = false
+    /// Optional space ID to navigate to on load (from push notification deep link)
+    var deepLinkSpaceId: UUID? = nil
 
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
             VStack(spacing: 0) {
-                // Live Spaces Bar
-                if !spaceService.liveSpaces.isEmpty || true {
-                    HangerSpacesBar(
-                        spaces: spaceService.liveSpaces,
-                        onSpaceTap: { spaceWithHost in
-                            activeSpaceWithHost = spaceWithHost
-                            showSpaceRoom = true
-                        },
-                        onCreateTap: {
-                            showCreateSpace = true
+                // Live Spaces Bar (always show for the "Start a Space" button)
+                HangerSpacesBar(
+                    spaces: spaceService.liveSpaces,
+                    onSpaceTap: { spaceWithHost in
+                        guard let userId = authService.activeUserId, !isJoiningSpace else { return }
+                        isJoiningSpace = true
+                        Task {
+                            do {
+                                try await spaceService.joinSpace(spaceId: spaceWithHost.space.id, userId: userId)
+                                activeSpaceWithHost = spaceWithHost
+                                showSpaceRoom = true
+                            } catch {
+                                spaceService.errorMessage = error.localizedDescription
+                            }
+                            isJoiningSpace = false
                         }
-                    )
-                }
+                    },
+                    onCreateTap: {
+                        showCreateSpace = true
+                    }
+                )
 
                 // Tab Bar
                 feedTabBar
@@ -223,6 +234,20 @@ struct HangerTalkView: View {
                 }
             } else if deepLinkOpenInbox {
                 showInbox = true
+            } else if let spaceId = deepLinkSpaceId {
+                // Deep link to a specific space — join and open it
+                do {
+                    try await spaceService.joinSpace(spaceId: spaceId, userId: userId)
+                    if let space = spaceService.currentSpace {
+                        activeSpaceWithHost = HangerSpaceWithHost(
+                            id: space.id, space: space,
+                            hostCallSign: nil, hostProfilePictureUrl: nil, hostFullName: ""
+                        )
+                        showSpaceRoom = true
+                    }
+                } catch {
+                    spaceService.errorMessage = error.localizedDescription
+                }
             }
 
             // Subscribe to live spaces feed for real-time updates
@@ -234,6 +259,9 @@ struct HangerTalkView: View {
                 guard !Task.isCancelled else { break }
                 await service.fetchUnreadCount(userId: userId)
             }
+        }
+        .onDisappear {
+            Task { await spaceService.unsubscribeFromFeedUpdates() }
         }
         .onChange(of: selectedTab) { newTab in
             guard let userId = authService.activeUserId else { return }

@@ -19,7 +19,7 @@ struct CreateSpaceView: View {
     let onSpaceCreated: (HangerSpace) -> Void
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             Form {
                 Section("Space Details") {
                     TextField("Space title (e.g., Pre-flight check tips)", text: $title)
@@ -73,6 +73,7 @@ struct CreateSpaceView: View {
                     title: title.trimmingCharacters(in: .whitespaces),
                     description: description.trimmingCharacters(in: .whitespaces).isEmpty ? nil : description.trimmingCharacters(in: .whitespaces)
                 )
+                isCreating = false
                 dismiss()
                 onSpaceCreated(space)
             } catch {

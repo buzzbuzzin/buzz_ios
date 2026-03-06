@@ -297,12 +297,22 @@ struct HangerTalkNotificationInsert: Codable {
     let actorId: UUID
     let type: HangerTalkNotificationType
     let postId: UUID?
+    let spaceId: UUID?
 
     enum CodingKeys: String, CodingKey {
         case recipientId = "recipient_id"
         case actorId = "actor_id"
         case type
         case postId = "post_id"
+        case spaceId = "space_id"
+    }
+
+    init(recipientId: UUID, actorId: UUID, type: HangerTalkNotificationType, postId: UUID?, spaceId: UUID? = nil) {
+        self.recipientId = recipientId
+        self.actorId = actorId
+        self.type = type
+        self.postId = postId
+        self.spaceId = spaceId
     }
 }
 
@@ -364,7 +374,7 @@ struct HangerTalkNotificationItem: Identifiable {
     let createdAt: Date
 
     var description: String {
-        let name = actorCallSign ?? actorFullName
+        let name = actorCallSign ?? "Pilot"
         switch type {
         case .like:
             return "\(name) liked your post"

@@ -16,6 +16,8 @@ struct HangerSpaceRoomView: View {
     @State private var showEndConfirmation = false
     @State private var showError = false
     @State private var actionErrorMessage = ""
+    @State private var isDismissed = false
+    @State private var hasPendingRequest = false
 
     private var isHost: Bool {
         space.hostId == authService.activeUserId
@@ -34,8 +36,13 @@ struct HangerSpaceRoomView: View {
         spaceService.participants.filter { $0.role == .listener }
     }
 
+    /// Use live currentSpace data when available, fall back to initial space
+    private var displaySpace: HangerSpace {
+        spaceService.currentSpace ?? space
+    }
+
     var body: some View {
-        NavigationView {
+        NavigationStack {
             VStack(spacing: 0) {
                 // Header
                 spaceHeader
@@ -84,7 +91,7 @@ struct HangerSpaceRoomView: View {
                     Task {
                         do {
                             try await spaceService.endSpace(spaceId: space.id)
-                            dismiss()
+                            safeDismiss()
                         } catch {
                             actionErrorMessage = error.localizedDescription
                             showError = true
@@ -99,12 +106,18 @@ struct HangerSpaceRoomView: View {
             } message: {
                 Text(actionErrorMessage)
             }
-            .onChange(of: spaceService.currentSpace?.status) { newStatus in
+            .onChange(of: spaceService.currentSpace?.status) { _, newStatus in
                 if newStatus == .ended {
-                    dismiss()
+                    safeDismiss()
                 }
             }
         }
+    }
+
+    private func safeDismiss() {
+        guard !isDismissed else { return }
+        isDismissed = true
+        dismiss()
     }
 
     // MARK: - Header
@@ -119,7 +132,7 @@ struct HangerSpaceRoomView: View {
                         guard let userId = authService.activeUserId else { return }
                         do {
                             try await spaceService.leaveSpace(spaceId: space.id, userId: userId)
-                            dismiss()
+                            safeDismiss()
                         } catch {
                             actionErrorMessage = error.localizedDescription
                             showError = true
@@ -135,7 +148,7 @@ struct HangerSpaceRoomView: View {
             Spacer()
 
             VStack(spacing: 2) {
-                Text(space.title)
+                Text(displaySpace.title)
                     .font(.subheadline)
                     .fontWeight(.semibold)
                     .lineLimit(1)
@@ -143,7 +156,7 @@ struct HangerSpaceRoomView: View {
                 HStack(spacing: 4) {
                     Image(systemName: "headphones")
                         .font(.system(size: 10))
-                    Text("\(spaceService.currentSpace?.listenerCount ?? space.listenerCount)")
+                    Text("\(displaySpace.listenerCount)")
                         .font(.caption)
                 }
                 .foregroundColor(.secondary)
@@ -173,11 +186,18 @@ struct HangerSpaceRoomView: View {
             ], spacing: 16) {
                 ForEach(speakers) { participant in
                     SpeakerBubble(participant: participant, isHost: participant.role == .host)
+                        .accessibilityElement(children: .combine)
+                        .accessibilityLabel("\(participant.callSign ?? "Pilot"), \(participant.role == .host ? "Host" : "Speaker"), \(participant.isMuted ? "muted" : "speaking")")
                         .contextMenu {
                             if isHost && participant.role == .speaker {
                                 Button(role: .destructive) {
                                     Task {
-                                        try? await spaceService.removeSpeaker(spaceId: space.id, userId: participant.userId)
+                                        do {
+                                            try await spaceService.removeSpeaker(spaceId: space.id, userId: participant.userId)
+                                        } catch {
+                                            actionErrorMessage = error.localizedDescription
+                                            showError = true
+                                        }
                                     }
                                 } label: {
                                     Label("Remove from Speakers", systemImage: "mic.slash")
@@ -221,16 +241,21 @@ struct HangerSpaceRoomView: View {
                 HStack {
                     Image(systemName: "hand.raised.fill")
                         .foregroundColor(.orange)
-                    Text("Request from participant")
+                    Text(spaceService.callSignForUser(request.userId))
                         .font(.subheadline)
                     Spacer()
                     Button("Approve") {
                         Task {
-                            try? await spaceService.approveSpeaker(
-                                requestId: request.id,
-                                spaceId: space.id,
-                                userId: request.userId
-                            )
+                            do {
+                                try await spaceService.approveSpeaker(
+                                    requestId: request.id,
+                                    spaceId: space.id,
+                                    userId: request.userId
+                                )
+                            } catch {
+                                actionErrorMessage = error.localizedDescription
+                                showError = true
+                            }
                         }
                     }
                     .buttonStyle(.borderedProminent)
@@ -239,7 +264,12 @@ struct HangerSpaceRoomView: View {
 
                     Button("Decline") {
                         Task {
-                            try? await spaceService.declineSpeaker(requestId: request.id)
+                            do {
+                                try await spaceService.declineSpeaker(requestId: request.id)
+                            } catch {
+                                actionErrorMessage = error.localizedDescription
+                                showError = true
+                            }
                         }
                     }
                     .buttonStyle(.bordered)
@@ -273,7 +303,7 @@ struct HangerSpaceRoomView: View {
                         guard let userId = authService.activeUserId else { return }
                         do {
                             try await spaceService.leaveSpace(spaceId: space.id, userId: userId)
-                            dismiss()
+                            safeDismiss()
                         } catch {
                             actionErrorMessage = error.localizedDescription
                             showError = true
@@ -308,18 +338,26 @@ struct HangerSpaceRoomView: View {
             } else {
                 // Hand raise (request to speak)
                 Button {
-                    guard let userId = authService.activeUserId else { return }
+                    guard let userId = authService.activeUserId, !hasPendingRequest else { return }
+                    hasPendingRequest = true
                     Task {
-                        try? await spaceService.requestToSpeak(spaceId: space.id, userId: userId)
+                        do {
+                            try await spaceService.requestToSpeak(spaceId: space.id, userId: userId)
+                        } catch {
+                            actionErrorMessage = error.localizedDescription
+                            showError = true
+                            hasPendingRequest = false
+                        }
                     }
                 } label: {
-                    Image(systemName: "hand.raised.fill")
+                    Image(systemName: hasPendingRequest ? "hand.raised.fill" : "hand.raised")
                         .font(.title2)
-                        .foregroundColor(.orange)
+                        .foregroundColor(hasPendingRequest ? .gray : .orange)
                         .frame(width: 48, height: 48)
                         .background(Color(.systemGray6))
                         .clipShape(Circle())
                 }
+                .disabled(hasPendingRequest)
             }
         }
         .padding(.horizontal, 20)
@@ -370,7 +408,7 @@ struct SpeakerBubble: View {
                 }
             }
 
-            Text(participant.callSign ?? participant.fullName)
+            Text(participant.callSign ?? "Pilot")
                 .font(.caption2)
                 .lineLimit(1)
 
@@ -405,7 +443,7 @@ struct ListenerBubble: View {
                     .foregroundColor(.secondary)
             }
 
-            Text(participant.callSign ?? participant.fullName)
+            Text(participant.callSign ?? "Pilot")
                 .font(.system(size: 9))
                 .lineLimit(1)
                 .foregroundColor(.secondary)

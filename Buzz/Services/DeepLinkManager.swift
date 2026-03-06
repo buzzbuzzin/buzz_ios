@@ -15,6 +15,7 @@ enum DeepLinkDestination: Equatable {
     case hangerTalkPost(postId: UUID)
     case hangerTalkProfile(userId: UUID)
     case hangerTalkInbox
+    case hangerTalkSpace(spaceId: UUID)
     case bookingDetail(bookingId: UUID)
     case messages(conversationId: UUID)
     case jobs
@@ -81,6 +82,12 @@ class DeepLinkManager: ObservableObject {
 
         case "hanger_talk_follow":
             pendingDestination = .hangerTalkInbox
+
+        case "hanger_talk_space_live":
+            if let spaceIdString = userInfo["spaceId"] as? String,
+               let spaceId = UUID(uuidString: spaceIdString) {
+                pendingDestination = .hangerTalkSpace(spaceId: spaceId)
+            }
 
         case "emergency_beacon", "emergency_beacon_urgent",
              "beacon_accepted", "beacon_resolved":

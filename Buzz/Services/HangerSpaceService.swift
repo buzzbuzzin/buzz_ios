@@ -37,6 +37,9 @@ class HangerSpaceService: ObservableObject {
     private var realtimeTasks: [Task<Void, Never>] = []
     private var feedRealtimeTasks: [Task<Void, Never>] = []
 
+    // Cache post author IDs for refreshing liveHostIds on realtime updates
+    private var cachedAuthorIds: [UUID] = []
+
     // MARK: - Fetch Live Spaces (for horizontal scroll at top of feed)
 
     func fetchLiveSpaces() async {
@@ -68,6 +71,7 @@ class HangerSpaceService: ObservableObject {
             liveHostIds = []
             return
         }
+        cachedAuthorIds = authorIds
         guard !authorIds.isEmpty else {
             liveHostIds = []
             return
@@ -175,10 +179,25 @@ class HangerSpaceService: ObservableObject {
 
         // Get LiveKit token and connect (host can publish audio)
         let callSign = await fetchCallSign(userId: hostId) ?? "Pilot"
-        await connectToLiveKit(roomName: roomName, userName: callSign, canPublish: true)
+        do {
+            try await connectToLiveKit(roomName: roomName, userName: callSign, canPublish: true)
+        } catch {
+            // LiveKit failed — clean up the DB row so we don't leave a zombie space
+            try? await supabase
+                .from("hanger_spaces")
+                .update(["status": AnyJSON.string("ended"), "ended_at": AnyJSON.string(ISO8601DateFormatter().string(from: Date()))])
+                .eq("id", value: space.id.uuidString)
+                .execute()
+            throw NSError(domain: "HangerSpaceService", code: -1,
+                         userInfo: [NSLocalizedDescriptionKey: "Failed to connect to audio room. Please try again."])
+        }
 
-        // Notify followers
-        await notifyFollowersOfNewSpace(hostId: hostId, spaceId: space.id, title: title)
+        // Notify followers in background so we don't block the host
+        let spaceId = space.id
+        let spaceTitle = title
+        Task.detached { [weak self] in
+            await self?.notifyFollowersOfNewSpace(hostId: hostId, spaceId: spaceId, title: spaceTitle)
+        }
 
         currentSpace = space
         return space
@@ -203,20 +222,38 @@ class HangerSpaceService: ObservableObject {
                          userInfo: [NSLocalizedDescriptionKey: "Space not found"])
         }
 
-        // Insert participant as listener
-        let participantData: [String: AnyJSON] = [
-            "space_id": .string(spaceId.uuidString),
-            "user_id": .string(userId.uuidString),
-            "role": .string("listener")
-        ]
-        try await supabase
+        guard space.status == .live else {
+            throw NSError(domain: "HangerSpaceService", code: -1,
+                         userInfo: [NSLocalizedDescriptionKey: "This Space has ended"])
+        }
+
+        // Check if user is already a participant (prevent duplicate join)
+        let existing: [HangerSpaceParticipant] = try await supabase
             .from("hanger_space_participants")
-            .insert(participantData)
+            .select()
+            .eq("space_id", value: spaceId.uuidString)
+            .eq("user_id", value: userId.uuidString)
+            .is("left_at", value: nil)
+            .limit(1)
             .execute()
+            .value
+
+        if existing.isEmpty {
+            // Insert participant as listener
+            let participantData: [String: AnyJSON] = [
+                "space_id": .string(spaceId.uuidString),
+                "user_id": .string(userId.uuidString),
+                "role": .string("listener")
+            ]
+            try await supabase
+                .from("hanger_space_participants")
+                .insert(participantData)
+                .execute()
+        }
 
         // Get LiveKit token and connect (listener cannot publish)
         let callSign = await fetchCallSign(userId: userId) ?? "Pilot"
-        await connectToLiveKit(roomName: space.livekitRoomName, userName: callSign, canPublish: false)
+        try await connectToLiveKit(roomName: space.livekitRoomName, userName: callSign, canPublish: false)
 
         currentSpace = space
 
@@ -240,8 +277,19 @@ class HangerSpaceService: ObservableObject {
             .eq("id", value: spaceId.uuidString)
             .execute()
 
+        // Mark all active participants as left
+        let leftUpdate: [String: AnyJSON] = [
+            "left_at": .string(ISO8601DateFormatter().string(from: Date()))
+        ]
+        try? await supabase
+            .from("hanger_space_participants")
+            .update(leftUpdate)
+            .eq("space_id", value: spaceId.uuidString)
+            .is("left_at", value: nil)
+            .execute()
+
         await disconnectFromLiveKit()
-        unsubscribeFromSpaceUpdates()
+        await cancelSpaceSubscription()
         currentSpace = nil
         participants = []
         speakerRequests = []
@@ -258,15 +306,20 @@ class HangerSpaceService: ObservableObject {
             return
         }
 
+        // Soft-delete: set left_at instead of hard-deleting
+        let leftUpdate: [String: AnyJSON] = [
+            "left_at": .string(ISO8601DateFormatter().string(from: Date()))
+        ]
         try await supabase
             .from("hanger_space_participants")
-            .delete()
+            .update(leftUpdate)
             .eq("space_id", value: spaceId.uuidString)
             .eq("user_id", value: userId.uuidString)
+            .is("left_at", value: nil)
             .execute()
 
         await disconnectFromLiveKit()
-        unsubscribeFromSpaceUpdates()
+        await cancelSpaceSubscription()
         currentSpace = nil
         participants = []
         speakerRequests = []
@@ -276,6 +329,16 @@ class HangerSpaceService: ObservableObject {
 
     func requestToSpeak(spaceId: UUID, userId: UUID) async throws {
         if DemoModeManager.shared.isDemoModeEnabled { return }
+
+        // Guard: already a speaker or host
+        if participants.contains(where: { $0.userId == userId && ($0.role == .speaker || $0.role == .host) }) {
+            return
+        }
+
+        // Guard: already has a pending request
+        if speakerRequests.contains(where: { $0.userId == userId }) {
+            return
+        }
 
         let data: [String: AnyJSON] = [
             "space_id": .string(spaceId.uuidString),
@@ -350,39 +413,34 @@ class HangerSpaceService: ObservableObject {
     // MARK: - LiveKit Connection
 
     #if canImport(LiveKitSDK)
-    private func connectToLiveKit(roomName: String, userName: String, canPublish: Bool) async {
-        do {
-            struct TokenRequest: Codable {
-                let room_name: String
-                let user_name: String
-                let can_publish: Bool
-            }
+    private func connectToLiveKit(roomName: String, userName: String, canPublish: Bool) async throws {
+        struct TokenRequest: Codable {
+            let room_name: String
+            let user_name: String
+            let can_publish: Bool
+        }
 
-            let tokenRequest = TokenRequest(
-                room_name: roomName,
-                user_name: userName,
-                can_publish: canPublish
-            )
+        let tokenRequest = TokenRequest(
+            room_name: roomName,
+            user_name: userName,
+            can_publish: canPublish
+        )
 
-            let response: LiveKitTokenResponse = try await supabase.functions.invoke(
-                "generate-livekit-token",
-                options: FunctionInvokeOptions(body: tokenRequest)
-            ).value
+        let response: LiveKitTokenResponse = try await supabase.functions.invoke(
+            "generate-livekit-token",
+            options: FunctionInvokeOptions(body: tokenRequest)
+        ).value
 
-            let livekitRoom = Room()
-            try await livekitRoom.connect(url: response.wsUrl, token: response.token)
+        let livekitRoom = Room()
+        try await livekitRoom.connect(url: response.wsUrl, token: response.token)
 
-            room = livekitRoom
-            connectionState = .connected
+        room = livekitRoom
+        connectionState = .connected
 
-            // Enable microphone for hosts/speakers
-            if canPublish {
-                try await livekitRoom.localParticipant.setMicrophone(enabled: true)
-                isMicrophoneEnabled = true
-            }
-        } catch {
-            print("Error connecting to LiveKit: \(error)")
-            errorMessage = "Failed to connect to audio room"
+        // Enable microphone for hosts/speakers
+        if canPublish {
+            try await livekitRoom.localParticipant.setMicrophone(enabled: true)
+            isMicrophoneEnabled = true
         }
     }
 
@@ -405,7 +463,7 @@ class HangerSpaceService: ObservableObject {
         }
     }
     #else
-    private func connectToLiveKit(roomName: String, userName: String, canPublish: Bool) async {
+    private func connectToLiveKit(roomName: String, userName: String, canPublish: Bool) async throws {
         print("LiveKit SDK not available — audio room connection skipped")
         if canPublish {
             isMicrophoneEnabled = true
@@ -526,6 +584,10 @@ class HangerSpaceService: ObservableObject {
         let t1 = Task {
             for await _ in changes {
                 await fetchLiveSpaces()
+                // Also refresh LIVE badges on post cards
+                if !cachedAuthorIds.isEmpty {
+                    await fetchLiveHostIds(authorIds: cachedAuthorIds)
+                }
             }
         }
 
@@ -542,20 +604,13 @@ class HangerSpaceService: ObservableObject {
         realtimeChannel = nil
     }
 
-    func unsubscribeFromSpaceUpdates() {
-        for task in realtimeTasks { task.cancel() }
-        realtimeTasks = []
-        let channel = realtimeChannel
-        realtimeChannel = nil
-        Task { await channel?.unsubscribe() }
-    }
-
-    func unsubscribeFromFeedUpdates() {
+    func unsubscribeFromFeedUpdates() async {
         for task in feedRealtimeTasks { task.cancel() }
         feedRealtimeTasks = []
-        let channel = feedRealtimeChannel
+        if let channel = feedRealtimeChannel {
+            await channel.unsubscribe()
+        }
         feedRealtimeChannel = nil
-        Task { await channel?.unsubscribe() }
     }
 
     // MARK: - Refresh Space Status
@@ -574,7 +629,9 @@ class HangerSpaceService: ObservableObject {
                 currentSpace = space
                 if space.status == .ended {
                     await disconnectFromLiveKit()
-                    unsubscribeFromSpaceUpdates()
+                    await cancelSpaceSubscription()
+                    participants = []
+                    speakerRequests = []
                 }
             }
         } catch {
@@ -585,6 +642,7 @@ class HangerSpaceService: ObservableObject {
     // MARK: - Notification Helper
 
     private func notifyFollowersOfNewSpace(hostId: UUID, spaceId: UUID, title: String) async {
+        if DemoModeManager.shared.isDemoModeEnabled { return }
         guard let hostCallSign = await fetchCallSign(userId: hostId) else { return }
 
         let followers: [UserFollow] = (try? await supabase
@@ -605,12 +663,13 @@ class HangerSpaceService: ObservableObject {
                 recipientId: follower.followerId,
                 actorId: hostId,
                 type: .spaceLive,
-                postId: nil
+                postId: nil,
+                spaceId: spaceId
             )
         }
     }
 
-    private func insertSpaceNotification(recipientId: UUID, actorId: UUID, type: HangerTalkNotificationType, postId: UUID?) async {
+    private func insertSpaceNotification(recipientId: UUID, actorId: UUID, type: HangerTalkNotificationType, postId: UUID?, spaceId: UUID?) async {
         if DemoModeManager.shared.isDemoModeEnabled { return }
         guard recipientId != actorId else { return }
 
@@ -618,7 +677,8 @@ class HangerSpaceService: ObservableObject {
             recipientId: recipientId,
             actorId: actorId,
             type: type,
-            postId: postId
+            postId: postId,
+            spaceId: spaceId
         )
 
         do {
@@ -647,5 +707,10 @@ class HangerSpaceService: ObservableObject {
             print("Error fetching call sign: \(error)")
             return nil
         }
+    }
+
+    /// Look up a participant's callSign from the current participants list
+    func callSignForUser(_ userId: UUID) -> String {
+        participants.first(where: { $0.userId == userId })?.callSign ?? "Pilot"
     }
 }

@@ -202,7 +202,7 @@ struct HangerSpaceResponse: Codable {
             space: toHangerSpace(),
             hostCallSign: profile?.callSign,
             hostProfilePictureUrl: profile?.profilePictureUrl,
-            hostFullName: profile?.fullName ?? "Pilot"
+            hostFullName: profile?.callSign ?? "Pilot"
         )
     }
 }
@@ -287,7 +287,7 @@ struct HangerSpaceParticipantResponse: Codable {
             role: role,
             callSign: profile?.callSign,
             profilePictureUrl: profile?.profilePictureUrl,
-            fullName: profile?.fullName ?? "Pilot"
+            fullName: profile?.callSign ?? "Pilot"
         )
     }
 }

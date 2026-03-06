@@ -50,6 +50,7 @@ struct CockpitView: View {
     // Deep link state for navigating to a specific post within HangerTalk
     @State private var deepLinkPostId: UUID?
     @State private var deepLinkOpenHangerTalkInbox = false
+    @State private var deepLinkSpaceId: UUID?
 
     private func logTap(_ component: String, section: String) {
         guard let userId = authService.activeUserId else { return }
@@ -923,6 +924,7 @@ struct CockpitView: View {
         .fullScreenCover(isPresented: $showHangerTalk, onDismiss: {
             deepLinkPostId = nil
             deepLinkOpenHangerTalkInbox = false
+            deepLinkSpaceId = nil
             Task {
                 if let userId = authService.activeUserId {
                     await hangerTalkService.fetchUnreadCount(userId: userId)
@@ -933,7 +935,8 @@ struct CockpitView: View {
             NavigationView {
                 HangerTalkView(
                     deepLinkPostId: deepLinkPostId,
-                    deepLinkOpenInbox: deepLinkOpenHangerTalkInbox
+                    deepLinkOpenInbox: deepLinkOpenHangerTalkInbox,
+                    deepLinkSpaceId: deepLinkSpaceId
                 )
                     .environmentObject(authService)
                     .toolbar {
@@ -982,6 +985,12 @@ struct CockpitView: View {
         case .hangerTalkInbox:
             deepLinkPostId = nil
             deepLinkOpenHangerTalkInbox = true
+            showHangerTalk = true
+            deepLinkManager.pendingDestination = nil
+        case .hangerTalkSpace(let spaceId):
+            deepLinkPostId = nil
+            deepLinkOpenHangerTalkInbox = false
+            deepLinkSpaceId = spaceId
             showHangerTalk = true
             deepLinkManager.pendingDestination = nil
         default:

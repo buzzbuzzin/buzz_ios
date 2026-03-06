@@ -362,7 +362,7 @@ final class HangerSpaceModelTests: XCTestCase {
 
         let spaceWithHost = response.toSpaceWithHost()
         XCTAssertEqual(spaceWithHost.hostCallSign, "Viper")
-        XCTAssertEqual(spaceWithHost.hostFullName, "Tom Jardian")
+        XCTAssertEqual(spaceWithHost.hostFullName, "Viper")
         XCTAssertEqual(spaceWithHost.space.title, "With Host Space")
         XCTAssertEqual(spaceWithHost.id, response.id)
     }

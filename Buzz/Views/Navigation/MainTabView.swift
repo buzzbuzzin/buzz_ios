@@ -164,7 +164,7 @@ struct PilotTabView: View {
             // Go to My Flights tab; booking-level navigation would require more work
             selectedTab = 1
             deepLinkManager.pendingDestination = nil
-        case .weather, .flightRadar, .hangerTalkPost, .hangerTalkProfile, .hangerTalkInbox:
+        case .weather, .flightRadar, .hangerTalkPost, .hangerTalkProfile, .hangerTalkInbox, .hangerTalkSpace:
             // These live inside CockpitView fullScreenCovers — switch to Cockpit tab
             // and let CockpitView handle the rest
             selectedTab = 2
