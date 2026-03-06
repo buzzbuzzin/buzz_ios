@@ -22,65 +22,73 @@ struct DeleteAccountView: View {
     
     var body: some View {
         VStack(spacing: 0) {
-            // Content
-            VStack(alignment: .leading, spacing: 24) {
-                // Title
-                Text("Delete Account")
-                    .font(.largeTitle)
-                    .fontWeight(.bold)
-                    .padding(.top, 8)
-                
-                // Warning Description
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("This action cannot be undone. This will permanently delete your account and remove all of your data from our servers.")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                    
-                    Text("What will be deleted:")
-                        .font(.headline)
+            ScrollView {
+                // Content
+                VStack(alignment: .leading, spacing: 24) {
+                    // Title
+                    Text("Delete Account")
+                        .font(.largeTitle)
+                        .fontWeight(.bold)
                         .padding(.top, 8)
                     
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("• Your profile and personal information")
-                        Text("• All your bookings and history")
-                        Text("• Your ratings and reviews")
-                        Text("• All uploaded documents and licenses")
-                    }
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                }
-                
-                // Confirmation Text Field
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("To confirm, please type:")
+                    // Warning Description
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("This action cannot be undone. This will permanently delete your account and remove all of your data from our servers.")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                        
+                        Text("What will be deleted:")
+                            .font(.headline)
+                            .padding(.top, 8)
+                        
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("• Your profile and personal information")
+                            Text("• All your bookings and history")
+                            Text("• Your ratings and reviews")
+                            Text("• All uploaded documents and licenses")
+                        }
                         .font(.subheadline)
                         .foregroundColor(.secondary)
-                    
-                    Text(requiredText)
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.primary)
-                        .padding()
-                        .background(Color(.systemGray6))
-                        .cornerRadius(10)
-                    
-                    TextField("Type the text above", text: $confirmationText)
-                        .textFieldStyle(PlainTextFieldStyle())
-                        .padding()
-                        .background(Color(.systemGray6))
-                        .cornerRadius(10)
-                    
-                    if !confirmationText.isEmpty && confirmationText != requiredText {
-                        Text("Text does not match")
-                            .font(.caption)
-                            .foregroundColor(.red)
                     }
+                    
+                    // Confirmation Text Field
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("To confirm, please type:")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                        
+                        Text(requiredText)
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.primary)
+                            .multilineTextAlignment(.leading)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding()
+                            .background(Color(.systemGray6))
+                            .cornerRadius(10)
+                        
+                        TextField("Type the text above", text: $confirmationText, axis: .vertical)
+                            .textFieldStyle(.plain)
+                            .lineLimit(3...5)
+                            .autocorrectionDisabled(true)
+                            .padding()
+                            .background(Color(.systemGray6))
+                            .cornerRadius(10)
+                        
+                        if !confirmationText.isEmpty && confirmationText != requiredText {
+                            Text("Text does not match")
+                                .font(.caption)
+                                .foregroundColor(.red)
+                        }
+                    }
+                    
+                    Spacer(minLength: 24)
                 }
-                
-                Spacer()
+                .padding(.horizontal, 20)
+                .padding(.top, 8)
+                .padding(.bottom, 20)
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 8)
             
             // Delete Button
             VStack {
@@ -131,4 +139,3 @@ struct DeleteAccountView: View {
         }
     }
 }
-
