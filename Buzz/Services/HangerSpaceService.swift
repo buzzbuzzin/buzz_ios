@@ -9,8 +9,8 @@ import Foundation
 import Combine
 import Supabase
 import Realtime
-#if canImport(LiveKitSDK)
-import LiveKitSDK
+#if canImport(LiveKit)
+import LiveKit
 #endif
 
 @MainActor
@@ -25,12 +25,13 @@ class HangerSpaceService: ObservableObject {
     @Published var liveHostIds: Set<UUID> = []
 
     // LiveKit state
-    #if canImport(LiveKitSDK)
+    #if canImport(LiveKit)
     @Published var room: Room?
     @Published var connectionState: ConnectionState = .disconnected
     #endif
     @Published var isMicrophoneEnabled = false
     @Published var activeSpeakerIds: Set<String> = []
+    @Published var localAudioLevel: Float = 0
 
     private let supabase = SupabaseClient.shared.client
     private var realtimeChannel: RealtimeChannelV2?
@@ -42,6 +43,12 @@ class HangerSpaceService: ObservableObject {
     private var cachedAuthorIds: [UUID] = []
     // Track the current user for local mic state sync
     private var currentUserId: UUID?
+    private var liveKitRoomName: String?
+    private var liveKitUserName: String?
+    private var liveKitCanPublish = false
+    private var isRefreshingLiveKitPermissions = false
+    private var audioLevelMonitorTask: Task<Void, Never>?
+    private var activeSpeakerLevels: [String: Float] = [:]
 
     // MARK: - Fetch Live Spaces (for horizontal scroll at top of feed)
 
@@ -418,7 +425,7 @@ class HangerSpaceService: ObservableObject {
 
     // MARK: - LiveKit Connection
 
-    #if canImport(LiveKitSDK)
+    #if canImport(LiveKit)
     private func connectToLiveKit(roomName: String, userName: String, canPublish: Bool) async throws {
         struct TokenRequest: Codable {
             let room_name: String
@@ -435,7 +442,7 @@ class HangerSpaceService: ObservableObject {
         let response: LiveKitTokenResponse = try await supabase.functions.invoke(
             "generate-livekit-token",
             options: FunctionInvokeOptions(body: tokenRequest)
-        ).value
+        )
 
         let livekitRoom = Room()
         livekitRoom.add(delegate: self)
@@ -443,24 +450,43 @@ class HangerSpaceService: ObservableObject {
 
         room = livekitRoom
         connectionState = .connected
+        liveKitRoomName = roomName
+        liveKitUserName = userName
+        liveKitCanPublish = canPublish
+        startAudioLevelMonitoring()
 
         // Enable microphone for hosts/speakers
         if canPublish {
             try await livekitRoom.localParticipant.setMicrophone(enabled: true)
             isMicrophoneEnabled = true
+        } else {
+            isMicrophoneEnabled = false
         }
     }
 
-    private func disconnectFromLiveKit() async {
+    private func disconnectFromLiveKit(clearConnectionContext: Bool = true) async {
+        audioLevelMonitorTask?.cancel()
+        audioLevelMonitorTask = nil
         await room?.disconnect()
         room = nil
         connectionState = .disconnected
         isMicrophoneEnabled = false
         activeSpeakerIds = []
+        activeSpeakerLevels = [:]
+        localAudioLevel = 0
+        liveKitCanPublish = false
+        if clearConnectionContext {
+            liveKitRoomName = nil
+            liveKitUserName = nil
+        }
     }
 
     func toggleMicrophone() async {
         guard let room = room else { return }
+        guard localParticipantRole?.allowsPublishing == true, liveKitCanPublish else {
+            errorMessage = "You can use the microphone after the host makes you a speaker."
+            return
+        }
 
         do {
             let newState = !isMicrophoneEnabled
@@ -474,17 +500,35 @@ class HangerSpaceService: ObservableObject {
     #else
     private func connectToLiveKit(roomName: String, userName: String, canPublish: Bool) async throws {
         print("LiveKit SDK not available — audio room connection skipped")
+        liveKitRoomName = roomName
+        liveKitUserName = userName
+        liveKitCanPublish = canPublish
         if canPublish {
             isMicrophoneEnabled = true
+        } else {
+            isMicrophoneEnabled = false
         }
     }
 
-    private func disconnectFromLiveKit() async {
+    private func disconnectFromLiveKit(clearConnectionContext: Bool = true) async {
+        audioLevelMonitorTask?.cancel()
+        audioLevelMonitorTask = nil
         isMicrophoneEnabled = false
         activeSpeakerIds = []
+        activeSpeakerLevels = [:]
+        localAudioLevel = 0
+        liveKitCanPublish = false
+        if clearConnectionContext {
+            liveKitRoomName = nil
+            liveKitUserName = nil
+        }
     }
 
     func toggleMicrophone() async {
+        guard localParticipantRole?.allowsPublishing == true, liveKitCanPublish else {
+            errorMessage = "You can use the microphone after the host makes you a speaker."
+            return
+        }
         isMicrophoneEnabled.toggle()
         syncLocalMicState()
     }
@@ -499,6 +543,39 @@ class HangerSpaceService: ObservableObject {
             participants[index].isMuted = !isMicrophoneEnabled
             // Without LiveKit active speaker detection, use mic enabled as speaking proxy
             participants[index].isSpeaking = isMicrophoneEnabled
+            participants[index].audioLevel = isMicrophoneEnabled ? localAudioLevel : 0
+        }
+    }
+
+    private var localParticipantRole: HangerSpaceRole? {
+        guard let userId = currentUserId else { return nil }
+        return participants.first(where: { $0.userId == userId })?.role
+    }
+
+    private func syncLiveKitPublishPermissionsIfNeeded() async {
+        guard let desiredRole = localParticipantRole,
+              let roomName = liveKitRoomName,
+              let userName = liveKitUserName,
+              desiredRole.allowsPublishing != liveKitCanPublish,
+              !isRefreshingLiveKitPermissions else {
+            return
+        }
+
+        isRefreshingLiveKitPermissions = true
+        defer { isRefreshingLiveKitPermissions = false }
+
+        do {
+            await disconnectFromLiveKit(clearConnectionContext: false)
+            try await connectToLiveKit(
+                roomName: roomName,
+                userName: userName,
+                canPublish: desiredRole.allowsPublishing
+            )
+            updateParticipantAudioLevels()
+            syncLocalMicState()
+        } catch {
+            errorMessage = "Audio permissions could not be refreshed. Please leave and rejoin the Space."
+            print("Error refreshing LiveKit permissions: \(error)")
         }
     }
 
@@ -508,6 +585,37 @@ class HangerSpaceService: ObservableObject {
             participants[i].isSpeaking = activeSpeakerIds.contains(participants[i].userId.uuidString)
         }
     }
+
+    private func updateParticipantAudioLevels() {
+        for i in participants.indices {
+            let userId = participants[i].userId.uuidString
+            if participants[i].userId == currentUserId {
+                participants[i].audioLevel = isMicrophoneEnabled ? localAudioLevel : 0
+            } else {
+                participants[i].audioLevel = activeSpeakerLevels[userId] ?? 0
+            }
+        }
+    }
+
+    #if canImport(LiveKit)
+    private func startAudioLevelMonitoring() {
+        audioLevelMonitorTask?.cancel()
+        guard room != nil else { return }
+
+        audioLevelMonitorTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            while !Task.isCancelled {
+                if let room = self.room, self.liveKitCanPublish, self.isMicrophoneEnabled {
+                    self.localAudioLevel = max(0, min(room.localParticipant.audioLevel, 1))
+                } else {
+                    self.localAudioLevel = 0
+                }
+                self.updateParticipantAudioLevels()
+                try? await Task.sleep(nanoseconds: 120_000_000)
+            }
+        }
+    }
+    #endif
 
     // MARK: - Refresh Participants
 
@@ -524,10 +632,12 @@ class HangerSpaceService: ObservableObject {
             participants = response.map { $0.toParticipantWithProfile() }
 
             // Re-apply local mic/speaking state after refresh
-            #if canImport(LiveKitSDK)
+            #if canImport(LiveKit)
             updateParticipantSpeakingState()
             #endif
+            updateParticipantAudioLevels()
             syncLocalMicState()
+            await syncLiveKitPublishPermissionsIfNeeded()
         } catch {
             print("Error refreshing participants: \(error)")
         }
@@ -753,13 +863,19 @@ class HangerSpaceService: ObservableObject {
 
 // MARK: - LiveKit RoomDelegate
 
-#if canImport(LiveKitSDK)
+#if canImport(LiveKit)
 extension HangerSpaceService: RoomDelegate {
     nonisolated func room(_ room: Room, activeSpeakersDidChange speakers: [Participant]) {
         let speakerIdentities = Set(speakers.compactMap { $0.identity?.stringValue })
+        let speakerLevels: [String: Float] = Dictionary(uniqueKeysWithValues: speakers.compactMap { participant -> (String, Float)? in
+            guard let identity = participant.identity?.stringValue else { return nil }
+            return (identity, max(0, min(participant.audioLevel, 1)))
+        })
         Task { @MainActor in
             self.activeSpeakerIds = speakerIdentities
+            self.activeSpeakerLevels = speakerLevels
             self.updateParticipantSpeakingState()
+            self.updateParticipantAudioLevels()
         }
     }
 
@@ -769,6 +885,9 @@ extension HangerSpaceService: RoomDelegate {
             guard let identity = identity else { return }
             if let index = self.participants.firstIndex(where: { $0.userId.uuidString == identity }) {
                 self.participants[index].isMuted = isMuted
+                if isMuted {
+                    self.participants[index].audioLevel = 0
+                }
             }
         }
     }

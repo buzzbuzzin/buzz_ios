@@ -53,6 +53,12 @@ final class HangerSpaceModelTests: XCTestCase {
         }
     }
 
+    func testRoleAllowsPublishing() {
+        XCTAssertTrue(HangerSpaceRole.host.allowsPublishing)
+        XCTAssertTrue(HangerSpaceRole.speaker.allowsPublishing)
+        XCTAssertFalse(HangerSpaceRole.listener.allowsPublishing)
+    }
+
     // MARK: - HangerSpace
 
     func testSpaceCreation() {

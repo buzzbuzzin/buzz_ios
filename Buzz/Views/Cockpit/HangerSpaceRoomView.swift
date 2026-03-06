@@ -185,9 +185,14 @@ struct HangerSpaceRoomView: View {
                 GridItem(.adaptive(minimum: 80), spacing: 16)
             ], spacing: 16) {
                 ForEach(speakers) { participant in
-                    SpeakerBubble(participant: participant, isHost: participant.role == .host)
+                    SpeakerBubble(
+                        participant: participant,
+                        isHost: participant.role == .host,
+                        isCurrentUser: participant.userId == authService.activeUserId,
+                        localMicEnabled: participant.userId == authService.activeUserId && spaceService.isMicrophoneEnabled
+                    )
                         .accessibilityElement(children: .combine)
-                        .accessibilityLabel("\(participant.callSign ?? "Pilot"), \(participant.role == .host ? "Host" : "Speaker"), \(participant.isMuted ? "muted" : "speaking")")
+                        .accessibilityLabel("\(participant.callSign ?? "Pilot"), \(participant.role == .host ? "Host" : "Speaker"), \(participant.isMuted ? "muted" : "microphone on"), audio level \(Int(participant.audioLevel * 100)) percent")
                         .contextMenu {
                             if isHost && participant.role == .speaker {
                                 Button(role: .destructive) {
@@ -371,6 +376,8 @@ struct HangerSpaceRoomView: View {
 struct SpeakerBubble: View {
     let participant: HangerSpaceParticipantWithProfile
     var isHost: Bool = false
+    var isCurrentUser: Bool = false
+    var localMicEnabled: Bool = false
 
     var body: some View {
         VStack(spacing: 6) {
@@ -379,6 +386,11 @@ struct SpeakerBubble: View {
                 if participant.isSpeaking {
                     PulsingRing()
                         .frame(width: 64, height: 64)
+                }
+
+                if shouldShowWaveform {
+                    CircularWaveform(level: normalizedLevel, isLive: waveformIsLive)
+                        .frame(width: 86, height: 86)
                 }
 
                 // Speaking indicator ring
@@ -427,7 +439,25 @@ struct SpeakerBubble: View {
                     .font(.system(size: 9, weight: .semibold))
                     .foregroundColor(.purple)
             }
+
+            if isCurrentUser && localMicEnabled {
+                Text(normalizedLevel > 0.08 ? "Mic live" : "Say something")
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundColor(normalizedLevel > 0.08 ? .green : .secondary)
+            }
         }
+    }
+
+    private var normalizedLevel: CGFloat {
+        CGFloat(max(0, min(participant.audioLevel, 1)))
+    }
+
+    private var shouldShowWaveform: Bool {
+        (!participant.isMuted && participant.isSpeaking) || (isCurrentUser && localMicEnabled)
+    }
+
+    private var waveformIsLive: Bool {
+        participant.isSpeaking || (isCurrentUser && localMicEnabled)
     }
 }
 
@@ -446,6 +476,47 @@ struct PulsingRing: View {
                     isAnimating = true
                 }
             }
+    }
+}
+
+struct CircularWaveform: View {
+    let level: CGFloat
+    let isLive: Bool
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 0.08)) { timeline in
+            let t = timeline.date.timeIntervalSinceReferenceDate
+            let bars = waveformBars(time: t)
+
+            HStack(alignment: .center, spacing: 3) {
+                ForEach(Array(bars.enumerated()), id: \.offset) { index, height in
+                    Capsule(style: .circular)
+                        .fill(barColor(index: index))
+                        .frame(width: 4, height: height)
+                }
+            }
+            .padding(.horizontal, 6)
+            .padding(.vertical, 10)
+            .background(.ultraThinMaterial, in: Capsule())
+        }
+    }
+
+    private func waveformBars(time: TimeInterval) -> [CGFloat] {
+        let base = isLive ? max(level, 0.06) : 0.02
+        return (0..<5).map { index in
+            let phase = time * 5.5 + Double(index) * 0.55
+            let oscillation = (sin(phase) + 1) / 2
+            let scaled = max(base, base * (0.7 + CGFloat(oscillation) * 1.6))
+            return 10 + scaled * (index == 2 ? 34 : 26)
+        }
+    }
+
+    private func barColor(index: Int) -> Color {
+        let energetic = level > 0.08
+        if energetic {
+            return index == 2 ? .green : Color.green.opacity(0.78)
+        }
+        return Color.orange.opacity(isLive ? 0.78 : 0.35)
     }
 }
 

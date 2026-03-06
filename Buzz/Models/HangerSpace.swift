@@ -21,6 +21,10 @@ enum HangerSpaceRole: String, Codable {
     case host
     case speaker
     case listener
+
+    var allowsPublishing: Bool {
+        self == .host || self == .speaker
+    }
 }
 
 // MARK: - Hanger Space
@@ -238,6 +242,7 @@ struct HangerSpaceParticipantWithProfile: Identifiable {
     let fullName: String
     var isMuted: Bool = false
     var isSpeaking: Bool = false
+    var audioLevel: Float = 0
 }
 
 // MARK: - Supabase Participant Join Response
