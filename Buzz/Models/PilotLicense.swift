@@ -12,12 +12,14 @@ enum LicenseApprovalStatus: String, Codable {
     case pending = "pending"
     case approved = "approved"
     case rejected = "rejected"
+    case documentDeleted = "document_deleted"
 
     var displayName: String {
         switch self {
         case .pending: return "Under Review"
         case .approved: return "Approved"
         case .rejected: return "Rejected"
+        case .documentDeleted: return "Document Deleted"
         }
     }
 
@@ -26,6 +28,7 @@ enum LicenseApprovalStatus: String, Codable {
         case .pending: return .orange
         case .approved: return .green
         case .rejected: return .red
+        case .documentDeleted: return .gray
         }
     }
 }
@@ -138,7 +141,7 @@ struct PilotLicense: Codable, Identifiable {
 struct LicenseApprovalRequest: Codable, Identifiable {
     let id: UUID
     let pilotId: UUID
-    let licenseId: UUID
+    let licenseId: UUID?
     let licenseType: String
     let fileUrl: String
     let status: String

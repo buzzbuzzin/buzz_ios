@@ -130,6 +130,28 @@ serve(async (req) => {
       )
     }
 
+    // Update pilot_special_roles based on license type
+    const roleField = approvalRequest.license_type?.includes("Flight Reviewer")
+      ? "flight_reviewer"
+      : approvalRequest.license_type?.includes("ROC-A Examiner")
+      ? "roc_a_examiner"
+      : null
+
+    if (roleField) {
+      const roleValue = status === "approved"
+      const { error: roleError } = await supabase
+        .from("pilot_special_roles")
+        .upsert(
+          { pilot_id: approvalRequest.pilot_id, [roleField]: roleValue },
+          { onConflict: "pilot_id" }
+        )
+
+      if (roleError) {
+        console.error("Error updating pilot_special_roles:", roleError)
+        // Don't fail the request — the approval status is already updated
+      }
+    }
+
     // Send push notification to pilot
     const licenseType = approvalRequest.license_type || "License"
     let notifTitle: string
