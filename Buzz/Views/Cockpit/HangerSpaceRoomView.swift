@@ -375,9 +375,19 @@ struct SpeakerBubble: View {
     var body: some View {
         VStack(spacing: 6) {
             ZStack {
+                // Pulsing glow ring when actively speaking
+                if participant.isSpeaking {
+                    PulsingRing()
+                        .frame(width: 64, height: 64)
+                }
+
                 // Speaking indicator ring
                 Circle()
-                    .stroke(participant.isMuted ? Color.gray : Color.purple, lineWidth: 3)
+                    .stroke(
+                        participant.isMuted ? Color.gray :
+                        (participant.isSpeaking ? Color.green : Color.purple),
+                        lineWidth: 3
+                    )
                     .frame(width: 64, height: 64)
 
                 // Avatar
@@ -418,6 +428,24 @@ struct SpeakerBubble: View {
                     .foregroundColor(.purple)
             }
         }
+    }
+}
+
+// MARK: - Pulsing Ring Animation
+
+struct PulsingRing: View {
+    @State private var isAnimating = false
+
+    var body: some View {
+        Circle()
+            .stroke(Color.green.opacity(0.5), lineWidth: 2)
+            .scaleEffect(isAnimating ? 1.35 : 1.0)
+            .opacity(isAnimating ? 0 : 0.6)
+            .onAppear {
+                withAnimation(.easeOut(duration: 1.2).repeatForever(autoreverses: false)) {
+                    isAnimating = true
+                }
+            }
     }
 }
 

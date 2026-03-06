@@ -237,6 +237,7 @@ struct HangerSpaceParticipantWithProfile: Identifiable {
     let profilePictureUrl: String?
     let fullName: String
     var isMuted: Bool = false
+    var isSpeaking: Bool = false
 }
 
 // MARK: - Supabase Participant Join Response

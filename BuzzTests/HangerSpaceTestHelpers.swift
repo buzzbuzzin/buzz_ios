@@ -115,7 +115,8 @@ enum HangerSpaceTestData {
         callSign: String? = "TestPilot",
         profilePictureUrl: String? = nil,
         fullName: String = "Test Pilot",
-        isMuted: Bool = false
+        isMuted: Bool = false,
+        isSpeaking: Bool = false
     ) -> HangerSpaceParticipantWithProfile {
         HangerSpaceParticipantWithProfile(
             id: id,
@@ -124,7 +125,8 @@ enum HangerSpaceTestData {
             callSign: callSign,
             profilePictureUrl: profilePictureUrl,
             fullName: fullName,
-            isMuted: isMuted
+            isMuted: isMuted,
+            isSpeaking: isSpeaking
         )
     }
 
