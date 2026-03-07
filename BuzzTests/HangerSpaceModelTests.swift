@@ -220,10 +220,10 @@ final class HangerSpaceModelTests: XCTestCase {
     func testSpaceWithHostCreation() {
         let swh = HangerSpaceTestData.sampleSpaceWithHost(
             hostCallSign: "Maverick",
-            hostFullName: "Pete Mitchell"
+            hostDisplayName: "Pete Mitchell"
         )
         XCTAssertEqual(swh.hostCallSign, "Maverick")
-        XCTAssertEqual(swh.hostFullName, "Pete Mitchell")
+        XCTAssertEqual(swh.hostDisplayName, "Pete Mitchell")
         XCTAssertNotNil(swh.space)
         XCTAssertEqual(swh.id, swh.space.id)
     }
@@ -231,10 +231,10 @@ final class HangerSpaceModelTests: XCTestCase {
     func testSpaceWithHostNilCallSign() {
         let swh = HangerSpaceTestData.sampleSpaceWithHost(
             hostCallSign: nil,
-            hostFullName: "Jane Doe"
+            hostDisplayName: "Jane Doe"
         )
         XCTAssertNil(swh.hostCallSign)
-        XCTAssertEqual(swh.hostFullName, "Jane Doe")
+        XCTAssertEqual(swh.hostDisplayName, "Jane Doe")
     }
 
     // MARK: - HangerSpaceResponse
@@ -368,7 +368,7 @@ final class HangerSpaceModelTests: XCTestCase {
 
         let spaceWithHost = response.toSpaceWithHost()
         XCTAssertEqual(spaceWithHost.hostCallSign, "Viper")
-        XCTAssertEqual(spaceWithHost.hostFullName, "Viper")
+        XCTAssertEqual(spaceWithHost.hostDisplayName, "Viper")
         XCTAssertEqual(spaceWithHost.space.title, "With Host Space")
         XCTAssertEqual(spaceWithHost.id, response.id)
     }
@@ -397,7 +397,7 @@ final class HangerSpaceModelTests: XCTestCase {
 
         let spaceWithHost = response.toSpaceWithHost()
         XCTAssertNil(spaceWithHost.hostCallSign)
-        XCTAssertEqual(spaceWithHost.hostFullName, "Pilot")
+        XCTAssertEqual(spaceWithHost.hostDisplayName, "Pilot")
     }
 
     // MARK: - HangerSpaceParticipant
@@ -460,11 +460,11 @@ final class HangerSpaceModelTests: XCTestCase {
         let pwp = HangerSpaceTestData.sampleParticipantWithProfile(
             role: .speaker,
             callSign: "Goose",
-            fullName: "Nick Bradshaw"
+            displayName: "Nick Bradshaw"
         )
         XCTAssertEqual(pwp.role, .speaker)
         XCTAssertEqual(pwp.callSign, "Goose")
-        XCTAssertEqual(pwp.fullName, "Nick Bradshaw")
+        XCTAssertEqual(pwp.displayName, "Nick Bradshaw")
     }
 
     func testParticipantWithProfileMutedDefault() {

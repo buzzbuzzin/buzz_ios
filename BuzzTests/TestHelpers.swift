@@ -249,11 +249,11 @@ final class MockNotificationManager: BookingNotificationManaging {
     var beaconAcceptedCalls: Int = 0
     var beaconResolvedCalls: Int = 0
 
-    func notifyBookingAccepted(bookingId: UUID, pilotName: String, aircraftType: String, departureTime: Date) async {
+    func notifyBookingAccepted(bookingId: UUID, pilotCallSign: String, aircraftType: String, departureTime: Date) async {
         acceptedCalls += 1
     }
 
-    func scheduleBookingReminder(bookingId: UUID, aircraftType: String, departureTime: Date, pilotName: String) async {
+    func scheduleBookingReminder(bookingId: UUID, aircraftType: String, departureTime: Date, pilotCallSign: String) async {
         reminderCalls += 1
     }
 

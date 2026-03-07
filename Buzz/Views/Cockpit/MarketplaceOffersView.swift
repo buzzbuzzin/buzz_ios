@@ -107,7 +107,7 @@ struct MarketplaceOffersView: View {
                 }
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(offer.profileData?.callSign ?? offer.profileData?.fullName ?? "Buyer")
+                    Text(offer.profileData?.publicDisplayName ?? "Buyer")
                         .font(.subheadline)
                         .fontWeight(.semibold)
 

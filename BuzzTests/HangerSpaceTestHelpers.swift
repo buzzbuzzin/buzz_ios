@@ -74,7 +74,7 @@ enum HangerSpaceTestData {
         space: HangerSpace? = nil,
         hostCallSign: String? = "TestPilot",
         hostProfilePictureUrl: String? = nil,
-        hostFullName: String = "Test Pilot"
+        hostDisplayName: String = "Test Pilot"
     ) -> HangerSpaceWithHost {
         let actualSpace = space ?? sampleSpace(id: id)
         return HangerSpaceWithHost(
@@ -82,7 +82,7 @@ enum HangerSpaceTestData {
             space: actualSpace,
             hostCallSign: hostCallSign,
             hostProfilePictureUrl: hostProfilePictureUrl,
-            hostFullName: hostFullName
+            hostDisplayName: hostDisplayName
         )
     }
 
@@ -114,7 +114,7 @@ enum HangerSpaceTestData {
         role: HangerSpaceRole = .listener,
         callSign: String? = "TestPilot",
         profilePictureUrl: String? = nil,
-        fullName: String = "Test Pilot",
+        displayName: String = "Test Pilot",
         isMuted: Bool = false,
         isSpeaking: Bool = false
     ) -> HangerSpaceParticipantWithProfile {
@@ -124,7 +124,7 @@ enum HangerSpaceTestData {
             role: role,
             callSign: callSign,
             profilePictureUrl: profilePictureUrl,
-            fullName: fullName,
+            displayName: displayName,
             isMuted: isMuted,
             isSpeaking: isSpeaking
         )

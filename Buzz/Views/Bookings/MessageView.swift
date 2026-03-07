@@ -20,14 +20,8 @@ struct MessageView: View {
     // Computed property to determine display name based on user type
     private var displayName: String {
         guard let profile = customerProfile else { return "User" }
-        
-        // If current user is a customer viewing a pilot, show callsign only (privacy)
-        if authService.userProfile?.userType == .customer && profile.userType == .pilot {
-            return profile.callSign ?? "Pilot"
-        }
-        
-        // If current user is a pilot viewing a customer, show full name
-        return profile.fullName
+
+        return profile.visibleDisplayName(to: authService.currentUser?.id)
     }
     
     var body: some View {
@@ -89,9 +83,9 @@ struct MessageView: View {
                             Text(displayName)
                                 .font(.headline)
                             
-                            // Show call sign for pilots (if viewing as pilot and they have one)
-                            if authService.userProfile?.userType == .pilot,
-                               let callSign = profile.callSign {
+                            if profile.userType != .pilot,
+                               let callSign = profile.callSign,
+                               !callSign.isEmpty {
                                 Text("@\(callSign)")
                                     .font(.caption)
                                     .foregroundColor(.blue)
@@ -287,4 +281,3 @@ struct MessageBubble: View {
         }
     }
 }
-

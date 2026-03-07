@@ -787,7 +787,7 @@ class RatingService: ObservableObject {
             
             await notificationManager.notifyReceivedReview(
                 rating: rating,
-                reviewerName: reviewerProfile.fullName,
+                reviewerName: reviewerProfile.visibleDisplayName(to: toUserId),
                 bookingId: bookingId
             )
         } catch {

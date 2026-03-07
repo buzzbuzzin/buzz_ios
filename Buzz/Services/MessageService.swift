@@ -675,7 +675,7 @@ class MessageService: ObservableObject {
             let conversationId = bookingId ?? Self.conversationId(fromUserId: fromUserId, toUserId: toUserId)
             
             await notificationManager.notifyNewMessage(
-                senderName: senderProfile.fullName,
+                senderName: senderProfile.visibleDisplayName(to: toUserId),
                 messagePreview: preview,
                 conversationId: conversationId
             )

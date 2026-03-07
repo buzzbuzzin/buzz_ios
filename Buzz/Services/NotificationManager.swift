@@ -164,10 +164,10 @@ class NotificationManager: NSObject, ObservableObject {
     // MARK: - Client Notifications
     
     /// Notify client that their booking has been accepted by a pilot
-    func notifyBookingAccepted(bookingId: UUID, pilotName: String, aircraftType: String, departureTime: Date) async {
+    func notifyBookingAccepted(bookingId: UUID, pilotCallSign: String, aircraftType: String, departureTime: Date) async {
         let content = UNMutableNotificationContent()
         content.title = "Booking Accepted! ✈️"
-        content.body = "\(pilotName) has accepted your booking for \(aircraftType)"
+        content.body = "\(pilotCallSign) has accepted your booking for \(aircraftType)"
         content.sound = .default
         content.categoryIdentifier = NotificationCategory.bookingAccepted.rawValue
         content.userInfo = [
@@ -185,16 +185,16 @@ class NotificationManager: NSObject, ObservableObject {
     }
     
     /// Schedule a 24-hour reminder for an upcoming booking
-    func scheduleBookingReminder(bookingId: UUID, aircraftType: String, departureTime: Date, pilotName: String) async {
+    func scheduleBookingReminder(bookingId: UUID, aircraftType: String, departureTime: Date, pilotCallSign: String) async {
         // Calculate 24 hours before departure
         let reminderTime = departureTime.addingTimeInterval(-24 * 60 * 60)
-        
+
         // Only schedule if reminder time is in the future
         guard reminderTime > Date() else { return }
-        
+
         let content = UNMutableNotificationContent()
         content.title = "Upcoming Flight Tomorrow"
-        content.body = "Your \(aircraftType) flight with \(pilotName) is scheduled for tomorrow"
+        content.body = "Your \(aircraftType) flight with \(pilotCallSign) is scheduled for tomorrow"
         content.sound = .default
         content.categoryIdentifier = NotificationCategory.bookingReminder.rawValue
         content.userInfo = [

@@ -45,7 +45,7 @@ class HangerTalkService: ObservableObject {
         do {
             let response: [HangerTalkPostResponse] = try await supabase
                 .from("hanger_talk_posts")
-                .select("*, profiles(id, call_sign, profile_picture_url, first_name, last_name)")
+                .select("*, profiles(id, user_type, call_sign, profile_picture_url, first_name, last_name)")
                 .eq("is_reply", value: false)
                 .order("created_at", ascending: false)
                 .limit(50)
@@ -91,7 +91,7 @@ class HangerTalkService: ObservableObject {
 
             let response: [HangerTalkPostResponse] = try await supabase
                 .from("hanger_talk_posts")
-                .select("*, profiles(id, call_sign, profile_picture_url, first_name, last_name)")
+                .select("*, profiles(id, user_type, call_sign, profile_picture_url, first_name, last_name)")
                 .in("id", values: likedPostIds.map { $0.uuidString })
                 .execute()
                 .value
@@ -136,7 +136,7 @@ class HangerTalkService: ObservableObject {
 
             let response: [HangerTalkPostResponse] = try await supabase
                 .from("hanger_talk_posts")
-                .select("*, profiles(id, call_sign, profile_picture_url, first_name, last_name)")
+                .select("*, profiles(id, user_type, call_sign, profile_picture_url, first_name, last_name)")
                 .in("id", values: bookmarkedPostIds.map { $0.uuidString })
                 .execute()
                 .value
@@ -172,7 +172,7 @@ class HangerTalkService: ObservableObject {
         do {
             let response: [HangerTalkPostResponse] = try await supabase
                 .from("hanger_talk_posts")
-                .select("*, profiles(id, call_sign, profile_picture_url, first_name, last_name)")
+                .select("*, profiles(id, user_type, call_sign, profile_picture_url, first_name, last_name)")
                 .eq("parent_post_id", value: parentPostId.uuidString)
                 .order("created_at", ascending: true)
                 .execute()
@@ -317,7 +317,7 @@ class HangerTalkService: ObservableObject {
         do {
             let response: [HangerTalkPostResponse] = try await supabase
                 .from("hanger_talk_posts")
-                .select("*, profiles(id, call_sign, profile_picture_url, first_name, last_name)")
+                .select("*, profiles(id, user_type, call_sign, profile_picture_url, first_name, last_name)")
                 .eq("is_reply", value: false)
                 .ilike("body", pattern: "%\(sanitizeSearchPattern(query))%")
                 .order("created_at", ascending: false)
@@ -345,9 +345,9 @@ class HangerTalkService: ObservableObject {
         do {
             let profiles: [HangerAuthorProfile] = try await supabase
                 .from("profiles")
-                .select("id, call_sign, profile_picture_url, first_name, last_name")
+                .select("id, user_type, call_sign, profile_picture_url, first_name, last_name")
                 .eq("user_type", value: "pilot")
-                .or("call_sign.ilike.%\(sanitizeSearchPattern(query))%,first_name.ilike.%\(sanitizeSearchPattern(query))%,last_name.ilike.%\(sanitizeSearchPattern(query))%")
+                .ilike("call_sign", pattern: "%\(sanitizeSearchPattern(query))%")
                 .limit(20)
                 .execute()
                 .value
@@ -591,7 +591,7 @@ class HangerTalkService: ObservableObject {
             // Fetch posts from followed users
             let response: [HangerTalkPostResponse] = try await supabase
                 .from("hanger_talk_posts")
-                .select("*, profiles(id, call_sign, profile_picture_url, first_name, last_name)")
+                .select("*, profiles(id, user_type, call_sign, profile_picture_url, first_name, last_name)")
                 .eq("is_reply", value: false)
                 .in("author_id", values: followedIds)
                 .order("created_at", ascending: false)
@@ -881,7 +881,7 @@ class HangerTalkService: ObservableObject {
             let followerIds = follows.map { $0.followerId.uuidString }
             let profiles: [HangerAuthorProfile] = try await supabase
                 .from("profiles")
-                .select("id, call_sign, profile_picture_url, first_name, last_name")
+                .select("id, user_type, call_sign, profile_picture_url, first_name, last_name")
                 .in("id", values: followerIds)
                 .execute()
                 .value
@@ -913,7 +913,7 @@ class HangerTalkService: ObservableObject {
             let followingIds = follows.map { $0.followingId.uuidString }
             let profiles: [HangerAuthorProfile] = try await supabase
                 .from("profiles")
-                .select("id, call_sign, profile_picture_url, first_name, last_name")
+                .select("id, user_type, call_sign, profile_picture_url, first_name, last_name")
                 .in("id", values: followingIds)
                 .execute()
                 .value
@@ -934,7 +934,7 @@ class HangerTalkService: ObservableObject {
         do {
             let profiles: [HangerAuthorProfile] = try await supabase
                 .from("profiles")
-                .select("id, call_sign, profile_picture_url, first_name, last_name")
+                .select("id, user_type, call_sign, profile_picture_url, first_name, last_name")
                 .ilike("call_sign", pattern: "%\(sanitizeSearchPattern(query))%")
                 .limit(8)
                 .execute()
@@ -955,7 +955,7 @@ class HangerTalkService: ObservableObject {
             do {
                 let profiles: [HangerAuthorProfile] = try await supabase
                     .from("profiles")
-                    .select("id, call_sign, profile_picture_url, first_name, last_name")
+                    .select("id, user_type, call_sign, profile_picture_url, first_name, last_name")
                     .ilike("call_sign", pattern: callSign)
                     .limit(1)
                     .execute()
@@ -1001,7 +1001,7 @@ class HangerTalkService: ObservableObject {
         do {
             let profiles: [HangerAuthorProfile] = try await supabase
                 .from("profiles")
-                .select("id, call_sign, profile_picture_url, first_name, last_name")
+                .select("id, user_type, call_sign, profile_picture_url, first_name, last_name")
                 .ilike("call_sign", pattern: callSign)
                 .limit(1)
                 .execute()
@@ -1119,7 +1119,7 @@ class HangerTalkService: ObservableObject {
             post: resp.toHangerTalkPost(),
             authorCallSign: profile?.callSign,
             authorProfilePictureUrl: profile?.profilePictureUrl,
-            authorFullName: profile?.fullName ?? "Pilot",
+            authorFullName: profile?.publicDisplayName ?? "Pilot",
             isLikedByCurrentUser: interactions.likes.contains(resp.id),
             isRepostedByCurrentUser: interactions.reposts.contains(resp.id),
             isBookmarkedByCurrentUser: interactions.bookmarks.contains(resp.id),
@@ -1137,7 +1137,7 @@ class HangerTalkService: ObservableObject {
         do {
             let response: [HangerTalkPostResponse] = try await supabase
                 .from("hanger_talk_posts")
-                .select("*, profiles(id, call_sign, profile_picture_url, first_name, last_name)")
+                .select("*, profiles(id, user_type, call_sign, profile_picture_url, first_name, last_name)")
                 .eq("author_id", value: authorId.uuidString)
                 .eq("is_reply", value: false)
                 .order("created_at", ascending: false)
@@ -1181,7 +1181,7 @@ class HangerTalkService: ObservableObject {
         do {
             let profiles: [HangerAuthorProfile] = try await supabase
                 .from("profiles")
-                .select("id, call_sign, profile_picture_url, first_name, last_name")
+                .select("id, user_type, call_sign, profile_picture_url, first_name, last_name")
                 .eq("id", value: userId.uuidString)
                 .limit(1)
                 .execute()
@@ -1204,7 +1204,7 @@ class HangerTalkService: ObservableObject {
         do {
             let response: [HangerTalkNotificationResponse] = try await supabase
                 .from("hanger_talk_notifications")
-                .select("*, profiles!hanger_talk_notifications_actor_id_fkey(id, call_sign, profile_picture_url, first_name, last_name)")
+                .select("*, profiles!hanger_talk_notifications_actor_id_fkey(id, user_type, call_sign, profile_picture_url, first_name, last_name)")
                 .eq("recipient_id", value: userId.uuidString)
                 .order("created_at", ascending: false)
                 .limit(50)
@@ -1219,7 +1219,7 @@ class HangerTalkService: ObservableObject {
                     actorId: resp.actorId,
                     actorCallSign: profile?.callSign,
                     actorProfilePictureUrl: profile?.profilePictureUrl,
-                    actorFullName: profile?.fullName ?? "Pilot",
+                    actorFullName: profile?.publicDisplayName ?? "Pilot",
                     postId: resp.postId,
                     isRead: resp.isRead,
                     createdAt: resp.createdAt
@@ -1306,7 +1306,7 @@ class HangerTalkService: ObservableObject {
         do {
             let response: [HangerTalkPostResponse] = try await supabase
                 .from("hanger_talk_posts")
-                .select("*, profiles(id, call_sign, profile_picture_url, first_name, last_name)")
+                .select("*, profiles(id, user_type, call_sign, profile_picture_url, first_name, last_name)")
                 .eq("id", value: postId.uuidString)
                 .limit(1)
                 .execute()

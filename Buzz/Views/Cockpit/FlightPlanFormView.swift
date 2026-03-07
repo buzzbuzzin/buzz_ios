@@ -143,8 +143,8 @@ struct FlightPlanFormView: View {
                             // Pilot & Callsign Grid
                             HStack(spacing: 16) {
                                 GlassReadOnlyField(
-                                    label: "Pilot Name",
-                                    value: pilotName
+                                    label: "Pilot",
+                                    value: pilotDisplayName
                                 )
 
                                 GlassReadOnlyField(
@@ -893,11 +893,11 @@ struct FlightPlanFormView: View {
         }
         .fullScreenCover(isPresented: $showPDFPreview) {
             if let pdfData = generatedPDFData {
-                PDFPreviewView(
-                    pdfData: pdfData,
-                    pilotName: pilotName,
-                    takeoffDateTime: takeoffDateTime,
-                    onDismiss: { showPDFPreview = false },
+                    PDFPreviewView(
+                        pdfData: pdfData,
+                        pilotName: pilotDisplayName,
+                        takeoffDateTime: takeoffDateTime,
+                        onDismiss: { showPDFPreview = false },
                     onShare: {
                         showPDFPreview = false
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
@@ -909,7 +909,7 @@ struct FlightPlanFormView: View {
         }
         .sheet(isPresented: $showShareSheet) {
             if let pdfData = generatedPDFData {
-                let pdfItem = PDFShareItem(data: pdfData, pilotName: pilotName, takeoffDateTime: takeoffDateTime)
+                let pdfItem = PDFShareItem(data: pdfData, pilotName: pilotDisplayName, takeoffDateTime: takeoffDateTime)
                 ShareSheet(items: [pdfItem])
             }
         }
@@ -948,7 +948,11 @@ struct FlightPlanFormView: View {
 
     // MARK: - Computed Properties
 
-    private var pilotName: String {
+    private var pilotDisplayName: String {
+        authService.userProfile?.publicPilotName ?? "Pilot"
+    }
+
+    private var pilotLegalName: String {
         authService.userProfile?.fullName ?? "Unknown Pilot"
     }
 
@@ -1126,7 +1130,7 @@ struct FlightPlanFormView: View {
         let takeoffDateTime = calendar.date(from: combined) ?? Date()
 
         let formData = FlightPlanFormData(
-            pilotName: pilotName,
+            pilotName: pilotLegalName,
             pilotLicenseNumber: pilotLicenseNumber,
             callSign: pilotCallSign,
             droneManufacturer: selectedDrone?.manufacturer,

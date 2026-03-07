@@ -424,7 +424,7 @@ struct SiteSurveyFormView: View {
             if let pdfData = generatedPDFData {
                 SiteSurveyPDFPreviewView(
                     pdfData: pdfData,
-                    pilotName: pilotName,
+                    pilotName: pilotDisplayName,
                     onDismiss: { showPDFPreview = false },
                     onShare: {
                         showPDFPreview = false
@@ -437,7 +437,7 @@ struct SiteSurveyFormView: View {
         }
         .sheet(isPresented: $showShareSheet) {
             if let pdfData = generatedPDFData {
-                let pdfItem = SiteSurveyPDFShareItem(data: pdfData, pilotName: pilotName)
+                let pdfItem = SiteSurveyPDFShareItem(data: pdfData, pilotName: pilotDisplayName)
                 ShareSheet(items: [pdfItem])
             }
         }
@@ -464,8 +464,8 @@ struct SiteSurveyFormView: View {
 
     // MARK: - Computed Properties
 
-    private var pilotName: String {
-        authService.userProfile?.fullName ?? "Unknown Pilot"
+    private var pilotDisplayName: String {
+        authService.userProfile?.publicPilotName ?? "Pilot"
     }
 
     private var canSubmit: Bool {
@@ -566,7 +566,7 @@ struct SiteSurveyFormView: View {
             notes: notes.isEmpty ? nil : notes,
             location: location.isEmpty ? nil : location,
             locationCoordinates: locationCoordinates.map { "\(String(format: "%.6f", $0.latitude)), \(String(format: "%.6f", $0.longitude))" },
-            pilotName: pilotName,
+            pilotName: pilotDisplayName,
             generatedAt: Date()
         )
 

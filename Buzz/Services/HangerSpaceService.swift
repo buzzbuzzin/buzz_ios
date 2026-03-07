@@ -61,7 +61,7 @@ class HangerSpaceService: ObservableObject {
         do {
             let response: [HangerSpaceResponse] = try await supabase
                 .from("hanger_spaces")
-                .select("*, profiles(id, call_sign, profile_picture_url, first_name, last_name)")
+                .select("*, profiles(id, user_type, call_sign, profile_picture_url, first_name, last_name)")
                 .eq("status", value: "live")
                 .order("started_at", ascending: false)
                 .limit(20)
@@ -623,7 +623,7 @@ class HangerSpaceService: ObservableObject {
         do {
             let response: [HangerSpaceParticipantResponse] = try await supabase
                 .from("hanger_space_participants")
-                .select("*, profiles(id, call_sign, profile_picture_url, first_name, last_name)")
+                .select("*, profiles(id, user_type, call_sign, profile_picture_url, first_name, last_name)")
                 .eq("space_id", value: spaceId.uuidString)
                 .is("left_at", value: nil)
                 .execute()
@@ -843,7 +843,7 @@ class HangerSpaceService: ObservableObject {
         do {
             let profiles: [HangerAuthorProfile] = try await supabase
                 .from("profiles")
-                .select("id, call_sign, profile_picture_url, first_name, last_name")
+                .select("id, user_type, call_sign, profile_picture_url, first_name, last_name")
                 .eq("id", value: userId.uuidString)
                 .limit(1)
                 .execute()

@@ -181,7 +181,7 @@ struct HangerTalkView: View {
                         space: newSpace,
                         hostCallSign: nil,
                         hostProfilePictureUrl: nil,
-                        hostFullName: ""
+                        hostDisplayName: ""
                     )
                     activeSpaceWithHost = host
                     showSpaceRoom = true
@@ -241,7 +241,7 @@ struct HangerTalkView: View {
                     if let space = spaceService.currentSpace {
                         activeSpaceWithHost = HangerSpaceWithHost(
                             id: space.id, space: space,
-                            hostCallSign: nil, hostProfilePictureUrl: nil, hostFullName: ""
+                            hostCallSign: nil, hostProfilePictureUrl: nil, hostDisplayName: ""
                         )
                         showSpaceRoom = true
                     }

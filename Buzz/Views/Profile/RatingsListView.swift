@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import Auth
 
 struct RatingsListView: View {
     @StateObject private var ratingService = RatingService()
@@ -67,13 +68,7 @@ struct RatingRowView: View {
     
     // Computed property to determine display name based on user types
     private var displayName: String {
-        // If the rater is a pilot and current user is a customer, show callsign only
-        if ratingWithUser.raterProfile.userType == .pilot && authService.userProfile?.userType == .customer {
-            return ratingWithUser.raterProfile.callSign ?? "Pilot"
-        }
-        
-        // Otherwise show full name
-        return ratingWithUser.raterProfile.fullName
+        ratingWithUser.raterProfile.visibleDisplayName(to: authService.currentUser?.id)
     }
     
     var body: some View {
@@ -141,4 +136,3 @@ struct RatingRowView: View {
         .padding(.vertical, 8)
     }
 }
-

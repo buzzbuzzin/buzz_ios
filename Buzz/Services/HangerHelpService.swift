@@ -72,7 +72,7 @@ class HangerHelpService: ObservableObject {
         do {
             let response: [HangerPostResponse] = try await supabase
                 .from("hanger_posts")
-                .select("*, profiles(id, call_sign, profile_picture_url, first_name, last_name), hanger_topics(name, icon_name, color_name)")
+                .select("*, profiles(id, user_type, call_sign, profile_picture_url, first_name, last_name), hanger_topics(name, icon_name, color_name)")
                 .order("created_at", ascending: false)
                 .execute()
                 .value
@@ -127,7 +127,7 @@ class HangerHelpService: ObservableObject {
                     post: resp.toHangerPost(),
                     authorCallSign: profile?.callSign,
                     authorProfilePictureUrl: profile?.profilePictureUrl,
-                    authorFullName: profile?.fullName ?? "Pilot",
+                    authorFullName: profile?.publicDisplayName ?? "Pilot",
                     isLikedByCurrentUser: likedPostIds.contains(resp.id),
                     isSavedByCurrentUser: savedPostIds.contains(resp.id),
                     isFollowedByCurrentUser: followedPostIds.contains(resp.id),
@@ -161,7 +161,7 @@ class HangerHelpService: ObservableObject {
         do {
             let response: [HangerPostResponse] = try await supabase
                 .from("hanger_posts")
-                .select("*, profiles(id, call_sign, profile_picture_url, first_name, last_name), hanger_topics(name, icon_name, color_name)")
+                .select("*, profiles(id, user_type, call_sign, profile_picture_url, first_name, last_name), hanger_topics(name, icon_name, color_name)")
                 .eq("topic_id", value: topicId.uuidString)
                 .order("is_pinned", ascending: false)
                 .order("created_at", ascending: false)
@@ -207,7 +207,7 @@ class HangerHelpService: ObservableObject {
                     post: resp.toHangerPost(),
                     authorCallSign: profile?.callSign,
                     authorProfilePictureUrl: profile?.profilePictureUrl,
-                    authorFullName: profile?.fullName ?? "Pilot",
+                    authorFullName: profile?.publicDisplayName ?? "Pilot",
                     isLikedByCurrentUser: likedPostIds.contains(resp.id),
                     isSavedByCurrentUser: savedPostIds.contains(resp.id),
                     isFollowedByCurrentUser: followedPostIds.contains(resp.id),
@@ -241,7 +241,7 @@ class HangerHelpService: ObservableObject {
         do {
             let response: [HangerCommentResponse] = try await supabase
                 .from("hanger_comments")
-                .select("*, profiles(id, call_sign, profile_picture_url, first_name, last_name)")
+                .select("*, profiles(id, user_type, call_sign, profile_picture_url, first_name, last_name)")
                 .eq("post_id", value: postId.uuidString)
                 .order("created_at", ascending: true)
                 .execute()
@@ -285,7 +285,7 @@ class HangerHelpService: ObservableObject {
                     comment: resp.toHangerComment(),
                     authorCallSign: profile?.callSign,
                     authorProfilePictureUrl: profile?.profilePictureUrl,
-                    authorFullName: profile?.fullName ?? "Pilot",
+                    authorFullName: profile?.publicDisplayName ?? "Pilot",
                     isLikedByCurrentUser: likedCommentIds.contains(resp.id),
                     isSavedByCurrentUser: savedCommentIds.contains(resp.id),
                     isFollowedByCurrentUser: followedCommentIds.contains(resp.id),
@@ -729,7 +729,7 @@ class HangerHelpService: ObservableObject {
             // Fetch those posts with joins
             let response: [HangerPostResponse] = try await supabase
                 .from("hanger_posts")
-                .select("*, profiles(id, call_sign, profile_picture_url, first_name, last_name), hanger_topics(name, icon_name, color_name)")
+                .select("*, profiles(id, user_type, call_sign, profile_picture_url, first_name, last_name), hanger_topics(name, icon_name, color_name)")
                 .in("id", values: savedPostIds.map { $0.uuidString })
                 .execute()
                 .value
@@ -763,7 +763,7 @@ class HangerHelpService: ObservableObject {
                     post: resp.toHangerPost(),
                     authorCallSign: profile?.callSign,
                     authorProfilePictureUrl: profile?.profilePictureUrl,
-                    authorFullName: profile?.fullName ?? "Pilot",
+                    authorFullName: profile?.publicDisplayName ?? "Pilot",
                     isLikedByCurrentUser: likedPostIds.contains(resp.id),
                     isSavedByCurrentUser: savedSet.contains(resp.id),
                     isFollowedByCurrentUser: followedPostIds.contains(resp.id),
@@ -810,7 +810,7 @@ class HangerHelpService: ObservableObject {
             // Fetch those comments with profile joins
             let response: [HangerCommentResponse] = try await supabase
                 .from("hanger_comments")
-                .select("*, profiles(id, call_sign, profile_picture_url, first_name, last_name)")
+                .select("*, profiles(id, user_type, call_sign, profile_picture_url, first_name, last_name)")
                 .in("id", values: savedCommentIds.map { $0.uuidString })
                 .execute()
                 .value
@@ -842,7 +842,7 @@ class HangerHelpService: ObservableObject {
                     comment: resp.toHangerComment(),
                     authorCallSign: profile?.callSign,
                     authorProfilePictureUrl: profile?.profilePictureUrl,
-                    authorFullName: profile?.fullName ?? "Pilot",
+                    authorFullName: profile?.publicDisplayName ?? "Pilot",
                     isLikedByCurrentUser: likedCommentIds.contains(resp.id),
                     isSavedByCurrentUser: savedSet.contains(resp.id),
                     isFollowedByCurrentUser: followedCommentIds.contains(resp.id),
@@ -892,7 +892,7 @@ class HangerHelpService: ObservableObject {
             if !followedPostIds.isEmpty {
                 let postComments: [HangerActivityCommentResponse] = try await supabase
                     .from("hanger_comments")
-                    .select("id, post_id, parent_comment_id, author_id, body, created_at, profiles(id, call_sign, profile_picture_url, first_name, last_name), hanger_posts!inner(id, title)")
+                    .select("id, post_id, parent_comment_id, author_id, body, created_at, profiles(id, user_type, call_sign, profile_picture_url, first_name, last_name), hanger_posts!inner(id, title)")
                     .in("post_id", values: followedPostIds.map { $0.uuidString })
                     .neq("author_id", value: currentUserId.uuidString)
                     .order("created_at", ascending: false)
@@ -907,7 +907,7 @@ class HangerHelpService: ObservableObject {
                             id: comment.id,
                             type: .newCommentOnFollowedPost,
                             commentBody: comment.body,
-                            commentAuthorName: profile?.fullName ?? "Pilot",
+                            commentAuthorName: profile?.publicDisplayName ?? "Pilot",
                             commentAuthorCallSign: profile?.callSign,
                             commentAuthorProfilePictureUrl: profile?.profilePictureUrl,
                             postId: postInfo.id,
@@ -922,7 +922,7 @@ class HangerHelpService: ObservableObject {
             if !followedCommentIds.isEmpty {
                 let commentReplies: [HangerActivityCommentResponse] = try await supabase
                     .from("hanger_comments")
-                    .select("id, post_id, parent_comment_id, author_id, body, created_at, profiles(id, call_sign, profile_picture_url, first_name, last_name), hanger_posts!inner(id, title)")
+                    .select("id, post_id, parent_comment_id, author_id, body, created_at, profiles(id, user_type, call_sign, profile_picture_url, first_name, last_name), hanger_posts!inner(id, title)")
                     .in("parent_comment_id", values: followedCommentIds.map { $0.uuidString })
                     .neq("author_id", value: currentUserId.uuidString)
                     .order("created_at", ascending: false)
@@ -937,7 +937,7 @@ class HangerHelpService: ObservableObject {
                             id: comment.id,
                             type: .replyToFollowedComment,
                             commentBody: comment.body,
-                            commentAuthorName: profile?.fullName ?? "Pilot",
+                            commentAuthorName: profile?.publicDisplayName ?? "Pilot",
                             commentAuthorCallSign: profile?.callSign,
                             commentAuthorProfilePictureUrl: profile?.profilePictureUrl,
                             postId: postInfo.id,

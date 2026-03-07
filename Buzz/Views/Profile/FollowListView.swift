@@ -101,17 +101,10 @@ struct FollowListView: View {
             HStack(spacing: 12) {
                 avatar(url: profile.profilePictureUrl)
 
-                if let callSign = profile.callSign, !callSign.isEmpty {
-                    Text("@\(callSign)")
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.primary)
-                } else {
-                    Text(profile.fullName)
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.primary)
-                }
+                Text(profile.visibleDisplayName(to: currentUserId))
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.primary)
 
                 Spacer()
 

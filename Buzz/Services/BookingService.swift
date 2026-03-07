@@ -23,8 +23,8 @@ protocol BookingBackend {
 }
 
 protocol BookingNotificationManaging {
-    func notifyBookingAccepted(bookingId: UUID, pilotName: String, aircraftType: String, departureTime: Date) async
-    func scheduleBookingReminder(bookingId: UUID, aircraftType: String, departureTime: Date, pilotName: String) async
+    func notifyBookingAccepted(bookingId: UUID, pilotCallSign: String, aircraftType: String, departureTime: Date) async
+    func scheduleBookingReminder(bookingId: UUID, aircraftType: String, departureTime: Date, pilotCallSign: String) async
     func notifyNearbyBooking(bookingId: UUID, aircraftType: String, distance: Double, departureTime: Date) async
     func notifyCrewBookingCompleted(bookingId: UUID, payoutAmount: Decimal, role: String) async
     func notifyBookingCancelled(bookingId: UUID, cancelledByName: String, aircraftType: String) async
@@ -1093,7 +1093,7 @@ class BookingService: ObservableObject {
                         let pilotCallsign = pilotProfile.callSign ?? "Pilot"
                         await notificationManager.notifyBookingAccepted(
                             bookingId: bookingId,
-                            pilotName: pilotCallsign,
+                            pilotCallSign: pilotCallsign,
                             aircraftType: aircraftType,
                             departureTime: booking.scheduledDate ?? Date()
                         )
@@ -1109,7 +1109,7 @@ class BookingService: ObservableObject {
                             bookingId: bookingId,
                             aircraftType: aircraftType,
                             departureTime: scheduledDate,
-                            pilotName: pilotCallsign
+                            pilotCallSign: pilotCallsign
                         )
                     }
                 } catch {

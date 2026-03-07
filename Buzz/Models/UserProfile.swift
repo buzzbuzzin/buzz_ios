@@ -141,5 +141,25 @@ struct UserProfile: Codable, Identifiable {
         let components = [firstName, lastName].compactMap { $0 }
         return components.isEmpty ? "User" : components.joined(separator: " ")
     }
-}
 
+    private var normalizedCallSign: String? {
+        guard let callSign else { return nil }
+        let trimmed = callSign.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    var publicPilotName: String {
+        normalizedCallSign ?? "Pilot"
+    }
+
+    var publicDisplayName: String {
+        userType == .pilot ? publicPilotName : fullName
+    }
+
+    func visibleDisplayName(to viewerUserId: UUID?) -> String {
+        if userType == .pilot && viewerUserId != id {
+            return publicPilotName
+        }
+        return fullName
+    }
+}

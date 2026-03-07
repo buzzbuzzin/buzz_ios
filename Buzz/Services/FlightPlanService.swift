@@ -509,8 +509,8 @@ class FlightPlanService: ObservableObject {
         // Cell 7: PILOT NAME
         drawCell(
             number: 7,
-            label: "PILOT NAME",
-            value: data.pilotName,
+            label: "PILOT",
+            value: data.callSign,
             rect: CGRect(x: xOffset, y: yOffset, width: row3Widths[0], height: standardRowHeight),
             context: context
         )

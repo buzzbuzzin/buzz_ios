@@ -56,7 +56,7 @@ class MarketplaceService: ObservableObject {
         do {
             var query = supabase
                 .from("marketplace_listings")
-                .select("*, profiles!marketplace_listings_seller_id_fkey(id, call_sign, profile_picture_url, first_name, last_name)")
+                .select("*, profiles!marketplace_listings_seller_id_fkey(id, user_type, call_sign, profile_picture_url, first_name, last_name)")
                 .eq("status", value: "active")
 
             if let category = category {
@@ -123,7 +123,7 @@ class MarketplaceService: ObservableObject {
         do {
             let response: MarketplaceListingResponse = try await supabase
                 .from("marketplace_listings")
-                .select("*, profiles!marketplace_listings_seller_id_fkey(id, call_sign, profile_picture_url, first_name, last_name)")
+                .select("*, profiles!marketplace_listings_seller_id_fkey(id, user_type, call_sign, profile_picture_url, first_name, last_name)")
                 .eq("id", value: listingId.uuidString)
                 .single()
                 .execute()
@@ -202,7 +202,7 @@ class MarketplaceService: ObservableObject {
         do {
             let response: [MarketplaceListingResponse] = try await supabase
                 .from("marketplace_listings")
-                .select("*, profiles!marketplace_listings_seller_id_fkey(id, call_sign, profile_picture_url, first_name, last_name)")
+                .select("*, profiles!marketplace_listings_seller_id_fkey(id, user_type, call_sign, profile_picture_url, first_name, last_name)")
                 .eq("seller_id", value: sellerId.uuidString)
                 .order("created_at", ascending: false)
                 .execute()
@@ -284,7 +284,7 @@ class MarketplaceService: ObservableObject {
 
             let response: [MarketplaceListingResponse] = try await supabase
                 .from("marketplace_listings")
-                .select("*, profiles!marketplace_listings_seller_id_fkey(id, call_sign, profile_picture_url, first_name, last_name)")
+                .select("*, profiles!marketplace_listings_seller_id_fkey(id, user_type, call_sign, profile_picture_url, first_name, last_name)")
                 .in("id", values: listingIds.map { $0.uuidString })
                 .execute()
                 .value
@@ -449,7 +449,7 @@ class MarketplaceService: ObservableObject {
         do {
             offers = try await supabase
                 .from("marketplace_offers")
-                .select("*, profiles!marketplace_offers_buyer_id_fkey(id, call_sign, profile_picture_url, first_name, last_name)")
+                .select("*, profiles!marketplace_offers_buyer_id_fkey(id, user_type, call_sign, profile_picture_url, first_name, last_name)")
                 .eq("listing_id", value: listingId.uuidString)
                 .order("created_at", ascending: false)
                 .execute()
@@ -468,7 +468,7 @@ class MarketplaceService: ObservableObject {
         do {
             offers = try await supabase
                 .from("marketplace_offers")
-                .select("*, profiles!marketplace_offers_buyer_id_fkey(id, call_sign, profile_picture_url, first_name, last_name)")
+                .select("*, profiles!marketplace_offers_buyer_id_fkey(id, user_type, call_sign, profile_picture_url, first_name, last_name)")
                 .eq("buyer_id", value: buyerId.uuidString)
                 .order("created_at", ascending: false)
                 .execute()
@@ -821,7 +821,7 @@ class MarketplaceService: ObservableObject {
             if !partnerIds.isEmpty {
                 let fetchedProfiles: [HangerAuthorProfile] = try await supabase
                     .from("profiles")
-                    .select("id, call_sign, profile_picture_url, first_name, last_name")
+                    .select("id, user_type, call_sign, profile_picture_url, first_name, last_name")
                     .in("id", values: partnerIds.map { $0.uuidString })
                     .execute()
                     .value
@@ -843,7 +843,7 @@ class MarketplaceService: ObservableObject {
                     listingImageUrl: listing?.imageUrls.first,
                     partnerCallSign: partnerProfile?.callSign,
                     partnerProfilePictureUrl: partnerProfile?.profilePictureUrl,
-                    partnerFullName: partnerProfile?.fullName ?? "User",
+                    partnerFullName: partnerProfile?.publicDisplayName ?? "User",
                     isBuyer: isBuyer
                 )
             }
@@ -916,7 +916,7 @@ class MarketplaceService: ObservableObject {
                 review: review,
                 reviewerCallSign: profile?.callSign,
                 reviewerProfilePictureUrl: profile?.profilePictureUrl,
-                reviewerFullName: profile?.fullName ?? "User"
+                reviewerFullName: profile?.publicDisplayName ?? "User"
             ))
         }
 
@@ -1056,21 +1056,21 @@ class MarketplaceService: ObservableObject {
             listing: resp.toListing(),
             sellerCallSign: profile?.callSign,
             sellerProfilePictureUrl: profile?.profilePictureUrl,
-            sellerFullName: profile?.fullName ?? "Seller",
+            sellerFullName: profile?.publicDisplayName ?? "Seller",
             isFavoritedByCurrentUser: favoriteIds.contains(resp.id)
         )
     }
 
     private func fetchCallSign(userId: UUID) async -> String? {
         let profile = await fetchProfile(userId: userId)
-        return profile?.callSign ?? profile?.fullName
+        return profile?.publicDisplayName
     }
 
     private func fetchProfile(userId: UUID) async -> HangerAuthorProfile? {
         do {
             let profile: HangerAuthorProfile = try await supabase
                 .from("profiles")
-                .select("id, call_sign, profile_picture_url, first_name, last_name")
+                .select("id, user_type, call_sign, profile_picture_url, first_name, last_name")
                 .eq("id", value: userId.uuidString)
                 .single()
                 .execute()

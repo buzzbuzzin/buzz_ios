@@ -445,6 +445,7 @@ enum HangerAuthorProfileOrArray: Codable {
 
 struct HangerAuthorProfile: Codable {
     let id: UUID
+    let userType: UserType?
     let callSign: String?
     let profilePictureUrl: String?
     let firstName: String?
@@ -452,6 +453,7 @@ struct HangerAuthorProfile: Codable {
 
     enum CodingKeys: String, CodingKey {
         case id
+        case userType = "user_type"
         case callSign = "call_sign"
         case profilePictureUrl = "profile_picture_url"
         case firstName = "first_name"
@@ -461,6 +463,30 @@ struct HangerAuthorProfile: Codable {
     var fullName: String {
         let components = [firstName, lastName].compactMap { $0 }
         return components.isEmpty ? "Pilot" : components.joined(separator: " ")
+    }
+
+    private var normalizedCallSign: String? {
+        guard let callSign else { return nil }
+        let trimmed = callSign.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    var isPilot: Bool {
+        userType == .pilot || normalizedCallSign != nil
+    }
+
+    var publicDisplayName: String {
+        if isPilot {
+            return normalizedCallSign ?? "Pilot"
+        }
+        return fullName
+    }
+
+    func visibleDisplayName(to viewerUserId: UUID?) -> String {
+        if isPilot && viewerUserId != id {
+            return publicDisplayName
+        }
+        return fullName
     }
 }
 

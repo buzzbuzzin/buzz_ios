@@ -125,7 +125,7 @@ struct HangerSpaceWithHost: Identifiable {
     let space: HangerSpace
     let hostCallSign: String?
     let hostProfilePictureUrl: String?
-    let hostFullName: String
+    let hostDisplayName: String
 }
 
 // MARK: - Supabase Join Response
@@ -206,7 +206,7 @@ struct HangerSpaceResponse: Codable {
             space: toHangerSpace(),
             hostCallSign: profile?.callSign,
             hostProfilePictureUrl: profile?.profilePictureUrl,
-            hostFullName: profile?.callSign ?? "Pilot"
+            hostDisplayName: profile?.callSign ?? "Pilot"
         )
     }
 }
@@ -239,7 +239,7 @@ struct HangerSpaceParticipantWithProfile: Identifiable {
     let role: HangerSpaceRole
     let callSign: String?
     let profilePictureUrl: String?
-    let fullName: String
+    let displayName: String
     var isMuted: Bool = false
     var isSpeaking: Bool = false
     var audioLevel: Float = 0
@@ -293,7 +293,7 @@ struct HangerSpaceParticipantResponse: Codable {
             role: role,
             callSign: profile?.callSign,
             profilePictureUrl: profile?.profilePictureUrl,
-            fullName: profile?.callSign ?? "Pilot"
+            displayName: profile?.callSign ?? "Pilot"
         )
     }
 }

@@ -290,13 +290,7 @@ struct ConversationRow: View {
     
     // Computed property to determine display name based on user types
     private var displayName: String {
-        // If current user is a customer viewing a pilot, show callsign only
-        if authService.userProfile?.userType == .customer && conversation.otherUserProfile.userType == .pilot {
-            return conversation.otherUserProfile.callSign ?? "Pilot"
-        }
-        
-        // Otherwise show full name
-        return conversation.otherUserProfile.fullName
+        conversation.otherUserProfile.visibleDisplayName(to: authService.currentUser?.id)
     }
     
     var body: some View {
@@ -344,9 +338,9 @@ struct ConversationRow: View {
                 Text(displayName)
                     .font(.headline)
                 
-                // Show call sign for pilots (only if viewing as pilot)
-                if authService.userProfile?.userType == .pilot,
-                   let callSign = conversation.otherUserProfile.callSign {
+                if conversation.otherUserProfile.userType != .pilot,
+                   let callSign = conversation.otherUserProfile.callSign,
+                   !callSign.isEmpty {
                     Text("@\(callSign)")
                         .font(.caption)
                         .foregroundColor(.blue)
@@ -448,16 +442,8 @@ struct DirectMessageConversationRow: View {
             
             // Conversation Info
             VStack(alignment: .leading, spacing: 4) {
-                // Show callsign for pilots, full name otherwise
-                if conversation.partnerProfile.userType == .pilot {
-                    // If partner is a pilot, show only callsign
-                    Text("@\(conversation.partnerProfile.callSign ?? "Pilot")")
-                        .font(.headline)
-                } else {
-                    // If partner is not a pilot (e.g., customer), show full name
-                    Text(conversation.partnerProfile.fullName)
-                        .font(.headline)
-                }
+                Text(conversation.partnerProfile.visibleDisplayName(to: authService.currentUser?.id))
+                    .font(.headline)
                 
                 HStack(spacing: 4) {
                     if conversation.lastMessage.isListingCard {

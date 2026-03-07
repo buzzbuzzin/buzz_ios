@@ -150,8 +150,8 @@ final class BookingNotificationTests: XCTestCase {
         let mock = MockNotificationManager()
         let bookingId = UUID()
 
-        await mock.notifyBookingAccepted(bookingId: bookingId, pilotName: "Pilot", aircraftType: "Drone", departureTime: Date())
-        await mock.scheduleBookingReminder(bookingId: bookingId, aircraftType: "Drone", departureTime: Date(), pilotName: "Pilot")
+        await mock.notifyBookingAccepted(bookingId: bookingId, pilotCallSign: "Pilot", aircraftType: "Drone", departureTime: Date())
+        await mock.scheduleBookingReminder(bookingId: bookingId, aircraftType: "Drone", departureTime: Date(), pilotCallSign: "Pilot")
         await mock.notifyNearbyBooking(bookingId: bookingId, aircraftType: "Drone", distance: 5.0, departureTime: Date())
         await mock.notifyCrewBookingCompleted(bookingId: bookingId, payoutAmount: 100, role: "lead")
         await mock.notifyBookingCancelled(bookingId: bookingId, cancelledByName: "Customer", aircraftType: "Drone")
