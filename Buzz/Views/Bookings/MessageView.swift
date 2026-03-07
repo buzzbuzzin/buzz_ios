@@ -10,10 +10,11 @@ import Auth
 
 struct MessageView: View {
     @EnvironmentObject var authService: AuthService
+    @Environment(\.dismiss) private var dismiss
     let customerProfile: UserProfile?
     let booking: Booking
+    var showsDismissButton = false
     @StateObject private var messageService = MessageService()
-    @Environment(\.dismiss) var dismiss
     @State private var messageText = ""
     @FocusState private var isTextFieldFocused: Bool
     
@@ -25,30 +26,29 @@ struct MessageView: View {
     }
     
     var body: some View {
-        NavigationView {
-            VStack(spacing: 0) {
-                // Check if booking is confirmed
-                if booking.status != .accepted && booking.status != .completed {
-                    VStack(spacing: 16) {
-                        Image(systemName: "lock.fill")
-                            .font(.system(size: 50))
-                            .foregroundColor(.gray)
-                        
-                        Text("Messaging Unavailable")
-                            .font(.title2)
-                            .fontWeight(.bold)
-                        
-                        Text("Messaging is only available after a booking has been accepted by the pilot.")
-                            .font(.body)
-                            .foregroundColor(.secondary)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal)
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .padding()
-                } else {
-                    // Other User Info Header (Customer for pilots, Pilot for customers)
-                    if let profile = customerProfile {
+        VStack(spacing: 0) {
+            // Check if booking is confirmed
+            if booking.status != .accepted && booking.status != .completed {
+                VStack(spacing: 16) {
+                    Image(systemName: "lock.fill")
+                        .font(.system(size: 50))
+                        .foregroundColor(.gray)
+                    
+                    Text("Messaging Unavailable")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                    
+                    Text("Messaging is only available after a booking has been accepted by the pilot.")
+                        .font(.body)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding()
+            } else {
+                // Other User Info Header (Customer for pilots, Pilot for customers)
+                if let profile = customerProfile {
                     HStack(spacing: 12) {
                         Group {
                             if let pictureUrl = profile.profilePictureUrl,
@@ -78,7 +78,7 @@ struct MessageView: View {
                                     .foregroundColor(.blue)
                             }
                         }
-                        
+
                         VStack(alignment: .leading, spacing: 2) {
                             Text(displayName)
                                 .font(.headline)
@@ -96,7 +96,7 @@ struct MessageView: View {
                                 .foregroundColor(.secondary)
                                 .lineLimit(1)
                         }
-                        
+
                         Spacer()
                     }
                     .padding(.horizontal)
@@ -175,21 +175,22 @@ struct MessageView: View {
                     .padding(.vertical, 8)
                     .background(Color(.systemBackground))
                 }
-                }
             }
-            .navigationTitle("Message")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
+        }
+        .navigationTitle("Message")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if showsDismissButton {
+                ToolbarItem(placement: .topBarLeading) {
                     Button("Done") {
                         dismiss()
                     }
                 }
             }
-            .task {
-                if booking.status == .accepted || booking.status == .completed {
-                    await loadMessages()
-                }
+        }
+        .task {
+            if booking.status == .accepted || booking.status == .completed {
+                await loadMessages()
             }
         }
     }

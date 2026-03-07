@@ -10,9 +10,11 @@ import Auth
 
 struct DirectMessageView: View {
     @EnvironmentObject var authService: AuthService
+    @Environment(\.dismiss) private var dismiss
     let pilotId: UUID
     let pilotProfile: UserProfile
     var initialListing: MarketplaceListingWithSeller? = nil
+    var showsDismissButton = false
     @StateObject private var messageService = MessageService()
     @State private var messageText = ""
     @FocusState private var isTextFieldFocused: Bool
@@ -52,177 +54,185 @@ struct DirectMessageView: View {
     }
 
     var body: some View {
-        NavigationView {
-            VStack(spacing: 0) {
-                // Pilot Info Header
-                HStack(spacing: 12) {
-                    Group {
-                        if let pictureUrl = pilotProfile.profilePictureUrl,
-                           let url = URL(string: pictureUrl) {
-                            AsyncImage(url: url) { phase in
-                                switch phase {
-                                case .empty:
-                                    ProgressView()
-                                        .frame(width: 40, height: 40)
-                                case .success(let image):
-                                    image
-                                        .resizable()
-                                        .scaledToFill()
-                                        .frame(width: 40, height: 40)
-                                        .clipShape(Circle())
-                                case .failure:
-                                    Image(systemName: "airplane.circle.fill")
-                                        .font(.system(size: 40))
-                                        .foregroundColor(.blue)
-                                @unknown default:
-                                    EmptyView()
-                                }
+        VStack(spacing: 0) {
+            // Pilot Info Header
+            HStack(spacing: 12) {
+                Group {
+                    if let pictureUrl = pilotProfile.profilePictureUrl,
+                       let url = URL(string: pictureUrl) {
+                        AsyncImage(url: url) { phase in
+                            switch phase {
+                            case .empty:
+                                ProgressView()
+                                    .frame(width: 40, height: 40)
+                            case .success(let image):
+                                image
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(width: 40, height: 40)
+                                    .clipShape(Circle())
+                            case .failure:
+                                Image(systemName: "airplane.circle.fill")
+                                    .font(.system(size: 40))
+                                    .foregroundColor(.blue)
+                            @unknown default:
+                                EmptyView()
                             }
-                        } else {
-                            Image(systemName: "airplane.circle.fill")
-                                .font(.system(size: 40))
-                                .foregroundColor(.blue)
                         }
+                    } else {
+                        Image(systemName: "airplane.circle.fill")
+                            .font(.system(size: 40))
+                            .foregroundColor(.blue)
                     }
+                }
 
-                    VStack(alignment: .leading, spacing: 2) {
-                        if let callSign = pilotProfile.callSign {
-                            Text("@\(callSign)")
-                                .font(.headline)
-                                .foregroundColor(.primary)
-                        } else {
-                            Text("Pilot")
-                                .font(.headline)
-                        }
+                VStack(alignment: .leading, spacing: 2) {
+                    if let callSign = pilotProfile.callSign {
+                        Text("@\(callSign)")
+                            .font(.headline)
+                            .foregroundColor(.primary)
+                    } else {
+                        Text("Pilot")
+                            .font(.headline)
                     }
+                }
 
-                    Spacer()
+                Spacer()
+            }
+            .padding(.horizontal)
+            .padding(.vertical, 12)
+            .background(Color(.systemGray6))
+
+            // Message Limit Warning (only show if limit applies)
+            if !hasResponse && sentMessageCount > 0 {
+                HStack(spacing: 8) {
+                    Image(systemName: "info.circle.fill")
+                        .foregroundColor(.orange)
+                        .font(.caption)
+                    Text("You can send \(remainingMessages) more message\(remainingMessages == 1 ? "" : "s") before \(pilotProfile.callSign ?? "the pilot") responds.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
                 }
                 .padding(.horizontal)
-                .padding(.vertical, 12)
-                .background(Color(.systemGray6))
+                .padding(.vertical, 8)
+                .background(Color.orange.opacity(0.1))
+            }
 
-                // Message Limit Warning (only show if limit applies)
-                if !hasResponse && sentMessageCount > 0 {
-                    HStack(spacing: 8) {
-                        Image(systemName: "info.circle.fill")
-                            .foregroundColor(.orange)
-                            .font(.caption)
-                        Text("You can send \(remainingMessages) more message\(remainingMessages == 1 ? "" : "s") before \(pilotProfile.callSign ?? "the pilot") responds.")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+            // Messages List
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(spacing: 12) {
+                        if messageService.isLoading && messageService.directMessages.isEmpty {
+                            ProgressView()
+                                .padding()
+                        } else if messageService.directMessages.isEmpty {
+                            VStack(spacing: 8) {
+                                Image(systemName: "message.fill")
+                                    .font(.system(size: 40))
+                                    .foregroundColor(.secondary)
+                                Text("No messages yet")
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+
+                                if !hasResponse {
+                                    Text("You can send up to \(maxMessagesBeforeResponse) messages before \(pilotProfile.callSign ?? "the pilot") responds.")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                        .multilineTextAlignment(.center)
+                                        .padding(.horizontal)
+                                        .padding(.top, 4)
+                                }
+                            }
+                            .padding(.top, 40)
+                        } else {
+                            ForEach(messageService.directMessages) { message in
+                                DirectMessageBubble(
+                                    message: message,
+                                    isFromCurrentUser: message.fromUserId == currentUserId
+                                )
+                            }
+                        }
                     }
-                    .padding(.horizontal)
-                    .padding(.vertical, 8)
-                    .background(Color.orange.opacity(0.1))
+                    .padding()
                 }
-
-                // Messages List
-                ScrollViewReader { proxy in
-                    ScrollView {
-                        LazyVStack(spacing: 12) {
-                            if messageService.isLoading && messageService.directMessages.isEmpty {
-                                ProgressView()
-                                    .padding()
-                            } else if messageService.directMessages.isEmpty {
-                                VStack(spacing: 8) {
-                                    Image(systemName: "message.fill")
-                                        .font(.system(size: 40))
-                                        .foregroundColor(.secondary)
-                                    Text("No messages yet")
-                                        .font(.subheadline)
-                                        .foregroundColor(.secondary)
-
-                                    if !hasResponse {
-                                        Text("You can send up to \(maxMessagesBeforeResponse) messages before \(pilotProfile.callSign ?? "the pilot") responds.")
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
-                                            .multilineTextAlignment(.center)
-                                            .padding(.horizontal)
-                                            .padding(.top, 4)
-                                    }
-                                }
-                                .padding(.top, 40)
-                            } else {
-                                ForEach(messageService.directMessages) { message in
-                                    DirectMessageBubble(
-                                        message: message,
-                                        isFromCurrentUser: message.fromUserId == currentUserId
-                                    )
-                                }
-                            }
-                        }
-                        .padding()
-                    }
-                    .onChange(of: messageService.directMessages.count) { _, _ in
-                        if let lastMessage = messageService.directMessages.last {
-                            withAnimation {
-                                proxy.scrollTo(lastMessage.id, anchor: .bottom)
-                            }
-                        }
-                    }
-                    .onAppear {
-                        if let lastMessage = messageService.directMessages.last {
+                .onChange(of: messageService.directMessages.count) { _, _ in
+                    if let lastMessage = messageService.directMessages.last {
+                        withAnimation {
                             proxy.scrollTo(lastMessage.id, anchor: .bottom)
                         }
                     }
                 }
-
-                // Message Input Bar
-                VStack(spacing: 0) {
-                    Divider()
-
-                    HStack(spacing: 12) {
-                        TextField("Type a message", text: $messageText)
-                            .textFieldStyle(.plain)
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 10)
-                            .background(Color(.systemGray6))
-                            .cornerRadius(20)
-                            .focused($isTextFieldFocused)
-                            .onSubmit {
-                                sendMessage()
-                            }
-                            .disabled(!canSendMessage)
-
-                        Button(action: {
-                            if canSendMessage {
-                                sendMessage()
-                            } else {
-                                showLimitAlert = true
-                            }
-                        }) {
-                            Image(systemName: "arrow.up.circle.fill")
-                                .font(.system(size: 32))
-                                .foregroundColor(
-                                    canSendMessage && !messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                                        ? .blue
-                                        : .gray
-                                )
-                        }
-                        .disabled(
-                            !canSendMessage || messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                        )
+                .onAppear {
+                    if let lastMessage = messageService.directMessages.last {
+                        proxy.scrollTo(lastMessage.id, anchor: .bottom)
                     }
-                    .padding(.horizontal)
-                    .padding(.vertical, 8)
-                    .background(Color(.systemBackground))
                 }
             }
-            .navigationBarTitleDisplayMode(.inline)
-            .alert("Message Limit Reached", isPresented: $showLimitAlert) {
-                Button("OK", role: .cancel) {}
-            } message: {
-                Text("You've reached the limit of \(maxMessagesBeforeResponse) messages. Please wait for \(pilotProfile.callSign ?? "the pilot") to respond before sending more messages.")
+
+            // Message Input Bar
+            VStack(spacing: 0) {
+                Divider()
+
+                HStack(spacing: 12) {
+                    TextField("Type a message", text: $messageText)
+                        .textFieldStyle(.plain)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                        .background(Color(.systemGray6))
+                        .cornerRadius(20)
+                        .focused($isTextFieldFocused)
+                        .onSubmit {
+                            sendMessage()
+                        }
+                        .disabled(!canSendMessage)
+
+                    Button(action: {
+                        if canSendMessage {
+                            sendMessage()
+                        } else {
+                            showLimitAlert = true
+                        }
+                    }) {
+                        Image(systemName: "arrow.up.circle.fill")
+                            .font(.system(size: 32))
+                            .foregroundColor(
+                                canSendMessage && !messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                                    ? .blue
+                                    : .gray
+                            )
+                    }
+                    .disabled(
+                        !canSendMessage || messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    )
+                }
+                .padding(.horizontal)
+                .padding(.vertical, 8)
+                .background(Color(.systemBackground))
             }
-            .alert("Error Sending Message", isPresented: $showErrorAlert) {
-                Button("OK", role: .cancel) {}
-            } message: {
-                Text(errorMessage.isEmpty ? "Failed to send message. Please try again." : errorMessage)
+        }
+        .navigationTitle("Message")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if showsDismissButton {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
             }
-            .task {
-                await loadMessages()
-            }
+        }
+        .alert("Message Limit Reached", isPresented: $showLimitAlert) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("You've reached the limit of \(maxMessagesBeforeResponse) messages. Please wait for \(pilotProfile.callSign ?? "the pilot") to respond before sending more messages.")
+        }
+        .alert("Error Sending Message", isPresented: $showErrorAlert) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(errorMessage.isEmpty ? "Failed to send message. Please try again." : errorMessage)
+        }
+        .task {
+            await loadMessages()
         }
     }
 

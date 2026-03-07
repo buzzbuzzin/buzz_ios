@@ -1829,10 +1829,13 @@ struct CustomerBookingDetailView: View {
             )
         }
         .sheet(isPresented: $showMessageSheet) {
-            MessageView(
-                customerProfile: pilotProfile,
-                booking: currentBooking
-            )
+            NavigationStack {
+                MessageView(
+                    customerProfile: pilotProfile,
+                    booking: currentBooking,
+                    showsDismissButton: true
+                )
+            }
         }
         .sheet(isPresented: $showEditSheet) {
             EditBookingView(booking: currentBooking)

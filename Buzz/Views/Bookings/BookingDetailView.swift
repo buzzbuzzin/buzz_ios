@@ -989,10 +989,13 @@ struct BookingDetailView: View {
             )
         }
         .sheet(isPresented: $showMessageSheet) {
-            MessageView(
-                customerProfile: customerProfile,
-                booking: currentBooking
-            )
+            NavigationStack {
+                MessageView(
+                    customerProfile: customerProfile,
+                    booking: currentBooking,
+                    showsDismissButton: true
+                )
+            }
         }
         .sheet(isPresented: $showDirectionsSheet) {
             DirectionsBottomSheet(
@@ -1571,4 +1574,3 @@ struct WithdrawModifier: ViewModifier {
             }
     }
 }
-

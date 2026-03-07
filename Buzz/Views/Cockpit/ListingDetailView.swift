@@ -238,12 +238,15 @@ struct ListingDetailView: View {
         }
         .sheet(isPresented: $showDirectMessage) {
             if let profile = sellerProfile {
-                DirectMessageView(
-                    pilotId: listing.listing.sellerId,
-                    pilotProfile: profile,
-                    initialListing: listing
-                )
-                .environmentObject(authService)
+                NavigationStack {
+                    DirectMessageView(
+                        pilotId: listing.listing.sellerId,
+                        pilotProfile: profile,
+                        initialListing: listing,
+                        showsDismissButton: true
+                    )
+                    .environmentObject(authService)
+                }
             } else {
                 VStack {
                     ProgressView()
