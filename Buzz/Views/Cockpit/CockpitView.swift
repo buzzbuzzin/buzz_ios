@@ -34,6 +34,7 @@ struct CockpitView: View {
     @State private var showSOP = false
     @State private var showLeaderboard = false
     @State private var showRevenue = false
+    @State private var showConversations = false
     @State private var showNews = false
     @State private var showAvailability = false
     @State private var showProgress = false
@@ -319,6 +320,18 @@ struct CockpitView: View {
                                                 .offset(x: 6, y: -6)
                                         }
                                     }
+                                }
+                                .buttonStyle(PlainButtonStyle())
+
+                                Button {
+                                    logTap("Messages", section: "Social")
+                                    showConversations = true
+                                } label: {
+                                    CockpitGridCard(
+                                        title: "Messages",
+                                        icon: "message.fill",
+                                        color: .blue
+                                    )
                                 }
                                 .buttonStyle(PlainButtonStyle())
 
@@ -844,8 +857,11 @@ struct CockpitView: View {
                                     .foregroundColor(.secondary)
                             }
                         }
-                    }
+                }
             }
+        }
+        .sheet(isPresented: $showConversations) {
+            ConversationsListView()
         }
         // Community section fullScreenCovers
         .fullScreenCover(isPresented: $showBeacon) {
