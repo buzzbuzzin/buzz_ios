@@ -32,6 +32,8 @@ struct LicenseManagementView: View {
     @State private var selectedLicenseType: LicenseType?
     @State private var customLicenseType: String = ""
     @State private var pendingUploadAction: (() -> Void)?
+    @State private var showUploadSuccess = false
+    @State private var uploadedLicenseNeedsReview = false
     
     var body: some View {
         VStack(spacing: 0) {
@@ -146,10 +148,14 @@ struct LicenseManagementView: View {
                                         onEdit: { license in
                                             licenseToEdit = license
                                             showEditSheet = true
+                                        },
+                                        onReupload: {
+                                            selectedLicenseType = .rpaFlightReviewer
+                                            showUploadOptions = true
                                         }
                                     )
                                 }
-                                
+
                                 // Examiner Section
                                 if !groupedLicenses[.examiner]!.isEmpty {
                                     LicenseCategorySection(
@@ -168,6 +174,10 @@ struct LicenseManagementView: View {
                                         onEdit: { license in
                                             licenseToEdit = license
                                             showEditSheet = true
+                                        },
+                                        onReupload: {
+                                            selectedLicenseType = .rocaExaminerCertificate
+                                            showUploadOptions = true
                                         }
                                     )
                                 }
@@ -320,6 +330,16 @@ struct LicenseManagementView: View {
         } message: {
             Text(errorMessage)
         }
+        .alert(
+            uploadedLicenseNeedsReview ? "Submitted for Review" : "Upload Successful",
+            isPresented: $showUploadSuccess
+        ) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(uploadedLicenseNeedsReview
+                 ? "Your license has been submitted for review. You'll be notified once it's approved. Reviews typically take 1-2 business days."
+                 : "Your license has been uploaded successfully.")
+        }
         .alert("Delete License", isPresented: $showDeleteConfirmation) {
             Button("Cancel", role: .cancel) {
                 licenseToDelete = nil
@@ -438,6 +458,8 @@ struct LicenseManagementView: View {
         Task {
             do {
                 let fileName = "\(UUID().uuidString).jpg"
+                let needsReview = licenseTypeString == LicenseType.rpaFlightReviewer.rawValue ||
+                    licenseTypeString == LicenseType.rocaExaminerCertificate.rawValue
                 _ = try await licenseService.uploadLicense(
                     pilotId: userId,
                     data: imageData,
@@ -449,6 +471,8 @@ struct LicenseManagementView: View {
                 selectedLicenseType = nil
                 customLicenseType = ""
                 await loadLicenses()
+                uploadedLicenseNeedsReview = needsReview
+                showUploadSuccess = true
             } catch {
                 errorMessage = error.localizedDescription
                 showError = true
@@ -491,6 +515,8 @@ struct LicenseManagementView: View {
                     uniqueFileName = "\(fileNameWithoutExtension)_\(UUID().uuidString).\(fileExtension)"
                 }
                 let licenseTypeString = getLicenseTypeString()
+                let needsReview = licenseTypeString == LicenseType.rpaFlightReviewer.rawValue ||
+                    licenseTypeString == LicenseType.rocaExaminerCertificate.rawValue
                 _ = try await licenseService.uploadLicense(
                     pilotId: userId,
                     data: data,
@@ -502,13 +528,15 @@ struct LicenseManagementView: View {
                 selectedLicenseType = nil
                 customLicenseType = ""
                 await loadLicenses()
+                uploadedLicenseNeedsReview = needsReview
+                showUploadSuccess = true
             } catch {
                 errorMessage = error.localizedDescription
                 showError = true
             }
         }
     }
-    
+
     private func getLicenseTypeString() -> String? {
         if let selected = selectedLicenseType {
             if selected == .custom {
@@ -572,6 +600,7 @@ struct LicenseCategorySection: View {
     let onView: (PilotLicense) -> Void
     let onDelete: (PilotLicense) -> Void
     let onEdit: (PilotLicense) -> Void
+    var onReupload: (() -> Void)? = nil
     
     @State private var isExpanded: Bool = true
     
@@ -613,7 +642,8 @@ struct LicenseCategorySection: View {
                             approvalRequest: approvalRequestForLicense(license.id),
                             onView: { onView(license) },
                             onDelete: { onDelete(license) },
-                            onEdit: { onEdit(license) }
+                            onEdit: { onEdit(license) },
+                            onReupload: license.needsApproval ? onReupload : nil
                         )
                     }
                 }
@@ -640,6 +670,7 @@ struct LicenseCard: View {
     let onView: () -> Void
     let onDelete: () -> Void
     let onEdit: () -> Void
+    var onReupload: (() -> Void)? = nil
     
     private func isRPACertificate(_ license: PilotLicense) -> Bool {
         return license.licenseType?.contains("RPA Pilot") ?? false
@@ -686,14 +717,22 @@ struct LicenseCard: View {
 
                     // Approval status badge
                     if let status = approvalRequest?.statusEnum {
-                        Text(status.displayName)
-                            .font(.caption2)
-                            .fontWeight(.semibold)
-                            .foregroundColor(status.color)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 3)
-                            .background(status.color.opacity(0.12))
-                            .clipShape(Capsule())
+                        HStack(spacing: 6) {
+                            Text(status.displayName)
+                                .font(.caption2)
+                                .fontWeight(.semibold)
+                                .foregroundColor(status.color)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 3)
+                                .background(status.color.opacity(0.12))
+                                .clipShape(Capsule())
+
+                            if status == .pending {
+                                Text("(typically 1-2 business days)")
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
                     }
                 }
 
@@ -831,21 +870,42 @@ struct LicenseCard: View {
                     }
                 }
 
-                // Reviewer notes for rejected licenses
-                if approvalRequest?.statusEnum == .rejected,
-                   let notes = approvalRequest?.reviewerNotes, !notes.isEmpty {
-                    HStack(spacing: 6) {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .font(.caption)
-                            .foregroundColor(.red)
-                        Text(notes)
-                            .font(.caption)
-                            .foregroundColor(.red)
+                // Reviewer notes and re-upload for rejected licenses
+                if approvalRequest?.statusEnum == .rejected {
+                    VStack(spacing: 10) {
+                        if let notes = approvalRequest?.reviewerNotes, !notes.isEmpty {
+                            HStack(spacing: 6) {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .font(.caption)
+                                    .foregroundColor(.red)
+                                Text(notes)
+                                    .font(.caption)
+                                    .foregroundColor(.red)
+                            }
+                            .padding(10)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color.red.opacity(0.08))
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                        }
+
+                        if let onReupload = onReupload {
+                            Button(action: onReupload) {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "arrow.up.doc.fill")
+                                        .font(.caption)
+                                    Text("Re-upload License")
+                                        .font(.caption)
+                                        .fontWeight(.semibold)
+                                }
+                                .foregroundColor(.white)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 10)
+                                .background(Color.blue)
+                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                            }
+                            .buttonStyle(PlainButtonStyle())
+                        }
                     }
-                    .padding(10)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color.red.opacity(0.08))
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
                 }
             }
             .padding(16)

@@ -29,6 +29,8 @@ struct PilotProfileView: View {
     @State private var navigateToReviews = false
     @State private var navigateToBalance = false
     @State private var navigateToConnections = false
+    @State private var navigateToLicenses = false
+    @EnvironmentObject var deepLinkManager: DeepLinkManager
     
     var yearsOnBuzz: Int {
         guard let createdAt = authService.userProfile?.createdAt else { return 0 }
@@ -202,6 +204,17 @@ struct PilotProfileView: View {
                     NavigationLink(
                         destination: ConnectionsView(),
                         isActive: $navigateToConnections
+                    ) {
+                        EmptyView()
+                    }
+                    .hidden()
+
+                    NavigationLink(
+                        destination: LicenseManagementView()
+                            .onDisappear {
+                                navigateToLicenses = false
+                            },
+                        isActive: $navigateToLicenses
                     ) {
                         EmptyView()
                     }
@@ -579,8 +592,20 @@ struct PilotProfileView: View {
             
             isLoadingRatings = false
         }
+        .onAppear {
+            if deepLinkManager.pendingDestination == .licenseManagement {
+                deepLinkManager.pendingDestination = nil
+                navigateToLicenses = true
+            }
+        }
+        .onChange(of: deepLinkManager.pendingDestination) { destination in
+            if destination == .licenseManagement {
+                deepLinkManager.pendingDestination = nil
+                navigateToLicenses = true
+            }
+        }
     }
-    
+
     private func uploadProfilePicture(image: UIImage) {
         guard let currentUser = authService.currentUser else { return }
         

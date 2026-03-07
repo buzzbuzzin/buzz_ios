@@ -171,6 +171,9 @@ struct PilotTabView: View {
         case .profile:
             selectedTab = 4
             deepLinkManager.pendingDestination = nil
+        case .licenseManagement:
+            // Switch to Profile tab; PilotProfileView observes the deep link
+            selectedTab = 4
         case .messages(let conversationId):
             // Open conversations list and target the specific conversation when possible
             selectedTab = 0
