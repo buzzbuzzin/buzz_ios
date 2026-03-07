@@ -436,6 +436,18 @@ class MessageService: ObservableObject {
                 timestamp: row.updatedAt ?? row.createdAt
             )
             updateBookingMessageReaction(messageId: messageId, reactions: refreshedReactions)
+
+            if let message = messages.first(where: { $0.id == messageId }) {
+                Task {
+                    await sendReactionNotification(
+                        messageAuthorId: message.fromUserId,
+                        reactorUserId: userId,
+                        reaction: reaction,
+                        messageText: message.text,
+                        bookingId: message.bookingId
+                    )
+                }
+            }
         } catch {
             updateBookingMessageReaction(messageId: messageId, reactions: originalReactions)
             errorMessage = error.localizedDescription
@@ -500,6 +512,18 @@ class MessageService: ObservableObject {
                 timestamp: row.updatedAt ?? row.createdAt
             )
             updateDirectMessageReaction(messageId: messageId, reactions: refreshedReactions)
+
+            if let message = directMessages.first(where: { $0.id == messageId }) {
+                Task {
+                    await sendReactionNotification(
+                        messageAuthorId: message.fromUserId,
+                        reactorUserId: userId,
+                        reaction: reaction,
+                        messageText: message.text,
+                        bookingId: nil
+                    )
+                }
+            }
         } catch {
             updateDirectMessageReaction(messageId: messageId, reactions: originalReactions)
             errorMessage = error.localizedDescription
@@ -938,6 +962,35 @@ class MessageService: ObservableObject {
         } catch {
             print("Could not send message notification: \(error)")
             // Non-critical error, don't throw
+        }
+    }
+
+    /// Send notification to message author when someone reacts to their message
+    private func sendReactionNotification(messageAuthorId: UUID, reactorUserId: UUID, reaction: MessageReactionType, messageText: String, bookingId: UUID?) async {
+        do {
+            guard messageAuthorId != reactorUserId else {
+                return
+            }
+
+            let reactorProfile: UserProfile = try await supabase
+                .from("profiles")
+                .select()
+                .eq("id", value: reactorUserId.uuidString)
+                .single()
+                .execute()
+                .value
+
+            let conversationId = bookingId ?? Self.conversationId(fromUserId: reactorUserId, toUserId: messageAuthorId)
+
+            await notificationManager.notifyMessageReaction(
+                recipientUserId: messageAuthorId,
+                reactorName: reactorProfile.visibleDisplayName(to: messageAuthorId),
+                reactionEmoji: reaction.emoji,
+                messagePreview: messageText,
+                conversationId: conversationId
+            )
+        } catch {
+            print("Could not send reaction notification: \(error)")
         }
     }
 }

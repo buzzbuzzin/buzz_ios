@@ -55,6 +55,7 @@ class NotificationManager: NSObject, ObservableObject {
         case marketplaceItemShipped = "MARKETPLACE_ITEM_SHIPPED"
         case marketplaceDeliveryConfirmed = "MARKETPLACE_DELIVERY_CONFIRMED"
         case marketplaceReviewReceived = "MARKETPLACE_REVIEW_RECEIVED"
+        case messageReaction = "MESSAGE_REACTION"
         case licenseApproved = "LICENSE_APPROVED"
         case licenseRejected = "LICENSE_REJECTED"
     }
@@ -560,6 +561,26 @@ class NotificationManager: NSObject, ObservableObject {
         )
     }
     
+    /// Send a remote push notification when someone reacts to a message.
+    func notifyMessageReaction(
+        recipientUserId: UUID,
+        reactorName: String,
+        reactionEmoji: String,
+        messagePreview: String,
+        conversationId: UUID
+    ) async {
+        let preview = messagePreview.count > 50 ? String(messagePreview.prefix(47)) + "..." : messagePreview
+        await sendRemotePushNotification(
+            recipientUserId: recipientUserId,
+            title: "\(reactorName) reacted \(reactionEmoji)",
+            body: preview,
+            data: [
+                "conversationId": conversationId.uuidString,
+                "type": "message_reaction"
+            ]
+        )
+    }
+
     // MARK: - Remote Push Notification Helper
 
     private struct PushNotificationRequest: Codable {
@@ -908,7 +929,7 @@ class NotificationManager: NSObject, ObservableObject {
             return preferences.bookingReminders.system
         case .bookingCancelled:
             return preferences.bookingCancellations.system
-        case .newMessage:
+        case .newMessage, .messageReaction:
             return preferences.messages.system
         case .nearbyBooking:
             return preferences.bookingUpdates.system
