@@ -88,7 +88,7 @@ struct MessageReactionPickerOverlay: View {
     let targetFrame: CGRect
     let containerSize: CGSize
     let onSelect: (MessageReactionType) -> Void
-    let onClear: (() -> Void)?
+    let onClear: () -> Void
     let onDismiss: () -> Void
 
     private var pickerWidth: CGFloat {
@@ -121,7 +121,7 @@ struct MessageReactionPickerOverlay: View {
 
     var body: some View {
         ZStack(alignment: .topLeading) {
-            Color.black.opacity(0.12)
+            Color.black.opacity(0.15)
                 .ignoresSafeArea()
                 .contentShape(Rectangle())
                 .onTapGesture(perform: onDismiss)
@@ -134,42 +134,41 @@ struct MessageReactionPickerOverlay: View {
     }
 
     private var picker: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 4) {
             ForEach(MessageReactionType.allCases) { reaction in
+                let isSelected = currentReaction == reaction
                 Button {
-                    onSelect(reaction)
+                    if isSelected {
+                        onClear()
+                    } else {
+                        onSelect(reaction)
+                    }
                 } label: {
                     Text(reaction.emoji)
                         .font(.system(size: 28))
-                        .frame(width: 38, height: 38)
+                        .frame(width: 42, height: 42)
                         .background(
-                            currentReaction == reaction ? Color.blue.opacity(0.14) : Color.clear,
+                            isSelected ? Color.blue.opacity(0.18) : Color.clear,
                             in: Circle()
                         )
+                        .overlay(
+                            Circle()
+                                .stroke(Color.blue.opacity(isSelected ? 0.4 : 0), lineWidth: 1.5)
+                        )
+                        .scaleEffect(isSelected ? 1.12 : 1.0)
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel(reaction.label)
-            }
-
-            if let onClear {
-                Divider()
-                    .frame(height: 28)
-
-                Button("Clear") {
-                    onClear()
-                }
-                .font(.caption.weight(.semibold))
-                .foregroundColor(.red)
-                .padding(.horizontal, 4)
+                .accessibilityLabel(isSelected ? "\(reaction.label), selected. Tap to remove." : reaction.label)
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 9)
-        .background(.ultraThinMaterial, in: Capsule())
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .background(.ultraThickMaterial, in: Capsule())
         .overlay(
             Capsule()
-                .stroke(Color.black.opacity(0.08), lineWidth: 0.8)
+                .stroke(Color(.systemGray4).opacity(0.5), lineWidth: 0.5)
         )
-        .shadow(color: .black.opacity(0.12), radius: 12, y: 6)
+        .shadow(color: .black.opacity(0.10), radius: 16, y: 8)
+        .shadow(color: .black.opacity(0.06), radius: 4, y: 2)
     }
 }

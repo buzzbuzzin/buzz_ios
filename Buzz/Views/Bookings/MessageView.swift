@@ -161,7 +161,7 @@ struct MessageView: View {
                                     onSelect: { reaction in
                                         handleBookingReactionSelection(reaction, for: selectedReactionMessage.id)
                                     },
-                                    onClear: selectedReactionMessage.reactions.currentReaction(for: currentUserId) == nil ? nil : {
+                                    onClear: {
                                         handleBookingReactionClear(for: selectedReactionMessage.id)
                                     },
                                     onDismiss: dismissReactionPicker

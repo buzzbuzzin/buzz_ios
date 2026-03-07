@@ -175,7 +175,7 @@ struct DirectMessageView: View {
                                 onSelect: { reaction in
                                     handleDirectReactionSelection(reaction, for: selectedReactionMessage.id)
                                 },
-                                onClear: selectedReactionMessage.reactions.currentReaction(for: currentUserId) == nil ? nil : {
+                                onClear: {
                                     handleDirectReactionClear(for: selectedReactionMessage.id)
                                 },
                                 onDismiss: dismissReactionPicker
