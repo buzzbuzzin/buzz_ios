@@ -27,12 +27,22 @@ struct HangerTalkView: View {
     @State private var showSpaceRoom = false
     @State private var isJoiningSpace = false
 
-    /// Optional post ID to navigate to on load (from push notification deep link)
-    var deepLinkPostId: UUID? = nil
-    /// Opens inbox on load when triggered by a follow-notification deep link.
-    var deepLinkOpenInbox: Bool = false
-    /// Optional space ID to navigate to on load (from push notification deep link)
-    var deepLinkSpaceId: UUID? = nil
+    /// Optional post ID to navigate to when triggered by a push notification deep link.
+    @Binding var deepLinkPostId: UUID?
+    /// Opens inbox when triggered by a follow-notification deep link.
+    @Binding var deepLinkOpenInbox: Bool
+    /// Optional space ID to navigate to when triggered by a push notification deep link.
+    @Binding var deepLinkSpaceId: UUID?
+
+    init(
+        deepLinkPostId: Binding<UUID?> = .constant(nil),
+        deepLinkOpenInbox: Binding<Bool> = .constant(false),
+        deepLinkSpaceId: Binding<UUID?> = .constant(nil)
+    ) {
+        self._deepLinkPostId = deepLinkPostId
+        self._deepLinkOpenInbox = deepLinkOpenInbox
+        self._deepLinkSpaceId = deepLinkSpaceId
+    }
 
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
@@ -206,7 +216,6 @@ struct HangerTalkView: View {
                 if let post = postToDelete {
                     Task {
                         try? await service.deletePost(postId: post.id)
-                        guard let userId = authService.activeUserId else { return }
                         await refreshCurrentTab()
                     }
                 }
@@ -227,28 +236,7 @@ struct HangerTalkView: View {
                 await spaceService.fetchLiveHostIds(authorIds: authorIds)
             }
 
-            // If opened via deep link with a specific post, fetch and navigate to it
-            if let postId = deepLinkPostId {
-                if let post = await service.fetchPost(postId: postId, currentUserId: userId) {
-                    selectedPostForDetail = post
-                }
-            } else if deepLinkOpenInbox {
-                showInbox = true
-            } else if let spaceId = deepLinkSpaceId {
-                // Deep link to a specific space — join and open it
-                do {
-                    try await spaceService.joinSpace(spaceId: spaceId, userId: userId)
-                    if let space = spaceService.currentSpace {
-                        activeSpaceWithHost = HangerSpaceWithHost(
-                            id: space.id, space: space,
-                            hostCallSign: nil, hostProfilePictureUrl: nil, hostDisplayName: ""
-                        )
-                        showSpaceRoom = true
-                    }
-                } catch {
-                    spaceService.errorMessage = error.localizedDescription
-                }
-            }
+            await consumePendingDeepLink(currentUserId: userId)
 
             // Subscribe to live spaces feed for real-time updates
             await spaceService.subscribeToLiveSpacesFeed()
@@ -263,7 +251,7 @@ struct HangerTalkView: View {
         .onDisappear {
             Task { await spaceService.unsubscribeFromFeedUpdates() }
         }
-        .onChange(of: selectedTab) { newTab in
+        .onChange(of: selectedTab) { _, newTab in
             guard let userId = authService.activeUserId else { return }
             Task {
                 switch newTab {
@@ -276,6 +264,25 @@ struct HangerTalkView: View {
                 case .bookmarks:
                     await service.fetchBookmarkedPosts(currentUserId: userId)
                 }
+            }
+        }
+        .onChange(of: deepLinkPostId) { _, postId in
+            guard let postId,
+                  let userId = authService.activeUserId else { return }
+            Task {
+                await openDeepLinkedPost(postId, currentUserId: userId)
+            }
+        }
+        .onChange(of: deepLinkOpenInbox) { _, shouldOpenInbox in
+            guard shouldOpenInbox else { return }
+            deepLinkOpenInbox = false
+            showInbox = true
+        }
+        .onChange(of: deepLinkSpaceId) { _, spaceId in
+            guard let spaceId,
+                  let userId = authService.activeUserId else { return }
+            Task {
+                await openDeepLinkedSpace(spaceId, currentUserId: userId)
             }
         }
     }
@@ -520,5 +527,49 @@ struct HangerTalkView: View {
             await service.fetchBookmarkedPosts(currentUserId: userId)
         }
         await service.fetchUnreadCount(userId: userId)
+    }
+
+    private func consumePendingDeepLink(currentUserId: UUID) async {
+        if let postId = deepLinkPostId {
+            await openDeepLinkedPost(postId, currentUserId: currentUserId)
+            return
+        }
+
+        if deepLinkOpenInbox {
+            deepLinkOpenInbox = false
+            showInbox = true
+            return
+        }
+
+        if let spaceId = deepLinkSpaceId {
+            await openDeepLinkedSpace(spaceId, currentUserId: currentUserId)
+        }
+    }
+
+    private func openDeepLinkedPost(_ postId: UUID, currentUserId: UUID) async {
+        deepLinkPostId = nil
+        if let post = await service.fetchPost(postId: postId, currentUserId: currentUserId) {
+            selectedPostForDetail = post
+        }
+    }
+
+    private func openDeepLinkedSpace(_ spaceId: UUID, currentUserId: UUID) async {
+        deepLinkSpaceId = nil
+
+        do {
+            try await spaceService.joinSpace(spaceId: spaceId, userId: currentUserId)
+            if let space = spaceService.currentSpace {
+                activeSpaceWithHost = HangerSpaceWithHost(
+                    id: space.id,
+                    space: space,
+                    hostCallSign: nil,
+                    hostProfilePictureUrl: nil,
+                    hostDisplayName: ""
+                )
+                showSpaceRoom = true
+            }
+        } catch {
+            spaceService.errorMessage = error.localizedDescription
+        }
     }
 }

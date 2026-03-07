@@ -950,9 +950,9 @@ struct CockpitView: View {
         }) {
             NavigationView {
                 HangerTalkView(
-                    deepLinkPostId: deepLinkPostId,
-                    deepLinkOpenInbox: deepLinkOpenHangerTalkInbox,
-                    deepLinkSpaceId: deepLinkSpaceId
+                    deepLinkPostId: $deepLinkPostId,
+                    deepLinkOpenInbox: $deepLinkOpenHangerTalkInbox,
+                    deepLinkSpaceId: $deepLinkSpaceId
                 )
                     .environmentObject(authService)
                     .toolbar {
