@@ -19,6 +19,7 @@ class MessageService: ObservableObject {
     
     private let supabase = SupabaseClient.shared.client
     private let notificationManager = NotificationManager.shared
+    private let iso8601Formatter = ISO8601DateFormatter()
     
     // MARK: - Fetch Messages for Booking
     
@@ -43,7 +44,7 @@ class MessageService: ObservableObject {
         
         // Real backend call
         do {
-            let messages: [Message] = try await supabase
+            let fetchedMessages: [Message] = try await supabase
                 .from("messages")
                 .select()
                 .eq("booking_id", value: bookingId.uuidString)
@@ -51,9 +52,16 @@ class MessageService: ObservableObject {
                 .order("created_at", ascending: true)
                 .execute()
                 .value
+
+            let reactionsByMessage = try await fetchBookingMessageReactions(messageIds: fetchedMessages.map(\.id))
+            let hydratedMessages = fetchedMessages.map { message in
+                var message = message
+                message.reactions = reactionsByMessage[message.id] ?? []
+                return message
+            }
             
             await MainActor.run {
-                self.messages = messages
+                self.messages = hydratedMessages
                 self.isLoading = false
             }
         } catch {
@@ -112,7 +120,7 @@ class MessageService: ObservableObject {
                 "from_user_id": .string(fromUserId.uuidString),
                 "to_user_id": .string(toUserId.uuidString),
                 "text": .string(text),
-                "created_at": .string(ISO8601DateFormatter().string(from: Date())),
+                "created_at": .string(iso8601Formatter.string(from: Date())),
                 "is_read": .bool(false)
             ]
             
@@ -204,7 +212,7 @@ class MessageService: ObservableObject {
         
         // Real backend call - fetch messages between these two users
         do {
-            let allMessages: [DirectMessage] = try await supabase
+            let fetchedMessages: [DirectMessage] = try await supabase
                 .from("direct_messages")
                 .select()
                 .or(Self.directConversationFilter(userAId: fromUserId, userBId: toUserId))
@@ -212,9 +220,16 @@ class MessageService: ObservableObject {
                 .order("created_at", ascending: true)
                 .execute()
                 .value
+
+            let reactionsByMessage = try await fetchDirectMessageReactions(messageIds: fetchedMessages.map(\.id))
+            let hydratedMessages = fetchedMessages.map { message in
+                var message = message
+                message.reactions = reactionsByMessage[message.id] ?? []
+                return message
+            }
             
             await MainActor.run {
-                self.directMessages = allMessages
+                self.directMessages = hydratedMessages
                 self.isLoading = false
             }
         } catch {
@@ -259,7 +274,7 @@ class MessageService: ObservableObject {
                 "from_user_id": .string(fromUserId.uuidString),
                 "to_user_id": .string(toUserId.uuidString),
                 "text": .string(text),
-                "created_at": .string(ISO8601DateFormatter().string(from: Date())),
+                "created_at": .string(iso8601Formatter.string(from: Date())),
                 "is_read": .bool(false)
             ]
 
@@ -348,7 +363,7 @@ class MessageService: ObservableObject {
                 text: text,
                 isRead: false,
                 metadata: metadata,
-                createdAt: ISO8601DateFormatter().string(from: Date())
+                createdAt: iso8601Formatter.string(from: Date())
             )
 
             let insertedMessage: DirectMessage = try await supabase
@@ -384,6 +399,134 @@ class MessageService: ObservableObject {
                 }
                 self.errorMessage = error.localizedDescription
             }
+            throw error
+        }
+    }
+
+    func setReaction(forBookingMessageId messageId: UUID, by userId: UUID, reaction: MessageReactionType) async throws {
+        errorMessage = nil
+
+        let originalReactions = messages.first(where: { $0.id == messageId })?.reactions ?? []
+        updateBookingMessageReaction(messageId: messageId, reactions: originalReactions.applyingReaction(reaction, by: userId))
+
+        if DemoModeManager.shared.isDemoModeEnabled {
+            return
+        }
+
+        do {
+            let payload = BookingMessageReactionUpsert(
+                bookingMessageId: messageId,
+                userId: userId,
+                reaction: reaction,
+                updatedAt: iso8601Formatter.string(from: Date())
+            )
+
+            let row: BookingMessageReactionRow = try await supabase
+                .from("booking_message_reactions")
+                .upsert(payload, onConflict: "booking_message_id,user_id")
+                .select()
+                .single()
+                .execute()
+                .value
+
+            let refreshedReactions = originalReactions.applyingReaction(
+                row.reaction,
+                by: row.userId,
+                reactionId: row.id,
+                timestamp: row.updatedAt ?? row.createdAt
+            )
+            updateBookingMessageReaction(messageId: messageId, reactions: refreshedReactions)
+        } catch {
+            updateBookingMessageReaction(messageId: messageId, reactions: originalReactions)
+            errorMessage = error.localizedDescription
+            throw error
+        }
+    }
+
+    func clearReaction(forBookingMessageId messageId: UUID, by userId: UUID) async throws {
+        errorMessage = nil
+
+        let originalReactions = messages.first(where: { $0.id == messageId })?.reactions ?? []
+        updateBookingMessageReaction(messageId: messageId, reactions: originalReactions.removingReaction(by: userId))
+
+        if DemoModeManager.shared.isDemoModeEnabled {
+            return
+        }
+
+        do {
+            _ = try await supabase
+                .from("booking_message_reactions")
+                .delete()
+                .eq("booking_message_id", value: messageId.uuidString)
+                .eq("user_id", value: userId.uuidString)
+                .execute()
+        } catch {
+            updateBookingMessageReaction(messageId: messageId, reactions: originalReactions)
+            errorMessage = error.localizedDescription
+            throw error
+        }
+    }
+
+    func setReaction(forDirectMessageId messageId: UUID, by userId: UUID, reaction: MessageReactionType) async throws {
+        errorMessage = nil
+
+        let originalReactions = directMessages.first(where: { $0.id == messageId })?.reactions ?? []
+        updateDirectMessageReaction(messageId: messageId, reactions: originalReactions.applyingReaction(reaction, by: userId))
+
+        if DemoModeManager.shared.isDemoModeEnabled {
+            return
+        }
+
+        do {
+            let payload = DirectMessageReactionUpsert(
+                directMessageId: messageId,
+                userId: userId,
+                reaction: reaction,
+                updatedAt: iso8601Formatter.string(from: Date())
+            )
+
+            let row: DirectMessageReactionRow = try await supabase
+                .from("direct_message_reactions")
+                .upsert(payload, onConflict: "direct_message_id,user_id")
+                .select()
+                .single()
+                .execute()
+                .value
+
+            let refreshedReactions = originalReactions.applyingReaction(
+                row.reaction,
+                by: row.userId,
+                reactionId: row.id,
+                timestamp: row.updatedAt ?? row.createdAt
+            )
+            updateDirectMessageReaction(messageId: messageId, reactions: refreshedReactions)
+        } catch {
+            updateDirectMessageReaction(messageId: messageId, reactions: originalReactions)
+            errorMessage = error.localizedDescription
+            throw error
+        }
+    }
+
+    func clearReaction(forDirectMessageId messageId: UUID, by userId: UUID) async throws {
+        errorMessage = nil
+
+        let originalReactions = directMessages.first(where: { $0.id == messageId })?.reactions ?? []
+        updateDirectMessageReaction(messageId: messageId, reactions: originalReactions.removingReaction(by: userId))
+
+        if DemoModeManager.shared.isDemoModeEnabled {
+            return
+        }
+
+        do {
+            _ = try await supabase
+                .from("direct_message_reactions")
+                .delete()
+                .eq("direct_message_id", value: messageId.uuidString)
+                .eq("user_id", value: userId.uuidString)
+                .execute()
+        } catch {
+            updateDirectMessageReaction(messageId: messageId, reactions: originalReactions)
+            errorMessage = error.localizedDescription
             throw error
         }
     }
@@ -503,6 +646,73 @@ class MessageService: ObservableObject {
     
     // MARK: - Sample Data for Demo
     // TODO: Remove this function when connecting to real backend
+
+    private func fetchBookingMessageReactions(messageIds: [UUID]) async throws -> [UUID: [MessageReactionRecord]] {
+        guard !messageIds.isEmpty else { return [:] }
+
+        let rows: [BookingMessageReactionRow]
+        if messageIds.count == 1, let messageId = messageIds.first {
+            rows = try await supabase
+                .from("booking_message_reactions")
+                .select()
+                .eq("booking_message_id", value: messageId.uuidString)
+                .order("created_at", ascending: true)
+                .execute()
+                .value
+        } else {
+            rows = try await supabase
+                .from("booking_message_reactions")
+                .select()
+                .or(Self.reactionFilter(column: "booking_message_id", ids: messageIds))
+                .order("created_at", ascending: true)
+                .execute()
+                .value
+        }
+
+        return Dictionary(grouping: rows, by: \.bookingMessageId)
+            .mapValues { $0.map(\.record) }
+    }
+
+    private func fetchDirectMessageReactions(messageIds: [UUID]) async throws -> [UUID: [MessageReactionRecord]] {
+        guard !messageIds.isEmpty else { return [:] }
+
+        let rows: [DirectMessageReactionRow]
+        if messageIds.count == 1, let messageId = messageIds.first {
+            rows = try await supabase
+                .from("direct_message_reactions")
+                .select()
+                .eq("direct_message_id", value: messageId.uuidString)
+                .order("created_at", ascending: true)
+                .execute()
+                .value
+        } else {
+            rows = try await supabase
+                .from("direct_message_reactions")
+                .select()
+                .or(Self.reactionFilter(column: "direct_message_id", ids: messageIds))
+                .order("created_at", ascending: true)
+                .execute()
+                .value
+        }
+
+        return Dictionary(grouping: rows, by: \.directMessageId)
+            .mapValues { $0.map(\.record) }
+    }
+
+    private func updateBookingMessageReaction(messageId: UUID, reactions: [MessageReactionRecord]) {
+        guard let index = messages.firstIndex(where: { $0.id == messageId }) else { return }
+        messages[index].reactions = reactions
+    }
+
+    private func updateDirectMessageReaction(messageId: UUID, reactions: [MessageReactionRecord]) {
+        guard let index = directMessages.firstIndex(where: { $0.id == messageId }) else { return }
+        directMessages[index].reactions = reactions
+    }
+
+    private static func reactionFilter(column: String, ids: [UUID]) -> String {
+        ids.map { "\(column).eq.\($0.uuidString)" }
+            .joined(separator: ",")
+    }
     
     private func createSampleMessages(for bookingId: UUID, pilotId: UUID, customerId: UUID) -> [Message] {
         let calendar = Calendar.current

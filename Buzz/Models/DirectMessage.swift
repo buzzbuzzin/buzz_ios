@@ -44,6 +44,7 @@ struct DirectMessage: Codable, Identifiable {
     let createdAt: Date
     var isRead: Bool
     let metadata: DirectMessageMetadata?
+    var reactions: [MessageReactionRecord] = []
 
     enum CodingKeys: String, CodingKey {
         case id

@@ -375,6 +375,18 @@ CREATE TABLE public.direct_messages (
   CONSTRAINT direct_messages_to_user_id_fkey FOREIGN KEY (to_user_id) REFERENCES public.profiles(id),
   CONSTRAINT direct_messages_deleted_by_fkey FOREIGN KEY (deleted_by) REFERENCES public.profiles(id)
 );
+CREATE TABLE public.direct_message_reactions (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  direct_message_id uuid NOT NULL,
+  user_id uuid NOT NULL,
+  reaction text NOT NULL CHECK (reaction = ANY (ARRAY['like'::text, 'dislike'::text, 'love'::text, 'haha'::text, 'emphasize'::text, 'question'::text])),
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT direct_message_reactions_pkey PRIMARY KEY (id),
+  CONSTRAINT direct_message_reactions_unique UNIQUE (direct_message_id, user_id),
+  CONSTRAINT direct_message_reactions_direct_message_id_fkey FOREIGN KEY (direct_message_id) REFERENCES public.direct_messages(id),
+  CONSTRAINT direct_message_reactions_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id)
+);
 CREATE TABLE public.drone_registrations (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
   pilot_id uuid NOT NULL,
@@ -899,6 +911,18 @@ CREATE TABLE public.messages (
   CONSTRAINT messages_from_user_id_fkey FOREIGN KEY (from_user_id) REFERENCES public.profiles(id),
   CONSTRAINT messages_to_user_id_fkey FOREIGN KEY (to_user_id) REFERENCES public.profiles(id),
   CONSTRAINT messages_deleted_by_fkey FOREIGN KEY (deleted_by) REFERENCES public.profiles(id)
+);
+CREATE TABLE public.booking_message_reactions (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  booking_message_id uuid NOT NULL,
+  user_id uuid NOT NULL,
+  reaction text NOT NULL CHECK (reaction = ANY (ARRAY['like'::text, 'dislike'::text, 'love'::text, 'haha'::text, 'emphasize'::text, 'question'::text])),
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT booking_message_reactions_pkey PRIMARY KEY (id),
+  CONSTRAINT booking_message_reactions_unique UNIQUE (booking_message_id, user_id),
+  CONSTRAINT booking_message_reactions_booking_message_id_fkey FOREIGN KEY (booking_message_id) REFERENCES public.messages(id),
+  CONSTRAINT booking_message_reactions_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id)
 );
 CREATE TABLE public.newsletter_subscriptions (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),

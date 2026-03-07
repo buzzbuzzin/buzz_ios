@@ -22,11 +22,18 @@ struct DirectMessageView: View {
     @State private var showErrorAlert = false
     @State private var errorMessage = ""
     @State private var hasSentListingCard = false
+    @State private var messageBubbleFrames: [UUID: CGRect] = [:]
+    @State private var selectedReactionMessageId: UUID?
 
     private let maxMessagesBeforeResponse = 3
 
     var currentUserId: UUID? {
         authService.currentUser?.id
+    }
+
+    private var selectedReactionMessage: DirectMessage? {
+        guard let selectedReactionMessageId else { return nil }
+        return messageService.directMessages.first(where: { $0.id == selectedReactionMessageId })
     }
 
     var sentMessageCount: Int {
@@ -41,21 +48,20 @@ struct DirectMessageView: View {
 
     var canSendMessage: Bool {
         if hasResponse {
-            return true // Unlimited after response
+            return true
         }
         return sentMessageCount < maxMessagesBeforeResponse
     }
 
     var remainingMessages: Int {
         if hasResponse {
-            return -1 // Unlimited
+            return -1
         }
         return max(0, maxMessagesBeforeResponse - sentMessageCount)
     }
 
     var body: some View {
         VStack(spacing: 0) {
-            // Pilot Info Header
             HStack(spacing: 12) {
                 Group {
                     if let pictureUrl = pilotProfile.profilePictureUrl,
@@ -103,7 +109,6 @@ struct DirectMessageView: View {
             .padding(.vertical, 12)
             .background(Color(.systemGray6))
 
-            // Message Limit Warning (only show if limit applies)
             if !hasResponse && sentMessageCount > 0 {
                 HStack(spacing: 8) {
                     Image(systemName: "info.circle.fill")
@@ -118,42 +123,66 @@ struct DirectMessageView: View {
                 .background(Color.orange.opacity(0.1))
             }
 
-            // Messages List
             ScrollViewReader { proxy in
-                ScrollView {
-                    LazyVStack(spacing: 12) {
-                        if messageService.isLoading && messageService.directMessages.isEmpty {
-                            ProgressView()
-                                .padding()
-                        } else if messageService.directMessages.isEmpty {
-                            VStack(spacing: 8) {
-                                Image(systemName: "message.fill")
-                                    .font(.system(size: 40))
-                                    .foregroundColor(.secondary)
-                                Text("No messages yet")
-                                    .font(.subheadline)
-                                    .foregroundColor(.secondary)
+                GeometryReader { geometry in
+                    ZStack(alignment: .topLeading) {
+                        ScrollView {
+                            LazyVStack(spacing: 12) {
+                                if messageService.isLoading && messageService.directMessages.isEmpty {
+                                    ProgressView()
+                                        .padding()
+                                } else if messageService.directMessages.isEmpty {
+                                    VStack(spacing: 8) {
+                                        Image(systemName: "message.fill")
+                                            .font(.system(size: 40))
+                                            .foregroundColor(.secondary)
+                                        Text("No messages yet")
+                                            .font(.subheadline)
+                                            .foregroundColor(.secondary)
 
-                                if !hasResponse {
-                                    Text("You can send up to \(maxMessagesBeforeResponse) messages before \(pilotProfile.callSign ?? "the pilot") responds.")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                        .multilineTextAlignment(.center)
-                                        .padding(.horizontal)
-                                        .padding(.top, 4)
+                                        if !hasResponse {
+                                            Text("You can send up to \(maxMessagesBeforeResponse) messages before \(pilotProfile.callSign ?? "the pilot") responds.")
+                                                .font(.caption)
+                                                .foregroundColor(.secondary)
+                                                .multilineTextAlignment(.center)
+                                                .padding(.horizontal)
+                                                .padding(.top, 4)
+                                        }
+                                    }
+                                    .padding(.top, 40)
+                                } else {
+                                    ForEach(messageService.directMessages) { message in
+                                        DirectMessageBubble(
+                                            message: message,
+                                            isFromCurrentUser: message.fromUserId == currentUserId,
+                                            currentUserId: currentUserId,
+                                            onLongPress: presentReactionPicker(for:)
+                                        )
+                                    }
                                 }
                             }
-                            .padding(.top, 40)
-                        } else {
-                            ForEach(messageService.directMessages) { message in
-                                DirectMessageBubble(
-                                    message: message,
-                                    isFromCurrentUser: message.fromUserId == currentUserId
-                                )
-                            }
+                            .padding()
+                        }
+                        .coordinateSpace(name: MessageReactionOverlayLayout.coordinateSpaceName)
+                        .disabled(selectedReactionMessageId != nil)
+
+                        if let selectedReactionMessage,
+                           let frame = messageBubbleFrames[selectedReactionMessage.id] {
+                            MessageReactionPickerOverlay(
+                                currentReaction: selectedReactionMessage.reactions.currentReaction(for: currentUserId),
+                                targetFrame: frame,
+                                containerSize: geometry.size,
+                                onSelect: { reaction in
+                                    handleDirectReactionSelection(reaction, for: selectedReactionMessage.id)
+                                },
+                                onClear: selectedReactionMessage.reactions.currentReaction(for: currentUserId) == nil ? nil : {
+                                    handleDirectReactionClear(for: selectedReactionMessage.id)
+                                },
+                                onDismiss: dismissReactionPicker
+                            )
                         }
                     }
-                    .padding()
+                    .onPreferenceChange(MessageBubbleFramePreferenceKey.self) { messageBubbleFrames = $0 }
                 }
                 .onChange(of: messageService.directMessages.count) { _, _ in
                     if let lastMessage = messageService.directMessages.last {
@@ -169,7 +198,6 @@ struct DirectMessageView: View {
                 }
             }
 
-            // Message Input Bar
             VStack(spacing: 0) {
                 Divider()
 
@@ -236,6 +264,18 @@ struct DirectMessageView: View {
         }
     }
 
+    private func presentReactionPicker(for messageId: UUID) {
+        withAnimation(.spring(response: 0.24, dampingFraction: 0.86)) {
+            selectedReactionMessageId = messageId
+        }
+    }
+
+    private func dismissReactionPicker() {
+        withAnimation(.spring(response: 0.24, dampingFraction: 0.9)) {
+            selectedReactionMessageId = nil
+        }
+    }
+
     private func loadMessages() async {
         guard let currentUserId = currentUserId else {
             return
@@ -243,10 +283,8 @@ struct DirectMessageView: View {
 
         do {
             try await messageService.fetchDirectMessages(fromUserId: currentUserId, toUserId: pilotId)
-            // Mark messages from partner as read
             try await messageService.markDirectMessagesAsRead(fromUserId: pilotId, toUserId: currentUserId)
 
-            // Auto-send listing card if opening from a marketplace listing
             if let listing = initialListing, !hasSentListingCard {
                 hasSentListingCard = true
                 let alreadyHasCard = messageService.directMessages.contains { msg in
@@ -300,13 +338,54 @@ struct DirectMessageView: View {
             }
         }
     }
-}
 
-// MARK: - Direct Message Bubble
+    private func handleDirectReactionSelection(_ reaction: MessageReactionType, for messageId: UUID) {
+        guard let currentUserId else { return }
+        dismissReactionPicker()
+
+        Task {
+            do {
+                try await messageService.setReaction(
+                    forDirectMessageId: messageId,
+                    by: currentUserId,
+                    reaction: reaction
+                )
+            } catch {
+                print("Error setting direct reaction: \(error)")
+                await MainActor.run {
+                    errorMessage = error.localizedDescription
+                    showErrorAlert = true
+                }
+            }
+        }
+    }
+
+    private func handleDirectReactionClear(for messageId: UUID) {
+        guard let currentUserId else { return }
+        dismissReactionPicker()
+
+        Task {
+            do {
+                try await messageService.clearReaction(
+                    forDirectMessageId: messageId,
+                    by: currentUserId
+                )
+            } catch {
+                print("Error clearing direct reaction: \(error)")
+                await MainActor.run {
+                    errorMessage = error.localizedDescription
+                    showErrorAlert = true
+                }
+            }
+        }
+    }
+}
 
 struct DirectMessageBubble: View {
     let message: DirectMessage
     let isFromCurrentUser: Bool
+    let currentUserId: UUID?
+    let onLongPress: (UUID) -> Void
 
     var body: some View {
         VStack(alignment: isFromCurrentUser ? .trailing : .leading, spacing: 4) {
@@ -314,7 +393,9 @@ struct DirectMessageBubble: View {
                message.metadata?.type == "listing_card" {
                 ListingCardBubble(
                     listingCard: listingCard,
-                    isFromCurrentUser: isFromCurrentUser
+                    isFromCurrentUser: isFromCurrentUser,
+                    messageId: message.id,
+                    onLongPress: onLongPress
                 )
             } else {
                 HStack {
@@ -329,12 +410,22 @@ struct DirectMessageBubble: View {
                         .padding(.vertical, 10)
                         .background(isFromCurrentUser ? Color.blue : Color(.systemGray5))
                         .cornerRadius(18)
+                        .contentShape(RoundedRectangle(cornerRadius: 18))
+                        .captureMessageBubbleFrame(messageId: message.id)
+                        .onLongPressGesture {
+                            onLongPress(message.id)
+                        }
 
                     if !isFromCurrentUser {
                         Spacer(minLength: 60)
                     }
                 }
             }
+
+            MessageReactionBadges(
+                reactions: message.reactions,
+                currentUserId: currentUserId
+            )
 
             Text(message.createdAt.formatted(date: .omitted, time: .shortened))
                 .font(.caption2)
@@ -344,18 +435,17 @@ struct DirectMessageBubble: View {
     }
 }
 
-// MARK: - Listing Card Bubble
-
 struct ListingCardBubble: View {
     let listingCard: DirectMessageListingCard
     let isFromCurrentUser: Bool
+    let messageId: UUID
+    let onLongPress: (UUID) -> Void
 
     var body: some View {
         HStack {
             if isFromCurrentUser { Spacer(minLength: 60) }
 
             VStack(alignment: .leading, spacing: 0) {
-                // Thumbnail image
                 if let imageUrl = listingCard.imageUrl,
                    let url = URL(string: imageUrl) {
                     AsyncImage(url: url) { phase in
@@ -379,7 +469,6 @@ struct ListingCardBubble: View {
                     imagePlaceholder
                 }
 
-                // Title + Price
                 VStack(alignment: .leading, spacing: 4) {
                     Text(listingCard.title)
                         .font(.subheadline)
@@ -414,6 +503,11 @@ struct ListingCardBubble: View {
                 RoundedRectangle(cornerRadius: 12)
                     .stroke(Color(.systemGray4), lineWidth: 0.5)
             )
+            .contentShape(RoundedRectangle(cornerRadius: 12))
+            .captureMessageBubbleFrame(messageId: messageId)
+            .onLongPressGesture {
+                onLongPress(messageId)
+            }
 
             if !isFromCurrentUser { Spacer(minLength: 60) }
         }

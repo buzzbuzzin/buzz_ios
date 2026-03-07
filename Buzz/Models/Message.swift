@@ -15,6 +15,7 @@ struct Message: Codable, Identifiable {
     let text: String
     let createdAt: Date
     var isRead: Bool
+    var reactions: [MessageReactionRecord] = []
     
     enum CodingKeys: String, CodingKey {
         case id
@@ -26,4 +27,3 @@ struct Message: Codable, Identifiable {
         case isRead = "is_read"
     }
 }
-

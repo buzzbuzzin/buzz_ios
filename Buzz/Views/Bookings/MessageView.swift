@@ -16,7 +16,20 @@ struct MessageView: View {
     var showsDismissButton = false
     @StateObject private var messageService = MessageService()
     @State private var messageText = ""
+    @State private var messageBubbleFrames: [UUID: CGRect] = [:]
+    @State private var selectedReactionMessageId: UUID?
+    @State private var showErrorAlert = false
+    @State private var errorMessage = ""
     @FocusState private var isTextFieldFocused: Bool
+
+    private var currentUserId: UUID? {
+        authService.currentUser?.id
+    }
+
+    private var selectedReactionMessage: Message? {
+        guard let selectedReactionMessageId else { return nil }
+        return messageService.messages.first(where: { $0.id == selectedReactionMessageId })
+    }
     
     // Computed property to determine display name based on user type
     private var displayName: String {
@@ -106,31 +119,56 @@ struct MessageView: View {
                 
                 // Messages List
                 ScrollViewReader { proxy in
-                    ScrollView {
-                        LazyVStack(spacing: 12) {
-                            if messageService.isLoading && messageService.messages.isEmpty {
-                                ProgressView()
-                                    .padding()
-                            } else if messageService.messages.isEmpty {
-                                VStack(spacing: 8) {
-                                    Image(systemName: "message.fill")
-                                        .font(.system(size: 40))
-                                        .foregroundColor(.secondary)
-                                    Text("No messages yet")
-                                        .font(.subheadline)
-                                        .foregroundColor(.secondary)
+                    GeometryReader { geometry in
+                        ZStack(alignment: .topLeading) {
+                            ScrollView {
+                                LazyVStack(spacing: 12) {
+                                    if messageService.isLoading && messageService.messages.isEmpty {
+                                        ProgressView()
+                                            .padding()
+                                    } else if messageService.messages.isEmpty {
+                                        VStack(spacing: 8) {
+                                            Image(systemName: "message.fill")
+                                                .font(.system(size: 40))
+                                                .foregroundColor(.secondary)
+                                            Text("No messages yet")
+                                                .font(.subheadline)
+                                                .foregroundColor(.secondary)
+                                        }
+                                        .padding(.top, 40)
+                                    } else {
+                                        ForEach(messageService.messages) { message in
+                                            MessageBubble(
+                                                message: message,
+                                                isFromCurrentUser: message.fromUserId == currentUserId,
+                                                currentUserId: currentUserId,
+                                                onLongPress: presentReactionPicker(for:)
+                                            )
+                                        }
+                                    }
                                 }
-                                .padding(.top, 40)
-                            } else {
-                                ForEach(messageService.messages) { message in
-                                    MessageBubble(
-                                        message: message,
-                                        isFromCurrentUser: message.fromUserId == authService.currentUser?.id
-                                    )
-                                }
+                                .padding()
+                            }
+                            .coordinateSpace(name: MessageReactionOverlayLayout.coordinateSpaceName)
+                            .disabled(selectedReactionMessageId != nil)
+
+                            if let selectedReactionMessage,
+                               let frame = messageBubbleFrames[selectedReactionMessage.id] {
+                                MessageReactionPickerOverlay(
+                                    currentReaction: selectedReactionMessage.reactions.currentReaction(for: currentUserId),
+                                    targetFrame: frame,
+                                    containerSize: geometry.size,
+                                    onSelect: { reaction in
+                                        handleBookingReactionSelection(reaction, for: selectedReactionMessage.id)
+                                    },
+                                    onClear: selectedReactionMessage.reactions.currentReaction(for: currentUserId) == nil ? nil : {
+                                        handleBookingReactionClear(for: selectedReactionMessage.id)
+                                    },
+                                    onDismiss: dismissReactionPicker
+                                )
                             }
                         }
-                        .padding()
+                        .onPreferenceChange(MessageBubbleFramePreferenceKey.self) { messageBubbleFrames = $0 }
                     }
                     .onChange(of: messageService.messages.count) { _, _ in
                         if let lastMessage = messageService.messages.last {
@@ -188,10 +226,27 @@ struct MessageView: View {
                 }
             }
         }
+        .alert("Error", isPresented: $showErrorAlert) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(errorMessage.isEmpty ? "Something went wrong. Please try again." : errorMessage)
+        }
         .task {
             if booking.status == .accepted || booking.status == .completed {
                 await loadMessages()
             }
+        }
+    }
+
+    private func presentReactionPicker(for messageId: UUID) {
+        withAnimation(.spring(response: 0.24, dampingFraction: 0.86)) {
+            selectedReactionMessageId = messageId
+        }
+    }
+
+    private func dismissReactionPicker() {
+        withAnimation(.spring(response: 0.24, dampingFraction: 0.9)) {
+            selectedReactionMessageId = nil
         }
     }
     
@@ -253,6 +308,47 @@ struct MessageView: View {
             }
         }
     }
+
+    private func handleBookingReactionSelection(_ reaction: MessageReactionType, for messageId: UUID) {
+        guard let currentUserId else { return }
+        dismissReactionPicker()
+
+        Task {
+            do {
+                try await messageService.setReaction(
+                    forBookingMessageId: messageId,
+                    by: currentUserId,
+                    reaction: reaction
+                )
+            } catch {
+                print("Error setting booking reaction: \(error)")
+                await MainActor.run {
+                    errorMessage = error.localizedDescription
+                    showErrorAlert = true
+                }
+            }
+        }
+    }
+
+    private func handleBookingReactionClear(for messageId: UUID) {
+        guard let currentUserId else { return }
+        dismissReactionPicker()
+
+        Task {
+            do {
+                try await messageService.clearReaction(
+                    forBookingMessageId: messageId,
+                    by: currentUserId
+                )
+            } catch {
+                print("Error clearing booking reaction: \(error)")
+                await MainActor.run {
+                    errorMessage = error.localizedDescription
+                    showErrorAlert = true
+                }
+            }
+        }
+    }
 }
 
 // MARK: - Message Bubble
@@ -260,6 +356,8 @@ struct MessageView: View {
 struct MessageBubble: View {
     let message: Message
     let isFromCurrentUser: Bool
+    let currentUserId: UUID?
+    let onLongPress: (UUID) -> Void
     
     var body: some View {
         HStack {
@@ -275,6 +373,16 @@ struct MessageBubble: View {
                     .padding(.vertical, 10)
                     .background(isFromCurrentUser ? Color.blue : Color(.systemGray5))
                     .cornerRadius(18)
+                    .contentShape(RoundedRectangle(cornerRadius: 18))
+                    .captureMessageBubbleFrame(messageId: message.id)
+                    .onLongPressGesture {
+                        onLongPress(message.id)
+                    }
+
+                MessageReactionBadges(
+                    reactions: message.reactions,
+                    currentUserId: currentUserId
+                )
                 
                 Text(message.createdAt.formatted(date: .omitted, time: .shortened))
                     .font(.caption2)
