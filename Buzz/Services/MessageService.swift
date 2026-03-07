@@ -19,7 +19,6 @@ class MessageService: ObservableObject {
     
     private let supabase = SupabaseClient.shared.client
     private let notificationManager = NotificationManager.shared
-    private let notificationPreferencesService = NotificationPreferencesService()
     
     // MARK: - Fetch Messages for Booking
     
@@ -48,6 +47,7 @@ class MessageService: ObservableObject {
                 .from("messages")
                 .select()
                 .eq("booking_id", value: bookingId.uuidString)
+                .is("deleted_at", value: nil)
                 .order("created_at", ascending: true)
                 .execute()
                 .value
@@ -90,9 +90,23 @@ class MessageService: ObservableObject {
             }
             return
         }
+
+        let optimisticMessage = Message(
+            id: UUID(),
+            bookingId: bookingId,
+            fromUserId: fromUserId,
+            toUserId: toUserId,
+            text: text,
+            createdAt: Date(),
+            isRead: false
+        )
         
         // Real backend call
         do {
+            await MainActor.run {
+                self.messages.append(optimisticMessage)
+            }
+
             let messageData: [String: AnyJSON] = [
                 "booking_id": .string(bookingId.uuidString),
                 "from_user_id": .string(fromUserId.uuidString),
@@ -102,10 +116,13 @@ class MessageService: ObservableObject {
                 "is_read": .bool(false)
             ]
             
-            try await supabase
+            let insertedMessage: Message = try await supabase
                 .from("messages")
                 .insert(messageData)
+                .select()
+                .single()
                 .execute()
+                .value
             
             // Send notification to recipient
             Task {
@@ -118,10 +135,16 @@ class MessageService: ObservableObject {
             }
             
             await MainActor.run {
+                if let index = self.messages.firstIndex(where: { $0.id == optimisticMessage.id }) {
+                    self.messages[index] = insertedMessage
+                } else {
+                    self.messages.append(insertedMessage)
+                }
                 self.isLoading = false
             }
         } catch {
             await MainActor.run {
+                self.messages.removeAll { $0.id == optimisticMessage.id }
                 self.isLoading = false
                 self.errorMessage = error.localizedDescription
             }
@@ -154,6 +177,13 @@ class MessageService: ObservableObject {
         )
         return UUID(uuid: uuid)
     }
+
+    static func directConversationFilter(userAId: UUID, userBId: UUID) -> String {
+        let sortedIds = [userAId.uuidString, userBId.uuidString].sorted()
+        let firstId = sortedIds[0]
+        let secondId = sortedIds[1]
+        return "and(from_user_id.eq.\(firstId),to_user_id.eq.\(secondId)),and(from_user_id.eq.\(secondId),to_user_id.eq.\(firstId))"
+    }
     
     /// Fetch direct messages between two users (not tied to a booking)
     func fetchDirectMessages(fromUserId: UUID, toUserId: UUID) async throws {
@@ -174,27 +204,14 @@ class MessageService: ObservableObject {
         
         // Real backend call - fetch messages between these two users
         do {
-            // Fetch messages where from_user_id is one user and to_user_id is the other, or vice versa
-            let messages1: [DirectMessage] = try await supabase
+            let allMessages: [DirectMessage] = try await supabase
                 .from("direct_messages")
                 .select()
-                .eq("from_user_id", value: fromUserId.uuidString)
-                .eq("to_user_id", value: toUserId.uuidString)
+                .or(Self.directConversationFilter(userAId: fromUserId, userBId: toUserId))
+                .is("deleted_at", value: nil)
                 .order("created_at", ascending: true)
                 .execute()
                 .value
-            
-            let messages2: [DirectMessage] = try await supabase
-                .from("direct_messages")
-                .select()
-                .eq("from_user_id", value: toUserId.uuidString)
-                .eq("to_user_id", value: fromUserId.uuidString)
-                .order("created_at", ascending: true)
-                .execute()
-                .value
-            
-            // Combine and sort by creation date
-            let allMessages = (messages1 + messages2).sorted(by: { $0.createdAt < $1.createdAt })
             
             await MainActor.run {
                 self.directMessages = allMessages
@@ -413,6 +430,7 @@ class MessageService: ObservableObject {
                 .from("messages")
                 .select()
                 .eq("booking_id", value: bookingId.uuidString)
+                .is("deleted_at", value: nil)
                 .order("created_at", ascending: false)
                 .limit(1)
                 .execute()
@@ -438,6 +456,7 @@ class MessageService: ObservableObject {
                 .eq("booking_id", value: bookingId.uuidString)
                 .eq("to_user_id", value: userId.uuidString)
                 .eq("is_read", value: false)
+                .is("deleted_at", value: nil)
                 .execute()
                 .count ?? 0
             
@@ -459,6 +478,7 @@ class MessageService: ObservableObject {
             .from("direct_messages")
             .select()
             .or("from_user_id.eq.\(userId.uuidString),to_user_id.eq.\(userId.uuidString)")
+            .is("deleted_at", value: nil)
             .order("created_at", ascending: false)
             .execute()
             .value
@@ -549,8 +569,8 @@ class MessageService: ObservableObject {
         try await supabase
             .from("direct_messages")
             .update(updates)
-            .or("from_user_id.eq.\(fromUserId.uuidString),to_user_id.eq.\(fromUserId.uuidString)")
-            .or("from_user_id.eq.\(toUserId.uuidString),to_user_id.eq.\(toUserId.uuidString)")
+            .or(Self.directConversationFilter(userAId: fromUserId, userBId: toUserId))
+            .is("deleted_at", value: nil)
             .execute()
     }
     
@@ -572,6 +592,7 @@ class MessageService: ObservableObject {
             .from("messages")
             .update(updates)
             .eq("booking_id", value: bookingId.uuidString)
+            .is("deleted_at", value: nil)
             .execute()
     }
     
@@ -597,6 +618,7 @@ class MessageService: ObservableObject {
             .eq("from_user_id", value: fromUserId.uuidString)
             .eq("to_user_id", value: toUserId.uuidString)
             .eq("is_read", value: false)
+            .is("deleted_at", value: nil)
             .execute()
     }
 
@@ -620,6 +642,32 @@ class MessageService: ObservableObject {
             .update(updates)
             .eq("from_user_id", value: fromUserId.uuidString)
             .eq("to_user_id", value: toUserId.uuidString)
+            .is("deleted_at", value: nil)
+            .execute()
+    }
+
+    func markBookingMessagesAsRead(fromUserId: UUID, toUserId: UUID, bookingId: UUID) async throws {
+        if DemoModeManager.shared.isDemoModeEnabled {
+            for i in messages.indices {
+                if messages[i].bookingId == bookingId &&
+                    messages[i].fromUserId == fromUserId &&
+                    messages[i].toUserId == toUserId {
+                    messages[i].isRead = true
+                }
+            }
+            return
+        }
+
+        let updates: [String: AnyJSON] = ["is_read": .bool(true)]
+
+        try await supabase
+            .from("messages")
+            .update(updates)
+            .eq("booking_id", value: bookingId.uuidString)
+            .eq("from_user_id", value: fromUserId.uuidString)
+            .eq("to_user_id", value: toUserId.uuidString)
+            .eq("is_read", value: false)
+            .is("deleted_at", value: nil)
             .execute()
     }
     
@@ -643,6 +691,7 @@ class MessageService: ObservableObject {
             .update(updates)
             .eq("booking_id", value: bookingId.uuidString)
             .eq("to_user_id", value: userId.uuidString)
+            .is("deleted_at", value: nil)
             .execute()
     }
     
@@ -651,11 +700,7 @@ class MessageService: ObservableObject {
     /// Send notification to message recipient
     private func sendMessageNotification(toUserId: UUID, fromUserId: UUID, messageText: String, bookingId: UUID?) async {
         do {
-            // Load recipient's notification preferences
-            try await notificationPreferencesService.loadPreferences(userId: toUserId)
-            
-            // Check if recipient has message notifications enabled
-            guard notificationPreferencesService.preferences.messages.system else {
+            guard toUserId != fromUserId else {
                 return
             }
             
@@ -675,6 +720,7 @@ class MessageService: ObservableObject {
             let conversationId = bookingId ?? Self.conversationId(fromUserId: fromUserId, toUserId: toUserId)
             
             await notificationManager.notifyNewMessage(
+                recipientUserId: toUserId,
                 senderName: senderProfile.visibleDisplayName(to: toUserId),
                 messagePreview: preview,
                 conversationId: conversationId

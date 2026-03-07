@@ -216,6 +216,11 @@ struct MessageView: View {
                 pilotId: pilotId,
                 customerId: customerId
             )
+            try await messageService.markBookingMessagesAsRead(
+                fromUserId: otherUserId,
+                toUserId: currentUser.id,
+                bookingId: booking.id
+            )
         } catch {
             print("Error loading messages: \(error)")
         }

@@ -541,6 +541,24 @@ class NotificationManager: NSObject, ObservableObject {
         
         try? await notificationCenter.add(request)
     }
+
+    /// Send a remote push notification for a new message to the message recipient.
+    func notifyNewMessage(
+        recipientUserId: UUID,
+        senderName: String,
+        messagePreview: String,
+        conversationId: UUID
+    ) async {
+        await sendRemotePushNotification(
+            recipientUserId: recipientUserId,
+            title: "New Message from \(senderName)",
+            body: messagePreview,
+            data: [
+                "conversationId": conversationId.uuidString,
+                "type": "new_message"
+            ]
+        )
+    }
     
     // MARK: - Remote Push Notification Helper
 
@@ -995,4 +1013,3 @@ extension NotificationManager: UNUserNotificationCenterDelegate {
         DeepLinkManager.shared.handleNotificationTap(userInfo: resolvedInfo)
     }
 }
-

@@ -24,6 +24,7 @@ struct BuzzTests {
     @Test func hangerAuthorProfileFullNameWithBothNames() async throws {
         let profile = HangerAuthorProfile(
             id: UUID(),
+            userType: .pilot,
             callSign: "MAVERICK",
             profilePictureUrl: nil,
             firstName: "John",
@@ -35,6 +36,7 @@ struct BuzzTests {
     @Test func hangerAuthorProfileFullNameWithNoNames() async throws {
         let profile = HangerAuthorProfile(
             id: UUID(),
+            userType: .pilot,
             callSign: nil,
             profilePictureUrl: nil,
             firstName: nil,
@@ -46,6 +48,7 @@ struct BuzzTests {
     @Test func hangerAuthorProfileFullNameWithOnlyFirstName() async throws {
         let profile = HangerAuthorProfile(
             id: UUID(),
+            userType: .customer,
             callSign: nil,
             profilePictureUrl: nil,
             firstName: "John",

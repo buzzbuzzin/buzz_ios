@@ -151,7 +151,10 @@ struct ConversationsListView: View {
                     
                     if isPilot {
                         // For pilots: show customer profiles
-                        if let customerProfile = profileService.getSampleCustomerProfile(customerId: booking.customerId) {
+                        if let customerProfile = try await bookingConversationProfile(
+                            otherUserId: booking.customerId,
+                            isPilot: true
+                        ) {
                             items.append(ConversationItem(
                                 id: booking.id,
                                 booking: booking,
@@ -163,7 +166,10 @@ struct ConversationsListView: View {
                     } else {
                         // For customers: show pilot profiles
                         if let pilotId = booking.pilotId,
-                           let pilotProfile = profileService.getSamplePilotProfile(pilotId: pilotId) {
+                           let pilotProfile = try await bookingConversationProfile(
+                                otherUserId: pilotId,
+                                isPilot: false
+                           ) {
                             items.append(ConversationItem(
                                 id: booking.id,
                                 booking: booking,
@@ -269,6 +275,16 @@ struct ConversationsListView: View {
         } catch {
             print("Error marking booking messages as unread: \(error)")
         }
+    }
+
+    private func bookingConversationProfile(otherUserId: UUID, isPilot: Bool) async throws -> UserProfile? {
+        if DemoModeManager.shared.isDemoModeEnabled {
+            return isPilot
+                ? profileService.getSampleCustomerProfile(customerId: otherUserId)
+                : profileService.getSamplePilotProfile(pilotId: otherUserId)
+        }
+
+        return try await profileService.getProfile(userId: otherUserId)
     }
 }
 
