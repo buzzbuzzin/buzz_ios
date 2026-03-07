@@ -47,6 +47,15 @@ struct HelpView: View {
                     description: "Share your thoughts and suggestions with us"
                 )
             }
+
+            // Report a bug
+            NavigationLink(destination: BugReportListView()) {
+                HelpCard(
+                    icon: "ladybug.fill",
+                    title: "Report a bug",
+                    description: "Submit and track bug reports for issues you encounter"
+                )
+            }
         }
         .navigationTitle("Get Help")
         .navigationBarTitleDisplayMode(.inline)
