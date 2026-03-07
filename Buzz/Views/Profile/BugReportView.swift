@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import PhotosUI
 
 // MARK: - Bug Report List View
 
@@ -74,10 +75,22 @@ struct BugReportRowView: View {
                 BugReportStatusBadge(status: report.status)
             }
 
-            Text(report.description)
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-                .lineLimit(2)
+            HStack {
+                Text(report.description)
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .lineLimit(2)
+
+                if !report.imageUrls.isEmpty {
+                    Spacer()
+                    HStack(spacing: 2) {
+                        Image(systemName: "paperclip")
+                        Text("\(report.imageUrls.count)")
+                    }
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                }
+            }
 
             Text(report.createdAt.formatted(date: .abbreviated, time: .omitted))
                 .font(.caption)
@@ -146,6 +159,19 @@ struct BugReportDetailView: View {
                         .foregroundColor(.secondary)
                 }
                 .padding(.horizontal)
+
+                // Screenshots
+                if !report.imageUrls.isEmpty {
+                    Divider()
+                        .padding(.horizontal)
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Label("Screenshots", systemImage: "photo.on.rectangle")
+                            .font(.headline)
+                        HangerImageCarousel(imageUrls: report.imageUrls, height: 240)
+                    }
+                    .padding(.horizontal)
+                }
 
                 // Admin Response
                 if let adminResponse = report.adminResponse, !adminResponse.isEmpty {
@@ -224,6 +250,8 @@ struct CreateBugReportView: View {
     @State private var showSuccessAlert = false
     @State private var showErrorAlert = false
     @State private var errorMessage = ""
+    @State private var selectedPhotos: [PhotosPickerItem] = []
+    @State private var selectedImages: [UIImage] = []
 
     var body: some View {
         NavigationStack {
@@ -259,8 +287,52 @@ struct CreateBugReportView: View {
                         TextEditor(text: $description)
                             .frame(minHeight: 150)
                             .padding(8)
-                            .background(Color(.systemGray6))
-                            .cornerRadius(10)
+                            .scrollContentBackground(.hidden)
+                    }
+                    .background(Color(.systemGray6))
+                    .cornerRadius(10)
+                }
+
+                // Photos
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Screenshots")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+
+                    if !selectedImages.isEmpty {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 10) {
+                                ForEach(Array(selectedImages.enumerated()), id: \.offset) { index, image in
+                                    ZStack(alignment: .topTrailing) {
+                                        Image(uiImage: image)
+                                            .resizable()
+                                            .aspectRatio(contentMode: .fill)
+                                            .frame(width: 120, height: 120)
+                                            .clipShape(RoundedRectangle(cornerRadius: 12))
+
+                                        Button {
+                                            removeImage(at: index)
+                                        } label: {
+                                            Image(systemName: "xmark.circle.fill")
+                                                .font(.system(size: 22))
+                                                .foregroundColor(.white)
+                                                .shadow(radius: 2)
+                                        }
+                                        .offset(x: 6, y: -6)
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    PhotosPicker(
+                        selection: $selectedPhotos,
+                        maxSelectionCount: 4,
+                        matching: .images
+                    ) {
+                        Label("Add Screenshots (\(selectedImages.count)/4)", systemImage: "photo")
+                            .font(.subheadline)
+                            .foregroundColor(.blue)
                     }
                 }
 
@@ -294,6 +366,26 @@ struct CreateBugReportView: View {
             } message: {
                 Text(errorMessage)
             }
+            .onChange(of: selectedPhotos) { newItems in
+                Task {
+                    var images: [UIImage] = []
+                    for item in newItems.prefix(4) {
+                        if let data = try? await item.loadTransferable(type: Data.self),
+                           let image = UIImage(data: data) {
+                            images.append(image)
+                        }
+                    }
+                    selectedImages = images
+                }
+            }
+        }
+    }
+
+    private func removeImage(at index: Int) {
+        guard index < selectedImages.count else { return }
+        selectedImages.remove(at: index)
+        if index < selectedPhotos.count {
+            selectedPhotos.remove(at: index)
         }
     }
 
@@ -309,7 +401,8 @@ struct CreateBugReportView: View {
             do {
                 _ = try await bugReportService.submitReport(
                     title: title.trimmingCharacters(in: .whitespacesAndNewlines),
-                    description: description.trimmingCharacters(in: .whitespacesAndNewlines)
+                    description: description.trimmingCharacters(in: .whitespacesAndNewlines),
+                    images: selectedImages
                 )
                 isSubmitting = false
                 showSuccessAlert = true
