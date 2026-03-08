@@ -11,20 +11,20 @@ import Combine
 import UIKit
 
 @MainActor
-class BugReportService: ObservableObject {
-    @Published var bugReports: [BugReport] = []
+class TicketReportService: ObservableObject {
+    @Published var reports: [TicketReport] = []
     @Published var isLoading = false
     @Published var errorMessage: String?
 
     private let supabase = SupabaseClient.shared.client
 
-    func fetchMyReports() async {
+    func fetchMyReports(type: TicketReportType = .bug) async {
         isLoading = true
         errorMessage = nil
 
         if DemoModeManager.shared.isDemoModeEnabled {
             try? await Task.sleep(nanoseconds: 500_000_000)
-            bugReports = []
+            reports = []
             isLoading = false
             return
         }
@@ -36,15 +36,16 @@ class BugReportService: ObservableObject {
                 return
             }
 
-            let fetched: [BugReport] = try await supabase
+            let fetched: [TicketReport] = try await supabase
                 .from("ticket_reports")
                 .select()
                 .eq("user_id", value: userId.uuidString)
+                .eq("type", value: type.rawValue)
                 .order("created_at", ascending: false)
                 .execute()
                 .value
 
-            bugReports = fetched
+            reports = fetched
             isLoading = false
         } catch {
             isLoading = false
@@ -52,20 +53,20 @@ class BugReportService: ObservableObject {
         }
     }
 
-    func submitReport(title: String, description: String, type: String = "bug", images: [UIImage] = []) async throws -> BugReport {
+    func submitReport(title: String, description: String, type: TicketReportType = .bug, images: [UIImage] = []) async throws -> TicketReport {
         if DemoModeManager.shared.isDemoModeEnabled {
             try? await Task.sleep(nanoseconds: 500_000_000)
-            throw NSError(domain: "BugReportService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Bug reports are not available in demo mode"])
+            throw NSError(domain: "TicketReportService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Reports are not available in demo mode"])
         }
 
         guard let userId = try? await supabase.auth.session.user.id else {
-            throw NSError(domain: "BugReportService", code: -1, userInfo: [NSLocalizedDescriptionKey: "User not authenticated"])
+            throw NSError(domain: "TicketReportService", code: -1, userInfo: [NSLocalizedDescriptionKey: "User not authenticated"])
         }
 
-        let imageUrls = try await uploadBugReportImages(userId: userId, images: images)
-        let insert = BugReportInsert(userId: userId, type: type, title: title, description: description, imageUrls: imageUrls)
+        let imageUrls = try await uploadReportImages(userId: userId, images: images)
+        let insert = TicketReportInsert(userId: userId, type: type, title: title, description: description, imageUrls: imageUrls)
 
-        let report: BugReport = try await supabase
+        let report: TicketReport = try await supabase
             .from("ticket_reports")
             .insert(insert)
             .select()
@@ -73,14 +74,16 @@ class BugReportService: ObservableObject {
             .execute()
             .value
 
-        bugReports.insert(report, at: 0)
+        reports.insert(report, at: 0)
         return report
     }
 
     // MARK: - Upload Images
 
-    func uploadBugReportImages(userId: UUID, images: [UIImage]) async throws -> [String] {
-        if DemoModeManager.shared.isDemoModeEnabled { return [] }
+    private func uploadReportImages(userId: UUID, images: [UIImage]) async throws -> [String] {
+        if DemoModeManager.shared.isDemoModeEnabled {
+            throw NSError(domain: "TicketReportService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Not available in demo mode"])
+        }
 
         var urls: [String] = []
 

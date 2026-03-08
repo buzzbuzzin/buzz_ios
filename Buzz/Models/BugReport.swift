@@ -8,7 +8,96 @@
 import Foundation
 import SwiftUI
 
-enum BugReportStatus: String, Codable {
+enum TicketReportType: String, Codable {
+    case bug
+    case safety
+
+    var listTitle: String {
+        switch self {
+        case .bug: return "Bug Reports"
+        case .safety: return "Safety Reports"
+        }
+    }
+
+    var createTitle: String {
+        switch self {
+        case .bug: return "Report a Bug"
+        case .safety: return "Report a Safety Issue"
+        }
+    }
+
+    var detailTitle: String {
+        switch self {
+        case .bug: return "Bug Report Details"
+        case .safety: return "Safety Report Details"
+        }
+    }
+
+    var submitButtonTitle: String {
+        switch self {
+        case .bug: return "Submit Bug Report"
+        case .safety: return "Submit Safety Report"
+        }
+    }
+
+    var emptyStateTitle: String {
+        switch self {
+        case .bug: return "No Bug Reports"
+        case .safety: return "No Safety Reports"
+        }
+    }
+
+    var emptyStateMessage: String {
+        switch self {
+        case .bug: return "You haven't submitted any bug reports yet"
+        case .safety: return "You haven't submitted any safety reports yet"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .bug: return "ladybug.fill"
+        case .safety: return "shield.fill"
+        }
+    }
+
+    var titlePlaceholder: String {
+        switch self {
+        case .bug: return "Brief description of the bug"
+        case .safety: return "Brief description of the safety issue"
+        }
+    }
+
+    var descriptionPlaceholder: String {
+        switch self {
+        case .bug: return "Please describe the bug in detail, including steps to reproduce..."
+        case .safety: return "Please provide as much detail as possible about the safety issue..."
+        }
+    }
+
+    var successAlertTitle: String {
+        switch self {
+        case .bug: return "Bug Report Submitted"
+        case .safety: return "Safety Report Submitted"
+        }
+    }
+
+    var successAlertMessage: String {
+        switch self {
+        case .bug: return "Thank you for your report. We'll look into it and get back to you."
+        case .safety: return "Thank you for reporting this safety issue. We take safety very seriously and will respond promptly."
+        }
+    }
+
+    var loadingMessage: String {
+        switch self {
+        case .bug: return "Loading bug reports..."
+        case .safety: return "Loading safety reports..."
+        }
+    }
+}
+
+enum TicketReportStatus: String, Codable {
     case open
     case inProgress = "in_progress"
     case resolved
@@ -42,13 +131,13 @@ enum BugReportStatus: String, Codable {
     }
 }
 
-struct BugReport: Codable, Identifiable {
+struct TicketReport: Codable, Identifiable {
     let id: UUID
     let userId: UUID
-    let type: String
+    let type: TicketReportType
     let title: String
     let description: String
-    var status: BugReportStatus
+    var status: TicketReportStatus
     var adminResponse: String?
     let imageUrls: [String]
     let createdAt: Date
@@ -71,17 +160,17 @@ struct BugReport: Codable, Identifiable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(UUID.self, forKey: .id)
         userId = try container.decode(UUID.self, forKey: .userId)
-        type = try container.decode(String.self, forKey: .type)
+        type = try container.decode(TicketReportType.self, forKey: .type)
         title = try container.decode(String.self, forKey: .title)
         description = try container.decode(String.self, forKey: .description)
-        status = try container.decode(BugReportStatus.self, forKey: .status)
+        status = try container.decode(TicketReportStatus.self, forKey: .status)
         adminResponse = try container.decodeIfPresent(String.self, forKey: .adminResponse)
         imageUrls = try container.decodeIfPresent([String].self, forKey: .imageUrls) ?? []
         createdAt = try container.decode(Date.self, forKey: .createdAt)
         updatedAt = try container.decode(Date.self, forKey: .updatedAt)
     }
 
-    init(id: UUID, userId: UUID, type: String, title: String, description: String, status: BugReportStatus, adminResponse: String? = nil, imageUrls: [String] = [], createdAt: Date, updatedAt: Date) {
+    init(id: UUID, userId: UUID, type: TicketReportType, title: String, description: String, status: TicketReportStatus, adminResponse: String? = nil, imageUrls: [String] = [], createdAt: Date, updatedAt: Date) {
         self.id = id
         self.userId = userId
         self.type = type
@@ -95,9 +184,9 @@ struct BugReport: Codable, Identifiable {
     }
 }
 
-struct BugReportInsert: Codable {
+struct TicketReportInsert: Codable {
     let userId: UUID
-    let type: String
+    let type: TicketReportType
     let title: String
     let description: String
     let imageUrls: [String]

@@ -8,31 +8,32 @@
 import SwiftUI
 import PhotosUI
 
-// MARK: - Bug Report List View
+// MARK: - Ticket Report List View
 
-struct BugReportListView: View {
-    @StateObject private var bugReportService = BugReportService()
+struct TicketReportListView: View {
+    var reportType: TicketReportType = .bug
+    @StateObject private var reportService = TicketReportService()
     @State private var showCreateSheet = false
 
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
             Group {
-                if bugReportService.isLoading {
-                    LoadingView(message: "Loading bug reports...")
-                } else if bugReportService.bugReports.isEmpty {
+                if reportService.isLoading {
+                    LoadingView(message: reportType.loadingMessage)
+                } else if reportService.reports.isEmpty {
                     EmptyStateView(
-                        icon: "ladybug.fill",
-                        title: "No Bug Reports",
-                        message: "You haven't submitted any bug reports yet"
+                        icon: reportType.icon,
+                        title: reportType.emptyStateTitle,
+                        message: reportType.emptyStateMessage
                     )
                 } else {
-                    List(bugReportService.bugReports) { report in
-                        NavigationLink(destination: BugReportDetailView(report: report)) {
-                            BugReportRowView(report: report)
+                    List(reportService.reports) { report in
+                        NavigationLink(destination: TicketReportDetailView(report: report, reportType: reportType)) {
+                            TicketReportRowView(report: report)
                         }
                     }
                     .refreshable {
-                        await bugReportService.fetchMyReports()
+                        await reportService.fetchMyReports(type: reportType)
                     }
                 }
             }
@@ -50,21 +51,21 @@ struct BugReportListView: View {
             }
             .padding(20)
         }
-        .navigationTitle("Bug Reports")
+        .navigationTitle(reportType.listTitle)
         .navigationBarTitleDisplayMode(.inline)
         .task {
-            await bugReportService.fetchMyReports()
+            await reportService.fetchMyReports(type: reportType)
         }
         .sheet(isPresented: $showCreateSheet) {
-            CreateBugReportView(bugReportService: bugReportService)
+            CreateTicketReportView(reportService: reportService, reportType: reportType)
         }
     }
 }
 
-// MARK: - Bug Report Row View
+// MARK: - Ticket Report Row View
 
-struct BugReportRowView: View {
-    let report: BugReport
+struct TicketReportRowView: View {
+    let report: TicketReport
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -72,7 +73,7 @@ struct BugReportRowView: View {
                 Text(report.title)
                     .font(.headline)
                 Spacer()
-                BugReportStatusBadge(status: report.status)
+                TicketReportStatusBadge(status: report.status)
             }
 
             HStack {
@@ -100,10 +101,10 @@ struct BugReportRowView: View {
     }
 }
 
-// MARK: - Bug Report Status Badge
+// MARK: - Ticket Report Status Badge
 
-struct BugReportStatusBadge: View {
-    let status: BugReportStatus
+struct TicketReportStatusBadge: View {
+    let status: TicketReportStatus
 
     var body: some View {
         Text(status.displayName)
@@ -117,10 +118,11 @@ struct BugReportStatusBadge: View {
     }
 }
 
-// MARK: - Bug Report Detail View
+// MARK: - Ticket Report Detail View
 
-struct BugReportDetailView: View {
-    let report: BugReport
+struct TicketReportDetailView: View {
+    let report: TicketReport
+    var reportType: TicketReportType = .bug
 
     var body: some View {
         ScrollView {
@@ -130,7 +132,7 @@ struct BugReportDetailView: View {
                     Text("Status")
                         .font(.headline)
                     Spacer()
-                    BugReportStatusBadge(status: report.status)
+                    TicketReportStatusBadge(status: report.status)
                 }
                 .padding(.horizontal)
 
@@ -139,7 +141,7 @@ struct BugReportDetailView: View {
 
                 // Title
                 VStack(alignment: .leading, spacing: 8) {
-                    Label("Title", systemImage: "ladybug.fill")
+                    Label("Title", systemImage: reportType.icon)
                         .font(.headline)
                     Text(report.title)
                         .font(.body)
@@ -234,15 +236,16 @@ struct BugReportDetailView: View {
             }
             .padding(.vertical)
         }
-        .navigationTitle("Bug Report Details")
+        .navigationTitle(reportType.detailTitle)
         .navigationBarTitleDisplayMode(.inline)
     }
 }
 
-// MARK: - Create Bug Report View
+// MARK: - Create Ticket Report View
 
-struct CreateBugReportView: View {
-    @ObservedObject var bugReportService: BugReportService
+struct CreateTicketReportView: View {
+    @ObservedObject var reportService: TicketReportService
+    var reportType: TicketReportType = .bug
     @Environment(\.dismiss) private var dismiss
     @State private var title = ""
     @State private var description = ""
@@ -262,7 +265,7 @@ struct CreateBugReportView: View {
                         .font(.subheadline)
                         .foregroundColor(.secondary)
 
-                    TextField("Brief description of the bug", text: $title)
+                    TextField(reportType.titlePlaceholder, text: $title)
                         .textContentType(.none)
                         .textFieldStyle(PlainTextFieldStyle())
                         .padding()
@@ -278,7 +281,7 @@ struct CreateBugReportView: View {
 
                     ZStack(alignment: .topLeading) {
                         if description.isEmpty {
-                            Text("Please describe the bug in detail, including steps to reproduce...")
+                            Text(reportType.descriptionPlaceholder)
                                 .foregroundColor(.secondary)
                                 .padding(.horizontal, 16)
                                 .padding(.vertical, 12)
@@ -339,15 +342,15 @@ struct CreateBugReportView: View {
                 Spacer()
 
                 CustomButton(
-                    title: "Submit Bug Report",
+                    title: reportType.submitButtonTitle,
                     action: submitReport,
                     isLoading: isSubmitting,
-                    isDisabled: title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    isDisabled: isSubmitting || title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                 )
             }
             .padding(.horizontal, 20)
             .padding(.top, 8)
-            .navigationTitle("Report a Bug")
+            .navigationTitle(reportType.createTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -356,37 +359,32 @@ struct CreateBugReportView: View {
                     }
                 }
             }
-            .alert("Bug Report Submitted", isPresented: $showSuccessAlert) {
+            .alert(reportType.successAlertTitle, isPresented: $showSuccessAlert) {
                 Button("OK") { dismiss() }
             } message: {
-                Text("Thank you for your report. We'll look into it and get back to you.")
+                Text(reportType.successAlertMessage)
             }
             .alert("Error", isPresented: $showErrorAlert) {
                 Button("OK", role: .cancel) {}
             } message: {
                 Text(errorMessage)
             }
-            .onChange(of: selectedPhotos) { newItems in
-                Task {
-                    var images: [UIImage] = []
-                    for item in newItems.prefix(4) {
-                        if let data = try? await item.loadTransferable(type: Data.self),
-                           let image = UIImage(data: data) {
-                            images.append(image)
-                        }
+            .task(id: selectedPhotos.count) {
+                var images: [UIImage] = []
+                for item in selectedPhotos.prefix(4) {
+                    if let data = try? await item.loadTransferable(type: Data.self),
+                       let image = UIImage(data: data) {
+                        images.append(image)
                     }
-                    selectedImages = images
                 }
+                selectedImages = images
             }
         }
     }
 
     private func removeImage(at index: Int) {
-        guard index < selectedImages.count else { return }
-        selectedImages.remove(at: index)
-        if index < selectedPhotos.count {
-            selectedPhotos.remove(at: index)
-        }
+        guard index < selectedImages.count, index < selectedPhotos.count else { return }
+        selectedPhotos.remove(at: index)
     }
 
     private func submitReport() {
@@ -399,9 +397,10 @@ struct CreateBugReportView: View {
 
         Task {
             do {
-                _ = try await bugReportService.submitReport(
+                _ = try await reportService.submitReport(
                     title: title.trimmingCharacters(in: .whitespacesAndNewlines),
                     description: description.trimmingCharacters(in: .whitespacesAndNewlines),
+                    type: reportType,
                     images: selectedImages
                 )
                 isSubmitting = false
