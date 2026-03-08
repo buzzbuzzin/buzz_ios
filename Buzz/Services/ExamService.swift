@@ -21,27 +21,31 @@ class ExamService: ObservableObject {
     private var configsLoadedFromServer = false
 
     private let supabase = SupabaseClient.shared.client
-    
+
     // Singleton for shared config access
     static let shared = ExamService()
-    
+
     // MARK: - Fetch Exam Configurations
-    
+
     /// Fetches exam type configurations from the backend
     /// Results are cached in examConfigs dictionary
     func fetchExamConfigs() async {
+        if DemoModeManager.shared.isDemoModeEnabled {
+            return
+        }
+
         // Skip if already loading or already have configs
         guard !isLoadingConfigs else { return }
-        
+
         isLoadingConfigs = true
-        
+
         do {
             let response: [ExamTypeConfig] = try await supabase
                 .from("exam_type_config")
                 .select()
                 .execute()
                 .value
-            
+
             // Map configs to ExamType
             var configs: [ExamType: ExamTypeConfig] = [:]
             for config in response {
@@ -49,7 +53,7 @@ class ExamService: ObservableObject {
                     configs[examType] = config
                 }
             }
-            
+
             examConfigs = configs
             configsLoadedFromServer = true
             isLoadingConfigs = false
@@ -65,43 +69,59 @@ class ExamService: ObservableObject {
             ]
         }
     }
-    
+
     /// Gets the config for an exam type, using cached value or default
     func getConfig(for examType: ExamType) -> ExamTypeConfig {
         return examConfigs[examType] ?? ExamTypeConfig.defaultConfig(for: examType)
     }
-    
+
     /// Ensures configs are loaded, fetching if needed
     func ensureConfigsLoaded() async {
-        if !configsLoadedFromServer && !isLoadingConfigs {
-            await fetchExamConfigs()
+        if DemoModeManager.shared.isDemoModeEnabled {
+            return
         }
+
+        if configsLoadedFromServer { return }
+        if isLoadingConfigs {
+            // Wait for in-flight fetch to complete
+            while isLoadingConfigs {
+                try? await Task.sleep(nanoseconds: 50_000_000) // 50ms
+            }
+            return
+        }
+        await fetchExamConfigs()
     }
-    
+
     // UAS Pilot Course UUID (fixed) - same as in CourseSubscriptionService
     static let uasPilotCourseId = UUID(uuidString: "a1b2c3d4-e5f6-7890-abcd-ef1234567890")!
-    
+
     // MARK: - Check Prerequisites
-    
+
     /// Checks if a pilot meets the prerequisites for taking exams
     /// Prerequisites for paid exams (Flight Review, ROC-A): Passed Ground School Test + Completed Unit 4
     /// Prerequisites for Ground School Test: None (always available)
     func checkPrerequisites(pilotId: UUID) async throws -> ExamPrerequisitesStatus {
+        if DemoModeManager.shared.isDemoModeEnabled {
+            let status = ExamPrerequisitesStatus(passedGroundSchoolTest: false, completedUnit4: false)
+            prerequisitesStatus = status
+            return status
+        }
+
         isLoading = true
         errorMessage = nil
-        
+
         do {
             // Check 1: Has passed Ground School Test
             let passedGroundSchoolTest = try await checkGroundSchoolTestPassed(pilotId: pilotId)
-            
+
             // Check 2: Has completed Unit 4
             let completedUnit4 = try await checkUnit4Completed(pilotId: pilotId)
-            
+
             let status = ExamPrerequisitesStatus(
                 passedGroundSchoolTest: passedGroundSchoolTest,
                 completedUnit4: completedUnit4
             )
-            
+
             prerequisitesStatus = status
             isLoading = false
             return status
@@ -111,7 +131,7 @@ class ExamService: ObservableObject {
             throw error
         }
     }
-    
+
     /// Checks if pilot has passed the Ground School Test
     private func checkGroundSchoolTestPassed(pilotId: UUID) async throws -> Bool {
         let response = try await supabase
@@ -121,15 +141,15 @@ class ExamService: ObservableObject {
             .eq("course_id", value: Self.uasPilotCourseId.uuidString)
             .eq("passed", value: true)
             .execute()
-        
+
         let data = response.data
         guard let jsonArray = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
             return false
         }
-        
+
         return !jsonArray.isEmpty
     }
-    
+
     /// Checks if pilot has completed Unit 4 of the UAS Pilot Course
     private func checkUnit4Completed(pilotId: UUID) async throws -> Bool {
         // First, get the Unit 4 ID for the UAS Pilot Course
@@ -139,17 +159,16 @@ class ExamService: ObservableObject {
             .eq("course_id", value: Self.uasPilotCourseId.uuidString)
             .eq("unit_number", value: 4)
             .execute()
-        
+
         let unitsData = unitsResponse.data
         guard let unitsArray = try? JSONSerialization.jsonObject(with: unitsData) as? [[String: Any]],
               let firstUnit = unitsArray.first,
               let unitIdString = firstUnit["id"] as? String else {
-            // If Unit 4 doesn't exist, consider this prerequisite as met
-            // (shouldn't happen in production)
+            // If Unit 4 doesn't exist, prerequisite is not met
             print("⚠️ [ExamService] Unit 4 not found for UAS Pilot Course")
-            return true
+            return false
         }
-        
+
         // Check if pilot has completed this unit
         let completionsResponse = try await supabase
             .from("unit_completions")
@@ -157,38 +176,42 @@ class ExamService: ObservableObject {
             .eq("pilot_id", value: pilotId.uuidString)
             .eq("unit_id", value: unitIdString)
             .execute()
-        
+
         let completionsData = completionsResponse.data
         guard let completionsArray = try? JSONSerialization.jsonObject(with: completionsData) as? [[String: Any]] else {
             return false
         }
-        
+
         return !completionsArray.isEmpty
     }
-    
+
     // MARK: - Fetch Exam Price
-    
+
     /// Fetches the price for an exam from Stripe
     func fetchExamPrice(examType: ExamType) async throws -> ExamPriceResponse {
+        if DemoModeManager.shared.isDemoModeEnabled {
+            throw ExamServiceError.invalidExamType
+        }
+
         isLoading = true
         errorMessage = nil
-        
+
         // Ensure configs are loaded
         await ensureConfigsLoaded()
         let config = getConfig(for: examType)
-        
+
         do {
             struct PriceRequest: Codable {
                 let product_id: String
             }
-            
+
             let request = PriceRequest(product_id: config.stripeProductId)
-            
+
             let response: ExamPriceResponse = try await supabase.functions
                 .invoke("get-exam-price", options: FunctionInvokeOptions(
                     body: request
                 ))
-            
+
             isLoading = false
             return response
         } catch {
@@ -197,9 +220,9 @@ class ExamService: ObservableObject {
             throw error
         }
     }
-    
+
     // MARK: - Create Exam Payment Intent
-    
+
     /// Creates a PaymentIntent for an exam booking
     func createExamPaymentIntent(
         examType: ExamType,
@@ -208,16 +231,20 @@ class ExamService: ObservableObject {
         locationType: ExamLocationType,
         locationAddress: String?
     ) async throws -> ExamPaymentIntentResponse {
+        if DemoModeManager.shared.isDemoModeEnabled {
+            throw ExamServiceError.invalidExamType
+        }
+
         isLoading = true
         errorMessage = nil
-        
+
         // Ensure configs are loaded
         await ensureConfigsLoaded()
         let config = getConfig(for: examType)
-        
+
         do {
             let dateFormatter = ISO8601DateFormatter()
-            
+
             struct PaymentRequest: Codable {
                 let product_id: String
                 let pilot_id: String
@@ -226,7 +253,7 @@ class ExamService: ObservableObject {
                 let location_type: String
                 let location_address: String?
             }
-            
+
             let request = PaymentRequest(
                 product_id: config.stripeProductId,
                 pilot_id: pilotId.uuidString,
@@ -235,12 +262,12 @@ class ExamService: ObservableObject {
                 location_type: locationType.rawValue,
                 location_address: locationAddress
             )
-            
+
             let response: ExamPaymentIntentResponse = try await supabase.functions
                 .invoke("create-exam-payment", options: FunctionInvokeOptions(
                     body: request
                 ))
-            
+
             isLoading = false
             return response
         } catch {
@@ -249,9 +276,9 @@ class ExamService: ObservableObject {
             throw error
         }
     }
-    
+
     // MARK: - Create Zoom Meeting
-    
+
     /// Creates a Zoom meeting for online exams
     private func createZoomMeeting(
         examType: ExamType,
@@ -261,31 +288,31 @@ class ExamService: ObservableObject {
     ) async throws -> ZoomMeetingResponse {
         let dateFormatter = ISO8601DateFormatter()
         dateFormatter.formatOptions = [.withInternetDateTime]
-        
+
         struct ZoomRequest: Codable {
             let topic: String
             let scheduled_date: String
             let duration_minutes: Int
             let pilot_email: String?
         }
-        
+
         let request = ZoomRequest(
             topic: "\(config.displayName) Exam",
             scheduled_date: dateFormatter.string(from: scheduledDate),
             duration_minutes: config.durationMinutes,
             pilot_email: pilotEmail
         )
-        
+
         let response: ZoomMeetingResponse = try await supabase.functions
             .invoke("create-zoom-meeting", options: FunctionInvokeOptions(
                 body: request
             ))
-        
+
         return response
     }
-    
+
     // MARK: - Create Exam Appointment
-    
+
     /// Creates an exam appointment record in the database after successful payment
     func createExamAppointment(
         pilotId: UUID,
@@ -298,17 +325,21 @@ class ExamService: ObservableObject {
         paymentAmount: Decimal,
         pilotEmail: String? = nil
     ) async throws -> ExamAppointment {
+        if DemoModeManager.shared.isDemoModeEnabled {
+            throw ExamServiceError.failedToCreateAppointment
+        }
+
         isLoading = true
         errorMessage = nil
-        
+
         // Ensure configs are loaded
         await ensureConfigsLoaded()
         let config = getConfig(for: examType)
-        
+
         do {
             let dateFormatter = ISO8601DateFormatter()
             dateFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-            
+
             // Create Zoom meeting for online exams
             var meetingLink: String? = nil
             var zoomMeetingId: String? = nil
@@ -348,7 +379,7 @@ class ExamService: ObservableObject {
                 "stripe_charge_id": chargeId.map { .string($0) } ?? .null,
                 "payment_amount": .double(NSDecimalNumber(decimal: paymentAmount).doubleValue)
             ]
-            
+
             // Add Zoom-specific fields if available
             if let zoomId = zoomMeetingId {
                 appointmentData["zoom_meeting_id"] = .string(zoomId)
@@ -359,18 +390,18 @@ class ExamService: ObservableObject {
             if let startUrl = startUrl {
                 appointmentData["start_url"] = .string(startUrl)
             }
-            
+
             let response: [ExamAppointment] = try await supabase
                 .from("exam_appointments")
                 .insert(appointmentData)
                 .select()
                 .execute()
                 .value
-            
+
             guard let appointment = response.first else {
                 throw ExamServiceError.failedToCreateAppointment
             }
-            
+
             // Send confirmation email (don't block on this)
             if let email = pilotEmail {
                 Task {
@@ -380,10 +411,10 @@ class ExamService: ObservableObject {
                     )
                 }
             }
-            
+
             // Refresh appointments list
             await fetchAppointments(pilotId: pilotId)
-            
+
             isLoading = false
             return appointment
         } catch {
@@ -392,9 +423,9 @@ class ExamService: ObservableObject {
             throw error
         }
     }
-    
+
     // MARK: - Send Confirmation Email
-    
+
     /// Sends a confirmation email for the exam appointment
     private func sendConfirmationEmail(
         appointment: ExamAppointment,
@@ -402,7 +433,7 @@ class ExamService: ObservableObject {
     ) async {
         let dateFormatter = ISO8601DateFormatter()
         dateFormatter.formatOptions = [.withInternetDateTime]
-        
+
         struct EmailRequest: Codable {
             let pilot_id: String
             let pilot_email: String
@@ -416,7 +447,7 @@ class ExamService: ObservableObject {
             let zoom_meeting_password: String?
             let appointment_id: String
         }
-        
+
         let request = EmailRequest(
             pilot_id: appointment.pilotId.uuidString,
             pilot_email: pilotEmail,
@@ -430,7 +461,7 @@ class ExamService: ObservableObject {
             zoom_meeting_password: appointment.zoomMeetingPassword,
             appointment_id: appointment.id.uuidString
         )
-        
+
         do {
             let _: EmptyResponse = try await supabase.functions
                 .invoke("send-exam-confirmation", options: FunctionInvokeOptions(
@@ -442,14 +473,19 @@ class ExamService: ObservableObject {
             print("⚠️ [ExamService] Failed to send confirmation email: \(error.localizedDescription)")
         }
     }
-    
+
     // MARK: - Fetch Appointments
-    
+
     /// Fetches all exam appointments for a pilot
     func fetchAppointments(pilotId: UUID) async {
+        if DemoModeManager.shared.isDemoModeEnabled {
+            appointments = []
+            return
+        }
+
         isLoading = true
         errorMessage = nil
-        
+
         do {
             let response: [ExamAppointment] = try await supabase
                 .from("exam_appointments")
@@ -458,7 +494,7 @@ class ExamService: ObservableObject {
                 .order("scheduled_date", ascending: false)
                 .execute()
                 .value
-            
+
             appointments = response
             isLoading = false
         } catch {
@@ -467,14 +503,18 @@ class ExamService: ObservableObject {
             print("Error fetching exam appointments: \(error)")
         }
     }
-    
+
     // MARK: - Cancel Appointment
-    
+
     /// Cancels a pending exam appointment
     func cancelAppointment(appointmentId: UUID, pilotId: UUID) async throws {
+        if DemoModeManager.shared.isDemoModeEnabled {
+            return
+        }
+
         isLoading = true
         errorMessage = nil
-        
+
         do {
             // Cancel the appointment - allow cancelling both pending and confirmed appointments
             try await supabase
@@ -484,10 +524,10 @@ class ExamService: ObservableObject {
                 .eq("pilot_id", value: pilotId.uuidString)
                 .in("status", values: [ExamAppointmentStatus.pending.rawValue, ExamAppointmentStatus.confirmed.rawValue])
                 .execute()
-            
+
             // Refresh appointments list
             await fetchAppointments(pilotId: pilotId)
-            
+
             isLoading = false
         } catch {
             isLoading = false
@@ -495,9 +535,9 @@ class ExamService: ObservableObject {
             throw error
         }
     }
-    
+
     // MARK: - Reschedule Appointment
-    
+
     /// Reschedules an exam appointment to a new date/time
     /// Note: Rescheduling is only allowed more than 24 hours before the scheduled time
     func rescheduleAppointment(
@@ -509,17 +549,46 @@ class ExamService: ObservableObject {
         examType: ExamType,
         pilotEmail: String? = nil
     ) async throws -> ExamAppointment {
+        if DemoModeManager.shared.isDemoModeEnabled {
+            throw ExamServiceError.failedToRescheduleAppointment
+        }
+
         isLoading = true
         errorMessage = nil
-        
+
         // Ensure configs are loaded
         await ensureConfigsLoaded()
         let config = getConfig(for: examType)
-        
+
+        // Fetch the existing appointment to enforce 24-hour reschedule rule
+        do {
+            let existingAppointments: [ExamAppointment] = try await supabase
+                .from("exam_appointments")
+                .select()
+                .eq("id", value: appointmentId.uuidString)
+                .eq("pilot_id", value: pilotId.uuidString)
+                .execute()
+                .value
+
+            if let appointment = existingAppointments.first {
+                // Enforce 24-hour reschedule rule
+                let cutoff = Date().addingTimeInterval(24 * 60 * 60)
+                guard appointment.scheduledDate > cutoff else {
+                    isLoading = false
+                    throw ExamServiceError.cannotRescheduleWithin24Hours
+                }
+            }
+        } catch let error as ExamServiceError {
+            throw error
+        } catch {
+            // If we can't fetch the appointment, proceed with the reschedule attempt
+            print("⚠️ [ExamService] Could not verify reschedule timing: \(error.localizedDescription)")
+        }
+
         do {
             let dateFormatter = ISO8601DateFormatter()
             dateFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-            
+
             // Create new Zoom meeting for online exams
             var meetingLink: String? = nil
             var zoomMeetingId: String? = nil
@@ -545,7 +614,7 @@ class ExamService: ObservableObject {
                 }
             }
 
-            var updateData: [String: AnyJSON] = [
+            let updateData: [String: AnyJSON] = [
                 "scheduled_date": .string(dateFormatter.string(from: newScheduledDate)),
                 "location_type": .string(locationType.rawValue),
                 "location_address": locationAddress.map { .string($0) } ?? .null,
@@ -554,7 +623,7 @@ class ExamService: ObservableObject {
                 "zoom_meeting_password": zoomMeetingPassword.map { .string($0) } ?? .null,
                 "start_url": startUrl.map { .string($0) } ?? .null
             ]
-            
+
             let response: [ExamAppointment] = try await supabase
                 .from("exam_appointments")
                 .update(updateData)
@@ -564,11 +633,11 @@ class ExamService: ObservableObject {
                 .select()
                 .execute()
                 .value
-            
+
             guard let appointment = response.first else {
                 throw ExamServiceError.failedToRescheduleAppointment
             }
-            
+
             // Send confirmation email for rescheduled appointment
             if let email = pilotEmail {
                 Task {
@@ -578,10 +647,10 @@ class ExamService: ObservableObject {
                     )
                 }
             }
-            
+
             // Refresh appointments list
             await fetchAppointments(pilotId: pilotId)
-            
+
             isLoading = false
             return appointment
         } catch {
@@ -590,11 +659,15 @@ class ExamService: ObservableObject {
             throw error
         }
     }
-    
+
     // MARK: - Check if Exam Already Scheduled
-    
+
     /// Checks if a pilot already has a pending/confirmed appointment for this exam type
     func hasExistingAppointment(pilotId: UUID, examType: ExamType) async -> Bool {
+        if DemoModeManager.shared.isDemoModeEnabled {
+            return false
+        }
+
         do {
             let response = try await supabase
                 .from("exam_appointments")
@@ -603,27 +676,27 @@ class ExamService: ObservableObject {
                 .eq("exam_type", value: examType.rawValue)
                 .in("status", values: [ExamAppointmentStatus.pending.rawValue, ExamAppointmentStatus.confirmed.rawValue])
                 .execute()
-            
+
             let data = response.data
             guard let jsonArray = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
                 return false
             }
-            
+
             return !jsonArray.isEmpty
         } catch {
             print("Error checking existing appointment: \(error)")
             return false
         }
     }
-    
+
     // MARK: - Get Available Time Slots
-    
+
     /// Returns available time slots for a given date
     /// For now, returns standard business hours slots
     func getAvailableTimeSlots(for date: Date) -> [Date] {
         let calendar = Calendar.current
         var slots: [Date] = []
-        
+
         // Generate slots from 9 AM to 5 PM, every 30 minutes
         for hour in 9..<17 {
             for minute in [0, 30] {
@@ -632,7 +705,7 @@ class ExamService: ObservableObject {
                 }
             }
         }
-        
+
         return slots
     }
 }
@@ -646,7 +719,7 @@ struct ZoomMeetingResponse: Codable {
     let meetingId: String
     let password: String
     let startUrl: String?
-    
+
     enum CodingKeys: String, CodingKey {
         case joinUrl = "join_url"
         case meetingId = "meeting_id"
@@ -663,7 +736,7 @@ struct ExamPaymentIntentResponse: Codable {
     let amount: Int
     let currency: String
     let productName: String
-    
+
     enum CodingKeys: String, CodingKey {
         case clientSecret = "client_secret"
         case paymentIntentId = "payment_intent_id"
@@ -673,7 +746,7 @@ struct ExamPaymentIntentResponse: Codable {
         case currency
         case productName = "product_name"
     }
-    
+
     var formattedAmount: String {
         let dollars = Double(amount) / 100.0
         let formatter = NumberFormatter()
@@ -681,7 +754,7 @@ struct ExamPaymentIntentResponse: Codable {
         formatter.currencyCode = currency.uppercased()
         return formatter.string(from: NSNumber(value: dollars)) ?? "$\(dollars)"
     }
-    
+
     var decimalAmount: Decimal {
         Decimal(amount) / 100
     }
@@ -696,7 +769,7 @@ enum ExamServiceError: LocalizedError {
     case examAlreadyScheduled
     case invalidExamType
     case cannotRescheduleWithin24Hours
-    
+
     var errorDescription: String? {
         switch self {
         case .failedToCreateAppointment:
@@ -714,4 +787,3 @@ enum ExamServiceError: LocalizedError {
         }
     }
 }
-

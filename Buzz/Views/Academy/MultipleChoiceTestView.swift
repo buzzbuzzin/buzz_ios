@@ -433,7 +433,7 @@ struct MultipleChoiceTestView: View {
     @ViewBuilder
     private var exitAlert: some View {
         Button("Cancel", role: .cancel) {
-            startTimer() // Resume timer if canceling exit
+            startTimer(resetTime: false) // Resume timer without resetting
         }
         Button("Exit", role: .destructive) {
             stopTimer()
@@ -495,12 +495,14 @@ struct MultipleChoiceTestView: View {
         }
     }
     
-    private func startTimer() {
+    private func startTimer(resetTime: Bool = true) {
         stopTimer() // Stop any existing timer
-        testStartTime = Date()
-        timeRemaining = durationSeconds
-        wasAutoSubmitted = false
-        
+        if resetTime {
+            testStartTime = Date()
+            timeRemaining = durationSeconds
+            wasAutoSubmitted = false
+        }
+
         timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
             if self.timeRemaining > 0 {
                 self.timeRemaining -= 1
@@ -511,7 +513,7 @@ struct MultipleChoiceTestView: View {
                 self.submitTest()
             }
         }
-        
+
         // Add timer to common run loop modes so it continues during scrolling
         if let timer = timer {
             RunLoop.main.add(timer, forMode: .common)
@@ -554,7 +556,44 @@ struct MultipleChoiceTestView: View {
     private func saveTestResults(score: Int, passed: Bool) async {
         do {
             let supabase = SupabaseClient.shared.client
-            
+
+            // Don't overwrite a passing result with a failing one
+            if !passed {
+                let existingResult = try? await supabase
+                    .from("test_results")
+                    .select("passed")
+                    .eq("pilot_id", value: pilotId.uuidString)
+                    .eq("test_id", value: testId.uuidString)
+                    .eq("passed", value: true)
+                    .limit(1)
+                    .execute()
+                if let data = existingResult?.data,
+                   let arr = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]],
+                   !arr.isEmpty {
+                    // Already passed this test; skip saving a failing result
+                    isLoading = false
+                    withAnimation {
+                        showResults = true
+                    }
+                    return
+                }
+            }
+
+            // Fetch previous attempt count
+            let previousResults = try await supabase
+                .from("test_results")
+                .select("attempt_number")
+                .eq("pilot_id", value: pilotId.uuidString)
+                .eq("test_id", value: testId.uuidString)
+                .execute()
+
+            var attemptNumber = 1
+            if let jsonArray = try? JSONSerialization.jsonObject(with: previousResults.data) as? [[String: Any]],
+               let lastResult = jsonArray.first,
+               let previousAttempt = lastResult["attempt_number"] as? Int {
+                attemptNumber = previousAttempt + 1
+            }
+
             // Prepare answers JSON
             var answersDict: [String: AnyJSON] = [:]
             for question in questions {
@@ -562,7 +601,7 @@ struct MultipleChoiceTestView: View {
                     answersDict["question_\(question.id.uuidString)"] = .integer(selectedAnswer)
                 }
             }
-            
+
             let testResult: [String: AnyJSON] = [
                 "pilot_id": .string(pilotId.uuidString),
                 "test_id": .string(testId.uuidString),
@@ -570,9 +609,9 @@ struct MultipleChoiceTestView: View {
                 "score": .integer(score),
                 "passed": .bool(passed),
                 "answers": .object(answersDict),
-                "attempt_number": .integer(1)
+                "attempt_number": .integer(attemptNumber)
             ]
-            
+
             try await supabase
                 .from("test_results")
                 .upsert(testResult, onConflict: "pilot_id,test_id")

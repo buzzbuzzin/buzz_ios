@@ -75,6 +75,17 @@ struct ProctorTestSchedulingView: View {
         return calendar.date(from: combinedComponents)
     }
     
+    private var derivedExamType: ExamType {
+        switch test.testType {
+        case "practical":
+            return .flightReview
+        case "oral":
+            return .rocA
+        default:
+            return .groundSchoolTest
+        }
+    }
+
     private var formattedScheduledDateTime: String {
         guard let dateTime = scheduledDateTime else {
             return "Not selected"
@@ -416,7 +427,7 @@ struct ProctorTestSchedulingView: View {
         do {
             _ = try await examService.createExamAppointment(
                 pilotId: pilotId,
-                examType: .groundSchoolTest,
+                examType: derivedExamType,
                 scheduledDate: dateTime,
                 locationType: locationType,
                 locationAddress: locationType == .inPerson ? locationAddress : nil,
@@ -450,7 +461,7 @@ struct ProctorTestSchedulingView: View {
                 do {
                     _ = try await examService.createExamAppointment(
                         pilotId: pilotId,
-                        examType: .groundSchoolTest,
+                        examType: derivedExamType,
                         scheduledDate: dateTime,
                         locationType: locationType,
                         locationAddress: locationType == .inPerson ? locationAddress : nil,

@@ -20,7 +20,7 @@ struct RegionOnboardingView: View {
     @State private var showOtherRegionAlert = false
 
     private let availableRegions: [TrainingCourse.CourseRegion] = [
-        .canada, .usa, .uk, .australia, .newZealand, .southAfrica, .other
+        .canada, .usa, .uk, .australia, .newZealand, .southAfrica
     ]
 
     var body: some View {
@@ -133,12 +133,6 @@ struct RegionOnboardingView: View {
         guard let currentUser = authService.currentUser,
               let selectedRegion = selectedRegion else { return }
 
-        // Show special alert for "Other Region" selection
-        if selectedRegion == .other {
-            showOtherRegionAlert = true
-            return
-        }
-
         isSaving = true
 
         Task {
@@ -249,7 +243,7 @@ struct RegionSelectionCard: View {
         case .southAfrica:
             return "SACAA regulations"
         case .other:
-            return "Other regions (coming soon)"
+            return "Other regions"
         case .global:
             return "International standards"
         }

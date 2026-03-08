@@ -15,32 +15,36 @@ class CourseSubscriptionService: ObservableObject {
     @Published var errorMessage: String?
     @Published var hasActiveSubscription = false
     @Published var subscription: CourseSubscription?
-    
+
     private let supabase = SupabaseClient.shared.client
-    
+
     // UAS Pilot Course UUID (fixed)
     static let uasPilotCourseId = UUID(uuidString: "a1b2c3d4-e5f6-7890-abcd-ef1234567890")!
-    
+
     // MARK: - Check Subscription Status
-    
-    /// Checks if a pilot has an active subscription for the UAS Pilot Course
+
+    /// Checks if a pilot has an active or trialing subscription for the UAS Pilot Course
     func checkSubscriptionStatus(pilotId: UUID) async throws -> Bool {
+        if DemoModeManager.shared.isDemoModeEnabled {
+            return false
+        }
+
         isLoading = true
         errorMessage = nil
-        
+
         do {
             let response: [CourseSubscription] = try await supabase
                 .from("course_subscriptions")
                 .select()
                 .eq("pilot_id", value: pilotId.uuidString)
                 .eq("course_id", value: Self.uasPilotCourseId.uuidString)
-                .eq("status", value: "active")
+                .in("status", values: ["active", "trialing"])
                 .execute()
                 .value
-            
+
             hasActiveSubscription = !response.isEmpty
             subscription = response.first
-            
+
             isLoading = false
             return hasActiveSubscription
         } catch {
@@ -51,9 +55,9 @@ class CourseSubscriptionService: ObservableObject {
             return false
         }
     }
-    
+
     // MARK: - Create Subscription Record
-    
+
     /// Creates a subscription record in the database after successful payment
     /// - Parameters:
     ///   - pilotId: The pilot's UUID
@@ -72,9 +76,13 @@ class CourseSubscriptionService: ObservableObject {
         currentPeriodEnd: Date,
         source: SubscriptionSource = .apple
     ) async throws {
+        if DemoModeManager.shared.isDemoModeEnabled {
+            return
+        }
+
         isLoading = true
         errorMessage = nil
-        
+
         do {
             let subscription: [String: AnyJSON] = [
                 "pilot_id": .string(pilotId.uuidString),
@@ -86,12 +94,12 @@ class CourseSubscriptionService: ObservableObject {
                 "current_period_end": .string(ISO8601DateFormatter().string(from: currentPeriodEnd)),
                 "source": .string(source.rawValue)
             ]
-            
+
             try await supabase
                 .from("course_subscriptions")
                 .upsert(subscription, onConflict: "pilot_id,course_id")
                 .execute()
-            
+
             hasActiveSubscription = true
             isLoading = false
         } catch {
@@ -100,9 +108,9 @@ class CourseSubscriptionService: ObservableObject {
             throw error
         }
     }
-    
+
     // MARK: - Update Subscription Status
-    
+
     /// Updates subscription status (e.g., when canceled)
     func updateSubscriptionStatus(
         pilotId: UUID,
@@ -110,35 +118,39 @@ class CourseSubscriptionService: ObservableObject {
         currentPeriodStart: Date? = nil,
         currentPeriodEnd: Date? = nil
     ) async throws {
+        if DemoModeManager.shared.isDemoModeEnabled {
+            return
+        }
+
         isLoading = true
         errorMessage = nil
-        
+
         do {
             var updateData: [String: AnyJSON] = [
                 "status": .string(status)
             ]
-            
+
             if let start = currentPeriodStart {
                 updateData["current_period_start"] = .string(ISO8601DateFormatter().string(from: start))
             }
-            
+
             if let end = currentPeriodEnd {
                 updateData["current_period_end"] = .string(ISO8601DateFormatter().string(from: end))
             }
-            
+
             try await supabase
                 .from("course_subscriptions")
                 .update(updateData)
                 .eq("pilot_id", value: pilotId.uuidString)
                 .eq("course_id", value: Self.uasPilotCourseId.uuidString)
                 .execute()
-            
-            if status == "active" {
+
+            if status == "active" || status == "trialing" {
                 hasActiveSubscription = true
             } else {
                 hasActiveSubscription = false
             }
-            
+
             isLoading = false
         } catch {
             isLoading = false
@@ -146,17 +158,21 @@ class CourseSubscriptionService: ObservableObject {
             throw error
         }
     }
-    
+
     // MARK: - Check Unit Access
-    
+
     /// Checks if a pilot has access to a specific unit
     /// Units 1-4 are free, units 5+ require subscription
     func hasAccessToUnit(pilotId: UUID, unitNumber: Int) async throws -> Bool {
+        if DemoModeManager.shared.isDemoModeEnabled {
+            return true
+        }
+
         // Units 1-4 are always free
         if unitNumber <= 4 {
             return true
         }
-        
+
         // Units 5+ require active subscription
         return try await checkSubscriptionStatus(pilotId: pilotId)
     }
@@ -176,7 +192,7 @@ struct CourseSubscription: Codable, Identifiable {
     let createdAt: Date
     let updatedAt: Date
     let source: String? // "apple" or "stripe"
-    
+
     enum CodingKeys: String, CodingKey {
         case id
         case pilotId = "pilot_id"
@@ -190,14 +206,13 @@ struct CourseSubscription: Codable, Identifiable {
         case updatedAt = "updated_at"
         case source
     }
-    
+
     var isActive: Bool {
         status == "active" || status == "trialing"
     }
-    
+
     var subscriptionSource: SubscriptionSource {
         guard let source = source else { return .stripe } // Default to stripe for legacy records
         return SubscriptionSource(rawValue: source) ?? .stripe
     }
 }
-

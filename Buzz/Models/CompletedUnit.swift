@@ -7,7 +7,10 @@
 
 import Foundation
 
-struct CompletedUnit: Identifiable, Codable {
+// CompletedUnit is always constructed manually from parsed JSON (not decoded directly),
+// so Codable conformance is not needed. The actual decoding is done through
+// CompletedUnitResponse and manual JSON parsing in AcademyService.
+struct CompletedUnit: Identifiable {
     let id: UUID
     let pilotId: UUID
     let unitId: UUID
@@ -15,17 +18,7 @@ struct CompletedUnit: Identifiable, Codable {
     let unitNumber: Int
     let unitTitle: String
     let completedAt: Date
-    
-    enum CodingKeys: String, CodingKey {
-        case id
-        case pilotId = "pilot_id"
-        case unitId = "unit_id"
-        case courseId = "course_id"
-        case unitNumber = "unit_number"
-        case unitTitle = "title"
-        case completedAt = "completed_at"
-    }
-    
+
     // Computed property to extract display name from title
     // Example: "UNIT 4 - Drone Pilot" becomes "Drone Pilot"
     var displayName: String {
@@ -49,7 +42,7 @@ struct CompletedUnitResponse: Codable {
     let courseId: UUID
     let completedAt: String
     let courseUnits: CourseUnitInfo
-    
+
     enum CodingKeys: String, CodingKey {
         case id
         case pilotId = "pilot_id"
@@ -58,15 +51,14 @@ struct CompletedUnitResponse: Codable {
         case completedAt = "completed_at"
         case courseUnits = "course_units"
     }
-    
+
     struct CourseUnitInfo: Codable {
         let unitNumber: Int
         let title: String
-        
+
         enum CodingKeys: String, CodingKey {
             case unitNumber = "unit_number"
             case title
         }
     }
 }
-

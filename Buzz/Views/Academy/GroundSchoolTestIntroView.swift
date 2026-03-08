@@ -2,6 +2,7 @@ import SwiftUI
 
 struct GroundSchoolTestIntroView: View {
     let course: TrainingCourse
+    let test: CourseTest?
     let onStartTest: () -> Void
     @Environment(\.dismiss) private var dismiss
     
@@ -36,9 +37,8 @@ struct GroundSchoolTestIntroView: View {
                             .font(.title2)
                             .fontWeight(.bold)
                         
-                        TestInfoRow(icon: "list.number", label: "Total Questions", value: "70 Questions")
-                        TestInfoRow(icon: "clock", label: "Estimated Time", value: "60 Minutes")
-                        TestInfoRow(icon: "target", label: "Passing Score", value: "80% (56/70 correct)")
+                        TestInfoRow(icon: "clock", label: "Estimated Time", value: "\(test?.duration ?? 60) Minutes")
+                        TestInfoRow(icon: "target", label: "Passing Score", value: "\(test?.passingScore ?? 80)%")
                         
                         VStack(alignment: .leading, spacing: 12) {
                             HStack {
@@ -73,7 +73,7 @@ struct GroundSchoolTestIntroView: View {
                             
                             VStack(alignment: .leading, spacing: 8) {
                                 BulletPoint(text: "You may skip questions and return to them later")
-                                BulletPoint(text: "All 70 questions must be answered to submit")
+                                BulletPoint(text: "All questions must be answered to submit")
                                 BulletPoint(text: "You can review your answers before submitting")
                                 BulletPoint(text: "The test can be retaken in 24 hours if you don't pass")
                             }
@@ -158,9 +158,6 @@ struct BulletPoint: View {
             studentsCount: 100,
             isEnrolled: true,
             provider: .buzz,
-            badgeId: nil,
-            isRecurrent: false,
-            recurrentDueDate: nil,
             requiresUasGroundSchool: false,
             requiresFlightReviewPassed: false,
             requiresRocAPassed: false,
@@ -169,6 +166,7 @@ struct BulletPoint: View {
             region: .global,
             active: true
         ),
+        test: nil,
         onStartTest: {}
     )
 }

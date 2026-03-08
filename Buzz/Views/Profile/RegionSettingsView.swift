@@ -20,7 +20,7 @@ struct RegionSettingsView: View {
     @State private var showSuccess = false
 
     private let availableRegions: [TrainingCourse.CourseRegion] = [
-        .canada, .usa, .uk, .australia, .newZealand, .southAfrica, .other
+        .canada, .usa, .uk, .australia, .newZealand, .southAfrica
     ]
 
     var body: some View {

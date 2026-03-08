@@ -109,37 +109,27 @@ struct CourseContentView: View {
                 CourseSubscriptionView(course: course, pilotId: currentUser.id)
             }
         }
-        .background(
-            NavigationLink(
-                destination: Group {
-                    if let currentUser = authService.currentUser,
-                       let test = multipleChoiceTest {
-                        MultipleChoiceTestView(
-                            testId: test.id,
-                            course: course,
-                            pilotId: currentUser.id,
-                            testName: test.testName,
-                            passingScore: test.passingScore,
-                            durationMinutes: test.duration ?? 60
-                        )
-                        .navigationBarBackButtonHidden(true)
-                        .onDisappear {
-                            Task {
-                                if let user = authService.currentUser {
-                                    await loadPassedTests(pilotId: user.id)
-                                }
-                            }
+        .navigationDestination(isPresented: $navigateToTest) {
+            if let currentUser = authService.currentUser,
+               let test = multipleChoiceTest {
+                MultipleChoiceTestView(
+                    testId: test.id,
+                    course: course,
+                    pilotId: currentUser.id,
+                    testName: test.testName,
+                    passingScore: test.passingScore,
+                    durationMinutes: test.duration ?? 60
+                )
+                .navigationBarBackButtonHidden(true)
+                .onDisappear {
+                    Task {
+                        if let user = authService.currentUser {
+                            await loadPassedTests(pilotId: user.id)
                         }
-                    } else {
-                        EmptyView()
                     }
-                },
-                isActive: $navigateToTest
-            ) {
-                EmptyView()
+                }
             }
-            .hidden()
-        )
+        }
     }
     
     /// Refreshes all course content including sections, units, subscription status, and progress
@@ -239,7 +229,12 @@ struct CourseContentView: View {
                     }
                 }
                 passedTestIds = testIds
-                hasPassedGroundSchoolTest = !testIds.isEmpty
+                // Only mark as passed if the specific ground school test was passed
+                if let gsTest = multipleChoiceTest {
+                    hasPassedGroundSchoolTest = testIds.contains(gsTest.id)
+                } else {
+                    hasPassedGroundSchoolTest = false
+                }
                 print("✅ [CourseContentView] Loaded \(passedTestIds.count) passed tests, hasPassedGroundSchoolTest: \(hasPassedGroundSchoolTest)")
             }
         } catch {

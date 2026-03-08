@@ -167,7 +167,7 @@ struct SlidePresentationView: View {
                 dismiss()
             }
         } message: {
-            Text("Your progress will be saved, but you'll need to restart the slideshow from the beginning.")
+            Text("Your progress will not be saved. You'll need to restart the slideshow from the beginning.")
         }
     }
     

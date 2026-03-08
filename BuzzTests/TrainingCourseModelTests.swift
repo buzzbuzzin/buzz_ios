@@ -27,11 +27,12 @@ final class TrainingCourseModelTests: XCTestCase {
         XCTAssertEqual(TrainingCourse.CourseCategory.intermediate.rawValue, "Intermediate")
         XCTAssertEqual(TrainingCourse.CourseCategory.advanced.rawValue, "Advanced")
         XCTAssertEqual(TrainingCourse.CourseCategory.specialized.rawValue, "Specialized")
+        XCTAssertEqual(TrainingCourse.CourseCategory.general.rawValue, "General")
     }
 
     func testCourseCategoryIcons() {
         let allCategories: [TrainingCourse.CourseCategory] = [
-            .mandatory, .extensions, .intermediate, .advanced, .specialized
+            .mandatory, .extensions, .intermediate, .advanced, .specialized, .general
         ]
         for category in allCategories {
             XCTAssertFalse(category.icon.isEmpty, "\(category) has empty icon")

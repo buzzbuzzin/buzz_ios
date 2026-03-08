@@ -106,7 +106,7 @@ struct SubscriptionStatusView: View {
             isCheckingSubscription = false
         }
         .sheet(isPresented: $showManageSubscriptions) {
-            SubscriptionManagementView(subscriptionSource: entitlementManager.subscriptionSource)
+            SubscriptionManagementView(subscriptionSource: entitlementManager.subscriptionSource ?? .stripe)
         }
     }
 }

@@ -21,9 +21,6 @@ struct TrainingCourse: Identifiable {
     let studentsCount: Int
     var isEnrolled: Bool
     var provider: CourseProvider
-    var badgeId: UUID? // Badge earned when course is completed
-    var isRecurrent: Bool // Whether this is recurrent training
-    var recurrentDueDate: Date? // When recurrent training is due
     var requiresUasGroundSchool: Bool // Whether this course requires passing UAS Pilot Ground School Test
     var requiresFlightReviewPassed: Bool // Whether this course requires passing Flight Review test
     var requiresRocAPassed: Bool // Whether this course requires passing ROC-A test
@@ -31,12 +28,12 @@ struct TrainingCourse: Identifiable {
     var coverImageUrl: String? // Cover image URL for the course
     var region: CourseRegion // Region where the course is available
     var active: Bool // Whether the course is active and should be displayed
-    
+
     enum CourseLevel: String {
         case beginner = "Beginner"
         case intermediate = "Intermediate"
         case advanced = "Advanced"
-        
+
         var color: Color {
             switch self {
             case .beginner: return .green
@@ -45,14 +42,15 @@ struct TrainingCourse: Identifiable {
             }
         }
     }
-    
+
     enum CourseCategory: String {
         case mandatory = "Mandatory"
         case extensions = "Extension"
         case intermediate = "Intermediate"
         case advanced = "Advanced"
         case specialized = "Specialized"
-        
+        case general = "General"
+
         var icon: String {
             switch self {
             case .mandatory: return "star.fill"
@@ -60,10 +58,11 @@ struct TrainingCourse: Identifiable {
             case .intermediate: return "chart.bar.fill"
             case .advanced: return "trophy.fill"
             case .specialized: return "sparkles"
+            case .general: return "book.fill"
             }
         }
     }
-    
+
     enum CourseProvider: String {
         case buzz = "Buzz"
         case redCross = "Red Cross"
@@ -72,7 +71,7 @@ struct TrainingCourse: Identifiable {
         case amazon = "Amazon"
         case tmobile = "T-Mobile"
         case other = "Other"
-        
+
         var color: Color {
             switch self {
             case .buzz:
@@ -91,7 +90,7 @@ struct TrainingCourse: Identifiable {
                 return .gray
             }
         }
-        
+
         var icon: String {
             switch self {
             case .buzz:
@@ -111,7 +110,7 @@ struct TrainingCourse: Identifiable {
             }
         }
     }
-    
+
     enum CourseRegion: String {
         case canada = "Canada"
         case usa = "USA"
@@ -119,9 +118,9 @@ struct TrainingCourse: Identifiable {
         case australia = "Australia"
         case newZealand = "New Zealand"
         case southAfrica = "South Africa"
-        case other = "Other"
+        case other = "Other" // Legacy persisted value kept for backward compatibility
         case global = "Global"
-        
+
         var icon: String {
             switch self {
             case .canada:
@@ -151,15 +150,15 @@ struct RecurrentTrainingNotice: Identifiable {
     let courseCategory: String
     let dueDate: Date
     let provider: TrainingCourse.CourseProvider
-    
+
     var daysUntilDue: Int {
         Calendar.current.dateComponents([.day], from: Date(), to: dueDate).day ?? 0
     }
-    
+
     var isOverdue: Bool {
         dueDate < Date()
     }
-    
+
     var urgencyColor: Color {
         if isOverdue {
             return .red
@@ -170,4 +169,3 @@ struct RecurrentTrainingNotice: Identifiable {
         }
     }
 }
-

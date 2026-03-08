@@ -391,9 +391,6 @@ struct AcademyView: View {
                 }
             }
             .onAppear {
-                // Reset promotion card dismissal when view appears (so it shows again)
-                isPromotionCardDismissed = false
-
                 // Refresh courses when view appears (e.g., after returning from course detail)
                 Task {
                     await loadCourses()
@@ -522,20 +519,9 @@ struct AcademyView: View {
     }
     
     private func loadRecurrentNotices() async {
-        // Find courses that require recurrent training
-        let recurrentCourses = courses.filter { $0.isRecurrent && $0.isEnrolled }
-        
-        recurrentNotices = recurrentCourses.compactMap { course in
-            guard let dueDate = course.recurrentDueDate else { return nil }
-            
-            return RecurrentTrainingNotice(
-                id: course.id,
-                courseTitle: course.title,
-                courseCategory: course.category.rawValue,
-                dueDate: dueDate,
-                provider: course.provider
-            )
-        }
+        // Recurrent training notices are now managed through the badges system.
+        // TrainingCourse no longer carries recurrence fields.
+        recurrentNotices = []
     }
 }
 
@@ -794,21 +780,12 @@ struct CourseCard: View {
                     }
                 } else if course.isEnrolled {
                     VStack(spacing: 4) {
-                        if course.badgeId != nil {
-                            Image(systemName: "checkmark.seal.fill")
-                                .foregroundColor(.blue)
-                                .font(.system(size: 20))
-                            Text("Badge")
-                                .font(.caption2)
-                                .foregroundColor(.blue)
-                        } else {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundColor(.green)
-                                .font(.system(size: 20))
-                            Text("Enrolled")
-                                .font(.caption2)
-                                .foregroundColor(.green)
-                        }
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundColor(.green)
+                            .font(.system(size: 20))
+                        Text("Enrolled")
+                            .font(.caption2)
+                            .foregroundColor(.green)
                     }
                 }
             }
@@ -1027,106 +1004,17 @@ struct CourseDetailView: View {
                     }
                     .padding(.horizontal)
                     
-                    // Badge Status (if course is completed)
-                    if let badgeId = course.badgeId {
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack {
-                                Image(systemName: "checkmark.seal.fill")
-                                    .foregroundColor(.green)
-                                Text("Badge Earned")
-                                    .font(.headline)
-                                    .fontWeight(.semibold)
-                            }
-                            Text("You have completed this course and earned a badge.")
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
-                        }
-                        .padding()
-                        .background(Color.green.opacity(0.1))
-                        .cornerRadius(10)
-                        .padding(.horizontal)
-                    }
-                    
-                    // Recurrent Training Notice
-                    if course.isRecurrent, let dueDate = course.recurrentDueDate {
-                        let daysUntilDue = Calendar.current.dateComponents([.day], from: Date(), to: dueDate).day ?? 0
-                        let isUrgent = daysUntilDue <= 7
-                        
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack {
-                                Image(systemName: isUrgent ? "exclamationmark.triangle.fill" : "clock.fill")
-                                    .foregroundColor(isUrgent ? .red : .orange)
-                                Text("Recurrent Training Required")
-                                    .font(.headline)
-                                    .fontWeight(.semibold)
-                                    .foregroundColor(isUrgent ? .red : .orange)
-                            }
-                            
-                            if course.badgeId != nil {
-                                // Badge expiration warning
-                                if daysUntilDue <= 7 && daysUntilDue > 0 {
-                                    Text("⚠️ Your badge will expire in \(daysUntilDue) day\(daysUntilDue == 1 ? "" : "s"). Complete the recurrent training to renew your badge.")
-                                        .font(.subheadline)
-                                        .foregroundColor(.red)
-                                        .padding(.top, 4)
-                                } else if daysUntilDue <= 0 {
-                                    Text("⚠️ Your badge has expired. Complete the recurrent training to renew it.")
-                                        .font(.subheadline)
-                                        .foregroundColor(.red)
-                                        .padding(.top, 4)
-                                }
-                            } else {
-                                Text("This course requires periodic recurrent training. Next due: \(dueDate, style: .date)")
-                                    .font(.subheadline)
-                                    .foregroundColor(.secondary)
-                            }
-                        }
-                        .padding()
-                        .background((isUrgent ? Color.red : Color.orange).opacity(0.1))
-                        .cornerRadius(10)
-                        .padding(.horizontal)
-                    }
-                    
                     // Enroll/Unenroll/Complete/Renew Button
                     if isEnrolled {
                         VStack(spacing: 12) {
-                            if course.badgeId != nil {
-                                // Course already completed
-                                if course.isRecurrent {
-                                    // Show renew badge button for recurrent courses
-                                    NavigationLink(destination: CourseContentView(course: course)) {
-                                        Text("Renew Badge")
-                                            .font(.headline)
-                                            .foregroundColor(.white)
-                                            .frame(maxWidth: .infinity)
-                                            .frame(height: 50)
-                                            .background(Color.orange)
-                                            .cornerRadius(12)
-                                    }
-                                    .padding(.horizontal)
-                                } else {
-                                    NavigationLink(destination: CourseContentView(course: course)) {
-                                        Text("View Course Materials")
-                                            .font(.headline)
-                                            .foregroundColor(.white)
-                                            .frame(maxWidth: .infinity)
-                                            .frame(height: 50)
-                                            .background(Color.blue)
-                                            .cornerRadius(12)
-                                    }
-                                    .padding(.horizontal)
-                                }
-                            } else {
-                                // Enrolled but not completed
-                                NavigationLink(destination: CourseContentView(course: course)) {
-                                    Text("Continue Learning")
-                                        .font(.headline)
-                                        .foregroundColor(.white)
-                                        .frame(maxWidth: .infinity)
-                                        .frame(height: 50)
-                                        .background(Color.blue)
-                                        .cornerRadius(12)
-                                }
+                            NavigationLink(destination: CourseContentView(course: course)) {
+                                Text("Continue Learning")
+                                    .font(.headline)
+                                    .foregroundColor(.white)
+                                    .frame(maxWidth: .infinity)
+                                    .frame(height: 50)
+                                    .background(Color.blue)
+                                    .cornerRadius(12)
                             }
                             
                             Button(action: {
@@ -1316,6 +1204,8 @@ struct CourseDetailView: View {
             return "https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?w=800&h=400&fit=crop"
         case .specialized:
             return "https://images.unsplash.com/photo-1581094794329-c8112a89af12?w=800&h=400&fit=crop"
+        case .general:
+            return "https://images.unsplash.com/photo-1518611012118-696072aa971a?w=800&h=400&fit=crop"
         }
     }
 }

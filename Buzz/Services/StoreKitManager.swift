@@ -267,7 +267,6 @@ class StoreKitManager: ObservableObject {
 enum SubscriptionSource: String, Codable {
     case apple = "apple"
     case stripe = "stripe"
-    case none = "none"
 }
 
 /// Manages user entitlements (what they have access to)
@@ -275,9 +274,9 @@ enum SubscriptionSource: String, Codable {
 @MainActor
 class EntitlementManager: ObservableObject {
     static let shared = EntitlementManager()
-    
+
     @Published var hasAcademyPass = false
-    @Published var subscriptionSource: SubscriptionSource = .none
+    @Published var subscriptionSource: SubscriptionSource?
     @Published var isCheckingSubscription = false
     @Published var stripeSubscription: CourseSubscription?
     
@@ -326,7 +325,7 @@ class EntitlementManager: ObservableObject {
                 .select()
                 .eq("pilot_id", value: pilotId.uuidString)
                 .eq("course_id", value: CourseSubscriptionService.uasPilotCourseId.uuidString)
-                .eq("status", value: "active")
+                .in("status", values: ["active", "trialing"])
                 .execute()
                 .value
             
@@ -347,7 +346,7 @@ class EntitlementManager: ObservableObject {
         
         // No active subscription found from any source
         hasAcademyPass = false
-        subscriptionSource = .none
+        subscriptionSource = nil
         stripeSubscription = nil
         isCheckingSubscription = false
         print("ℹ️ No active subscription found from any source")
@@ -357,10 +356,10 @@ class EntitlementManager: ObservableObject {
     /// Check if user already has a subscription from another source
     /// Use this before allowing a new purchase to prevent double billing
     func hasSubscriptionFromOtherSource(currentSource: SubscriptionSource) -> Bool {
-        guard hasAcademyPass else { return false }
-        return subscriptionSource != currentSource && subscriptionSource != .none
+        guard hasAcademyPass, let source = subscriptionSource else { return false }
+        return source != currentSource
     }
-    
+
     /// Get a display string for the subscription source
     var subscriptionSourceDisplayName: String {
         switch subscriptionSource {
@@ -368,7 +367,7 @@ class EntitlementManager: ObservableObject {
             return "App Store"
         case .stripe:
             return "Buzz Academy Website"
-        case .none:
+        case nil:
             return "None"
         }
     }
@@ -392,4 +391,3 @@ enum StoreError: LocalizedError {
         }
     }
 }
-

@@ -15,21 +15,21 @@ class BadgeService: ObservableObject {
     @Published var availableBadges: [AvailableBadge] = []
     @Published var isLoading = false
     @Published var errorMessage: String?
-    
+
     private let supabase = SupabaseClient.shared.client
-    
+
     // MARK: - Fetch Pilot Badges
-    
+
     func fetchPilotBadges(pilotId: UUID) async throws {
         isLoading = true
         errorMessage = nil
-        
+
         do {
             // Check if demo mode is enabled
             if DemoModeManager.shared.isDemoModeEnabled {
                 // Demo mode - return sample badges
             try? await Task.sleep(nanoseconds: 300_000_000) // 0.3 seconds
-            
+
                 badges = getDemoBadges()
             } else {
                 // Production mode - fetch from database
@@ -40,10 +40,10 @@ class BadgeService: ObservableObject {
                     .order("earned_at", ascending: false)
                     .execute()
                     .value
-                
+
                 badges = response
             }
-            
+
             isLoading = false
         } catch {
             isLoading = false
@@ -52,9 +52,9 @@ class BadgeService: ObservableObject {
             throw error
         }
     }
-    
+
     // MARK: - Demo Data
-    
+
     private func getDemoBadges() -> [Badge] {
         return [
                 Badge(
@@ -126,9 +126,9 @@ class BadgeService: ObservableObject {
                 )
             ]
     }
-    
+
     // MARK: - Fetch Available Badges
-    
+
     func fetchAvailableBadges(pilotId: UUID) async throws {
         do {
             // Check if demo mode is enabled
@@ -138,66 +138,20 @@ class BadgeService: ObservableObject {
                 availableBadges = getDemoAvailableBadges()
                 return
             }
-            
-            // Use the database function to get available badges
-            let response = try await supabase
-                .rpc("get_available_badges_for_pilot", params: ["pilot_id_param": pilotId.uuidString])
-                .execute()
-            
-            // Parse the response - the RPC returns a table-like structure
-            struct BadgeCatalogResponse: Codable {
-                let id: UUID
-                let badgeType: String
-                let title: String
-                let category: String?
-                let courseId: UUID?
-                let iconName: String
-                let colorName: String
-                let provider: String
-                let isRecurrent: Bool
-                
-                enum CodingKeys: String, CodingKey {
-                    case id
-                    case badgeType = "badge_type"
-                    case title
-                    case category
-                    case courseId = "course_id"
-                    case iconName = "icon_name"
-                    case colorName = "color_name"
-                    case provider
-                    case isRecurrent = "is_recurrent"
-                }
-            }
-            
-            let catalogEntries: [BadgeCatalogResponse] = try JSONDecoder().decode([BadgeCatalogResponse].self, from: response.data)
-            
-            // Convert catalog entries to AvailableBadge
-            availableBadges = catalogEntries.map { entry in
-                let badgeType = Badge.BadgeType(rawValue: entry.badgeType)
-                let provider = Badge.CourseProvider(rawValue: entry.provider) ?? .buzz
-                
-                return AvailableBadge(
-                    id: entry.id,
-                    courseId: entry.courseId,
-                    courseTitle: entry.title,
-                    courseCategory: entry.category ?? "",
-                    provider: provider,
-                    isRecurrent: entry.isRecurrent,
-                    badgeType: badgeType
-                )
-            }
+
+            // Fetch available badges directly from catalog and courses
+            try await fetchAvailableBadgesFallback(pilotId: pilotId)
         } catch {
             print("Error fetching available badges: \(error)")
-            // Fallback to old method if function doesn't exist yet
-            try await fetchAvailableBadgesFallback(pilotId: pilotId)
+            throw error
         }
     }
-    
-    // MARK: - Fallback Method (if database function doesn't exist)
-    
+
+    // MARK: - Fetch Available Badges from Catalog and Courses
+
     private func fetchAvailableBadgesFallback(pilotId: UUID) async throws {
         var allAvailableBadges: [AvailableBadge] = []
-        
+
         // Fetch badges catalog from backend
         let catalogResponse: [BadgeCatalog] = try await supabase
             .from("badges_catalog")
@@ -206,7 +160,7 @@ class BadgeService: ObservableObject {
             .order("display_order", ascending: true)
             .execute()
             .value
-        
+
         // Get earned badges for this pilot
         let earnedBadges: [Badge] = try await supabase
             .from("badges")
@@ -214,18 +168,18 @@ class BadgeService: ObservableObject {
             .eq("pilot_id", value: pilotId.uuidString)
             .execute()
             .value
-        
+
         let earnedCourseIds = Set(earnedBadges.compactMap { $0.courseId })
         let earnedBadgeTypes = Set(earnedBadges.compactMap { $0.badgeType })
-        
+
         // Process criteria badges from catalog
         for catalogEntry in catalogResponse {
             guard catalogEntry.badgeType != "course" else { continue }
-            
+
             if let badgeType = Badge.BadgeType(rawValue: catalogEntry.badgeType),
                !earnedBadgeTypes.contains(badgeType) {
                 let provider = Badge.CourseProvider(rawValue: catalogEntry.provider) ?? .buzz
-                
+
                 allAvailableBadges.append(AvailableBadge(
                     id: catalogEntry.id,
                     courseId: catalogEntry.courseId,
@@ -237,7 +191,7 @@ class BadgeService: ObservableObject {
                 ))
             }
         }
-        
+
         // Fetch course badges from training_courses
         let coursesResponse: [TrainingCourseResponse] = try await supabase
             .from("training_courses")
@@ -246,7 +200,7 @@ class BadgeService: ObservableObject {
             .order("created_at", ascending: false)
             .execute()
             .value
-        
+
         let courseBadges = coursesResponse
             .filter { course in
                 !earnedCourseIds.contains(course.id)
@@ -262,13 +216,13 @@ class BadgeService: ObservableObject {
                     badgeType: .course
                 )
             }
-        
+
         allAvailableBadges.append(contentsOf: courseBadges)
         availableBadges = allAvailableBadges
     }
-    
+
     // MARK: - Demo Available Badges
-    
+
     private func getDemoAvailableBadges() -> [AvailableBadge] {
         return [
             AvailableBadge(
@@ -346,22 +300,22 @@ class BadgeService: ObservableObject {
             )
             ]
     }
-    
+
     // MARK: - Award Permit Badge
-    
+
     func awardPermitBadge(pilotId: UUID, badgeType: Badge.BadgeType) async throws {
         // In demo mode, just show a success message without actually inserting into database
         if DemoModeManager.shared.isDemoModeEnabled {
             print("Demo Mode: Skipping permit badge award")
             return
         }
-        
+
         // Only allow permit badge types
         guard badgeType == .flightReviewer || badgeType == .rocaExaminer else {
             print("Error: Invalid permit badge type")
             return
         }
-        
+
         do {
             // Check if pilot already has this badge
             let existingBadges: [Badge] = try await supabase
@@ -371,12 +325,12 @@ class BadgeService: ObservableObject {
                 .eq("badge_type", value: badgeType.rawValue)
                 .execute()
                 .value
-            
+
             if !existingBadges.isEmpty {
                 print("Pilot already has \(badgeType.displayName) badge")
                 return
             }
-            
+
             // Award the badge
             let badge: [String: AnyJSON] = [
                 "id": .string(UUID().uuidString),
@@ -390,14 +344,14 @@ class BadgeService: ObservableObject {
                 "expires_at": .null,
                 "is_recurrent": .bool(false)
             ]
-            
+
             try await supabase
                 .from("badges")
                 .insert(badge)
                 .execute()
-            
+
             print("Successfully awarded \(badgeType.displayName) badge to pilot \(pilotId)")
-            
+
             // Refresh badges and available badges
             try await fetchPilotBadges(pilotId: pilotId)
             try await fetchAvailableBadges(pilotId: pilotId)
@@ -407,9 +361,9 @@ class BadgeService: ObservableObject {
             throw error
         }
     }
-    
+
     // MARK: - Award Criteria Badge
-    
+
     /// Award a criteria-based badge (ex-military, government, beacon volunteer, etc.)
     func awardCriteriaBadge(pilotId: UUID, badgeType: Badge.BadgeType) async throws {
         // In demo mode, just show a success message without actually inserting into database
@@ -417,13 +371,13 @@ class BadgeService: ObservableObject {
             print("Demo Mode: Skipping criteria badge award")
             return
         }
-        
+
         // Only allow criteria badge types (not course)
         guard badgeType != .course else {
             print("Error: Cannot award course badge via criteria badge method")
             return
         }
-        
+
         do {
             // Check if pilot already has this badge
             let existingBadges: [Badge] = try await supabase
@@ -433,12 +387,12 @@ class BadgeService: ObservableObject {
                 .eq("badge_type", value: badgeType.rawValue)
                 .execute()
                 .value
-            
+
             if !existingBadges.isEmpty {
                 print("Pilot already has \(badgeType.displayName) badge")
                 return
             }
-            
+
             // Award the badge
             let badge: [String: AnyJSON] = [
                 "id": .string(UUID().uuidString),
@@ -452,14 +406,14 @@ class BadgeService: ObservableObject {
                 "expires_at": .null,
                 "is_recurrent": .bool(false)
             ]
-            
+
             try await supabase
                 .from("badges")
                 .insert(badge)
                 .execute()
-            
+
             print("Successfully awarded \(badgeType.displayName) badge to pilot \(pilotId)")
-            
+
             // Refresh badges and available badges
             try await fetchPilotBadges(pilotId: pilotId)
             try await fetchAvailableBadges(pilotId: pilotId)
@@ -469,60 +423,56 @@ class BadgeService: ObservableObject {
             throw error
         }
     }
-    
+
     // MARK: - Award Badge
-    
+
     func awardBadge(pilotId: UUID, courseId: UUID, courseTitle: String, courseCategory: String, provider: Badge.CourseProvider) async throws {
         // In demo mode, just show a success message without actually inserting into database
         if DemoModeManager.shared.isDemoModeEnabled {
             print("Demo Mode: Skipping badge award")
             return
         }
-        
+
         do {
-            // Use the database function to award badge from catalog
-            // This ensures badge details come from badges_catalog (single source of truth)
-            let response = try await supabase
-                .rpc("award_badge_from_catalog", params: [
-                    "pilot_id_param": pilotId.uuidString,
-                    "course_id_param": courseId.uuidString,
-                    "badge_type_param": "course"
-                ])
+            let existingBadges: [Badge] = try await supabase
+                .from("badges")
+                .select()
+                .eq("pilot_id", value: pilotId.uuidString)
+                .eq("course_id", value: courseId.uuidString)
+                .eq("badge_type", value: "course")
+                .limit(1)
                 .execute()
-            
+                .value
+
+            if !existingBadges.isEmpty {
+                print("Pilot already has course badge for course \(courseId)")
+                return
+            }
+
+            let badge: [String: AnyJSON] = [
+                "id": .string(UUID().uuidString),
+                "pilot_id": .string(pilotId.uuidString),
+                "course_id": .string(courseId.uuidString),
+                "course_title": .string(courseTitle),
+                "course_category": .string(courseCategory),
+                "provider": .string(provider.rawValue),
+                "badge_type": .string("course"),
+                "earned_at": .string(ISO8601DateFormatter().string(from: Date())),
+                "expires_at": .null,
+                "is_recurrent": .bool(false)
+            ]
+
+            try await supabase
+                .from("badges")
+                .insert(badge)
+                .execute()
+
             // Refresh badges and available badges
             try await fetchPilotBadges(pilotId: pilotId)
             try await fetchAvailableBadges(pilotId: pilotId)
         } catch {
-            print("Error awarding badge via function: \(error)")
-            // Fallback to direct insert if function doesn't exist (backward compatibility)
-            do {
-                let badge: [String: AnyJSON] = [
-                    "id": .string(UUID().uuidString),
-                    "pilot_id": .string(pilotId.uuidString),
-                    "course_id": .string(courseId.uuidString),
-                    "course_title": .string(courseTitle),
-                    "course_category": .string(courseCategory),
-                    "provider": .string(provider.rawValue),
-                    "badge_type": .string("course"),
-                    "earned_at": .string(ISO8601DateFormatter().string(from: Date())),
-                    "expires_at": .null,
-                    "is_recurrent": .bool(false)
-                ]
-                
-                try await supabase
-                    .from("badges")
-                    .insert(badge)
-                    .execute()
-                
-                // Refresh badges and available badges
-                try await fetchPilotBadges(pilotId: pilotId)
-                try await fetchAvailableBadges(pilotId: pilotId)
-            } catch {
-                errorMessage = error.localizedDescription
-                throw error
-            }
+            errorMessage = error.localizedDescription
+            throw error
         }
     }
 }
-

@@ -20,6 +20,10 @@ class AcademyService: ObservableObject {
     // MARK: - Fetch All Courses
     
     func fetchCourses() async throws {
+        if DemoModeManager.shared.isDemoModeEnabled {
+            return
+        }
+
         isLoading = true
         errorMessage = nil
         
@@ -40,16 +44,13 @@ class AcademyService: ObservableObject {
                     description: courseResponse.description,
                     duration: courseResponse.duration,
                     level: TrainingCourse.CourseLevel(rawValue: courseResponse.level) ?? .beginner,
-                    category: TrainingCourse.CourseCategory(rawValue: courseResponse.category) ?? .mandatory,
+                    category: TrainingCourse.CourseCategory(rawValue: courseResponse.category) ?? .general,
                     instructor: courseResponse.instructor,
                     instructorPictureUrl: courseResponse.instructorPictureUrl,
                     rating: courseResponse.rating,
                     studentsCount: courseResponse.studentsCount,
                     isEnrolled: false,
                     provider: TrainingCourse.CourseProvider(rawValue: courseResponse.provider ?? "Buzz") ?? .buzz,
-                    badgeId: nil,
-                    isRecurrent: false,
-                    recurrentDueDate: nil,
                     requiresUasGroundSchool: courseResponse.requiresUasGroundSchool ?? false,
                     requiresFlightReviewPassed: courseResponse.requiresFlightReviewPassed ?? false,
                     requiresRocAPassed: courseResponse.requiresRocAPassed ?? false,
@@ -59,7 +60,7 @@ class AcademyService: ObservableObject {
                     active: courseResponse.active ?? false
                 )
             }
-            
+
             isLoading = false
         } catch {
             isLoading = false
@@ -126,16 +127,13 @@ class AcademyService: ObservableObject {
                     description: courseResponse.description,
                     duration: courseResponse.duration,
                     level: TrainingCourse.CourseLevel(rawValue: courseResponse.level) ?? .beginner,
-                    category: TrainingCourse.CourseCategory(rawValue: courseResponse.category) ?? .mandatory,
+                    category: TrainingCourse.CourseCategory(rawValue: courseResponse.category) ?? .general,
                     instructor: courseResponse.instructor,
                     instructorPictureUrl: courseResponse.instructorPictureUrl,
                     rating: courseResponse.rating,
                     studentsCount: courseResponse.studentsCount,
                     isEnrolled: isEnrolled,
                     provider: TrainingCourse.CourseProvider(rawValue: courseResponse.provider ?? "Buzz") ?? .buzz,
-                    badgeId: nil,
-                    isRecurrent: false,
-                    recurrentDueDate: nil,
                     requiresUasGroundSchool: courseResponse.requiresUasGroundSchool ?? false,
                     requiresFlightReviewPassed: courseResponse.requiresFlightReviewPassed ?? false,
                     requiresRocAPassed: courseResponse.requiresRocAPassed ?? false,
@@ -171,6 +169,10 @@ class AcademyService: ObservableObject {
     // MARK: - Fetch Course Sections
     
     func fetchCourseSections(courseId: UUID) async throws -> [CourseSection] {
+        if DemoModeManager.shared.isDemoModeEnabled {
+            return []
+        }
+
         do {
             let response: [CourseSection] = try await supabase
                 .from("course_sections")
@@ -193,6 +195,10 @@ class AcademyService: ObservableObject {
     // MARK: - Fetch Course Units
     
     func fetchCourseUnits(courseId: UUID) async throws -> [CourseUnit] {
+        if DemoModeManager.shared.isDemoModeEnabled {
+            return []
+        }
+
         do {
             let response: [CourseUnit] = try await supabase
                 .from("course_units")
@@ -237,6 +243,10 @@ class AcademyService: ObservableObject {
     /// - Parameter pilotId: The pilot's UUID
     /// - Returns: true if the pilot has passed the Ground School test
     func checkGroundSchoolTestStatus(pilotId: UUID) async throws -> Bool {
+        if DemoModeManager.shared.isDemoModeEnabled {
+            return false
+        }
+
         print("🔍 [AcademyService] Checking Ground School test status via RPC for pilot: \(pilotId)")
         
         do {
@@ -259,6 +269,10 @@ class AcademyService: ObservableObject {
     /// - Parameter pilotId: The pilot's UUID
     /// - Returns: true if the pilot has passed the Flight Review test
     func checkFlightReviewTestStatus(pilotId: UUID) async throws -> Bool {
+        if DemoModeManager.shared.isDemoModeEnabled {
+            return false
+        }
+
         print("🔍 [AcademyService] Checking Flight Review test status via RPC for pilot: \(pilotId)")
         
         do {
@@ -281,6 +295,10 @@ class AcademyService: ObservableObject {
     /// - Parameter pilotId: The pilot's UUID
     /// - Returns: true if the pilot has passed the ROC-A test
     func checkRocATestStatus(pilotId: UUID) async throws -> Bool {
+        if DemoModeManager.shared.isDemoModeEnabled {
+            return false
+        }
+
         print("🔍 [AcademyService] Checking ROC-A test status via RPC for pilot: \(pilotId)")
         
         do {
@@ -316,6 +334,10 @@ class AcademyService: ObservableObject {
     // MARK: - Fetch Course Tests
     
     func fetchCourseTests(courseId: UUID) async throws -> [CourseTest] {
+        if DemoModeManager.shared.isDemoModeEnabled {
+            return []
+        }
+
         do {
             let response: [CourseTest] = try await supabase
                 .from("course_tests")
@@ -354,6 +376,10 @@ class AcademyService: ObservableObject {
     
     /// Fetch active tests only from courses the pilot is enrolled in
     func fetchTestsForEnrolledCourses(pilotId: UUID) async throws -> [CourseTest] {
+        if DemoModeManager.shared.isDemoModeEnabled {
+            return []
+        }
+
         do {
             // First, fetch the pilot's course enrollments for active courses
             let enrollmentsResponse = try await supabase
@@ -477,22 +503,22 @@ class AcademyService: ObservableObject {
     // MARK: - Check Test Status by Test ID
     
     func checkTestStatus(pilotId: UUID, testId: UUID) async throws -> Bool {
+        if DemoModeManager.shared.isDemoModeEnabled {
+            return false
+        }
+
         do {
             let response = try await supabase
                 .from("test_results")
                 .select("passed")
                 .eq("pilot_id", value: pilotId.uuidString)
                 .eq("test_id", value: testId.uuidString)
+                .eq("passed", value: true)
+                .limit(1)
                 .execute()
-            
-            let data = response.data
-            guard let jsonArray = try JSONSerialization.jsonObject(with: data) as? [[String: Any]],
-                  let firstResult = jsonArray.first,
-                  let passed = firstResult["passed"] as? Bool else {
-                return false
-            }
-            
-            return passed
+
+            let jsonArray = try JSONSerialization.jsonObject(with: response.data) as? [[String: Any]] ?? []
+            return !jsonArray.isEmpty
         } catch {
             print("Error checking test status: \(error)")
             return false
@@ -507,6 +533,10 @@ class AcademyService: ObservableObject {
     ///   - testIds: Array of test UUIDs to check
     /// - Returns: Dictionary mapping test ID to pass status
     func checkTestStatuses(pilotId: UUID, testIds: [UUID]) async -> [UUID: Bool] {
+        if DemoModeManager.shared.isDemoModeEnabled {
+            return [:]
+        }
+
         var results: [UUID: Bool] = [:]
         
         // Check all tests in parallel
@@ -631,45 +661,52 @@ class AcademyService: ObservableObject {
     // MARK: - Enroll in Course
     
     func enrollInCourse(pilotId: UUID, courseId: UUID) async throws {
+        if DemoModeManager.shared.isDemoModeEnabled {
+            return
+        }
+
         // Check all prerequisite requirements for the course using RPC functions
-        if let course = courses.first(where: { $0.id == courseId }) {
-            var missingPrerequisites: [String] = []
-            
-            // Check Ground School prerequisite via RPC
-            if course.requiresUasGroundSchool {
-                let hasPassedGroundSchool = try await checkGroundSchoolTestStatus(pilotId: pilotId)
-                if !hasPassedGroundSchool {
-                    missingPrerequisites.append("UAS Pilot Ground School Test")
-                }
+        guard let course = courses.first(where: { $0.id == courseId }) else {
+            throw NSError(domain: "AcademyService", code: 404,
+                userInfo: [NSLocalizedDescriptionKey: "Course not found. Please refresh and try again."])
+        }
+
+        var missingPrerequisites: [String] = []
+
+        // Check Ground School prerequisite via RPC
+        if course.requiresUasGroundSchool {
+            let hasPassedGroundSchool = try await checkGroundSchoolTestStatus(pilotId: pilotId)
+            if !hasPassedGroundSchool {
+                missingPrerequisites.append("UAS Pilot Ground School Test")
             }
-            
-            // Check Flight Review prerequisite via RPC
-            if course.requiresFlightReviewPassed {
-                let hasPassedFlightReview = try await checkFlightReviewTestStatus(pilotId: pilotId)
-                if !hasPassedFlightReview {
-                    missingPrerequisites.append("Flight Review Test")
-                }
+        }
+
+        // Check Flight Review prerequisite via RPC
+        if course.requiresFlightReviewPassed {
+            let hasPassedFlightReview = try await checkFlightReviewTestStatus(pilotId: pilotId)
+            if !hasPassedFlightReview {
+                missingPrerequisites.append("Flight Review Test")
             }
-            
-            // Check ROC-A prerequisite via RPC
-            if course.requiresRocAPassed {
-                let hasPassedRocA = try await checkRocATestStatus(pilotId: pilotId)
-                if !hasPassedRocA {
-                    missingPrerequisites.append("ROC-A Test")
-                }
+        }
+
+        // Check ROC-A prerequisite via RPC
+        if course.requiresRocAPassed {
+            let hasPassedRocA = try await checkRocATestStatus(pilotId: pilotId)
+            if !hasPassedRocA {
+                missingPrerequisites.append("ROC-A Test")
             }
-            
-            // If any prerequisites are missing, throw an error
-            if !missingPrerequisites.isEmpty {
-                let prerequisiteList = missingPrerequisites.joined(separator: ", ")
-                throw NSError(
-                    domain: "AcademyService",
-                    code: 403,
-                    userInfo: [
-                        NSLocalizedDescriptionKey: "You must pass the following before enrolling: \(prerequisiteList)"
-                    ]
-                )
-            }
+        }
+
+        // If any prerequisites are missing, throw an error
+        if !missingPrerequisites.isEmpty {
+            let prerequisiteList = missingPrerequisites.joined(separator: ", ")
+            throw NSError(
+                domain: "AcademyService",
+                code: 403,
+                userInfo: [
+                    NSLocalizedDescriptionKey: "You must pass the following before enrolling: \(prerequisiteList)"
+                ]
+            )
         }
         
         do {
@@ -715,6 +752,10 @@ class AcademyService: ObservableObject {
     // MARK: - Fetch Completed Courses for Pilot
     
     func fetchCompletedCourses(pilotId: UUID) async throws -> [TrainingCourse] {
+        if DemoModeManager.shared.isDemoModeEnabled {
+            return []
+        }
+
         isLoading = true
         errorMessage = nil
         
@@ -778,9 +819,6 @@ class AcademyService: ObservableObject {
                     studentsCount: studentsCount,
                     isEnrolled: true,
                     provider: provider,
-                    badgeId: nil,
-                    isRecurrent: courseJson["is_recurrent"] as? Bool ?? false,
-                    recurrentDueDate: nil,
                     requiresUasGroundSchool: courseJson["requires_uas_ground_school"] as? Bool ?? false,
                     requiresFlightReviewPassed: courseJson["requires_flight_review_passed"] as? Bool ?? false,
                     requiresRocAPassed: courseJson["requires_roc_a_passed"] as? Bool ?? false,
@@ -806,6 +844,10 @@ class AcademyService: ObservableObject {
     // MARK: - Fetch Completed Units for Pilot
     
     func fetchCompletedUnits(pilotId: UUID) async throws -> [CompletedUnit] {
+        if DemoModeManager.shared.isDemoModeEnabled {
+            return []
+        }
+
         do {
             // Fetch unit completions with unit details for this pilot
             // Filter for unit_number >= 4
@@ -845,7 +887,9 @@ class AcademyService: ObservableObject {
                 // Parse the completedAt date
                 let formatter = ISO8601DateFormatter()
                 formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-                guard let completedAt = formatter.date(from: completedAtString) else {
+                let formatterNoFrac = ISO8601DateFormatter()
+                formatterNoFrac.formatOptions = [.withInternetDateTime]
+                guard let completedAt = formatter.date(from: completedAtString) ?? formatterNoFrac.date(from: completedAtString) else {
                     print("⚠️ [AcademyService] Failed to parse date: \(completedAtString)")
                     continue
                 }
@@ -916,6 +960,10 @@ class AcademyService: ObservableObject {
     /// Sets `completed_at` when progress reaches 100%.
     @discardableResult
     func updateCourseProgress(pilotId: UUID, courseId: UUID) async -> Int {
+        if DemoModeManager.shared.isDemoModeEnabled {
+            return 0
+        }
+
         do {
             // Fetch all units and tests for this course
             let allUnits = try await fetchCourseUnits(courseId: courseId)

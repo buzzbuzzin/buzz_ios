@@ -282,18 +282,30 @@ struct UnitDetailView: View {
         }
         
         // Get the required units from the test (fetched from backend)
-        let requiredUnits = test.requiredUnits
+        let requiredUnitIds = test.requiredUnits
 
-        if requiredUnits.isEmpty {
+        if requiredUnitIds.isEmpty {
             // If no required units specified, this unit cannot trigger the test button
             isLastMandatoryUnit = false
         } else {
-            // Check if this unit's UUID is in the required units list
-            let isRequiredUnit = requiredUnits.contains(unit.id)
-            isLastMandatoryUnit = isRequiredUnit
+            // Only show the test button on the last required unit (by order_index)
+            do {
+                let allUnits = try await academyService.fetchCourseUnits(courseId: course.id)
+                let requiredCourseUnits = allUnits
+                    .filter { requiredUnitIds.contains($0.id) }
+                    .sorted { $0.orderIndex < $1.orderIndex }
+                if let lastRequiredUnitId = requiredCourseUnits.last?.id {
+                    isLastMandatoryUnit = unit.id == lastRequiredUnitId
+                } else {
+                    isLastMandatoryUnit = false
+                }
+            } catch {
+                print("Error fetching course units for last mandatory check: \(error)")
+                isLastMandatoryUnit = false
+            }
         }
-        
-        print("✅ [UnitDetailView] Is last mandatory unit: \(isLastMandatoryUnit) (unit \(unit.unitNumber), required: \(requiredUnits))")
+
+        print("✅ [UnitDetailView] Is last mandatory unit: \(isLastMandatoryUnit) (unit \(unit.unitNumber), required: \(requiredUnitIds))")
     }
     
     private func checkCompletionStatus() async {

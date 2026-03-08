@@ -17,6 +17,8 @@ struct CourseUnit: Identifiable, Codable {
     let materialUrls: [String] // NEW: Array of URLs to course materials (PDFs, images, etc.)
     let materialNames: [String] // NEW: Array of names for course materials
     let materialTypes: [String] // NEW: Array of file types (pdf, jpeg, png, etc.)
+    var materialPartNames: [String] // Array of part names for course materials
+    var materialParts: [String] // Array of parts for course materials
     let pdfUrls: [String] // DEPRECATED: Kept for backward compatibility, use materialUrls instead
     let pdfNames: [String] // DEPRECATED: Kept for backward compatibility, use materialNames instead
     let sectionId: UUID?  // NEW: Reference to course_sections table
@@ -36,6 +38,8 @@ struct CourseUnit: Identifiable, Codable {
         case materialUrls = "material_urls"
         case materialNames = "material_names"
         case materialTypes = "material_types"
+        case materialPartNames = "material_part_names"
+        case materialParts = "material_parts"
         case pdfUrl = "pdf_url"
         case pdfNames = "pdf_names"
         case sectionId = "section_id"
@@ -45,7 +49,7 @@ struct CourseUnit: Identifiable, Codable {
         case prerequisiteUnits = "prerequisite_units"
         case prerequisiteTests = "prerequisite_tests"
     }
-    
+
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(UUID.self, forKey: .id)
@@ -65,6 +69,8 @@ struct CourseUnit: Identifiable, Codable {
         materialUrls = (try? container.decode([String].self, forKey: .materialUrls)) ?? []
         materialNames = (try? container.decode([String].self, forKey: .materialNames)) ?? []
         materialTypes = (try? container.decode([String].self, forKey: .materialTypes)) ?? []
+        materialPartNames = (try? container.decode([String].self, forKey: .materialPartNames)) ?? []
+        materialParts = (try? container.decode([String].self, forKey: .materialParts)) ?? []
 
         // Handle pdf_url as either JSON array or single string (for backward compatibility)
         if let pdfUrlArray = try? container.decode([String].self, forKey: .pdfUrl) {
@@ -82,7 +88,7 @@ struct CourseUnit: Identifiable, Codable {
             pdfNames = []
         }
     }
-    
+
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(id, forKey: .id)
@@ -94,6 +100,8 @@ struct CourseUnit: Identifiable, Codable {
         try container.encode(materialUrls, forKey: .materialUrls)
         try container.encode(materialNames, forKey: .materialNames)
         try container.encode(materialTypes, forKey: .materialTypes)
+        try container.encode(materialPartNames, forKey: .materialPartNames)
+        try container.encode(materialParts, forKey: .materialParts)
         try container.encodeIfPresent(sectionId, forKey: .sectionId)
         try container.encodeIfPresent(stepNumber, forKey: .stepNumber)
         try container.encode(isMandatory, forKey: .isMandatory)
@@ -191,4 +199,3 @@ struct CourseMaterial {
         }
     }
 }
-
