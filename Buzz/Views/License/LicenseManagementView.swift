@@ -155,7 +155,8 @@ struct LicenseManagementView: View {
                                         onReupload: {
                                             selectedLicenseType = .rpaFlightReviewer
                                             showUploadOptions = true
-                                        }
+                                        },
+                                        helpArticleId: "flight-reviewer"
                                     )
                                 }
 
@@ -181,7 +182,8 @@ struct LicenseManagementView: View {
                                         onReupload: {
                                             selectedLicenseType = .rocaExaminerCertificate
                                             showUploadOptions = true
-                                        }
+                                        },
+                                        helpArticleId: "roc-a-examiner"
                                     )
                                 }
                                 
@@ -636,8 +638,10 @@ struct LicenseCategorySection: View {
     let onDelete: (PilotLicense) -> Void
     let onEdit: (PilotLicense) -> Void
     var onReupload: (() -> Void)? = nil
-    
+    var helpArticleId: String? = nil
+
     @State private var isExpanded: Bool = true
+    @State private var showHelpArticle: Bool = false
     
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -671,6 +675,42 @@ struct LicenseCategorySection: View {
             // License Cards - Show/Hide based on isExpanded
             if isExpanded {
                 VStack(spacing: 12) {
+                    if let articleId = helpArticleId,
+                       let article = HelpCenterArticle.article(withId: articleId) {
+                        Button {
+                            showHelpArticle = true
+                        } label: {
+                            HStack(spacing: 10) {
+                                Image(systemName: "questionmark.circle.fill")
+                                    .foregroundColor(article.accent)
+                                    .font(.subheadline)
+                                Text("How to get this credential")
+                                    .font(.subheadline)
+                                    .foregroundColor(article.accent)
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 12)
+                            .background(article.accent.opacity(0.08))
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                        }
+                        .sheet(isPresented: $showHelpArticle) {
+                            NavigationStack {
+                                HelpCenterArticleDetailView(article: article)
+                                    .toolbar {
+                                        ToolbarItem(placement: .navigationBarTrailing) {
+                                            Button("Done") {
+                                                showHelpArticle = false
+                                            }
+                                        }
+                                    }
+                            }
+                        }
+                    }
+
                     ForEach(licenses) { license in
                         LicenseCard(
                             license: license,
