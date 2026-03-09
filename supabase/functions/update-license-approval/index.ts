@@ -181,9 +181,10 @@ serve(async (req) => {
       }
     }
 
-    // Send push notification to pilot (skip for pre_approved — internal admin step)
-    if (status !== "pre_approved") {
+    // Send push notification to pilot for all status transitions
+    {
       const licenseType = approvalRequest.license_type || "License"
+      const licenseId = approvalRequest.license_id
       let notifTitle: string
       let notifBody: string
       let notifData: Record<string, string>
@@ -193,17 +194,29 @@ serve(async (req) => {
         notifBody = `Your ${licenseType} has been approved!`
         notifData = {
           type: "license_approved",
-          license_id: approvalRequest.license_id,
+          ...(licenseId ? { license_id: licenseId } : {}),
         }
-      } else {
+      } else if (status === "pre_approved") {
+        notifTitle = "License Under Review"
+        notifBody = `Your ${licenseType} has passed initial review and is pending final approval.`
+        notifData = {
+          type: "license_pre_approved",
+          ...(licenseId ? { license_id: licenseId } : {}),
+        }
+      } else if (status === "rejected") {
         notifTitle = "License Needs Attention"
         notifBody = reviewerNotes
           ? `Your ${licenseType} needs attention: ${reviewerNotes}`
           : `Your ${licenseType} needs attention. Please check and re-upload.`
         notifData = {
           type: "license_rejected",
-          license_id: approvalRequest.license_id,
+          ...(licenseId ? { license_id: licenseId } : {}),
         }
+      } else {
+        console.error(`Unhandled status in notification block: ${status}`)
+        notifTitle = ""
+        notifBody = ""
+        notifData = { type: status }
       }
 
       // Send push notification via the existing send-push-notification function

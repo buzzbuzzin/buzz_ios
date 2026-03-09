@@ -30,6 +30,7 @@ struct PilotProfileView: View {
     @State private var navigateToBalance = false
     @State private var navigateToConnections = false
     @State private var navigateToLicenses = false
+    @State private var deepLinkLicenseId: UUID?
     @EnvironmentObject var deepLinkManager: DeepLinkManager
     
     var yearsOnBuzz: Int {
@@ -210,9 +211,10 @@ struct PilotProfileView: View {
                     .hidden()
 
                     NavigationLink(
-                        destination: LicenseManagementView()
+                        destination: LicenseManagementView(highlightLicenseId: deepLinkLicenseId)
                             .onDisappear {
                                 navigateToLicenses = false
+                                deepLinkLicenseId = nil
                             },
                         isActive: $navigateToLicenses
                     ) {
@@ -593,14 +595,16 @@ struct PilotProfileView: View {
             isLoadingRatings = false
         }
         .onAppear {
-            if deepLinkManager.pendingDestination == .licenseManagement {
+            if case .licenseManagement(let licenseId) = deepLinkManager.pendingDestination {
                 deepLinkManager.pendingDestination = nil
+                deepLinkLicenseId = licenseId
                 navigateToLicenses = true
             }
         }
-        .onChange(of: deepLinkManager.pendingDestination) { destination in
-            if destination == .licenseManagement {
+        .onChange(of: deepLinkManager.pendingDestination) { _, destination in
+            if case .licenseManagement(let licenseId) = destination {
                 deepLinkManager.pendingDestination = nil
+                deepLinkLicenseId = licenseId
                 navigateToLicenses = true
             }
         }

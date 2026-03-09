@@ -344,17 +344,37 @@ final class DeepLinkManagerTests: XCTestCase {
     }
 
     func testLicenseApproved_setsLicenseManagement() {
+        let licenseId = UUID()
         manager.handleNotificationTap(userInfo: [
-            "type": "license_approved"
+            "type": "license_approved",
+            "license_id": licenseId.uuidString
         ])
-        XCTAssertEqual(manager.pendingDestination, .licenseManagement)
+        XCTAssertEqual(manager.pendingDestination, .licenseManagement(licenseId: licenseId))
     }
 
     func testLicenseRejected_setsLicenseManagement() {
+        let licenseId = UUID()
         manager.handleNotificationTap(userInfo: [
-            "type": "license_rejected"
+            "type": "license_rejected",
+            "license_id": licenseId.uuidString
         ])
-        XCTAssertEqual(manager.pendingDestination, .licenseManagement)
+        XCTAssertEqual(manager.pendingDestination, .licenseManagement(licenseId: licenseId))
+    }
+
+    func testLicensePreApproved_setsLicenseManagement() {
+        let licenseId = UUID()
+        manager.handleNotificationTap(userInfo: [
+            "type": "license_pre_approved",
+            "license_id": licenseId.uuidString
+        ])
+        XCTAssertEqual(manager.pendingDestination, .licenseManagement(licenseId: licenseId))
+    }
+
+    func testLicense_missingLicenseId_setsLicenseManagementWithNilId() {
+        manager.handleNotificationTap(userInfo: [
+            "type": "license_approved"
+        ])
+        XCTAssertEqual(manager.pendingDestination, .licenseManagement(licenseId: nil))
     }
 
     func testEmergencyBeacon_missingBookingId_doesNotSetDestination() {
@@ -516,25 +536,39 @@ final class DeepLinkRemotePushTests: XCTestCase {
     }
 
     func testRemotePush_licenseApproved_resolvedFromNestedData() {
+        let licenseId = UUID()
         resolveAndHandle(userInfo: [
             "aps": ["alert": ["title": "License Approved", "body": "Your credential was approved"]],
             "data": [
                 "type": "license_approved",
-                "license_id": UUID().uuidString
+                "license_id": licenseId.uuidString
             ]
         ])
-        XCTAssertEqual(manager.pendingDestination, .licenseManagement)
+        XCTAssertEqual(manager.pendingDestination, .licenseManagement(licenseId: licenseId))
     }
 
     func testRemotePush_licenseRejected_resolvedFromNestedData() {
+        let licenseId = UUID()
         resolveAndHandle(userInfo: [
             "aps": ["alert": ["title": "License Needs Attention", "body": "Please re-upload"]],
             "data": [
                 "type": "license_rejected",
-                "license_id": UUID().uuidString
+                "license_id": licenseId.uuidString
             ]
         ])
-        XCTAssertEqual(manager.pendingDestination, .licenseManagement)
+        XCTAssertEqual(manager.pendingDestination, .licenseManagement(licenseId: licenseId))
+    }
+
+    func testRemotePush_licensePreApproved_resolvedFromNestedData() {
+        let licenseId = UUID()
+        resolveAndHandle(userInfo: [
+            "aps": ["alert": ["title": "License Under Review", "body": "Passed initial review"]],
+            "data": [
+                "type": "license_pre_approved",
+                "license_id": licenseId.uuidString
+            ]
+        ])
+        XCTAssertEqual(manager.pendingDestination, .licenseManagement(licenseId: licenseId))
     }
 
     // MARK: - Local Notification Payloads (top-level keys, no "data" wrapper)
@@ -727,8 +761,6 @@ final class DeepLinkAllTypesTests: XCTestCase {
             ("weather_change", .weather),
             ("nws_weather_alert", .weather),
             ("received_review", .profile),
-            ("license_approved", .licenseManagement),
-            ("license_rejected", .licenseManagement),
             ("hanger_talk_follow", .hangerTalkInbox)
         ]
 

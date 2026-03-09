@@ -143,6 +143,12 @@ final class NotificationManagerTests: XCTestCase {
         XCTAssertTrue(manager.isNotificationEnabled(preferences: prefs, type: .licenseRejected))
     }
 
+    func testIsEnabled_licensePreApproved_alwaysEnabled() {
+        var prefs = NotificationPreferences()
+        prefs.bookingUpdates.system = false
+        XCTAssertTrue(manager.isNotificationEnabled(preferences: prefs, type: .licensePreApproved))
+    }
+
     // MARK: - Hanger Talk Categories
 
     func testIsEnabled_hangerTalkLike_mapsToHangerTalkLikes() {
@@ -188,7 +194,7 @@ final class NotificationManagerTests: XCTestCase {
             .tipReceived, .payoutConfirmation,
             .emergencyBeacon, .emergencyBeaconUrgent,
             .beaconAccepted, .beaconResolved,
-            .licenseApproved, .licenseRejected,
+            .licenseApproved, .licenseRejected, .licensePreApproved,
             .hangerTalkLike, .hangerTalkReply, .hangerTalkMention,
             .hangerTalkFollow, .hangerTalkNewPost
         ]

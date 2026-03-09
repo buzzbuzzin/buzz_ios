@@ -13,7 +13,9 @@ import LocalAuthentication
 struct LicenseManagementView: View {
     @EnvironmentObject var authService: AuthService
     @StateObject private var licenseService = LicenseUploadService()
-    
+
+    var highlightLicenseId: UUID?
+    @State private var scrollTargetId: UUID?
     @State private var showDocumentPicker = false
     @State private var showImagePicker = false
     @State private var showUploadOptions = false
@@ -76,6 +78,7 @@ struct LicenseManagementView: View {
                     )
                 } else {
                     VStack(spacing: 0) {
+                        ScrollViewReader { proxy in
                         ScrollView {
                             VStack(spacing: 0) {
                                 // Group licenses by category
@@ -239,6 +242,18 @@ struct LicenseManagementView: View {
                         .refreshable {
                             await loadLicenses()
                         }
+                        .onChange(of: scrollTargetId) { _, targetId in
+                            if let targetId {
+                                withAnimation {
+                                    proxy.scrollTo(targetId, anchor: .center)
+                                }
+                                // Clear after a short delay so it doesn't re-trigger
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                                    scrollTargetId = nil
+                                }
+                            }
+                        }
+                    }
                     }
                 }
             }
@@ -389,6 +404,17 @@ struct LicenseManagementView: View {
         .task {
             if isAuthenticated {
                 await loadLicenses()
+                if let highlightLicenseId {
+                    try? await Task.sleep(nanoseconds: 300_000_000)
+                    scrollTargetId = highlightLicenseId
+                }
+            }
+        }
+        .onChange(of: isAuthenticated) { _, authenticated in
+            guard authenticated, let highlightLicenseId else { return }
+            Task {
+                try? await Task.sleep(nanoseconds: 300_000_000)
+                scrollTargetId = highlightLicenseId
             }
         }
     }
@@ -645,6 +671,7 @@ struct LicenseCategorySection: View {
                             onEdit: { onEdit(license) },
                             onReupload: license.needsApproval ? onReupload : nil
                         )
+                        .id(license.id)
                     }
                 }
                 .padding(.horizontal, 16)

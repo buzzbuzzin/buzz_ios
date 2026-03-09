@@ -20,7 +20,7 @@ enum DeepLinkDestination: Equatable {
     case messages(conversationId: UUID)
     case jobs
     case profile
-    case licenseManagement
+    case licenseManagement(licenseId: UUID? = nil)
 }
 
 /// Manages deep link navigation state triggered by push notification taps.
@@ -97,8 +97,9 @@ class DeepLinkManager: ObservableObject {
                 pendingDestination = .bookingDetail(bookingId: bookingId)
             }
 
-        case "license_approved", "license_rejected":
-            pendingDestination = .licenseManagement
+        case "license_approved", "license_rejected", "license_pre_approved":
+            let licenseId = (userInfo["license_id"] as? String).flatMap(UUID.init)
+            pendingDestination = .licenseManagement(licenseId: licenseId)
 
         default:
             print("DeepLinkManager: Unknown notification type: \(type)")
