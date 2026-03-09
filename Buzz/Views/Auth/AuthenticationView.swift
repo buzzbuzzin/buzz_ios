@@ -19,69 +19,69 @@ struct AuthenticationView: View {
     
     var body: some View {
         NavigationView {
-            VStack(spacing: 0) {
-                // Header
-                VStack(spacing: 8) {
-                    Image("Logo")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 80, height: 80)
-                    
-                    Text("Welcome aboard")
-                        .font(.system(size: 28, weight: .semibold))
-                    
-                    Text("or back")
-                        .font(.system(size: 28, weight: .semibold))
-                        .foregroundColor(.secondary)
-                }
-                .padding(.top, 10)
-                .padding(.bottom, 10)
-                
-                // Auth Methods - Temporarily showing only email sign-in
-                // Original TabView with swipe between Email, Phone, and Social sign-in is disabled
-                /*
-                TabView(selection: $selectedTab) {
-                    EmailSignInView()
-                        .tag(0)
-                    
-                    PhoneSignInView()
-                        .tag(1)
-                    
-                    SocialSignInView()
-                        .tag(2)
-                }
-                .tabViewStyle(.page(indexDisplayMode: .always))
-                .frame(height: 400)
-                */
-                
-                // Email sign-in only (temporary)
-                EmailSignInView()
-                    .frame(height: 400)
-                
-                // Sign Up Link
-                HStack {
-                    Text("Don't have an account?")
-                        .foregroundColor(.secondary)
-                    Button("Sign up") {
-                        showSignUp = true
+            ScrollView {
+                VStack(spacing: 0) {
+                    // Header
+                    VStack(spacing: 8) {
+                        Image("Logo")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 80, height: 80)
+                        
+                        Text("Welcome aboard")
+                            .font(.system(size: 28, weight: .semibold))
+                        
+                        Text("or back")
+                            .font(.system(size: 28, weight: .semibold))
+                            .foregroundColor(.secondary)
                     }
-                    .fontWeight(.semibold)
+                    .padding(.top, 10)
+                    .padding(.bottom, 10)
+                    
+                    // Auth Methods - Temporarily showing only email sign-in
+                    // Original TabView with swipe between Email, Phone, and Social sign-in is disabled
+                    /*
+                    TabView(selection: $selectedTab) {
+                        EmailSignInView()
+                            .tag(0)
+                        
+                        PhoneSignInView()
+                            .tag(1)
+                        
+                        SocialSignInView()
+                            .tag(2)
+                    }
+                    .tabViewStyle(.page(indexDisplayMode: .always))
+                    .frame(height: 400)
+                    */
+                    
+                    // Email sign-in only (temporary)
+                    EmailSignInView()
+                    
+                    // Sign Up Link
+                    HStack {
+                        Text("Don't have an account?")
+                            .foregroundColor(.secondary)
+                        Button("Sign up") {
+                            showSignUp = true
+                        }
+                        .fontWeight(.semibold)
+                    }
+                    .font(.subheadline)
+                    .padding(.top, 30)
+                    
+                    // Forgot Password Link
+                    Button("Forgot my password") {
+                        showPasswordReset = true
+                    }
+                    .font(.subheadline)
+                    .foregroundColor(.blue)
+                    .padding(.top, 12)
                 }
-                .font(.subheadline)
-                .padding(.top, 30)
-                
-                // Forgot Password Link
-                Button("Forgot my password") {
-                    showPasswordReset = true
-                }
-                .font(.subheadline)
-                .foregroundColor(.blue)
-                .padding(.top, 12)
-                
-                Spacer(minLength: 0)
-                    .frame(maxHeight: 20)
+                .frame(maxWidth: .infinity)
+                .padding(.bottom, 24)
             }
-            .frame(maxHeight: .infinity)
+            .scrollDismissesKeyboard(.interactively)
             .navigationBarTitleDisplayMode(.inline)
             .sheet(isPresented: $showSignUp) {
                 SignUpView()

@@ -21,6 +21,7 @@ enum DeepLinkDestination: Equatable {
     case jobs
     case profile
     case licenseManagement(licenseId: UUID? = nil)
+    case marketplace(listingId: UUID? = nil, transactionId: UUID? = nil, offerId: UUID? = nil, reviewId: UUID? = nil)
 }
 
 /// Manages deep link navigation state triggered by push notification taps.
@@ -47,7 +48,7 @@ class DeepLinkManager: ObservableObject {
                 pendingDestination = .bookingDetail(bookingId: bookingId)
             }
 
-        case "new_message":
+        case "new_message", "message_reaction":
             if let conversationIdString = userInfo["conversationId"] as? String,
                let conversationId = UUID(uuidString: conversationIdString) {
                 pendingDestination = .messages(conversationId: conversationId)
@@ -100,6 +101,20 @@ class DeepLinkManager: ObservableObject {
         case "license_approved", "license_rejected", "license_pre_approved":
             let licenseId = (userInfo["license_id"] as? String).flatMap(UUID.init)
             pendingDestination = .licenseManagement(licenseId: licenseId)
+
+        case "marketplace_new_offer", "marketplace_offer_accepted", "marketplace_offer_declined",
+             "marketplace_item_purchased", "marketplace_item_shipped",
+             "marketplace_delivery_confirmed", "marketplace_review_received":
+            let listingId = (userInfo["listing_id"] as? String).flatMap(UUID.init)
+            let transactionId = (userInfo["transaction_id"] as? String).flatMap(UUID.init)
+            let offerId = (userInfo["offer_id"] as? String).flatMap(UUID.init)
+            let reviewId = (userInfo["review_id"] as? String).flatMap(UUID.init)
+            pendingDestination = .marketplace(
+                listingId: listingId,
+                transactionId: transactionId,
+                offerId: offerId,
+                reviewId: reviewId
+            )
 
         default:
             print("DeepLinkManager: Unknown notification type: \(type)")

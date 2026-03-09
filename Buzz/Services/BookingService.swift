@@ -57,12 +57,12 @@ class BookingService: ObservableObject {
 
     init(
         backend: BookingBackend? = nil,
-        notificationManager: BookingNotificationManaging = NotificationManager.shared,
+        notificationManager: BookingNotificationManaging? = nil,
         notificationPreferencesService: NotificationPreferencesProviding? = nil,
         skipNetworkCalls: Bool = false
     ) {
         self.backend = backend ?? SupabaseBookingBackend()
-        self.notificationManager = notificationManager
+        self.notificationManager = notificationManager ?? NotificationManager.shared
         self.notificationPreferencesService = notificationPreferencesService ?? NotificationPreferencesService()
         self.skipNetworkCalls = skipNetworkCalls
     }
@@ -301,6 +301,10 @@ class BookingService: ObservableObject {
             errorMessage = error.localizedDescription
             throw error
         }
+    }
+
+    func fetchBooking(id: UUID) async throws -> Booking {
+        try await backend.fetchBooking(id: id)
     }
     
     // MARK: - Fetch Available Bookings (Pilot)

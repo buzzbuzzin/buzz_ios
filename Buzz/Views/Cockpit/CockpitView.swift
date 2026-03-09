@@ -52,6 +52,8 @@ struct CockpitView: View {
     @State private var deepLinkPostId: UUID?
     @State private var deepLinkOpenHangerTalkInbox = false
     @State private var deepLinkSpaceId: UUID?
+    @State private var deepLinkMarketplaceListingId: UUID?
+    @State private var deepLinkMarketplaceTransactionId: UUID?
 
     private func logTap(_ component: String, section: String) {
         guard let userId = authService.activeUserId else { return }
@@ -845,19 +847,33 @@ struct CockpitView: View {
         }
         .fullScreenCover(isPresented: $showMarketplace) {
             NavigationStack {
-                MarketplaceView()
-                    .environmentObject(authService)
-                    .toolbar {
-                        ToolbarItem(placement: .navigationBarLeading) {
-                            Button {
-                                showMarketplace = false
-                            } label: {
-                                Image(systemName: "xmark.circle.fill")
-                                    .font(.title2)
-                                    .foregroundColor(.secondary)
-                            }
-                        }
+                Group {
+                    if deepLinkMarketplaceListingId != nil || deepLinkMarketplaceTransactionId != nil {
+                        MarketplaceDeepLinkView(
+                            listingId: deepLinkMarketplaceListingId,
+                            transactionId: deepLinkMarketplaceTransactionId
+                        )
+                        .environmentObject(authService)
+                    } else {
+                        MarketplaceView()
+                            .environmentObject(authService)
+                    }
                 }
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarLeading) {
+                        Button {
+                            showMarketplace = false
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.title2)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+            }
+            .onDisappear {
+                deepLinkMarketplaceListingId = nil
+                deepLinkMarketplaceTransactionId = nil
             }
         }
         .sheet(isPresented: $showConversations) {
@@ -1008,6 +1024,11 @@ struct CockpitView: View {
             deepLinkOpenHangerTalkInbox = false
             deepLinkSpaceId = spaceId
             showHangerTalk = true
+            deepLinkManager.pendingDestination = nil
+        case .marketplace(let listingId, let transactionId, _, _):
+            deepLinkMarketplaceListingId = listingId
+            deepLinkMarketplaceTransactionId = transactionId
+            showMarketplace = true
             deepLinkManager.pendingDestination = nil
         default:
             break
@@ -2764,5 +2785,55 @@ struct PhoneButton: View {
         if let url = URL(string: "tel://" + cleanNumber) {
             UIApplication.shared.open(url)
         }
+    }
+}
+
+struct MarketplaceDeepLinkView: View {
+    @EnvironmentObject var authService: AuthService
+    @StateObject private var marketplaceService = MarketplaceService()
+
+    let listingId: UUID?
+    let transactionId: UUID?
+
+    @State private var selectedListing: MarketplaceListingWithSeller?
+    @State private var isLoadingListing = false
+
+    var body: some View {
+        Group {
+            if let transactionId {
+                MarketplaceTransactionsView(preselectedTransactionId: transactionId)
+                    .environmentObject(authService)
+                    .environmentObject(marketplaceService)
+            } else if let selectedListing {
+                ListingDetailView(listing: selectedListing)
+                    .environmentObject(authService)
+                    .environmentObject(marketplaceService)
+            } else if isLoadingListing {
+                ProgressView("Loading listing...")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                MarketplaceView()
+                    .environmentObject(authService)
+            }
+        }
+        .task {
+            await loadListingIfNeeded()
+        }
+    }
+
+    private func loadListingIfNeeded() async {
+        guard selectedListing == nil,
+              transactionId == nil,
+              let listingId,
+              let currentUserId = authService.currentUser?.id else {
+            return
+        }
+
+        isLoadingListing = true
+        selectedListing = await marketplaceService.fetchListingDetail(
+            listingId: listingId,
+            currentUserId: currentUserId
+        )
+        isLoadingListing = false
     }
 }

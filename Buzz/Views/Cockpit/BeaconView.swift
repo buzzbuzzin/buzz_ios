@@ -1062,13 +1062,10 @@ struct EmergencyFlashOverlay: View {
         }
         .onTapGesture {
             if notificationManager.showEmergencyFlash {
+                let bookingId = notificationManager.emergencyBookingId
                 notificationManager.stopEmergencyFlash()
-                if let bookingId = notificationManager.emergencyBookingId {
-                    NotificationCenter.default.post(
-                        name: NSNotification.Name("NavigateToEmergencyBooking"),
-                        object: nil,
-                        userInfo: ["bookingId": bookingId.uuidString]
-                    )
+                if let bookingId {
+                    DeepLinkManager.shared.pendingDestination = .bookingDetail(bookingId: bookingId)
                 }
             }
         }
@@ -1085,4 +1082,3 @@ struct EmergencyFlashOverlay: View {
         }
     }
 }
-

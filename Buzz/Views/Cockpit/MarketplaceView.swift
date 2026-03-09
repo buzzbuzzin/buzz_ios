@@ -256,8 +256,6 @@ struct MarketplaceView: View {
         }
     }
 
-    // MARK: - Components
-
     private func categoryPill(_ category: MarketplaceCategory?, label: String) -> some View {
         Button {
             selectedCategory = category

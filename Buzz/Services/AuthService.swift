@@ -385,6 +385,7 @@ class AuthService: ObservableObject {
     // MARK: - Sign Out
     
     func signOut() async throws {
+        await NotificationManager.shared.removeDeviceToken()
         try await supabase.auth.signOut()
         currentUser = nil
         userProfile = nil
@@ -746,6 +747,7 @@ class AuthService: ObservableObject {
 
             // TODO: Delete auth user via server function or admin API
             // Note: Supabase doesn't have a direct API to delete auth users from client
+            await NotificationManager.shared.removeDeviceToken()
             try await supabase.auth.signOut()
             
             currentUser = nil

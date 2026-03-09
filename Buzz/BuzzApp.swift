@@ -56,13 +56,7 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         didReceiveRemoteNotification userInfo: [AnyHashable: Any],
         fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void
     ) {
-        // Post notification for the app to handle
-        NotificationCenter.default.post(
-            name: NSNotification.Name("HandleRemoteNotification"),
-            object: nil,
-            userInfo: userInfo
-        )
-        completionHandler(.newData)
+        completionHandler(.noData)
     }
 }
 
@@ -117,6 +111,8 @@ struct BuzzApp: App {
                 if showUpdatePopup {
                     UpdatePopupView(updateService: updateService, isPresented: $showUpdatePopup)
                 }
+
+                EmergencyFlashOverlay()
             }
             .onChange(of: updateService.isUpdateAvailable) { _, isAvailable in
                 if isAvailable {

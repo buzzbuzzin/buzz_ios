@@ -37,6 +37,9 @@ struct PilotTabView: View {
     @State private var selectedTab = 0
     @State private var showConversations = false
     @State private var deepLinkConversationId: UUID?
+    @State private var deepLinkedBooking: Booking?
+    @State private var deepLinkErrorMessage: String?
+    @State private var showDeepLinkError = false
 
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -74,7 +77,7 @@ struct PilotTabView: View {
         .onAppear {
             handlePendingDeepLinkIfNeeded()
         }
-        .onChange(of: deepLinkManager.pendingDestination) { destination in
+        .onChange(of: deepLinkManager.pendingDestination) { _, destination in
             guard let destination = destination else { return }
             handleDeepLinkDestination(destination)
         }
@@ -84,21 +87,40 @@ struct PilotTabView: View {
             ConversationsListView(deepLinkConversationId: deepLinkConversationId)
                 .environmentObject(authService)
         }
+        .sheet(item: $deepLinkedBooking) { booking in
+            NavigationStack {
+                BookingDetailView(booking: booking)
+                    .toolbar {
+                        ToolbarItem(placement: .navigationBarLeading) {
+                            Button("Done") {
+                                deepLinkedBooking = nil
+                            }
+                        }
+                    }
+            }
+        }
         .task {
             locationManager.requestPermission()
             locationManager.startLocationUpdates()
             if let userId = authService.activeUserId {
-                try? await beaconService.getVolunteerStatus(userId: userId)
+                _ = try? await beaconService.getVolunteerStatus(userId: userId)
             }
             await checkForNearbyBeaconMissions()
         }
         .onDisappear {
             locationManager.stopLocationUpdates()
         }
-        .onChange(of: bookingService.availableBookings.count) { _ in
+        .onChange(of: bookingService.availableBookings.count) { _, _ in
             Task {
                 await checkForNearbyBeaconMissions()
             }
+        }
+        .alert("Unable to Open Booking", isPresented: $showDeepLinkError) {
+            Button("OK", role: .cancel) {
+                deepLinkErrorMessage = nil
+            }
+        } message: {
+            Text(deepLinkErrorMessage ?? "The booking could not be loaded.")
         }
     }
     
@@ -160,11 +182,10 @@ struct PilotTabView: View {
         case .jobs:
             selectedTab = 0
             deepLinkManager.pendingDestination = nil
-        case .bookingDetail:
-            // Go to My Flights tab; booking-level navigation would require more work
+        case .bookingDetail(let bookingId):
             selectedTab = 1
-            deepLinkManager.pendingDestination = nil
-        case .weather, .flightRadar, .hangerTalkPost, .hangerTalkProfile, .hangerTalkInbox, .hangerTalkSpace:
+            openPilotBookingDetail(bookingId: bookingId)
+        case .weather, .flightRadar, .hangerTalkPost, .hangerTalkProfile, .hangerTalkInbox, .hangerTalkSpace, .marketplace:
             // These live inside CockpitView fullScreenCovers — switch to Cockpit tab
             // and let CockpitView handle the rest
             selectedTab = 2
@@ -182,6 +203,19 @@ struct PilotTabView: View {
             deepLinkManager.pendingDestination = nil
         }
     }
+
+    private func openPilotBookingDetail(bookingId: UUID) {
+        Task { @MainActor in
+            let detailService = BookingService()
+            do {
+                deepLinkedBooking = try await detailService.fetchBooking(id: bookingId)
+            } catch {
+                deepLinkErrorMessage = error.localizedDescription
+                showDeepLinkError = true
+            }
+            deepLinkManager.pendingDestination = nil
+        }
+    }
 }
 
 // MARK: - Customer Tab View
@@ -192,6 +226,9 @@ struct CustomerTabView: View {
     @State private var selectedTab = 0
     @State private var showConversations = false
     @State private var deepLinkConversationId: UUID?
+    @State private var deepLinkedBooking: Booking?
+    @State private var deepLinkErrorMessage: String?
+    @State private var showDeepLinkError = false
 
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -216,7 +253,7 @@ struct CustomerTabView: View {
         .onAppear {
             handlePendingDeepLinkIfNeeded()
         }
-        .onChange(of: deepLinkManager.pendingDestination) { destination in
+        .onChange(of: deepLinkManager.pendingDestination) { _, destination in
             guard let destination = destination else { return }
             handleDeepLinkDestination(destination)
         }
@@ -225,6 +262,25 @@ struct CustomerTabView: View {
         }) {
             ConversationsListView(deepLinkConversationId: deepLinkConversationId)
                 .environmentObject(authService)
+        }
+        .sheet(item: $deepLinkedBooking) { booking in
+            NavigationStack {
+                CustomerBookingDetailView(booking: booking)
+                    .toolbar {
+                        ToolbarItem(placement: .navigationBarLeading) {
+                            Button("Done") {
+                                deepLinkedBooking = nil
+                            }
+                        }
+                    }
+            }
+        }
+        .alert("Unable to Open Booking", isPresented: $showDeepLinkError) {
+            Button("OK", role: .cancel) {
+                deepLinkErrorMessage = nil
+            }
+        } message: {
+            Text(deepLinkErrorMessage ?? "The booking could not be loaded.")
         }
     }
 
@@ -235,9 +291,9 @@ struct CustomerTabView: View {
 
     private func handleDeepLinkDestination(_ destination: DeepLinkDestination) {
         switch destination {
-        case .bookingDetail:
+        case .bookingDetail(let bookingId):
             selectedTab = 0
-            deepLinkManager.pendingDestination = nil
+            openCustomerBookingDetail(bookingId: bookingId)
         case .messages(let conversationId):
             selectedTab = 0
             deepLinkConversationId = conversationId
@@ -251,6 +307,19 @@ struct CustomerTabView: View {
             if authService.userProfile?.userType == .customer {
                 deepLinkManager.pendingDestination = nil
             }
+        }
+    }
+
+    private func openCustomerBookingDetail(bookingId: UUID) {
+        Task { @MainActor in
+            let detailService = BookingService()
+            do {
+                deepLinkedBooking = try await detailService.fetchBooking(id: bookingId)
+            } catch {
+                deepLinkErrorMessage = error.localizedDescription
+                showDeepLinkError = true
+            }
+            deepLinkManager.pendingDestination = nil
         }
     }
 }

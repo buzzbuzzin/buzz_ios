@@ -13,11 +13,19 @@ struct MarketplaceTransactionsView: View {
     @EnvironmentObject var marketplaceService: MarketplaceService
     @Environment(\.dismiss) private var dismiss
 
+    let preselectedTransactionId: UUID?
+
     @State private var selectedTab: TransactionTab = .buying
+    @State private var selectedTransactionDetail: MarketplaceTransactionWithDetails?
+    @State private var navigateToSelectedTransaction = false
 
     enum TransactionTab: String, CaseIterable {
         case buying = "Buying"
         case selling = "Selling"
+    }
+
+    init(preselectedTransactionId: UUID? = nil) {
+        self.preselectedTransactionId = preselectedTransactionId
     }
 
     private var filteredTransactions: [MarketplaceTransactionWithDetails] {
@@ -69,6 +77,21 @@ struct MarketplaceTransactionsView: View {
                 .listStyle(.plain)
             }
         }
+        .background(
+            Group {
+                if let detail = selectedTransactionDetail {
+                    NavigationLink(
+                        destination: MarketplaceOrderView(transactionDetail: detail)
+                            .environmentObject(authService)
+                            .environmentObject(marketplaceService),
+                        isActive: $navigateToSelectedTransaction
+                    ) {
+                        EmptyView()
+                    }
+                    .hidden()
+                }
+            }
+        )
         .navigationTitle("Orders")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -79,6 +102,12 @@ struct MarketplaceTransactionsView: View {
         .task {
             guard let userId = authService.currentUser?.id else { return }
             await marketplaceService.fetchTransactionsForUser(userId: userId)
+            if let preselectedTransactionId,
+               let detail = marketplaceService.transactions.first(where: { $0.id == preselectedTransactionId }) {
+                selectedTab = detail.isBuyer ? .buying : .selling
+                selectedTransactionDetail = detail
+                navigateToSelectedTransaction = true
+            }
         }
     }
 
