@@ -13,6 +13,7 @@ typealias UserCourseRegion = String
 enum UserType: String, Codable {
     case pilot
     case customer
+    case admin
 }
 
 enum CommunicationPreference: String, Codable {

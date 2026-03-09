@@ -343,6 +343,20 @@ final class DeepLinkManagerTests: XCTestCase {
         XCTAssertEqual(manager.pendingDestination, .bookingDetail(bookingId: bookingId))
     }
 
+    func testLicenseApproved_setsLicenseManagement() {
+        manager.handleNotificationTap(userInfo: [
+            "type": "license_approved"
+        ])
+        XCTAssertEqual(manager.pendingDestination, .licenseManagement)
+    }
+
+    func testLicenseRejected_setsLicenseManagement() {
+        manager.handleNotificationTap(userInfo: [
+            "type": "license_rejected"
+        ])
+        XCTAssertEqual(manager.pendingDestination, .licenseManagement)
+    }
+
     func testEmergencyBeacon_missingBookingId_doesNotSetDestination() {
         manager.handleNotificationTap(userInfo: [
             "type": "emergency_beacon"
@@ -499,6 +513,28 @@ final class DeepLinkRemotePushTests: XCTestCase {
             ]
         ])
         XCTAssertEqual(manager.pendingDestination, .hangerTalkPost(postId: postId))
+    }
+
+    func testRemotePush_licenseApproved_resolvedFromNestedData() {
+        resolveAndHandle(userInfo: [
+            "aps": ["alert": ["title": "License Approved", "body": "Your credential was approved"]],
+            "data": [
+                "type": "license_approved",
+                "license_id": UUID().uuidString
+            ]
+        ])
+        XCTAssertEqual(manager.pendingDestination, .licenseManagement)
+    }
+
+    func testRemotePush_licenseRejected_resolvedFromNestedData() {
+        resolveAndHandle(userInfo: [
+            "aps": ["alert": ["title": "License Needs Attention", "body": "Please re-upload"]],
+            "data": [
+                "type": "license_rejected",
+                "license_id": UUID().uuidString
+            ]
+        ])
+        XCTAssertEqual(manager.pendingDestination, .licenseManagement)
     }
 
     // MARK: - Local Notification Payloads (top-level keys, no "data" wrapper)
@@ -691,6 +727,8 @@ final class DeepLinkAllTypesTests: XCTestCase {
             ("weather_change", .weather),
             ("nws_weather_alert", .weather),
             ("received_review", .profile),
+            ("license_approved", .licenseManagement),
+            ("license_rejected", .licenseManagement),
             ("hanger_talk_follow", .hangerTalkInbox)
         ]
 

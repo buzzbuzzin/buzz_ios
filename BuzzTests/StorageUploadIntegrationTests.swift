@@ -527,6 +527,41 @@ final class StorageUploadIntegrationTests: IntegrationTestCase {
         }
     }
 
+    func testLicenseUploadService_reviewableLicensesCreatePendingApprovalRequests() async throws {
+        let service = LicenseUploadService()
+        let reviewableTypes = [
+            LicenseType.rpaFlightReviewer.rawValue,
+            LicenseType.rocaExaminerCertificate.rawValue,
+        ]
+
+        for licenseType in reviewableTypes {
+            let publicURL = try await service.uploadLicense(
+                pilotId: TestUser.id,
+                data: makeTestJPEG(),
+                fileName: "test_\(UUID().uuidString.prefix(8)).jpg",
+                fileType: .image,
+                licenseType: licenseType
+            )
+
+            try await service.fetchLicenses(pilotId: TestUser.id)
+
+            let license = try XCTUnwrap(
+                service.licenses.first(where: { $0.fileUrl == publicURL }),
+                "Uploaded \(licenseType) license should appear in fetched list"
+            )
+            let approvalRequest = try XCTUnwrap(
+                service.approvalRequest(for: license.id),
+                "\(licenseType) should create a matching approval request"
+            )
+
+            XCTAssertEqual(approvalRequest.licenseType, licenseType)
+            XCTAssertEqual(approvalRequest.statusEnum, .pending)
+            XCTAssertEqual(approvalRequest.fileUrl, publicURL)
+
+            try await service.deleteLicense(license: license)
+        }
+    }
+
     func testDroneRegistrationService_uploadAndFetchRoundTrip() async throws {
         let service = DroneRegistrationService()
         let data = makeTestJPEG()
