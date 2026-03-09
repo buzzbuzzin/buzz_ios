@@ -152,6 +152,7 @@ final class MarketplaceModelTests: XCTestCase {
         XCTAssertEqual(MarketplaceTransactionStatus.paid.rawValue, "paid")
         XCTAssertEqual(MarketplaceTransactionStatus.shipped.rawValue, "shipped")
         XCTAssertEqual(MarketplaceTransactionStatus.delivered.rawValue, "delivered")
+        XCTAssertEqual(MarketplaceTransactionStatus.releasing.rawValue, "releasing")
         XCTAssertEqual(MarketplaceTransactionStatus.completed.rawValue, "completed")
         XCTAssertEqual(MarketplaceTransactionStatus.meetupScheduled.rawValue, "meetup_scheduled")
         XCTAssertEqual(MarketplaceTransactionStatus.meetupCompleted.rawValue, "meetup_completed")
@@ -162,13 +163,14 @@ final class MarketplaceModelTests: XCTestCase {
 
     func testTransactionStatusDisplayNames() {
         XCTAssertEqual(MarketplaceTransactionStatus.pendingPayment.displayName, "Pending Payment")
+        XCTAssertEqual(MarketplaceTransactionStatus.releasing.displayName, "Releasing Payout")
         XCTAssertEqual(MarketplaceTransactionStatus.meetupScheduled.displayName, "Meetup Scheduled")
         XCTAssertEqual(MarketplaceTransactionStatus.meetupCompleted.displayName, "Meetup Complete")
     }
 
     func testTransactionStatusIcons() {
         let allStatuses: [MarketplaceTransactionStatus] = [
-            .pendingPayment, .paid, .shipped, .delivered, .completed,
+            .pendingPayment, .paid, .shipped, .delivered, .releasing, .completed,
             .meetupScheduled, .meetupCompleted, .disputed, .refunded, .cancelled
         ]
         for status in allStatuses {
@@ -178,7 +180,7 @@ final class MarketplaceModelTests: XCTestCase {
 
     func testTransactionStatusColors() {
         let allStatuses: [MarketplaceTransactionStatus] = [
-            .pendingPayment, .paid, .shipped, .delivered, .completed,
+            .pendingPayment, .paid, .shipped, .delivered, .releasing, .completed,
             .meetupScheduled, .meetupCompleted, .disputed, .refunded, .cancelled
         ]
         for status in allStatuses {

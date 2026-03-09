@@ -34,6 +34,18 @@ struct ListingDetailView: View {
         authService.currentUser?.id == listing.listing.sellerId
     }
 
+    private var shippingSummaryText: String {
+        guard listing.listing.transactionType != .meetup else { return "" }
+        if let shippingCost = listing.listing.shippingCost {
+            return shippingCost > 0 ? "Shipping: \(formatPrice(shippingCost))" : "Free shipping"
+        }
+        return "Shipping quote available from seller"
+    }
+
+    private var shipCheckoutAmount: Decimal {
+        listing.listing.price + (listing.listing.shippingCost ?? 0)
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
@@ -123,16 +135,9 @@ struct ListingDetailView: View {
                         HStack {
                             Image(systemName: "shippingbox.fill")
                                 .foregroundColor(.orange)
-                            if let shippingCost = listing.listing.shippingCost, shippingCost > 0 {
-                                let formatter = NumberFormatter()
-                                let _ = formatter.numberStyle = .currency
-                                let _ = formatter.currencyCode = "USD"
-                                Text("Shipping: \(formatter.string(from: shippingCost as NSDecimalNumber) ?? "$\(shippingCost)")")
-                            } else {
-                                Text("Shipping cost TBD")
-                            }
+                            Text(shippingSummaryText)
                             Spacer()
-                            Text("Buyer pays shipping")
+                            Text(listing.listing.shippingCost == nil ? "Message seller for quote" : "Buyer pays shipping")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
@@ -267,9 +272,12 @@ struct ListingDetailView: View {
                 handleBuyNow()
             }
         } message: {
-            let total = listing.listing.price + (listing.listing.shippingCost ?? 0)
-            let fee = (total * MarketplaceService.platformFeePercentage)
-            Text("Total: \(listing.listing.formattedPrice) + shipping\nPlatform fee (10%): \(formatPrice(fee))\nYou are responsible for shipping costs.")
+            let fee = (shipCheckoutAmount * MarketplaceService.platformFeePercentage)
+            if let shippingCost = listing.listing.shippingCost {
+                Text("Item: \(listing.listing.formattedPrice)\nShipping: \(formatPrice(shippingCost))\nTotal: \(formatPrice(shipCheckoutAmount))\nPlatform fee (10%): \(formatPrice(fee))")
+            } else {
+                Text("Item: \(listing.listing.formattedPrice)\nShipping will be arranged separately with the seller.\nPlatform fee (10%): \(formatPrice(fee))")
+            }
         }
     }
 
@@ -332,7 +340,7 @@ struct ListingDetailView: View {
                     Button {
                         showBuyConfirmation = true
                     } label: {
-                        Text("Buy Now")
+                        Text(listing.listing.shippingCost == nil ? "Buy Now" : "Buy for \(formatPrice(shipCheckoutAmount))")
                             .font(.subheadline)
                             .fontWeight(.semibold)
                             .foregroundColor(.white)
@@ -463,7 +471,7 @@ struct ListingDetailView: View {
                     buyerId: buyerId,
                     sellerId: listing.listing.sellerId,
                     offerId: nil,
-                    amount: listing.listing.price
+                    amount: shipCheckoutAmount
                 )
 
                 // Create payment intent via marketplace edge function

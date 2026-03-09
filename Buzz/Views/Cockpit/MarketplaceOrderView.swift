@@ -7,6 +7,7 @@
 
 import SwiftUI
 import Auth
+import UIKit
 
 struct MarketplaceOrderView: View {
     @EnvironmentObject var authService: AuthService
@@ -19,6 +20,7 @@ struct MarketplaceOrderView: View {
     @State private var showShippingForm = false
     @State private var showReview = false
     @State private var showMeetupLocation = false
+    @State private var showCopiedAlert = false
     @State private var isProcessing = false
     @State private var isShipping = false
     @State private var hasReviewed = false
@@ -108,6 +110,11 @@ struct MarketplaceOrderView: View {
         } message: {
             Text(errorMessage ?? "An error occurred")
         }
+        .alert("Copied", isPresented: $showCopiedAlert) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Tracking number copied.")
+        }
         .task {
             guard let userId = authService.currentUser?.id else { return }
             if tx.status == .completed || tx.status == .meetupCompleted {
@@ -140,7 +147,7 @@ struct MarketplaceOrderView: View {
                     progressLine(active: shipStep >= 2)
                     progressDot(active: shipStep >= 2, label: "Delivered")
                     progressLine(active: shipStep >= 3)
-                    progressDot(active: shipStep >= 3, label: "Done")
+                    progressDot(active: shipStep >= 3, label: "Payout")
                 }
                 .padding(.horizontal)
             }
@@ -156,7 +163,7 @@ struct MarketplaceOrderView: View {
         case .paid: return 0
         case .shipped: return 1
         case .delivered: return 2
-        case .completed: return 3
+        case .releasing, .completed: return 3
         default: return 0
         }
     }
@@ -250,6 +257,9 @@ struct MarketplaceOrderView: View {
 
             detailRow("Type", value: tx.transactionType == .ship ? "Ship" : "In-Person Meetup")
             detailRow("Created", value: formatDate(tx.createdAt))
+            if tx.transactionType == .ship {
+                detailRow("Buyer Protection", value: payoutProtectionStatus)
+            }
         }
         .padding()
         .background(Color(.secondarySystemBackground))
@@ -264,7 +274,29 @@ struct MarketplaceOrderView: View {
                 .font(.headline)
 
             if let tracking = tx.trackingNumber {
-                detailRow("Tracking", value: tracking)
+                HStack(alignment: .top) {
+                    Text("Tracking")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                    Spacer()
+                    VStack(alignment: .trailing, spacing: 8) {
+                        Text(tracking)
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                        HStack(spacing: 8) {
+                            Button("Copy") {
+                                UIPasteboard.general.string = tracking
+                                showCopiedAlert = true
+                            }
+                            .font(.caption)
+
+                            if let trackingURL {
+                                Link("Track Package", destination: trackingURL)
+                                    .font(.caption)
+                            }
+                        }
+                    }
+                }
             }
             if let carrier = tx.trackingCarrier {
                 detailRow("Carrier", value: carrier)
@@ -275,6 +307,13 @@ struct MarketplaceOrderView: View {
             if let deliveredAt = tx.deliveredAt {
                 detailRow("Delivered", value: formatDate(deliveredAt))
             }
+            if tx.status == .releasing {
+                detailRow("Payout", value: "Release in progress")
+            } else if tx.status == .completed {
+                detailRow("Payout", value: "Released")
+            }
+
+            protectionBanner
 
             if tx.trackingNumber == nil && tx.status == .paid {
                 HStack {
@@ -363,7 +402,7 @@ struct MarketplaceOrderView: View {
                         if isProcessing {
                             ProgressView().tint(.white)
                         }
-                        Label("Confirm Receipt", systemImage: "checkmark.circle.fill")
+                        Label("Mark as Delivered", systemImage: "checkmark.circle.fill")
                     }
                     .fontWeight(.semibold)
                     .foregroundColor(.white)
@@ -373,6 +412,52 @@ struct MarketplaceOrderView: View {
                     .cornerRadius(12)
                 }
                 .disabled(isProcessing)
+            }
+
+            if isBuyer && tx.status == .delivered {
+                Button {
+                    guard !isProcessing else { return }
+                    isProcessing = true
+                    Task {
+                        defer { isProcessing = false }
+                        do {
+                            try await marketplaceService.releaseSellerPayout(transactionId: tx.id)
+                        } catch {
+                            errorMessage = error.localizedDescription
+                            showErrorAlert = true
+                        }
+                    }
+                } label: {
+                    HStack {
+                        if isProcessing {
+                            ProgressView().tint(.white)
+                        }
+                        Label("Release Seller Payout", systemImage: "banknote.fill")
+                    }
+                    .fontWeight(.semibold)
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(isProcessing ? Color.gray : Color.orange)
+                    .cornerRadius(12)
+                }
+                .disabled(isProcessing)
+            }
+
+            if !isBuyer && tx.status == .delivered {
+                infoActionCard(
+                    icon: "clock.badge.checkmark",
+                    color: .orange,
+                    text: "Buyer confirmed delivery. Payout stays on hold until the buyer releases funds."
+                )
+            }
+
+            if tx.status == .releasing {
+                infoActionCard(
+                    icon: "hourglass",
+                    color: .indigo,
+                    text: "Buzz is releasing the seller payout now. This usually finishes automatically."
+                )
             }
 
             // Meetup: Find safe location
@@ -540,6 +625,113 @@ struct MarketplaceOrderView: View {
         formatter.dateStyle = .medium
         formatter.timeStyle = .short
         return formatter.string(from: date)
+    }
+
+    private var payoutProtectionStatus: String {
+        switch tx.status {
+        case .paid, .shipped:
+            return "On hold"
+        case .delivered:
+            return "Awaiting release"
+        case .releasing:
+            return "Releasing"
+        case .completed:
+            return "Released"
+        default:
+            return "N/A"
+        }
+    }
+
+    private var trackingURL: URL? {
+        guard let tracking = tx.trackingNumber?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !tracking.isEmpty else { return nil }
+
+        let encodedTracking = tracking.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? tracking
+        let carrier = tx.trackingCarrier?.lowercased() ?? ""
+
+        if carrier.contains("ups") {
+            return URL(string: "https://www.ups.com/track?tracknum=\(encodedTracking)")
+        }
+        if carrier.contains("fedex") {
+            return URL(string: "https://www.fedex.com/fedextrack/?trknbr=\(encodedTracking)")
+        }
+        if carrier.contains("usps") || carrier.contains("postal") {
+            return URL(string: "https://tools.usps.com/go/TrackConfirmAction?tLabels=\(encodedTracking)")
+        }
+        if carrier.contains("dhl") {
+            return URL(string: "https://www.dhl.com/us-en/home/tracking/tracking-express.html?submit=1&tracking-id=\(encodedTracking)")
+        }
+
+        return nil
+    }
+
+    private var protectionBanner: some View {
+        Group {
+            if let config = protectionBannerConfiguration {
+                HStack(alignment: .top, spacing: 10) {
+                    Image(systemName: config.icon)
+                        .foregroundColor(config.color)
+                    Text(config.text)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(config.color.opacity(0.10))
+                .cornerRadius(10)
+            }
+        }
+    }
+
+    private var protectionBannerConfiguration: (text: String, icon: String, color: Color)? {
+        switch tx.status {
+        case .paid:
+            return (
+                isBuyer
+                    ? "Funds are authorized. Seller payout stays on hold until the order is delivered and you release it."
+                    : "Buyer payment is secured. Your payout will remain on hold until delivery is confirmed and released.",
+                "lock.shield.fill",
+                .blue
+            )
+        case .shipped:
+            return (
+                isBuyer
+                    ? "Package is in transit. Mark it delivered first, then release payout once everything looks correct."
+                    : "Package is in transit. Buyer protection remains active until delivery is confirmed.",
+                "shippingbox.fill",
+                .purple
+            )
+        case .delivered:
+            return (
+                isBuyer
+                    ? "Delivery is confirmed. Review the item and release payout when you are satisfied."
+                    : "Delivery is confirmed. Buyer still needs to release payout.",
+                "checkmark.shield.fill",
+                .orange
+            )
+        case .releasing:
+            return ("Payout release is in progress.", "hourglass", .indigo)
+        case .completed:
+            return ("Transaction complete. Seller payout has been released.", "checkmark.seal.fill", .green)
+        default:
+            return nil
+        }
+    }
+
+    private func infoActionCard(icon: String, color: Color, text: String) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: icon)
+                .foregroundColor(color)
+            Text(text)
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 14)
+        .padding(.horizontal, 12)
+        .background(color.opacity(0.10))
+        .cornerRadius(12)
     }
 
     private func progressDot(active: Bool, label: String) -> some View {

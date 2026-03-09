@@ -648,39 +648,65 @@ class MarketplaceService: ObservableObject {
                           userInfo: [NSLocalizedDescriptionKey: "Only the buyer can confirm receipt"])
         }
 
-        let now = ISO8601DateFormatter().string(from: Date())
-
-        // Trigger payout via edge function BEFORE marking as completed
-        if let paymentIntentId = transaction.paymentIntentId {
-            struct ReleasePayload: Encodable {
-                let transaction_id: String
-                let payment_intent_id: String
-                let seller_id: String
-                let seller_payout: Int
-            }
-            let payload = ReleasePayload(
-                transaction_id: transactionId.uuidString,
-                payment_intent_id: paymentIntentId,
-                seller_id: transaction.sellerId.uuidString,
-                seller_payout: NSDecimalNumber(decimal: transaction.sellerPayout * 100).intValue
-            )
-            try await supabase.functions.invoke(
-                "release-marketplace-funds",
-                options: FunctionInvokeOptions(body: payload)
-            )
+        guard transaction.transactionType == .ship else {
+            throw NSError(domain: "MarketplaceService", code: 400,
+                          userInfo: [NSLocalizedDescriptionKey: "Receipt confirmation is only available for shipped orders"])
         }
 
-        // Only mark completed after payout succeeds
+        guard transaction.status == .shipped || transaction.status == .delivered else {
+            throw NSError(domain: "MarketplaceService", code: 400,
+                          userInfo: [NSLocalizedDescriptionKey: "This order is not ready for delivery confirmation"])
+        }
+
+        let now = ISO8601DateFormatter().string(from: Date())
+
         try await supabase
             .from("marketplace_transactions")
             .update([
-                "status": "completed",
+                "status": "delivered",
                 "delivered_at": now,
-                "buyer_confirmed_at": now,
-                "completed_at": now
+                "buyer_confirmed_at": now
             ])
             .eq("id", value: transactionId.uuidString)
             .execute()
+    }
+
+    func releaseSellerPayout(transactionId: UUID) async throws {
+        if DemoModeManager.shared.isDemoModeEnabled { return }
+
+        let transaction: MarketplaceTransaction = try await supabase
+            .from("marketplace_transactions")
+            .select()
+            .eq("id", value: transactionId.uuidString)
+            .single()
+            .execute()
+            .value
+
+        let currentUserId = try await currentAuthUserId()
+        guard transaction.buyerId == currentUserId else {
+            throw NSError(domain: "MarketplaceService", code: 403,
+                          userInfo: [NSLocalizedDescriptionKey: "Only the buyer can release seller funds"])
+        }
+
+        guard transaction.transactionType == .ship else {
+            throw NSError(domain: "MarketplaceService", code: 400,
+                          userInfo: [NSLocalizedDescriptionKey: "Payout release is only available for shipped orders"])
+        }
+
+        guard transaction.status == .delivered || transaction.status == .releasing else {
+            throw NSError(domain: "MarketplaceService", code: 400,
+                          userInfo: [NSLocalizedDescriptionKey: "Confirm delivery before releasing seller funds"])
+        }
+
+        struct ReleasePayload: Encodable {
+            let transaction_id: String
+        }
+        let payload = ReleasePayload(transaction_id: transactionId.uuidString)
+
+        try await supabase.functions.invoke(
+            "release-marketplace-funds",
+            options: FunctionInvokeOptions(body: payload)
+        )
 
         // Mark listing as sold
         try? await updateListing(listingId: transaction.listingId, updates: MarketplaceListingUpdate(status: "sold"))

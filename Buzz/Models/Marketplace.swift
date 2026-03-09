@@ -177,6 +177,7 @@ enum MarketplaceTransactionStatus: String, Codable {
     case paid
     case shipped
     case delivered
+    case releasing
     case completed
     case meetupScheduled = "meetup_scheduled"
     case meetupCompleted = "meetup_completed"
@@ -190,6 +191,7 @@ enum MarketplaceTransactionStatus: String, Codable {
         case .paid: return "Paid"
         case .shipped: return "Shipped"
         case .delivered: return "Delivered"
+        case .releasing: return "Releasing Payout"
         case .completed: return "Completed"
         case .meetupScheduled: return "Meetup Scheduled"
         case .meetupCompleted: return "Meetup Complete"
@@ -205,6 +207,7 @@ enum MarketplaceTransactionStatus: String, Codable {
         case .paid: return "checkmark.circle"
         case .shipped: return "shippingbox"
         case .delivered: return "house"
+        case .releasing: return "hourglass"
         case .completed: return "checkmark.seal.fill"
         case .meetupScheduled: return "calendar"
         case .meetupCompleted: return "checkmark.seal.fill"
@@ -220,6 +223,7 @@ enum MarketplaceTransactionStatus: String, Codable {
         case .paid: return .blue
         case .shipped: return .purple
         case .delivered: return .teal
+        case .releasing: return .indigo
         case .completed, .meetupCompleted: return .green
         case .meetupScheduled: return .blue
         case .disputed: return .red
