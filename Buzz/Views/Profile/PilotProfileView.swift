@@ -31,6 +31,7 @@ struct PilotProfileView: View {
     @State private var navigateToConnections = false
     @State private var navigateToLicenses = false
     @State private var deepLinkLicenseId: UUID?
+    @StateObject private var licenseNotificationService = LicenseUploadService()
     @EnvironmentObject var deepLinkManager: DeepLinkManager
     
     var yearsOnBuzz: Int {
@@ -407,7 +408,15 @@ struct PilotProfileView: View {
                         }
                     }
                     
-                    NavigationLink(destination: LicenseManagementView()) {
+                    NavigationLink(destination: LicenseManagementView()
+                        .onDisappear {
+                            if let userId = authService.currentUser?.id {
+                                Task {
+                                    await licenseNotificationService.fetchUnreadNotificationCount(pilotId: userId)
+                                }
+                            }
+                        }
+                    ) {
                         HStack {
                             Image(systemName: "doc.badge.plus")
                                 .foregroundColor(.secondary)
@@ -415,6 +424,12 @@ struct PilotProfileView: View {
                                 .frame(width: 24)
                             Text("Pilot Licenses")
                                 .foregroundColor(.primary)
+                            Spacer()
+                            if licenseNotificationService.unreadNotificationCount > 0 {
+                                Circle()
+                                    .fill(Color.red)
+                                    .frame(width: 10, height: 10)
+                            }
                         }
                     }
                     
@@ -591,7 +606,10 @@ struct PilotProfileView: View {
             
             // Load badges
             try? await badgeService.fetchPilotBadges(pilotId: userId)
-            
+
+            // Load license notification count
+            await licenseNotificationService.fetchUnreadNotificationCount(pilotId: userId)
+
             isLoadingRatings = false
         }
         .onAppear {

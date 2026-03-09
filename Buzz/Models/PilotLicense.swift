@@ -175,3 +175,27 @@ struct LicenseApprovalRequest: Codable, Identifiable {
     }
 }
 
+// MARK: - License Notification
+
+struct LicenseNotification: Codable, Identifiable {
+    let id: UUID
+    let recipientId: UUID
+    let type: String
+    let licenseId: UUID?
+    let title: String
+    let body: String
+    let isRead: Bool
+    let createdAt: Date
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case recipientId = "recipient_id"
+        case type
+        case licenseId = "license_id"
+        case title
+        case body
+        case isRead = "is_read"
+        case createdAt = "created_at"
+    }
+}
+

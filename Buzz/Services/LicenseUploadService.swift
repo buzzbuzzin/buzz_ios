@@ -17,6 +17,7 @@ class LicenseUploadService: ObservableObject {
     @Published var isLoading = false
     @Published var uploadProgress: Double = 0.0
     @Published var errorMessage: String?
+    @Published var unreadNotificationCount: Int = 0
     
     private let supabase = SupabaseClient.shared.client
     private let bucketName = "pilot-licenses"
@@ -390,13 +391,55 @@ class LicenseUploadService: ObservableObject {
     func compressImage(_ image: UIImage, maxSizeInBytes: Int = 2_000_000) -> Data? {
         var compression: CGFloat = 1.0
         var imageData = image.jpegData(compressionQuality: compression)
-        
+
         while let data = imageData, data.count > maxSizeInBytes && compression > 0.1 {
             compression -= 0.1
             imageData = image.jpegData(compressionQuality: compression)
         }
-        
+
         return imageData
+    }
+
+    // MARK: - License Notifications
+
+    func fetchUnreadNotificationCount(pilotId: UUID) async {
+        if DemoModeManager.shared.isDemoModeEnabled {
+            unreadNotificationCount = 0
+            return
+        }
+
+        do {
+            struct IdOnly: Decodable { let id: UUID }
+            let response: [IdOnly] = try await supabase
+                .from("license_notifications")
+                .select("id")
+                .eq("recipient_id", value: pilotId.uuidString)
+                .eq("is_read", value: false)
+                .execute()
+                .value
+
+            unreadNotificationCount = response.count
+        } catch {
+            print("Error fetching license notification count: \(error)")
+        }
+    }
+
+    func markAllNotificationsAsRead(pilotId: UUID) async {
+        if DemoModeManager.shared.isDemoModeEnabled { return }
+
+        do {
+            let update: [String: AnyJSON] = ["is_read": .bool(true)]
+            try await supabase
+                .from("license_notifications")
+                .update(update)
+                .eq("recipient_id", value: pilotId.uuidString)
+                .eq("is_read", value: false)
+                .execute()
+
+            unreadNotificationCount = 0
+        } catch {
+            print("Error marking license notifications as read: \(error)")
+        }
     }
 }
 

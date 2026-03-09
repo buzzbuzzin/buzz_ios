@@ -404,6 +404,7 @@ struct LicenseManagementView: View {
         .task {
             if isAuthenticated {
                 await loadLicenses()
+                await markNotificationsAsRead()
                 if let highlightLicenseId {
                     try? await Task.sleep(nanoseconds: 300_000_000)
                     scrollTargetId = highlightLicenseId
@@ -411,10 +412,13 @@ struct LicenseManagementView: View {
             }
         }
         .onChange(of: isAuthenticated) { _, authenticated in
-            guard authenticated, let highlightLicenseId else { return }
+            guard authenticated else { return }
             Task {
-                try? await Task.sleep(nanoseconds: 300_000_000)
-                scrollTargetId = highlightLicenseId
+                await markNotificationsAsRead()
+                if let highlightLicenseId {
+                    try? await Task.sleep(nanoseconds: 300_000_000)
+                    scrollTargetId = highlightLicenseId
+                }
             }
         }
     }
@@ -463,6 +467,11 @@ struct LicenseManagementView: View {
     private func loadLicenses() async {
         guard let currentUser = authService.currentUser else { return }
         try? await licenseService.fetchLicenses(pilotId: currentUser.id)
+    }
+
+    private func markNotificationsAsRead() async {
+        guard let currentUser = authService.currentUser else { return }
+        await licenseService.markAllNotificationsAsRead(pilotId: currentUser.id)
     }
     
     private func uploadImage(_ image: UIImage) {

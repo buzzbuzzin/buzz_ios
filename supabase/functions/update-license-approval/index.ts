@@ -219,6 +219,23 @@ serve(async (req) => {
         notifData = { type: status }
       }
 
+      // Insert in-app notification record
+      if (notifTitle) {
+        const { error: notifInsertError } = await supabase
+          .from("license_notifications")
+          .insert({
+            recipient_id: approvalRequest.pilot_id,
+            type: status,
+            license_id: licenseId || null,
+            title: notifTitle,
+            body: notifBody,
+          })
+
+        if (notifInsertError) {
+          console.error("Error inserting license notification:", notifInsertError)
+        }
+      }
+
       // Send push notification via the existing send-push-notification function
       try {
         await supabase.functions.invoke("send-push-notification", {
