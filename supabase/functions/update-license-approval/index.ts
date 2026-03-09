@@ -73,9 +73,9 @@ serve(async (req) => {
       )
     }
 
-    if (!["approved", "rejected"].includes(status)) {
+    if (!["pre_approved", "approved", "rejected"].includes(status)) {
       return new Response(
-        JSON.stringify({ error: "Invalid status. Must be: approved or rejected" }),
+        JSON.stringify({ error: "Invalid status. Must be: pre_approved, approved, or rejected" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       )
     }
@@ -94,10 +94,17 @@ serve(async (req) => {
       )
     }
 
-    // Prevent overwriting already-final decisions
-    if (approvalRequest.status && approvalRequest.status !== "pending") {
+    // Validate status transitions:
+    //   pending → pre_approved or rejected
+    //   pre_approved → approved or rejected
+    const allowedTransitions: Record<string, string[]> = {
+      pending: ["pre_approved", "rejected"],
+      pre_approved: ["approved", "rejected"],
+    }
+    const allowed = allowedTransitions[approvalRequest.status]
+    if (!allowed || !allowed.includes(status)) {
       return new Response(
-        JSON.stringify({ error: "Request has already been reviewed" }),
+        JSON.stringify({ error: `Cannot transition from '${approvalRequest.status}' to '${status}'` }),
         { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       )
     }
@@ -113,7 +120,7 @@ serve(async (req) => {
     // Always set reviewer_notes explicitly
     if (status === "rejected") {
       updateData.reviewer_notes = reviewerNotes || null
-    } else if (status === "approved") {
+    } else if (status === "approved" || status === "pre_approved") {
       updateData.reviewer_notes = null
     }
 
@@ -130,65 +137,89 @@ serve(async (req) => {
       )
     }
 
-    // Update pilot_special_roles based on license type
-    const roleField = approvalRequest.license_type?.includes("Flight Reviewer")
-      ? "flight_reviewer"
-      : approvalRequest.license_type?.includes("ROC-A Examiner")
-      ? "roc_a_examiner"
-      : null
-
-    if (roleField) {
-      const roleValue = status === "approved"
-      const { error: roleError } = await supabase
-        .from("pilot_special_roles")
-        .upsert(
-          { pilot_id: approvalRequest.pilot_id, [roleField]: roleValue },
-          { onConflict: "pilot_id" }
-        )
-
-      if (roleError) {
-        console.error("Error updating pilot_special_roles:", roleError)
-        // Don't fail the request — the approval status is already updated
-      }
-    }
-
-    // Send push notification to pilot
-    const licenseType = approvalRequest.license_type || "License"
-    let notifTitle: string
-    let notifBody: string
-    let notifData: Record<string, string>
-
+    // Update pilot_special_roles based on license type (only for approved, not pre_approved)
     if (status === "approved") {
-      notifTitle = "License Approved"
-      notifBody = `Your ${licenseType} has been approved!`
-      notifData = {
-        type: "license_approved",
-        license_id: approvalRequest.license_id,
+      const roleField = approvalRequest.license_type?.includes("Flight Reviewer")
+        ? "flight_reviewer"
+        : approvalRequest.license_type?.includes("ROC-A Examiner")
+        ? "roc_a_examiner"
+        : null
+
+      if (roleField) {
+        const { error: roleError } = await supabase
+          .from("pilot_special_roles")
+          .upsert(
+            { pilot_id: approvalRequest.pilot_id, [roleField]: true },
+            { onConflict: "pilot_id" }
+          )
+
+        if (roleError) {
+          console.error("Error updating pilot_special_roles:", roleError)
+          // Don't fail the request — the approval status is already updated
+        }
       }
-    } else {
-      notifTitle = "License Needs Attention"
-      notifBody = reviewerNotes
-        ? `Your ${licenseType} needs attention: ${reviewerNotes}`
-        : `Your ${licenseType} needs attention. Please check and re-upload.`
-      notifData = {
-        type: "license_rejected",
-        license_id: approvalRequest.license_id,
+    } else if (status === "rejected" && approvalRequest.status === "pre_approved") {
+      // Only revoke role when rejecting from pre_approved — not from pending,
+      // because the pilot may have a legitimate role from a prior approved request
+      const roleField = approvalRequest.license_type?.includes("Flight Reviewer")
+        ? "flight_reviewer"
+        : approvalRequest.license_type?.includes("ROC-A Examiner")
+        ? "roc_a_examiner"
+        : null
+
+      if (roleField) {
+        const { error: roleError } = await supabase
+          .from("pilot_special_roles")
+          .upsert(
+            { pilot_id: approvalRequest.pilot_id, [roleField]: false },
+            { onConflict: "pilot_id" }
+          )
+
+        if (roleError) {
+          console.error("Error updating pilot_special_roles:", roleError)
+        }
       }
     }
 
-    // Send push notification via the existing send-push-notification function
-    try {
-      await supabase.functions.invoke("send-push-notification", {
-        body: {
-          user_id: approvalRequest.pilot_id,
-          title: notifTitle,
-          body: notifBody,
-          data: notifData,
-        },
-      })
-    } catch (pushError) {
-      // Log but don't fail - the approval status is already updated
-      console.error("Error sending push notification:", pushError)
+    // Send push notification to pilot (skip for pre_approved — internal admin step)
+    if (status !== "pre_approved") {
+      const licenseType = approvalRequest.license_type || "License"
+      let notifTitle: string
+      let notifBody: string
+      let notifData: Record<string, string>
+
+      if (status === "approved") {
+        notifTitle = "License Approved"
+        notifBody = `Your ${licenseType} has been approved!`
+        notifData = {
+          type: "license_approved",
+          license_id: approvalRequest.license_id,
+        }
+      } else {
+        notifTitle = "License Needs Attention"
+        notifBody = reviewerNotes
+          ? `Your ${licenseType} needs attention: ${reviewerNotes}`
+          : `Your ${licenseType} needs attention. Please check and re-upload.`
+        notifData = {
+          type: "license_rejected",
+          license_id: approvalRequest.license_id,
+        }
+      }
+
+      // Send push notification via the existing send-push-notification function
+      try {
+        await supabase.functions.invoke("send-push-notification", {
+          body: {
+            user_id: approvalRequest.pilot_id,
+            title: notifTitle,
+            body: notifBody,
+            data: notifData,
+          },
+        })
+      } catch (pushError) {
+        // Log but don't fail - the approval status is already updated
+        console.error("Error sending push notification:", pushError)
+      }
     }
 
     return new Response(

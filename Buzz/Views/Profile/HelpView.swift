@@ -815,17 +815,18 @@ private extension HelpCenterArticle {
                 HelpCenterArticleSection(
                     title: "Approval statuses and re-uploads",
                     paragraphs: [
-                        "Most basic license storage is immediate, but reviewer and examiner credentials also create approval requests. Those requests can show Under Review, Approved, Rejected, or Document Deleted states.",
+                        "Most basic license storage is immediate, but reviewer and examiner credentials also create approval requests. Those requests now follow a two-stage review flow: Buzz admin pre-approval first, then final approval after the response comes back from the aviation agency.",
                         "Rejected cards can include reviewer notes and a one-tap re-upload path, which is much faster than guessing what failed."
                     ],
                     steps: [
                         "Watch the status badge on credentials that require approval.",
-                        "If the status is Under Review, wait for the Buzz team to complete the check.",
+                        "If the status is Under Review, your request is still in progress. Buzz may still be checking it internally or waiting for the aviation agency response after pre-approval.",
+                        "Wait for the badge to move to Approved only after the aviation agency response has been received and recorded.",
                         "If the status is Rejected, read the reviewer notes first so you know whether the issue is the wrong document, incomplete document, or bad extracted information.",
                         "Use Re-upload License from the rejected card and submit the corrected file."
                     ],
                     tips: [
-                        "The UI currently tells pilots that pending review typically takes one to two business days.",
+                        "The Under Review badge covers both the admin pre-approval stage and the external wait for the aviation agency response.",
                         "Do not delete and re-upload blindly if reviewer notes already explain the exact correction needed."
                     ]
                 )
@@ -859,24 +860,28 @@ private extension HelpCenterArticle {
                 HelpCenterArticleSection(
                     title: "Submitting the credential in Buzz",
                     paragraphs: [
-                        "Buzz treats Flight Reviewer as an approval-based permit. Uploading the file stores the document and also creates a separate review request in the background."
+                        "Buzz treats Flight Reviewer as an approval-based permit. Uploading the file stores the document and also creates a separate review request in the background.",
+                        "That request now has two review stages: Buzz admin pre-approval first, then final approval after the aviation agency sends the result back."
                     ],
                     steps: [
                         "Open Account > Pilot Licenses.",
                         "Start a new upload and choose Flight Reviewer when selecting the license type.",
                         "Upload the supporting document as a PDF or image.",
                         "Review the OCR results on the resulting license card and fix any obvious mistakes with Edit.",
-                        "Wait for the approval status badge to move from Under Review to an approved state."
+                        "After submission, watch for the card to show Under Review while Buzz handles the admin pre-approval step.",
+                        "Keep monitoring the same card while Buzz waits for the aviation agency response.",
+                        "Treat the credential as fully complete only when the badge changes to Approved."
                     ],
                     tips: [
                         "The approval badge appears directly on the license card, so you do not need a separate dashboard to monitor it.",
-                        "Under Review currently indicates a manual check that typically takes one to two business days."
+                        "Under Review can now mean either internal admin review or waiting for the aviation agency to reply after pre-approval."
                     ]
                 ),
                 HelpCenterArticleSection(
                     title: "If the request is rejected",
                     paragraphs: [
-                        "Rejected does not mean the process is over. Buzz surfaces reviewer notes so you can correct the exact problem instead of guessing."
+                        "Rejected does not mean the process is over. Buzz surfaces reviewer notes so you can correct the exact problem instead of guessing.",
+                        "A rejection can happen during Buzz's internal pre-approval check or after the aviation agency response is received."
                     ],
                     steps: [
                         "Open the rejected Flight Reviewer license card.",
@@ -919,27 +924,31 @@ private extension HelpCenterArticle {
                 HelpCenterArticleSection(
                     title: "Upload flow in Buzz",
                     paragraphs: [
-                        "The upload path is similar to Flight Reviewer, but the field expectations are different. The edit screen labels the main identifier as Examiner Number and treats the date as an expiration date."
+                        "The upload path is similar to Flight Reviewer, but the field expectations are different. The edit screen labels the main identifier as Examiner Number and treats the date as an expiration date.",
+                        "The approval workflow also follows two stages now: Buzz admin pre-approval first, then final approval after the aviation agency response returns."
                     ],
                     steps: [
                         "Open Account > Pilot Licenses.",
                         "Start a new upload and choose ROC-A Examiner from the Examiner section of the license-type picker.",
                         "Upload the document and wait for the license card to appear.",
                         "Open the extracted information and confirm the name, expiration date, and examiner number are correct.",
-                        "Edit the OCR fields if anything is missing or misread before waiting on review."
+                        "Edit the OCR fields if anything is missing or misread before waiting on review.",
+                        "After upload, leave the card in Under Review while Buzz completes admin pre-approval and then waits for the aviation agency response.",
+                        "Use the card as approved only after the final badge changes to Approved."
                     ],
                     tips: [
                         "The placeholder example for examiner number in the edit flow uses a short numeric value, so if OCR leaves it empty, fill it manually.",
-                        "If the card shows Under Review, the review request was created and is waiting on Buzz approval."
+                        "If the card shows Under Review, the request may still be in Buzz's internal review stage or in the wait-for-agency-response stage."
                     ]
                 ),
                 HelpCenterArticleSection(
                     title: "Tracking status and correcting issues",
                     paragraphs: [
-                        "ROC-A Examiner is approval-based, so status matters as much as storage. The goal is not only to upload a file but to get it into an approved state."
+                        "ROC-A Examiner is approval-based, so status matters as much as storage. The goal is not only to upload a file but to get it through admin pre-approval and into a final approved state after the aviation agency reply."
                     ],
                     steps: [
                         "Check the approval badge on the license card after upload.",
+                        "If the card stays Under Review, remember that this single label covers both Buzz pre-approval and the follow-up wait for the aviation agency response.",
                         "If the request is approved, keep the card on file and update it again before expiration if required.",
                         "If the request is rejected, read the reviewer notes and use Re-upload License with a corrected document.",
                         "If you need help understanding the rejection, use Chat with us and include the credential type plus the examiner number you submitted."

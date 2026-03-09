@@ -10,6 +10,7 @@ import SwiftUI
 
 enum LicenseApprovalStatus: String, Codable {
     case pending = "pending"
+    case preApproved = "pre_approved"
     case approved = "approved"
     case rejected = "rejected"
     case documentDeleted = "document_deleted"
@@ -17,6 +18,7 @@ enum LicenseApprovalStatus: String, Codable {
     var displayName: String {
         switch self {
         case .pending: return "Under Review"
+        case .preApproved: return "Under Review"
         case .approved: return "Approved"
         case .rejected: return "Rejected"
         case .documentDeleted: return "Document Deleted"
@@ -26,6 +28,7 @@ enum LicenseApprovalStatus: String, Codable {
     var color: Color {
         switch self {
         case .pending: return .orange
+        case .preApproved: return .orange
         case .approved: return .green
         case .rejected: return .red
         case .documentDeleted: return .gray

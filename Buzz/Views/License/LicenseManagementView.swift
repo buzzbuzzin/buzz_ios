@@ -727,7 +727,7 @@ struct LicenseCard: View {
                                 .background(status.color.opacity(0.12))
                                 .clipShape(Capsule())
 
-                            if status == .pending {
+                            if status == .pending || status == .preApproved {
                                 Text("(typically 1-2 business days)")
                                     .font(.caption2)
                                     .foregroundColor(.secondary)

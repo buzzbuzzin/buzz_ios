@@ -16,18 +16,21 @@ final class LicenseApprovalTests: XCTestCase {
 
     func testApprovalStatus_rawValues() {
         XCTAssertEqual(LicenseApprovalStatus.pending.rawValue, "pending")
+        XCTAssertEqual(LicenseApprovalStatus.preApproved.rawValue, "pre_approved")
         XCTAssertEqual(LicenseApprovalStatus.approved.rawValue, "approved")
         XCTAssertEqual(LicenseApprovalStatus.rejected.rawValue, "rejected")
     }
 
     func testApprovalStatus_displayNames() {
         XCTAssertEqual(LicenseApprovalStatus.pending.displayName, "Under Review")
+        XCTAssertEqual(LicenseApprovalStatus.preApproved.displayName, "Under Review")
         XCTAssertEqual(LicenseApprovalStatus.approved.displayName, "Approved")
         XCTAssertEqual(LicenseApprovalStatus.rejected.displayName, "Rejected")
     }
 
     func testApprovalStatus_colors() {
         XCTAssertEqual(LicenseApprovalStatus.pending.color, .orange)
+        XCTAssertEqual(LicenseApprovalStatus.preApproved.color, .orange)
         XCTAssertEqual(LicenseApprovalStatus.approved.color, .green)
         XCTAssertEqual(LicenseApprovalStatus.rejected.color, .red)
     }
@@ -36,7 +39,7 @@ final class LicenseApprovalTests: XCTestCase {
         let encoder = JSONEncoder()
         let decoder = JSONDecoder()
 
-        for status in [LicenseApprovalStatus.pending, .approved, .rejected] {
+        for status in [LicenseApprovalStatus.pending, .preApproved, .approved, .rejected] {
             let data = try encoder.encode(status)
             let decoded = try decoder.decode(LicenseApprovalStatus.self, from: data)
             XCTAssertEqual(decoded, status)
@@ -110,6 +113,11 @@ final class LicenseApprovalTests: XCTestCase {
         XCTAssertNotNil(request.reviewedAt)
         XCTAssertEqual(request.reviewedBy, reviewerId)
         XCTAssertEqual(request.reviewerNotes, "Needs additional verification")
+    }
+
+    func testApprovalRequest_statusEnum_preApproved() throws {
+        let request = makeApprovalRequest(status: "pre_approved")
+        XCTAssertEqual(request.statusEnum, .preApproved)
     }
 
     func testApprovalRequest_statusEnum_approved() throws {
