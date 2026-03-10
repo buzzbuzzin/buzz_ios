@@ -145,7 +145,45 @@ struct LogsView: View {
                 }
                 .buttonStyle(PlainButtonStyle())
                 .padding(.horizontal)
-                
+
+                // Flight Hour Claims Card
+                NavigationLink(destination: FlightHourClaimView()) {
+                    HStack(spacing: 16) {
+                        ZStack {
+                            Circle()
+                                .fill(Color.orange.opacity(0.15))
+                                .frame(width: 60, height: 60)
+
+                            Image(systemName: "clock.arrow.circlepath")
+                                .font(.title2)
+                                .foregroundColor(.orange)
+                        }
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Flight Hour Claims")
+                                .font(.headline)
+                                .foregroundColor(.primary)
+
+                            Text("Submit your flight history for review and approval")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .lineLimit(2)
+                        }
+
+                        Spacer()
+
+                        Image(systemName: "chevron.right")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding()
+                    .background(Color(.systemBackground))
+                    .cornerRadius(12)
+                    .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 2)
+                }
+                .buttonStyle(PlainButtonStyle())
+                .padding(.horizontal)
+
                 // Info Section
                 VStack(alignment: .leading, spacing: 12) {
                     HStack {

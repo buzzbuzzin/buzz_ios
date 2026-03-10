@@ -699,6 +699,7 @@ struct CockpitView: View {
         .fullScreenCover(isPresented: $showLogs) {
             NavigationView {
                 LogsView()
+                    .environmentObject(authService)
                     .toolbar {
                         ToolbarItem(placement: .navigationBarLeading) {
                             Button {
