@@ -109,7 +109,7 @@ final class BeaconServiceTests: XCTestCase {
         let service = BeaconService(backend: backend)
 
         _ = try await service.uploadTrainingCertificate(
-            userId: UUID(), trainingType: .cpr, data: Data(), fileName: "cert.pdf", isPDF: true
+            userId: UUID(), trainingType: .cpr, data: Data(), fileName: "cert.pdf", isPDF: true, expiresAt: Date().addingTimeInterval(86400)
         )
 
         XCTAssertTrue(backend.uploadCertCalled)
@@ -120,7 +120,7 @@ final class BeaconServiceTests: XCTestCase {
         let service = BeaconService(backend: backend)
 
         let result = try await service.uploadTrainingCertificate(
-            userId: UUID(), trainingType: .cert, data: Data(), fileName: "cert.pdf", isPDF: true
+            userId: UUID(), trainingType: .cert, data: Data(), fileName: "cert.pdf", isPDF: true, expiresAt: Date().addingTimeInterval(86400)
         )
 
         XCTAssertEqual(result.trainingType, .cert)
@@ -135,12 +135,31 @@ final class BeaconServiceTests: XCTestCase {
 
         do {
             _ = try await service.uploadTrainingCertificate(
-                userId: UUID(), trainingType: .cpr, data: Data(), fileName: "cert.pdf", isPDF: true
+                userId: UUID(), trainingType: .cpr, data: Data(), fileName: "cert.pdf", isPDF: true, expiresAt: Date().addingTimeInterval(86400)
             )
             XCTFail("Should have thrown")
         } catch {
             XCTAssertTrue(backend.uploadCertCalled)
         }
+    }
+
+    func testUpdateTrainingExpiration_updatesProgress() async throws {
+        let backend = MockBeaconBackend()
+        backend.trainingProgress = [BeaconTestHelpers.sampleTrainingProgress(trainingType: .cpr, expiresAt: nil)]
+        let service = BeaconService(backend: backend)
+        let futureDate = Date().addingTimeInterval(7 * 86400)
+
+        _ = try await service.getTrainingProgress(userId: UUID())
+        let result = try await service.updateTrainingExpiration(
+            userId: UUID(),
+            trainingType: .cpr,
+            expiresAt: futureDate
+        )
+
+        XCTAssertTrue(backend.updateExpirationCalled)
+        XCTAssertEqual(result.trainingType, .cpr)
+        XCTAssertEqual(service.trainingProgress.first?.trainingType, .cpr)
+        XCTAssertNotNil(service.trainingProgress.first?.expiresAt)
     }
 
     // MARK: - Enrollment
@@ -176,6 +195,7 @@ final class BeaconServiceTests: XCTestCase {
     func testIsUserBeaconVolunteer_returnsBackendResult() async throws {
         let backend = MockBeaconBackend()
         backend.isVolunteerResult = true
+        backend.trainingProgress = BeaconTestHelpers.allTrainingCompleted()
         let service = BeaconService(backend: backend)
 
         let result = try await service.isUserBeaconVolunteer(userId: UUID())
@@ -190,6 +210,35 @@ final class BeaconServiceTests: XCTestCase {
         let service = BeaconService(backend: backend)
 
         let result = try await service.isUserBeaconVolunteer(userId: UUID())
+
+        XCTAssertFalse(result)
+    }
+
+    func testIsUserBeaconVolunteer_expiredQualification_returnsFalse() async throws {
+        let backend = MockBeaconBackend()
+        backend.isVolunteerResult = true
+        backend.trainingProgress = [
+            BeaconTestHelpers.sampleTrainingProgress(trainingType: .cpr, expiresAt: Date().addingTimeInterval(-86400)),
+            BeaconTestHelpers.sampleTrainingProgress(trainingType: .firefighting),
+            BeaconTestHelpers.sampleTrainingProgress(trainingType: .cert)
+        ]
+        let service = BeaconService(backend: backend)
+
+        let result = try await service.isUserBeaconVolunteer(userId: UUID())
+
+        XCTAssertFalse(result)
+    }
+
+    func testIsAllTrainingCompleted_missingExpiration_returnsFalse() async throws {
+        let backend = MockBeaconBackend()
+        backend.trainingProgress = [
+            BeaconTestHelpers.sampleTrainingProgress(trainingType: .cpr, expiresAt: nil),
+            BeaconTestHelpers.sampleTrainingProgress(trainingType: .firefighting),
+            BeaconTestHelpers.sampleTrainingProgress(trainingType: .cert)
+        ]
+        let service = BeaconService(backend: backend)
+
+        let result = try await service.isAllTrainingCompleted(userId: UUID())
 
         XCTAssertFalse(result)
     }

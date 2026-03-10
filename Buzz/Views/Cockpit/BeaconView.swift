@@ -19,6 +19,7 @@ struct BeaconView: View {
     @State private var isBeaconVolunteer: Bool = false
     @State private var trainingProgress: [BeaconTrainingProgress] = []
     @State private var showAboutProgram: Bool = false
+    @State private var qualificationNotice: BeaconQualificationNotice?
 
     var body: some View {
         Group {
@@ -35,6 +36,7 @@ struct BeaconView: View {
                 // Non-volunteers see the info/signup view
                 BeaconInfoView(
                     showOnboarding: $showOnboarding,
+                    qualificationNotice: qualificationNotice,
                     onLoadData: loadData
                 )
             }
@@ -89,8 +91,15 @@ struct BeaconView: View {
         // Use activeUserId which handles auth timing better on physical devices
         if let userId = authService.activeUserId {
             do {
-                isBeaconVolunteer = try await beaconService.isUserBeaconVolunteer(userId: userId)
-                trainingProgress = try await beaconService.getTrainingProgress(userId: userId)
+                let volunteerStatus = try await beaconService.getVolunteerStatus(userId: userId)
+                let progress = try await beaconService.getTrainingProgress(userId: userId)
+
+                trainingProgress = progress
+                qualificationNotice = buildQualificationNotice(
+                    hasVolunteerRecord: volunteerStatus != nil,
+                    progress: progress
+                )
+                isBeaconVolunteer = volunteerStatus != nil && beaconService.hasCurrentTrainingQualifications(progress)
             } catch {
                 print("Error loading beacon status: \(error)")
             }
@@ -102,6 +111,37 @@ struct BeaconView: View {
         isLoading = false
         hasLoadedOnce = true
     }
+
+    private func buildQualificationNotice(
+        hasVolunteerRecord: Bool,
+        progress: [BeaconTrainingProgress]
+    ) -> BeaconQualificationNotice? {
+        guard hasVolunteerRecord else { return nil }
+
+        if progress.contains(where: \.isExpired) {
+            return BeaconQualificationNotice(
+                title: "Renew Beacon Qualifications",
+                message: "One or more Beacon certifications have expired. Upload renewed documents before continuing as an active Beacon volunteer.",
+                actionTitle: "Review Qualifications"
+            )
+        }
+
+        if progress.contains(where: \.needsExpiration) {
+            return BeaconQualificationNotice(
+                title: "Add Expiration Dates",
+                message: "Beacon now requires expiration dates for volunteer qualifications. Add expiration dates for your existing documents to keep your status active.",
+                actionTitle: "Review Qualifications"
+            )
+        }
+
+        return nil
+    }
+}
+
+struct BeaconQualificationNotice {
+    let title: String
+    let message: String
+    let actionTitle: String
 }
 
 // MARK: - Beacon Mission Model
@@ -132,6 +172,7 @@ struct BeaconMission: Identifiable {
 
 struct BeaconInfoView: View {
     @Binding var showOnboarding: Bool
+    let qualificationNotice: BeaconQualificationNotice?
     let onLoadData: () async -> Void
     
     var body: some View {
@@ -171,6 +212,26 @@ struct BeaconInfoView: View {
                 
                 // Sign Up Prompt
                 VStack(spacing: 16) {
+                    if let qualificationNotice {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text(qualificationNotice.title)
+                                .font(.headline)
+
+                            Text(qualificationNotice.message)
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding()
+                        .background(Color.orange.opacity(0.12))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(Color.orange.opacity(0.3), lineWidth: 1)
+                        )
+                        .cornerRadius(12)
+                    }
+
                     Text("Join the Emergency Response Program")
                         .font(.title3)
                         .fontWeight(.bold)
@@ -185,7 +246,7 @@ struct BeaconInfoView: View {
                     }) {
                         HStack {
                             Image(systemName: "checkmark.circle.fill")
-                            Text("Start Onboarding")
+                            Text(qualificationNotice?.actionTitle ?? "Start Onboarding")
                                 .fontWeight(.semibold)
                         }
                         .foregroundColor(.white)

@@ -62,9 +62,9 @@ final class BeaconServiceIntegrationTests: IntegrationTestCase {
     func testIsUserBeaconVolunteer_matchesGetVolunteerStatus() async throws {
         let isVolunteer = try await service.isUserBeaconVolunteer(userId: TestUser.id)
         let status = try await service.getVolunteerStatus(userId: TestUser.id)
+        let hasCurrentQualifications = try await service.isAllTrainingCompleted(userId: TestUser.id)
 
-        // These two should agree
-        XCTAssertEqual(isVolunteer, status != nil)
+        XCTAssertEqual(isVolunteer, status != nil && hasCurrentQualifications)
     }
 
     func testGetVolunteerStatus_returnsRecord() async throws {

@@ -15,13 +15,17 @@ struct BeaconOnboardingView: View {
     @StateObject private var beaconService = BeaconService()
     @State private var currentStep: BeaconOnboardingStep = .cprTraining
     @State private var completedTraining: Set<BeaconTrainingType> = []
+    @State private var trainingRecords: [BeaconTrainingType: BeaconTrainingProgress] = [:]
     @State private var isLoading: Bool = false
     @State private var showImagePicker: Bool = false
     @State private var showDocumentPicker: Bool = false
     @State private var showUploadOptions: Bool = false
+    @State private var showExpirationSheet: Bool = false
     @State private var selectedImage: UIImage?
     @State private var selectedDocumentURL: URL?
     @State private var currentUploadType: BeaconTrainingType?
+    @State private var pendingUpload: PendingCertificateUpload?
+    @State private var selectedExpirationDate: Date = Calendar.current.date(byAdding: .year, value: 1, to: Date()) ?? Date()
     @State private var showError: Bool = false
     @State private var errorMessage: String = ""
     @State private var showConfetti: Bool = false
@@ -69,10 +73,14 @@ struct BeaconOnboardingView: View {
                     case .cprTraining:
                         TrainingStepView(
                             trainingType: .cpr,
+                            trainingRecord: trainingRecords[.cpr],
                             isCompleted: completedTraining.contains(.cpr),
                             onUploadTap: {
                                 currentUploadType = .cpr
                                 showUploadOptions = true
+                            },
+                            onAddExpirationTap: {
+                                beginExpirationEntry(for: .cpr)
                             },
                             isLoading: isLoading && currentUploadType == .cpr
                         )
@@ -80,10 +88,14 @@ struct BeaconOnboardingView: View {
                     case .firefightingTraining:
                         TrainingStepView(
                             trainingType: .firefighting,
+                            trainingRecord: trainingRecords[.firefighting],
                             isCompleted: completedTraining.contains(.firefighting),
                             onUploadTap: {
                                 currentUploadType = .firefighting
                                 showUploadOptions = true
+                            },
+                            onAddExpirationTap: {
+                                beginExpirationEntry(for: .firefighting)
                             },
                             isLoading: isLoading && currentUploadType == .firefighting
                         )
@@ -91,10 +103,14 @@ struct BeaconOnboardingView: View {
                     case .certTraining:
                         TrainingStepView(
                             trainingType: .cert,
+                            trainingRecord: trainingRecords[.cert],
                             isCompleted: completedTraining.contains(.cert),
                             onUploadTap: {
                                 currentUploadType = .cert
                                 showUploadOptions = true
+                            },
+                            onAddExpirationTap: {
+                                beginExpirationEntry(for: .cert)
                             },
                             isLoading: isLoading && currentUploadType == .cert
                         )
@@ -202,18 +218,17 @@ struct BeaconOnboardingView: View {
                 selectedDocumentURL = url
             }
         }
-        .onChange(of: selectedImage) { newImage in
+        .sheet(isPresented: $showExpirationSheet) {
+            expirationSheet
+        }
+        .onChange(of: selectedImage) { _, newImage in
             if let image = newImage, let uploadType = currentUploadType {
-                Task {
-                    await uploadCertificate(image: image, type: uploadType)
-                }
+                prepareUpload(image: image, type: uploadType)
             }
         }
-        .onChange(of: selectedDocumentURL) { newURL in
+        .onChange(of: selectedDocumentURL) { _, newURL in
             if let url = newURL, let uploadType = currentUploadType {
-                Task {
-                    await uploadCertificate(url: url, type: uploadType)
-                }
+                prepareUpload(url: url, type: uploadType)
             }
         }
         .alert("Error", isPresented: $showError) {
@@ -237,6 +252,67 @@ struct BeaconOnboardingView: View {
         case .badgeAward:
             return true
         }
+    }
+
+    private var expirationSheet: some View {
+        NavigationView {
+            VStack(alignment: .leading, spacing: 20) {
+                Text(expirationSheetDescription)
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                DatePicker(
+                    "Expiration Date",
+                    selection: $selectedExpirationDate,
+                    in: Date()...,
+                    displayedComponents: [.date]
+                )
+                .datePickerStyle(.graphical)
+
+                Spacer()
+
+                Button(action: {
+                    Task {
+                        await commitExpirationFlow()
+                    }
+                }) {
+                    HStack {
+                        if isLoading {
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                        } else {
+                            Text(pendingUpload == nil ? "Save Expiration Date" : "Upload Certificate")
+                                .fontWeight(.semibold)
+                        }
+                    }
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color.blue)
+                    .cornerRadius(12)
+                }
+                .disabled(isLoading)
+            }
+            .padding()
+            .navigationTitle("Document Expiration")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") {
+                        resetPendingUploadState()
+                    }
+                }
+            }
+        }
+    }
+
+    private var expirationSheetDescription: String {
+        if pendingUpload == nil {
+            return "Tell Buzz when this qualification expires so existing Beacon volunteers can stay current without re-uploading a file."
+        }
+
+        return "After uploading the certificate, Buzz will use this date to determine when the qualification expires and when a renewed certification is required."
     }
     
     private func isStepCompleted(_ step: BeaconOnboardingStep) -> Bool {
@@ -289,89 +365,91 @@ struct BeaconOnboardingView: View {
         do {
             let progress = try await beaconService.getTrainingProgress(userId: userId)
             await MainActor.run {
-                completedTraining = Set(progress.map { $0.trainingType })
-                
-                // Set current step based on progress
-                if completedTraining.contains(.cpr) && completedTraining.contains(.firefighting) && completedTraining.contains(.cert) {
-                    currentStep = .badgeAward
-                } else if completedTraining.contains(.cpr) && completedTraining.contains(.firefighting) {
-                    currentStep = .certTraining
-                } else if completedTraining.contains(.cpr) {
-                    currentStep = .firefightingTraining
-                }
+                refreshTrainingState(with: progress)
             }
         } catch {
             print("Error loading progress: \(error)")
         }
     }
     
-    private func uploadCertificate(image: UIImage, type: BeaconTrainingType) async {
-        guard let userId = authService.currentUser?.id else { return }
+    private func prepareUpload(image: UIImage, type: BeaconTrainingType) {
         guard let imageData = image.jpegData(compressionQuality: 0.8) else {
             errorMessage = "Failed to process image"
             showError = true
             return
         }
-        
-        isLoading = true
-        
-        do {
-            _ = try await beaconService.uploadTrainingCertificate(
-                userId: userId,
-                trainingType: type,
-                data: imageData,
-                fileName: "\(type.rawValue)_\(Date().timeIntervalSince1970).jpg",
-                isPDF: false
-            )
-            
-            await MainActor.run {
-                completedTraining.insert(type)
-                selectedImage = nil
-                currentUploadType = nil
-                isLoading = false
-            }
-        } catch {
-            await MainActor.run {
-                errorMessage = error.localizedDescription
-                showError = true
-                isLoading = false
-            }
-        }
+
+        pendingUpload = PendingCertificateUpload(
+            data: imageData,
+            fileName: "\(type.rawValue)_\(Date().timeIntervalSince1970).jpg",
+            isPDF: false
+        )
+        selectedImage = nil
+        selectedExpirationDate = defaultExpirationDate(for: type)
+        showExpirationSheet = true
     }
     
-    private func uploadCertificate(url: URL, type: BeaconTrainingType) async {
-        guard let userId = authService.currentUser?.id else { return }
-        
-        isLoading = true
-        
+    private func prepareUpload(url: URL, type: BeaconTrainingType) {
         do {
-            // Request access to security-scoped resource
             guard url.startAccessingSecurityScopedResource() else {
                 throw NSError(domain: "FileAccessError", code: -1,
                             userInfo: [NSLocalizedDescriptionKey: "Unable to access the selected file"])
             }
             
-            // Ensure we stop accessing the resource when done
             defer {
                 url.stopAccessingSecurityScopedResource()
             }
             
             let data = try Data(contentsOf: url)
             let fileName = url.lastPathComponent
-            let isPDF = fileName.lowercased().hasSuffix(".pdf")
-            
-            _ = try await beaconService.uploadTrainingCertificate(
-                userId: userId,
-                trainingType: type,
+            pendingUpload = PendingCertificateUpload(
                 data: data,
                 fileName: fileName,
-                isPDF: isPDF
+                isPDF: fileName.lowercased().hasSuffix(".pdf")
             )
-            
+            selectedDocumentURL = nil
+            selectedExpirationDate = defaultExpirationDate(for: type)
+            showExpirationSheet = true
+        } catch {
+            errorMessage = error.localizedDescription
+            showError = true
+        }
+    }
+
+    private func beginExpirationEntry(for type: BeaconTrainingType) {
+        currentUploadType = type
+        pendingUpload = nil
+        selectedExpirationDate = defaultExpirationDate(for: type)
+        showExpirationSheet = true
+    }
+
+    private func commitExpirationFlow() async {
+        guard let userId = authService.currentUser?.id, let type = currentUploadType else { return }
+
+        isLoading = true
+
+        do {
+            let updatedRecord: BeaconTrainingProgress
+            if let pendingUpload {
+                updatedRecord = try await beaconService.uploadTrainingCertificate(
+                    userId: userId,
+                    trainingType: type,
+                    data: pendingUpload.data,
+                    fileName: pendingUpload.fileName,
+                    isPDF: pendingUpload.isPDF,
+                    expiresAt: selectedExpirationDate
+                )
+            } else {
+                updatedRecord = try await beaconService.updateTrainingExpiration(
+                    userId: userId,
+                    trainingType: type,
+                    expiresAt: selectedExpirationDate
+                )
+            }
+
             await MainActor.run {
-                completedTraining.insert(type)
-                selectedDocumentURL = nil
-                currentUploadType = nil
+                refreshTrainingState(with: upserting(updatedRecord, into: Array(trainingRecords.values)))
+                resetPendingUploadState()
                 isLoading = false
             }
         } catch {
@@ -401,6 +479,46 @@ struct BeaconOnboardingView: View {
                 isLoading = false
             }
         }
+    }
+
+    private func refreshTrainingState(with progress: [BeaconTrainingProgress]) {
+        trainingRecords = Dictionary(uniqueKeysWithValues: progress.map { ($0.trainingType, $0) })
+        completedTraining = Set(progress.filter(\.isCurrent).map(\.trainingType))
+        currentStep = nextRequiredStep()
+    }
+
+    private func nextRequiredStep() -> BeaconOnboardingStep {
+        if !completedTraining.contains(.cpr) {
+            return .cprTraining
+        }
+        if !completedTraining.contains(.firefighting) {
+            return .firefightingTraining
+        }
+        if !completedTraining.contains(.cert) {
+            return .certTraining
+        }
+        return .badgeAward
+    }
+
+    private func defaultExpirationDate(for type: BeaconTrainingType) -> Date {
+        if let existingExpiration = trainingRecords[type]?.expiresAt, existingExpiration > Date() {
+            return existingExpiration
+        }
+        return Calendar.current.date(byAdding: .year, value: 1, to: Date()) ?? Date()
+    }
+
+    private func upserting(_ record: BeaconTrainingProgress, into records: [BeaconTrainingProgress]) -> [BeaconTrainingProgress] {
+        var updated = records.filter { $0.trainingType != record.trainingType }
+        updated.append(record)
+        return updated.sorted { $0.trainingType.rawValue < $1.trainingType.rawValue }
+    }
+
+    private func resetPendingUploadState() {
+        pendingUpload = nil
+        currentUploadType = nil
+        selectedImage = nil
+        selectedDocumentURL = nil
+        showExpirationSheet = false
     }
 }
 
@@ -452,8 +570,10 @@ struct StepIndicator: View {
 
 struct TrainingStepView: View {
     let trainingType: BeaconTrainingType
+    let trainingRecord: BeaconTrainingProgress?
     let isCompleted: Bool
     let onUploadTap: () -> Void
+    let onAddExpirationTap: () -> Void
     let isLoading: Bool
     
     var body: some View {
@@ -489,16 +609,49 @@ struct TrainingStepView: View {
             
             // Status or Upload Button
             if isCompleted {
-                HStack {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundColor(.green)
-                    Text("Certificate Uploaded")
-                        .foregroundColor(.green)
-                        .fontWeight(.medium)
+                statusBanner(
+                    icon: "checkmark.circle.fill",
+                    text: "Current until \(formattedExpiration(trainingRecord?.expiresAt))",
+                    color: .green
+                )
+            } else if let trainingRecord, trainingRecord.needsExpiration {
+                VStack(spacing: 12) {
+                    statusBanner(
+                        icon: "calendar.badge.exclamationmark",
+                        text: "Expiration date required for this document",
+                        color: .orange
+                    )
+
+                    Button(action: onAddExpirationTap) {
+                        Label("Add Expiration Date", systemImage: "calendar.badge.plus")
+                            .fontWeight(.semibold)
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(Color.orange)
+                            .cornerRadius(12)
+                    }
+                    .disabled(isLoading)
                 }
-                .padding()
-                .background(Color.green.opacity(0.1))
-                .cornerRadius(12)
+            } else if let trainingRecord, trainingRecord.isExpired {
+                VStack(spacing: 12) {
+                    statusBanner(
+                        icon: "exclamationmark.triangle.fill",
+                        text: "Expired on \(formattedExpiration(trainingRecord.expiresAt))",
+                        color: .red
+                    )
+
+                    Button(action: onUploadTap) {
+                        Label("Upload Renewed Certificate", systemImage: "arrow.triangle.2.circlepath.circle.fill")
+                            .fontWeight(.semibold)
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(Color.red)
+                            .cornerRadius(12)
+                    }
+                    .disabled(isLoading)
+                }
             } else {
                 Button(action: onUploadTap) {
                     HStack {
@@ -557,6 +710,32 @@ struct TrainingStepView: View {
             .cornerRadius(12)
         }
     }
+
+    private func formattedExpiration(_ date: Date?) -> String {
+        guard let date else { return "Unknown date" }
+        return date.formatted(date: .abbreviated, time: .omitted)
+    }
+
+    private func statusBanner(icon: String, text: String, color: Color) -> some View {
+        HStack {
+            Image(systemName: icon)
+                .foregroundColor(color)
+            Text(text)
+                .foregroundColor(color)
+                .fontWeight(.medium)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding()
+        .background(color.opacity(0.12))
+        .cornerRadius(12)
+    }
+}
+
+private struct PendingCertificateUpload {
+    let data: Data
+    let fileName: String
+    let isPDF: Bool
 }
 
 // MARK: - Badge Award View
@@ -744,4 +923,3 @@ struct BeaconDocumentPicker: UIViewControllerRepresentable {
         }
     }
 }
-

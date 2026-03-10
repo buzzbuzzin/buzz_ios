@@ -15,7 +15,8 @@ import UIKit
 protocol BeaconBackend {
     func syncBadgesToTraining(userId: UUID) async throws
     func getTrainingProgress(userId: UUID) async throws -> [BeaconTrainingProgress]
-    func uploadTrainingCertificate(userId: UUID, trainingType: BeaconTrainingType, data: Data, fileName: String, isPDF: Bool) async throws -> BeaconTrainingProgress
+    func uploadTrainingCertificate(userId: UUID, trainingType: BeaconTrainingType, data: Data, fileName: String, isPDF: Bool, expiresAt: Date) async throws -> BeaconTrainingProgress
+    func updateTrainingExpiration(userId: UUID, trainingType: BeaconTrainingType, expiresAt: Date) async throws -> BeaconTrainingProgress
     func isUserBeaconVolunteer(userId: UUID) async throws -> Bool
     func getVolunteerStatus(userId: UUID) async throws -> BeaconVolunteer?
     func enrollAsVolunteer(userId: UUID) async throws
@@ -45,7 +46,7 @@ private struct SupabaseBeaconBackend: BeaconBackend {
             .value
     }
 
-    func uploadTrainingCertificate(userId: UUID, trainingType: BeaconTrainingType, data: Data, fileName: String, isPDF: Bool) async throws -> BeaconTrainingProgress {
+    func uploadTrainingCertificate(userId: UUID, trainingType: BeaconTrainingType, data: Data, fileName: String, isPDF: Bool, expiresAt: Date) async throws -> BeaconTrainingProgress {
         // Generate unique file path - user ID must come right after folder for RLS policy
         let uniqueFileName = "\(trainingType.rawValue)_\(Date().timeIntervalSince1970)_\(fileName)"
         let filePath = "beacon-certificates/\(userId.uuidString)/\(uniqueFileName)"
@@ -71,12 +72,30 @@ private struct SupabaseBeaconBackend: BeaconBackend {
         let trainingRecord: [String: AnyJSON] = [
             "pilot_id": .string(userId.uuidString),
             "training_type": .string(trainingType.rawValue),
-            "certificate_url": .string(publicUrl.absoluteString)
+            "certificate_url": .string(publicUrl.absoluteString),
+            "uploaded_at": .string(ISO8601DateFormatter().string(from: Date())),
+            "expires_at": .string(ISO8601DateFormatter().string(from: expiresAt))
         ]
 
         return try await client
             .from("beacon_training_progress")
             .upsert(trainingRecord, onConflict: "pilot_id,training_type")
+            .select()
+            .single()
+            .execute()
+            .value
+    }
+
+    func updateTrainingExpiration(userId: UUID, trainingType: BeaconTrainingType, expiresAt: Date) async throws -> BeaconTrainingProgress {
+        let updates: [String: AnyJSON] = [
+            "expires_at": .string(ISO8601DateFormatter().string(from: expiresAt))
+        ]
+
+        return try await client
+            .from("beacon_training_progress")
+            .update(updates)
+            .eq("pilot_id", value: userId.uuidString)
+            .eq("training_type", value: trainingType.rawValue)
             .select()
             .single()
             .execute()
@@ -202,15 +221,13 @@ class BeaconService: ObservableObject {
     /// Check if a specific training type is completed
     func isTrainingCompleted(userId: UUID, trainingType: BeaconTrainingType) async throws -> Bool {
         let progress = try await getTrainingProgress(userId: userId)
-        return progress.contains { $0.trainingType == trainingType }
+        return progress.contains { $0.trainingType == trainingType && $0.isCurrent }
     }
     
     /// Check if all required training is completed
     func isAllTrainingCompleted(userId: UUID) async throws -> Bool {
         let progress = try await getTrainingProgress(userId: userId)
-        let completedTypes = Set(progress.map { $0.trainingType })
-        let requiredTypes = Set(BeaconTrainingType.allCases)
-        return completedTypes == requiredTypes
+        return hasCurrentTrainingQualifications(progress)
     }
     
     /// Upload a training certificate
@@ -219,17 +236,20 @@ class BeaconService: ObservableObject {
         trainingType: BeaconTrainingType,
         data: Data,
         fileName: String,
-        isPDF: Bool
+        isPDF: Bool,
+        expiresAt: Date
     ) async throws -> BeaconTrainingProgress {
         isLoading = true
         defer { isLoading = false }
 
+        let normalizedExpiration = normalizedExpirationDate(expiresAt)
         let insertedProgress = try await backend.uploadTrainingCertificate(
             userId: userId,
             trainingType: trainingType,
             data: data,
             fileName: fileName,
-            isPDF: isPDF
+            isPDF: isPDF,
+            expiresAt: normalizedExpiration
         )
 
         // Update local state
@@ -241,12 +261,40 @@ class BeaconService: ObservableObject {
 
         return insertedProgress
     }
+
+    func updateTrainingExpiration(
+        userId: UUID,
+        trainingType: BeaconTrainingType,
+        expiresAt: Date
+    ) async throws -> BeaconTrainingProgress {
+        isLoading = true
+        defer { isLoading = false }
+
+        let updatedProgress = try await backend.updateTrainingExpiration(
+            userId: userId,
+            trainingType: trainingType,
+            expiresAt: normalizedExpirationDate(expiresAt)
+        )
+
+        if let index = self.trainingProgress.firstIndex(where: { $0.trainingType == trainingType }) {
+            self.trainingProgress[index] = updatedProgress
+        } else {
+            self.trainingProgress.append(updatedProgress)
+        }
+
+        return updatedProgress
+    }
     
     // MARK: - Volunteer Status
     
     /// Check if user is a beacon volunteer
     func isUserBeaconVolunteer(userId: UUID) async throws -> Bool {
-        try await backend.isUserBeaconVolunteer(userId: userId)
+        guard try await backend.isUserBeaconVolunteer(userId: userId) else {
+            return false
+        }
+
+        let progress = try await getTrainingProgress(userId: userId)
+        return hasCurrentTrainingQualifications(progress)
     }
 
     /// Get volunteer status for a user
@@ -299,6 +347,48 @@ class BeaconService: ObservableObject {
     func findNearbyVolunteers(lat: Double, lng: Double, radiusMiles: Int = 25) async throws -> [NearbyVolunteer] {
         try await backend.findNearbyVolunteers(lat: lat, lng: lng, radiusMiles: radiusMiles)
     }
+
+    func hasCurrentTrainingQualifications(_ progress: [BeaconTrainingProgress]) -> Bool {
+        let currentTypes = Set(
+            progress
+                .filter(\.isCurrent)
+                .map(\.trainingType)
+        )
+
+        return currentTypes == Set(BeaconTrainingType.allCases)
+    }
+
+    func qualificationAttentionMessage(for progress: [BeaconTrainingProgress]) -> String? {
+        let expiredTypes = progress
+            .filter(\.isExpired)
+            .map(\.trainingType.displayName)
+        if !expiredTypes.isEmpty {
+            return "One or more Beacon qualifications have expired. Upload renewed certificates before continuing as an active volunteer."
+        }
+
+        let missingExpirationTypes = progress
+            .filter(\.needsExpiration)
+            .map(\.trainingType.displayName)
+        if !missingExpirationTypes.isEmpty {
+            return "Beacon now tracks qualification expiration dates. Add expiration dates for your existing documents to keep your volunteer status active."
+        }
+
+        return nil
+    }
+
+    private func normalizedExpirationDate(_ date: Date) -> Date {
+        let calendar = Calendar.current
+        let components = calendar.dateComponents([.year, .month, .day], from: date)
+        return calendar.date(from: DateComponents(
+            timeZone: calendar.timeZone,
+            year: components.year,
+            month: components.month,
+            day: components.day,
+            hour: 23,
+            minute: 59,
+            second: 59
+        )) ?? date
+    }
 }
 
 // MARK: - Nearby Volunteer Model
@@ -321,7 +411,7 @@ struct NearbyVolunteer: Codable, Identifiable {
 
 // MARK: - Beacon Errors
 
-enum BeaconError: LocalizedError {
+enum BeaconError: LocalizedError, Equatable {
     case trainingIncomplete
     case uploadFailed
     case enrollmentFailed
@@ -330,7 +420,7 @@ enum BeaconError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .trainingIncomplete:
-            return "Please complete all required training (First Aid/CPR, Firefighting, and Disaster Response) before enrolling as a volunteer."
+            return "Please upload current Beacon qualifications with expiration dates for First Aid/CPR, Firefighting, and Disaster Response before enrolling as a volunteer."
         case .uploadFailed:
             return "Failed to upload certificate. Please try again."
         case .enrollmentFailed:
@@ -340,4 +430,3 @@ enum BeaconError: LocalizedError {
         }
     }
 }
-

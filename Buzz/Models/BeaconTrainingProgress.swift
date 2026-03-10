@@ -67,9 +67,24 @@ struct BeaconTrainingProgress: Codable, Identifiable {
     let trainingType: BeaconTrainingType
     let certificateUrl: String
     let uploadedAt: Date
+    let expiresAt: Date?
     let verified: Bool
     let verifiedAt: Date?
     let verifiedBy: UUID?
+
+    var needsExpiration: Bool {
+        expiresAt == nil
+    }
+
+    var isExpired: Bool {
+        guard let expiresAt else { return false }
+        return expiresAt < Date()
+    }
+
+    var isCurrent: Bool {
+        guard let expiresAt else { return false }
+        return expiresAt >= Date()
+    }
     
     enum CodingKeys: String, CodingKey {
         case id
@@ -77,6 +92,7 @@ struct BeaconTrainingProgress: Codable, Identifiable {
         case trainingType = "training_type"
         case certificateUrl = "certificate_url"
         case uploadedAt = "uploaded_at"
+        case expiresAt = "expires_at"
         case verified
         case verifiedAt = "verified_at"
         case verifiedBy = "verified_by"
@@ -197,4 +213,3 @@ extension Badge.BadgeType {
         return beaconTrainingType != nil
     }
 }
-

@@ -27,6 +27,7 @@ final class MockBeaconBackend: BeaconBackend {
     var shouldThrowOnSync = false
     var shouldThrowOnGetProgress = false
     var shouldThrowOnUpload = false
+    var shouldThrowOnUpdateExpiration = false
     var shouldThrowOnIsVolunteer = false
     var shouldThrowOnEnroll = false
     var shouldThrowOnUpdateAvailability = false
@@ -40,6 +41,8 @@ final class MockBeaconBackend: BeaconBackend {
     var volunteerStatus: BeaconVolunteer? = nil
     var nearbyVolunteers: [NearbyVolunteer] = []
     var uploadResult: BeaconTrainingProgress? = nil
+    var updateExpirationCalled = false
+    var lastExpirationUpdate: (trainingType: BeaconTrainingType, expiresAt: Date)?
 
     // Captured parameters
     var lastAvailability: Bool?
@@ -61,12 +64,21 @@ final class MockBeaconBackend: BeaconBackend {
         return trainingProgress
     }
 
-    func uploadTrainingCertificate(userId: UUID, trainingType: BeaconTrainingType, data: Data, fileName: String, isPDF: Bool) async throws -> BeaconTrainingProgress {
+    func uploadTrainingCertificate(userId: UUID, trainingType: BeaconTrainingType, data: Data, fileName: String, isPDF: Bool, expiresAt: Date) async throws -> BeaconTrainingProgress {
         uploadCertCalled = true
         if shouldThrowOnUpload {
             throw NSError(domain: "MockBeaconBackend", code: -1, userInfo: [NSLocalizedDescriptionKey: "Mock upload error"])
         }
-        return uploadResult ?? BeaconTestHelpers.sampleTrainingProgress(trainingType: trainingType)
+        return uploadResult ?? BeaconTestHelpers.sampleTrainingProgress(trainingType: trainingType, expiresAt: expiresAt)
+    }
+
+    func updateTrainingExpiration(userId: UUID, trainingType: BeaconTrainingType, expiresAt: Date) async throws -> BeaconTrainingProgress {
+        updateExpirationCalled = true
+        lastExpirationUpdate = (trainingType, expiresAt)
+        if shouldThrowOnUpdateExpiration {
+            throw NSError(domain: "MockBeaconBackend", code: -1, userInfo: [NSLocalizedDescriptionKey: "Mock update expiration error"])
+        }
+        return BeaconTestHelpers.sampleTrainingProgress(trainingType: trainingType, expiresAt: expiresAt)
     }
 
     func isUserBeaconVolunteer(userId: UUID) async throws -> Bool {
@@ -131,6 +143,7 @@ enum BeaconTestHelpers {
         trainingType: BeaconTrainingType = .cpr,
         certificateUrl: String = "https://example.com/cert.pdf",
         uploadedAt: Date = Date(),
+        expiresAt: Date? = Calendar.current.date(byAdding: .day, value: 30, to: Date()),
         verified: Bool = false,
         verifiedAt: Date? = nil,
         verifiedBy: UUID? = nil
@@ -141,6 +154,7 @@ enum BeaconTestHelpers {
             trainingType: trainingType,
             certificateUrl: certificateUrl,
             uploadedAt: uploadedAt,
+            expiresAt: expiresAt,
             verified: verified,
             verifiedAt: verifiedAt,
             verifiedBy: verifiedBy

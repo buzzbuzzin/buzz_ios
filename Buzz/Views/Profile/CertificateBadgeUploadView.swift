@@ -22,8 +22,11 @@ struct CertificateBadgeUploadView: View {
     @State private var showUploadOptions = false
     @State private var showImagePicker = false
     @State private var showDocumentPicker = false
+    @State private var showExpirationSheet = false
     @State private var selectedImage: UIImage?
     @State private var selectedDocumentURL: URL?
+    @State private var pendingUpload: PendingBadgeCertificateUpload?
+    @State private var selectedExpirationDate: Date = Calendar.current.date(byAdding: .year, value: 1, to: Date()) ?? Date()
     @State private var showError = false
     @State private var errorMessage = ""
     @State private var uploadSuccess = false
@@ -193,18 +196,17 @@ struct CertificateBadgeUploadView: View {
                     selectedDocumentURL = url
                 }
             }
-            .onChange(of: selectedImage) { newImage in
+            .sheet(isPresented: $showExpirationSheet) {
+                expirationSheet
+            }
+            .onChange(of: selectedImage) { _, newImage in
                 if let image = newImage {
-                    Task {
-                        await uploadCertificate(image: image)
-                    }
+                    prepareUpload(image: image)
                 }
             }
-            .onChange(of: selectedDocumentURL) { newURL in
+            .onChange(of: selectedDocumentURL) { _, newURL in
                 if let url = newURL {
-                    Task {
-                        await uploadCertificate(url: url)
-                    }
+                    prepareUpload(url: url)
                 }
             }
             .alert("Error", isPresented: $showError) {
@@ -226,8 +228,61 @@ struct CertificateBadgeUploadView: View {
         }
     }
     
-    private func uploadCertificate(image: UIImage) async {
-        guard let trainingType = trainingType else {
+    private var expirationSheet: some View {
+        NavigationView {
+            VStack(alignment: .leading, spacing: 20) {
+                Text("Select the date this qualification expires. Buzz will use it for badge status and Beacon eligibility.")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                DatePicker(
+                    "Expiration Date",
+                    selection: $selectedExpirationDate,
+                    in: Date()...,
+                    displayedComponents: [.date]
+                )
+                .datePickerStyle(.graphical)
+
+                Spacer()
+
+                Button(action: {
+                    Task {
+                        await commitUpload()
+                    }
+                }) {
+                    HStack {
+                        if isLoading {
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                        } else {
+                            Text("Upload Certificate")
+                                .fontWeight(.semibold)
+                        }
+                    }
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color.blue)
+                    .cornerRadius(12)
+                }
+                .disabled(isLoading)
+            }
+            .padding()
+            .navigationTitle("Document Expiration")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") {
+                        resetPendingUpload()
+                    }
+                }
+            }
+        }
+    }
+
+    private func prepareUpload(image: UIImage) {
+        guard let selectedTrainingType = trainingType else {
             errorMessage = "Invalid badge type"
             showError = true
             return
@@ -239,16 +294,18 @@ struct CertificateBadgeUploadView: View {
             return
         }
         
-        await performUpload(
+        pendingUpload = PendingBadgeCertificateUpload(
             data: imageData,
-            fileName: "\(trainingType.rawValue)_\(Date().timeIntervalSince1970).jpg",
-            isPDF: false,
-            trainingType: trainingType
+            fileName: "\(selectedTrainingType.rawValue)_\(Date().timeIntervalSince1970).jpg",
+            isPDF: false
         )
+        selectedImage = nil
+        selectedExpirationDate = Calendar.current.date(byAdding: .year, value: 1, to: Date()) ?? Date()
+        showExpirationSheet = true
     }
     
-    private func uploadCertificate(url: URL) async {
-        guard let trainingType = trainingType else {
+    private func prepareUpload(url: URL) {
+        guard trainingType != nil else {
             errorMessage = "Invalid badge type"
             showError = true
             return
@@ -268,23 +325,33 @@ struct CertificateBadgeUploadView: View {
             
             let data = try Data(contentsOf: url)
             let fileName = url.lastPathComponent
-            let isPDF = fileName.lowercased().hasSuffix(".pdf")
-            
-            await performUpload(
+            pendingUpload = PendingBadgeCertificateUpload(
                 data: data,
                 fileName: fileName,
-                isPDF: isPDF,
-                trainingType: trainingType
+                isPDF: fileName.lowercased().hasSuffix(".pdf")
             )
+            selectedDocumentURL = nil
+            selectedExpirationDate = Calendar.current.date(byAdding: .year, value: 1, to: Date()) ?? Date()
+            showExpirationSheet = true
         } catch {
-            await MainActor.run {
-                errorMessage = error.localizedDescription
-                showError = true
-            }
+            errorMessage = error.localizedDescription
+            showError = true
         }
     }
+
+    private func commitUpload() async {
+        guard let trainingType = trainingType, let pendingUpload else { return }
+
+        await performUpload(
+            data: pendingUpload.data,
+            fileName: pendingUpload.fileName,
+            isPDF: pendingUpload.isPDF,
+            trainingType: trainingType,
+            expiresAt: selectedExpirationDate
+        )
+    }
     
-    private func performUpload(data: Data, fileName: String, isPDF: Bool, trainingType: BeaconTrainingType) async {
+    private func performUpload(data: Data, fileName: String, isPDF: Bool, trainingType: BeaconTrainingType, expiresAt: Date) async {
         await MainActor.run {
             isLoading = true
         }
@@ -298,7 +365,8 @@ struct CertificateBadgeUploadView: View {
                 trainingType: trainingType,
                 data: data,
                 fileName: fileName,
-                isPDF: isPDF
+                isPDF: isPDF,
+                expiresAt: expiresAt
             )
             
             // Refresh badges to show the newly earned badge
@@ -310,6 +378,7 @@ struct CertificateBadgeUploadView: View {
                 uploadSuccess = true
                 selectedImage = nil
                 selectedDocumentURL = nil
+                resetPendingUpload()
             }
         } catch {
             await MainActor.run {
@@ -319,6 +388,17 @@ struct CertificateBadgeUploadView: View {
             }
         }
     }
+
+    private func resetPendingUpload() {
+        pendingUpload = nil
+        showExpirationSheet = false
+    }
+}
+
+private struct PendingBadgeCertificateUpload {
+    let data: Data
+    let fileName: String
+    let isPDF: Bool
 }
 
 // MARK: - Requirement Row
