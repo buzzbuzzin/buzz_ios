@@ -28,6 +28,10 @@ struct CourseContentView: View {
     @State private var completedUnitNumbers: Set<Int> = []
     @State private var passedTestIds: Set<UUID> = []
     @State private var courseTests: [CourseTest] = []
+
+    private var isAwaitingAuth: Bool {
+        authService.activeUserId == nil && !authService.hasResolvedInitialSession
+    }
     
     /// Check if user has active subscription from any source (Apple or Stripe)
     var hasSubscription: Bool {
@@ -55,7 +59,7 @@ struct CourseContentView: View {
                 .padding(.horizontal)
                 .padding(.top)
                 
-                if isLoading {
+                if isLoading || isAwaitingAuth {
                     ProgressView()
                         .frame(maxWidth: .infinity)
                         .padding()
@@ -101,7 +105,7 @@ struct CourseContentView: View {
                 }
             }
         }
-        .task {
+        .task(id: authService.activeUserId) {
             await refreshContent()
         }
         .sheet(isPresented: $showSubscriptionSheet) {
@@ -134,6 +138,8 @@ struct CourseContentView: View {
     
     /// Refreshes all course content including sections, units, subscription status, and progress
     private func refreshContent() async {
+        guard !isAwaitingAuth else { return }
+
         print("🚀 [CourseContentView] Refreshing course content...")
         await loadSectionsAndUnits()
         await loadCourseTests()
@@ -1295,4 +1301,3 @@ struct TestCenterExamCardContent: View {
         .opacity(isLocked ? 0.7 : 1.0)
     }
 }
-

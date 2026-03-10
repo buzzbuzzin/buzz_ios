@@ -16,6 +16,47 @@ class AcademyService: ObservableObject {
     @Published var errorMessage: String?
     
     private let supabase = SupabaseClient.shared.client
+
+    private func makeCourse(from courseResponse: TrainingCourseResponse, isEnrolled: Bool) -> TrainingCourse {
+        TrainingCourse(
+            id: courseResponse.id,
+            title: courseResponse.title,
+            description: courseResponse.description,
+            duration: courseResponse.duration,
+            level: TrainingCourse.CourseLevel(rawValue: courseResponse.level) ?? .beginner,
+            category: TrainingCourse.CourseCategory(rawValue: courseResponse.category) ?? .general,
+            instructor: courseResponse.instructor,
+            instructorPictureUrl: courseResponse.instructorPictureUrl,
+            rating: courseResponse.rating,
+            studentsCount: courseResponse.studentsCount,
+            isEnrolled: isEnrolled,
+            provider: TrainingCourse.CourseProvider(rawValue: courseResponse.provider ?? "Buzz") ?? .buzz,
+            requiresUasGroundSchool: courseResponse.requiresUasGroundSchool ?? false,
+            requiresFlightReviewPassed: courseResponse.requiresFlightReviewPassed ?? false,
+            requiresRocAPassed: courseResponse.requiresRocAPassed ?? false,
+            externalUrl: courseResponse.externalUrl,
+            coverImageUrl: courseResponse.coverImageUrl,
+            region: TrainingCourse.CourseRegion(rawValue: courseResponse.region ?? "Global") ?? .global,
+            active: courseResponse.active ?? false
+        )
+    }
+
+    private func fetchCourseDefinition(courseId: UUID) async throws -> TrainingCourse {
+        if let cachedCourse = courses.first(where: { $0.id == courseId }) {
+            return cachedCourse
+        }
+
+        let response: TrainingCourseResponse = try await supabase
+            .from("training_courses")
+            .select()
+            .eq("id", value: courseId.uuidString)
+            .eq("active", value: true)
+            .single()
+            .execute()
+            .value
+
+        return makeCourse(from: response, isEnrolled: false)
+    }
     
     // MARK: - Fetch All Courses
     
@@ -37,29 +78,7 @@ class AcademyService: ObservableObject {
                 .value
             
             // Convert to TrainingCourse models
-            courses = response.map { courseResponse in
-                TrainingCourse(
-                    id: courseResponse.id,
-                    title: courseResponse.title,
-                    description: courseResponse.description,
-                    duration: courseResponse.duration,
-                    level: TrainingCourse.CourseLevel(rawValue: courseResponse.level) ?? .beginner,
-                    category: TrainingCourse.CourseCategory(rawValue: courseResponse.category) ?? .general,
-                    instructor: courseResponse.instructor,
-                    instructorPictureUrl: courseResponse.instructorPictureUrl,
-                    rating: courseResponse.rating,
-                    studentsCount: courseResponse.studentsCount,
-                    isEnrolled: false,
-                    provider: TrainingCourse.CourseProvider(rawValue: courseResponse.provider ?? "Buzz") ?? .buzz,
-                    requiresUasGroundSchool: courseResponse.requiresUasGroundSchool ?? false,
-                    requiresFlightReviewPassed: courseResponse.requiresFlightReviewPassed ?? false,
-                    requiresRocAPassed: courseResponse.requiresRocAPassed ?? false,
-                    externalUrl: courseResponse.externalUrl,
-                    coverImageUrl: courseResponse.coverImageUrl,
-                    region: TrainingCourse.CourseRegion(rawValue: courseResponse.region ?? "Global") ?? .global,
-                    active: courseResponse.active ?? false
-                )
-            }
+            courses = response.map { makeCourse(from: $0, isEnrolled: false) }
 
             isLoading = false
         } catch {
@@ -119,30 +138,7 @@ class AcademyService: ObservableObject {
             let enrolledCourseIds = Set(enrollmentsData.map { $0.courseId })
             
             // Convert to TrainingCourse models with enrollment status
-            courses = coursesResponse.map { courseResponse in
-                let isEnrolled = enrolledCourseIds.contains(courseResponse.id)
-                return TrainingCourse(
-                    id: courseResponse.id,
-                    title: courseResponse.title,
-                    description: courseResponse.description,
-                    duration: courseResponse.duration,
-                    level: TrainingCourse.CourseLevel(rawValue: courseResponse.level) ?? .beginner,
-                    category: TrainingCourse.CourseCategory(rawValue: courseResponse.category) ?? .general,
-                    instructor: courseResponse.instructor,
-                    instructorPictureUrl: courseResponse.instructorPictureUrl,
-                    rating: courseResponse.rating,
-                    studentsCount: courseResponse.studentsCount,
-                    isEnrolled: isEnrolled,
-                    provider: TrainingCourse.CourseProvider(rawValue: courseResponse.provider ?? "Buzz") ?? .buzz,
-                    requiresUasGroundSchool: courseResponse.requiresUasGroundSchool ?? false,
-                    requiresFlightReviewPassed: courseResponse.requiresFlightReviewPassed ?? false,
-                    requiresRocAPassed: courseResponse.requiresRocAPassed ?? false,
-                    externalUrl: courseResponse.externalUrl,
-                    coverImageUrl: courseResponse.coverImageUrl,
-                    region: TrainingCourse.CourseRegion(rawValue: courseResponse.region ?? "Global") ?? .global,
-                    active: courseResponse.active ?? false
-                )
-            }
+            courses = coursesResponse.map { makeCourse(from: $0, isEnrolled: enrolledCourseIds.contains($0.id)) }
             let step3Duration = Date().timeIntervalSince(step3Start)
             print("✅ [AcademyService] Step 3 complete: Processed data in \(String(format: "%.2f", step3Duration))s")
             
@@ -666,10 +662,7 @@ class AcademyService: ObservableObject {
         }
 
         // Check all prerequisite requirements for the course using RPC functions
-        guard let course = courses.first(where: { $0.id == courseId }) else {
-            throw NSError(domain: "AcademyService", code: 404,
-                userInfo: [NSLocalizedDescriptionKey: "Course not found. Please refresh and try again."])
-        }
+        let course = try await fetchCourseDefinition(courseId: courseId)
 
         var missingPrerequisites: [String] = []
 
@@ -968,8 +961,9 @@ class AcademyService: ObservableObject {
             // Fetch all units and tests for this course
             let allUnits = try await fetchCourseUnits(courseId: courseId)
             let allTests = try await fetchCourseTests(courseId: courseId)
+            let progressionTests = allTests.filter(\.requiredForProgression)
 
-            let totalItems = allUnits.count + allTests.count
+            let totalItems = allUnits.count + progressionTests.count
 
             guard totalItems > 0 else {
                 print("⚠️ [AcademyService] Course \(courseId) has no units or tests to track")
@@ -985,7 +979,7 @@ class AcademyService: ObservableObject {
             )
 
             // Check which tests are passed
-            let testIds = allTests.map { $0.id }
+            let testIds = progressionTests.map { $0.id }
             let testStatuses = await checkTestStatuses(pilotId: pilotId, testIds: testIds)
             let passedTestCount = testStatuses.values.filter { $0 }.count
 
@@ -993,7 +987,7 @@ class AcademyService: ObservableObject {
             let completedItems = completedUnitIds.count + passedTestCount
             let localProgress = Int((Double(completedItems) / Double(totalItems)) * 100)
 
-            print("📊 [AcademyService] Progress for course \(courseId): \(completedItems)/\(totalItems) = \(localProgress)% (units: \(completedUnitIds.count)/\(allUnits.count), tests: \(passedTestCount)/\(allTests.count))")
+            print("📊 [AcademyService] Progress for course \(courseId): \(completedItems)/\(totalItems) = \(localProgress)% (units: \(completedUnitIds.count)/\(allUnits.count), required tests: \(passedTestCount)/\(progressionTests.count))")
 
             // Fetch current remote progress
             let remoteProgress = await fetchRemoteProgress(pilotId: pilotId, courseId: courseId)
@@ -1145,4 +1139,3 @@ struct CourseEnrollment: Codable, Identifiable {
         case completedAt = "completed_at"
     }
 }
-

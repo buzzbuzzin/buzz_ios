@@ -12,6 +12,7 @@ import Auth
 struct AcademyView: View {
     @EnvironmentObject var authService: AuthService
     @StateObject private var storeKitManager = StoreKitManager()
+    @StateObject private var badgeService = BadgeService()
     @ObservedObject private var entitlementManager = EntitlementManager.shared
     @State private var selectedCategory: TrainingCourse.CourseCategory? = nil
     @State private var selectedProvider: TrainingCourse.CourseProvider? = nil
@@ -32,6 +33,7 @@ struct AcademyView: View {
     @State private var showHangerHelp = false
     @State private var showRecurrentNotices = true
     @State private var isPromotionCardDismissed = false
+    @State private var isPreparingAcademy = false
     @State private var hasPassedGroundSchoolTest = false
     @State private var hasPassedFlightReview = false
     @State private var hasPassedRocA = false
@@ -44,6 +46,14 @@ struct AcademyView: View {
     /// Check if user has active subscription from any source (Apple or Stripe)
     var hasSubscription: Bool {
         entitlementManager.hasAcademyPass
+    }
+
+    private var isAwaitingAuth: Bool {
+        authService.activeUserId == nil && !authService.hasResolvedInitialSession
+    }
+
+    private var refreshIdentity: String {
+        "\(authService.activeUserId?.uuidString ?? "anonymous"):\(authService.userProfile?.selectedRegion ?? "unscoped")"
     }
     
     func toggleEnrollment(for courseId: UUID) {
@@ -142,17 +152,16 @@ struct AcademyView: View {
         return 999
     }
     
+    @ViewBuilder
     var body: some View {
-        // Check if user needs to complete region onboarding
-        if let currentUser = authService.currentUser,
-           authService.userProfile?.selectedRegion == nil {
-            return AnyView(
-                RegionOnboardingView()
-                    .navigationBarBackButtonHidden(true)
-            )
-        }
-
-        return AnyView(
+        if isAwaitingAuth {
+            LoadingView(message: "Loading academy...")
+        } else if authService.currentUser != nil,
+                  let userProfile = authService.userProfile,
+                  userProfile.selectedRegion == nil {
+            RegionOnboardingView()
+                .navigationBarBackButtonHidden(true)
+        } else {
             NavigationStack {
                 VStack(spacing: 0) {
                 // Recurrent Training Notices Section
@@ -327,7 +336,7 @@ struct AcademyView: View {
                     .opacity(filteredCourses.isEmpty ? 0.01 : 1)
                     .allowsHitTesting(!filteredCourses.isEmpty)
                     
-                    if isLoading {
+                    if isLoading || isPreparingAcademy {
                         LoadingView(message: "Loading courses...")
                     } else if filteredCourses.isEmpty {
                         EmptyStateView(
@@ -381,28 +390,26 @@ struct AcademyView: View {
                         }
                 }
             }
-            .task {
-                await loadCourses()
-                await checkGroundSchoolTestStatus()
-                await loadRecurrentNotices()
-                // Check ALL subscription sources (Apple + Stripe backend)
-                if let currentUser = authService.currentUser {
-                    _ = await storeKitManager.checkAllSubscriptions(pilotId: currentUser.id)
-                }
+            .task(id: refreshIdentity) {
+                await refreshAcademy()
             }
-            .onAppear {
-                // Refresh courses when view appears (e.g., after returning from course detail)
-                Task {
-                    await loadCourses()
-                    await checkGroundSchoolTestStatus()
-                    // Check ALL subscription sources (Apple + Stripe backend)
-                    if let currentUser = authService.currentUser {
-                        _ = await storeKitManager.checkAllSubscriptions(pilotId: currentUser.id)
-                    }
-                    }
-                }
-            }
-        )
+        }
+    }
+    }
+
+    private func refreshAcademy() async {
+        guard !isAwaitingAuth else { return }
+
+        isPreparingAcademy = true
+        defer { isPreparingAcademy = false }
+
+        await loadCourses()
+        await checkGroundSchoolTestStatus()
+        await loadRecurrentNotices()
+
+        if let currentUser = authService.currentUser {
+            _ = await storeKitManager.checkAllSubscriptions(pilotId: currentUser.id)
+        }
     }
     
     private func loadCourses() async {
@@ -519,9 +526,34 @@ struct AcademyView: View {
     }
     
     private func loadRecurrentNotices() async {
-        // Recurrent training notices are now managed through the badges system.
-        // TrainingCourse no longer carries recurrence fields.
-        recurrentNotices = []
+        guard let currentUser = authService.currentUser else {
+            recurrentNotices = []
+            return
+        }
+
+        do {
+            try await badgeService.fetchPilotBadges(pilotId: currentUser.id)
+
+            recurrentNotices = badgeService.badges.compactMap { badge in
+                guard badge.isRecurrent,
+                      let dueDate = badge.expiresAt,
+                      badge.isExpired || (badge.daysUntilExpiration ?? .max) <= 30 else {
+                    return nil
+                }
+
+                return RecurrentTrainingNotice(
+                    id: badge.id,
+                    courseTitle: badge.courseTitle ?? badge.badgeType?.displayName ?? "Recurrent Training",
+                    courseCategory: badge.courseCategory ?? "Training",
+                    dueDate: dueDate,
+                    provider: TrainingCourse.CourseProvider(rawValue: badge.provider.rawValue) ?? .other
+                )
+            }
+            .sorted { $0.dueDate < $1.dueDate }
+        } catch {
+            recurrentNotices = []
+            print("❌ [AcademyView] Error loading recurrent notices: \(error)")
+        }
     }
 }
 
