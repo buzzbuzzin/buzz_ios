@@ -16,6 +16,7 @@ struct PilotProfileView: View {
     @StateObject private var ratingService = RatingService()
     @StateObject private var profilePictureService = ProfilePictureService()
     @StateObject private var badgeService = BadgeService()
+    @State private var examinerStats: ExaminerStats?
     @State private var showSignOutAlert = false
     @State private var showImagePicker = false
     @State private var showImageSourceSheet = false
@@ -382,6 +383,39 @@ struct PilotProfileView: View {
                                 .fontWeight(.medium)
                                 .foregroundColor(.primary)
                         }
+
+                        // Examiner/Proctor stats (only show if user has activity)
+                        if let examinerStats = examinerStats, examinerStats.hasActivity {
+                            if examinerStats.flightReviewCount > 0 {
+                                HStack {
+                                    Image(systemName: "person.text.rectangle.fill")
+                                        .foregroundColor(.secondary)
+                                        .font(.body)
+                                        .frame(width: 24)
+                                    Text("Flight Reviews Conducted")
+                                        .foregroundColor(.primary)
+                                    Spacer()
+                                    Text("\(examinerStats.flightReviewCount)")
+                                        .fontWeight(.medium)
+                                        .foregroundColor(.primary)
+                                }
+                            }
+
+                            if examinerStats.rocAExamCount > 0 {
+                                HStack {
+                                    Image(systemName: "antenna.radiowaves.left.and.right")
+                                        .foregroundColor(.secondary)
+                                        .font(.body)
+                                        .frame(width: 24)
+                                    Text("ROC-A Exams Proctored")
+                                        .foregroundColor(.primary)
+                                    Spacer()
+                                    Text("\(examinerStats.rocAExamCount)")
+                                        .fontWeight(.medium)
+                                        .foregroundColor(.primary)
+                                }
+                            }
+                        }
                     } else if rankingService.isLoading {
                         HStack {
                             Spacer()
@@ -606,6 +640,9 @@ struct PilotProfileView: View {
             
             // Load badges
             try? await badgeService.fetchPilotBadges(pilotId: userId)
+
+            // Load examiner/proctor stats
+            examinerStats = await ExamService.shared.fetchExaminerStats(examinerId: userId)
 
             // Load license notification count
             await licenseNotificationService.fetchUnreadNotificationCount(pilotId: userId)

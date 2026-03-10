@@ -34,6 +34,7 @@ struct PublicProfileView: View {
     @State private var ratingSummary: UserRatingSummary?
     @State private var completedCourses: [TrainingCourse] = []
     @State private var pilotPosts: [HangerTalkPostWithAuthor] = []
+    @State private var examinerStats: ExaminerStats?
     @State private var isLoading = true
     @State private var errorMessage = ""
     @State private var showError = false
@@ -312,6 +313,43 @@ struct PublicProfileView: View {
                     }
                 }
                 
+                // Examiner/Proctor Stats (only show if user has activity)
+                if let examinerStats = examinerStats, examinerStats.hasActivity {
+                    Section {
+                        if examinerStats.flightReviewCount > 0 {
+                            HStack {
+                                Image(systemName: "person.text.rectangle.fill")
+                                    .foregroundColor(.secondary)
+                                    .font(.body)
+                                    .frame(width: 24)
+                                Text("Flight Reviews Conducted")
+                                    .foregroundColor(.primary)
+                                Spacer()
+                                Text("\(examinerStats.flightReviewCount)")
+                                    .fontWeight(.medium)
+                                    .foregroundColor(.primary)
+                            }
+                        }
+
+                        if examinerStats.rocAExamCount > 0 {
+                            HStack {
+                                Image(systemName: "antenna.radiowaves.left.and.right")
+                                    .foregroundColor(.secondary)
+                                    .font(.body)
+                                    .frame(width: 24)
+                                Text("ROC-A Exams Proctored")
+                                    .foregroundColor(.primary)
+                                Spacer()
+                                Text("\(examinerStats.rocAExamCount)")
+                                    .fontWeight(.medium)
+                                    .foregroundColor(.primary)
+                            }
+                        }
+                    } header: {
+                        Text("Examiner Activity")
+                    }
+                }
+
                 // Badges Section
                 Section {
                     if badgeService.badges.isEmpty {
@@ -466,7 +504,10 @@ struct PublicProfileView: View {
             
             // Load badges
             try? await badgeService.fetchPilotBadges(pilotId: pilotId)
-            
+
+            // Load examiner/proctor stats
+            examinerStats = await ExamService.shared.fetchExaminerStats(examinerId: pilotId)
+
             // Load drone registrations
             try? await droneRegistrationService.fetchRegistrations(pilotId: pilotId)
             

@@ -689,6 +689,41 @@ class ExamService: ObservableObject {
         }
     }
 
+    // MARK: - Fetch Examiner Stats
+
+    /// Fetches the count of completed exams where this user was the examiner/proctor
+    func fetchExaminerStats(examinerId: UUID) async -> ExaminerStats {
+        if DemoModeManager.shared.isDemoModeEnabled {
+            return ExaminerStats(flightReviewCount: 0, rocAExamCount: 0)
+        }
+
+        do {
+            let flightReviewResponse = try await supabase
+                .from("exam_appointments")
+                .select("id", head: true, count: .exact)
+                .eq("examiner_id", value: examinerId.uuidString)
+                .eq("status", value: ExamAppointmentStatus.completed.rawValue)
+                .eq("exam_type", value: ExamType.flightReview.rawValue)
+                .execute()
+
+            let rocAResponse = try await supabase
+                .from("exam_appointments")
+                .select("id", head: true, count: .exact)
+                .eq("examiner_id", value: examinerId.uuidString)
+                .eq("status", value: ExamAppointmentStatus.completed.rawValue)
+                .eq("exam_type", value: ExamType.rocA.rawValue)
+                .execute()
+
+            return ExaminerStats(
+                flightReviewCount: flightReviewResponse.count ?? 0,
+                rocAExamCount: rocAResponse.count ?? 0
+            )
+        } catch {
+            print("Error fetching examiner stats: \(error)")
+            return ExaminerStats(flightReviewCount: 0, rocAExamCount: 0)
+        }
+    }
+
     // MARK: - Get Available Time Slots
 
     /// Returns available time slots for a given date
@@ -711,6 +746,15 @@ class ExamService: ObservableObject {
 }
 
 // MARK: - Response Models
+
+struct ExaminerStats {
+    let flightReviewCount: Int
+    let rocAExamCount: Int
+
+    var hasActivity: Bool {
+        flightReviewCount > 0 || rocAExamCount > 0
+    }
+}
 
 struct EmptyResponse: Codable {}
 
