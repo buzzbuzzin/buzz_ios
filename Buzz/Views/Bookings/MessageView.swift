@@ -188,17 +188,15 @@ struct MessageView: View {
                 VStack(spacing: 0) {
                     Divider()
                     
-                    HStack(spacing: 12) {
-                        TextField("Type a message", text: $messageText)
+                    HStack(alignment: .bottom, spacing: 12) {
+                        TextField("Type a message", text: $messageText, axis: .vertical)
                             .textFieldStyle(.plain)
+                            .lineLimit(1...6)
                             .padding(.horizontal, 16)
                             .padding(.vertical, 10)
                             .background(Color(.systemGray6))
                             .cornerRadius(20)
                             .focused($isTextFieldFocused)
-                            .onSubmit {
-                                sendMessage()
-                            }
                         
                         Button(action: {
                             sendMessage()
