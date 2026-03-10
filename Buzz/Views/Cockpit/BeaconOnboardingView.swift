@@ -632,6 +632,21 @@ struct TrainingStepView: View {
                             .cornerRadius(12)
                     }
                     .disabled(isLoading)
+
+                    Button(action: onUploadTap) {
+                        Label("Upload Renewed Certificate", systemImage: "arrow.triangle.2.circlepath.circle.fill")
+                            .fontWeight(.semibold)
+                            .foregroundColor(.red)
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(Color.red.opacity(0.12))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(Color.red.opacity(0.35), lineWidth: 1)
+                            )
+                            .cornerRadius(12)
+                    }
+                    .disabled(isLoading)
                 }
             } else if let trainingRecord, trainingRecord.isExpired {
                 VStack(spacing: 12) {
