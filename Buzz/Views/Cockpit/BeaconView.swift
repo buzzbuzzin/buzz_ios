@@ -29,7 +29,13 @@ struct BeaconView: View {
                     .background(Color(.systemBackground))
             } else if isBeaconVolunteer {
                 // Active volunteers see dashboard directly
-                BeaconVolunteerDashboardView(showAboutProgram: $showAboutProgram)
+                BeaconVolunteerDashboardView(
+                    showAboutProgram: $showAboutProgram,
+                    qualificationNotice: qualificationNotice,
+                    onReviewQualifications: {
+                        showOnboarding = true
+                    }
+                )
                     .environmentObject(authService)
                     .environmentObject(beaconService)
             } else {
@@ -120,9 +126,10 @@ struct BeaconView: View {
 
         if progress.contains(where: \.isExpired) {
             return BeaconQualificationNotice(
-                title: "Renew Beacon Qualifications",
-                message: "One or more Beacon certifications have expired. Upload renewed documents before continuing as an active Beacon volunteer.",
-                actionTitle: "Review Qualifications"
+                title: expiredNoticeTitle(for: progress),
+                message: expiredNoticeMessage(for: progress),
+                actionTitle: "Review Qualifications",
+                accentColor: .red
             )
         }
 
@@ -130,11 +137,52 @@ struct BeaconView: View {
             return BeaconQualificationNotice(
                 title: "Add Expiration Dates",
                 message: "Beacon now requires expiration dates for volunteer qualifications. Add expiration dates for your existing documents to keep your status active.",
-                actionTitle: "Review Qualifications"
+                actionTitle: "Review Qualifications",
+                accentColor: .orange
+            )
+        }
+
+        if let nextExpiringRecord = progress
+            .filter(\.isExpiringSoon)
+            .sorted(by: {
+                ($0.expiresAt ?? .distantFuture) < ($1.expiresAt ?? .distantFuture)
+            })
+            .first {
+            return BeaconQualificationNotice(
+                title: nextExpiringRecord.trainingType == .cpr ? "First Aid/CPR Expiring Soon" : "Beacon Qualification Expiring Soon",
+                message: expiringSoonMessage(for: nextExpiringRecord),
+                actionTitle: "Renew Before Expiry",
+                accentColor: .orange
             )
         }
 
         return nil
+    }
+
+    private func expiredNoticeTitle(for progress: [BeaconTrainingProgress]) -> String {
+        if progress.contains(where: { $0.trainingType == .cpr && $0.isExpired }) {
+            return "First Aid/CPR Expired"
+        }
+        return "Beacon Access Paused"
+    }
+
+    private func expiredNoticeMessage(for progress: [BeaconTrainingProgress]) -> String {
+        if let expiredCPR = progress.first(where: { $0.trainingType == .cpr && $0.isExpired }) {
+            return "Your First Aid/CPR qualification expired on \(formattedExpiration(expiredCPR.expiresAt)). You no longer have access to Beacon until you upload a renewed, non-expired certificate."
+        }
+        return "One or more Beacon qualifications have expired. You no longer have access to Beacon until you upload renewed, non-expired certificates."
+    }
+
+    private func expiringSoonMessage(for record: BeaconTrainingProgress) -> String {
+        let prefix = record.trainingType == .cpr
+            ? "Your First Aid/CPR qualification expires on"
+            : "Your \(record.trainingType.displayName) expires on"
+        return "\(prefix) \(formattedExpiration(record.expiresAt)). Upload a renewed certificate before it expires to avoid losing Beacon access."
+    }
+
+    private func formattedExpiration(_ date: Date?) -> String {
+        guard let date else { return "an upcoming date" }
+        return date.formatted(date: .abbreviated, time: .omitted)
     }
 }
 
@@ -142,6 +190,32 @@ struct BeaconQualificationNotice {
     let title: String
     let message: String
     let actionTitle: String
+    let accentColor: Color
+}
+
+struct BeaconQualificationNoticeCard: View {
+    let notice: BeaconQualificationNotice
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(notice.title)
+                .font(.headline)
+                .foregroundColor(notice.accentColor)
+
+            Text(notice.message)
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding()
+        .background(notice.accentColor.opacity(0.12))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(notice.accentColor.opacity(0.3), lineWidth: 1)
+        )
+        .cornerRadius(12)
+    }
 }
 
 // MARK: - Beacon Mission Model
@@ -213,23 +287,7 @@ struct BeaconInfoView: View {
                 // Sign Up Prompt
                 VStack(spacing: 16) {
                     if let qualificationNotice {
-                        VStack(alignment: .leading, spacing: 10) {
-                            Text(qualificationNotice.title)
-                                .font(.headline)
-
-                            Text(qualificationNotice.message)
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding()
-                        .background(Color.orange.opacity(0.12))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(Color.orange.opacity(0.3), lineWidth: 1)
-                        )
-                        .cornerRadius(12)
+                        BeaconQualificationNoticeCard(notice: qualificationNotice)
                     }
 
                     Text("Join the Emergency Response Program")
@@ -668,11 +726,48 @@ struct BeaconVolunteerDashboardView: View {
     @State private var joiningMissionIds: Set<UUID> = []
     @State private var showJoinSuccess: Bool = false
     @State private var joinError: String?
+    let qualificationNotice: BeaconQualificationNotice?
+    let onReviewQualifications: () -> Void
     @Binding var showAboutProgram: Bool
+
+    init(
+        showAboutProgram: Binding<Bool>,
+        qualificationNotice: BeaconQualificationNotice?,
+        onReviewQualifications: @escaping () -> Void
+    ) {
+        self._showAboutProgram = showAboutProgram
+        self.qualificationNotice = qualificationNotice
+        self.onReviewQualifications = onReviewQualifications
+    }
     
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
+                if let qualificationNotice {
+                    VStack(spacing: 12) {
+                        BeaconQualificationNoticeCard(notice: qualificationNotice)
+
+                        Button(action: onReviewQualifications) {
+                            HStack {
+                                Image(systemName: "arrow.triangle.2.circlepath.circle.fill")
+                                Text(qualificationNotice.actionTitle)
+                                    .fontWeight(.semibold)
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                            }
+                            .foregroundColor(qualificationNotice.accentColor)
+                            .padding()
+                            .background(qualificationNotice.accentColor.opacity(0.12))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(qualificationNotice.accentColor.opacity(0.3), lineWidth: 1)
+                            )
+                            .cornerRadius(12)
+                        }
+                    }
+                    .padding(.horizontal)
+                }
+
                 // Availability Toggle
                 VStack(spacing: 16) {
                     HStack {

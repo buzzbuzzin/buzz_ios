@@ -85,6 +85,19 @@ struct BeaconTrainingProgress: Codable, Identifiable {
         guard let expiresAt else { return false }
         return expiresAt >= Date()
     }
+
+    var daysUntilExpiration: Int? {
+        guard let expiresAt else { return nil }
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        let expirationDay = calendar.startOfDay(for: expiresAt)
+        return calendar.dateComponents([.day], from: today, to: expirationDay).day
+    }
+
+    var isExpiringSoon: Bool {
+        guard let daysUntilExpiration else { return false }
+        return daysUntilExpiration >= 0 && daysUntilExpiration <= 30
+    }
     
     enum CodingKeys: String, CodingKey {
         case id

@@ -243,6 +243,26 @@ final class BeaconServiceTests: XCTestCase {
         XCTAssertFalse(result)
     }
 
+    func testTrainingProgress_expiringSoon_returnsTrueWithinThirtyDays() {
+        let record = BeaconTestHelpers.sampleTrainingProgress(
+            trainingType: .cpr,
+            expiresAt: Date().addingTimeInterval(10 * 86400)
+        )
+
+        XCTAssertTrue(record.isExpiringSoon)
+        XCTAssertFalse(record.isExpired)
+    }
+
+    func testTrainingProgress_expiringSoon_returnsFalseBeyondThirtyDays() {
+        let record = BeaconTestHelpers.sampleTrainingProgress(
+            trainingType: .cpr,
+            expiresAt: Date().addingTimeInterval(45 * 86400)
+        )
+
+        XCTAssertFalse(record.isExpiringSoon)
+        XCTAssertTrue(record.isCurrent)
+    }
+
     // MARK: - Volunteer Status
 
     func testGetVolunteerStatus_updatesPublishedProperty() async throws {
