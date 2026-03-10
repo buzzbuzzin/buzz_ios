@@ -83,9 +83,9 @@ struct BookingDetailView: View {
                 }
 
                 // Map
-                Map(coordinateRegion: .constant(region), annotationItems: [booking]) { booking in
-                    MapAnnotation(coordinate: booking.coordinate) {
-                        BookingAnnotation(booking: booking, isSelected: true)
+                Map(coordinateRegion: .constant(region), annotationItems: [currentBooking]) { item in
+                    MapAnnotation(coordinate: item.coordinate) {
+                        BookingAnnotation(booking: item, isSelected: true)
                     }
                 }
                 .frame(height: 250)
@@ -98,7 +98,7 @@ struct BookingDetailView: View {
                         .font(.headline)
                         .foregroundColor(.red)
                     
-                    Text(booking.locationName)
+                    Text(currentBooking.locationName)
                         .font(.title3)
                         .fontWeight(.semibold)
                         .multilineTextAlignment(.leading)
@@ -213,7 +213,7 @@ struct BookingDetailView: View {
                 }
                 
                 // Category
-                if let specialization = booking.specialization {
+                if let specialization = currentBooking.specialization {
                     VStack(alignment: .leading, spacing: 8) {
                         Label("Category", systemImage: "tag.fill")
                             .font(.headline)
@@ -239,7 +239,7 @@ struct BookingDetailView: View {
                     Label("Description", systemImage: "text.alignleft")
                         .font(.headline)
                     
-                    if let description = booking.description, !description.isEmpty {
+                    if let description = currentBooking.description, !description.isEmpty {
                         Text(description)
                             .font(.body)
                             .foregroundColor(.secondary)
@@ -260,7 +260,7 @@ struct BookingDetailView: View {
                     .padding(.horizontal)
                 
                 // Assignment Type (S&R only)
-                if booking.specialization == .searchRescue, let assignmentType = booking.assignmentType {
+                if currentBooking.specialization == .searchRescue, let assignmentType = currentBooking.assignmentType {
                     VStack(alignment: .leading, spacing: 8) {
                         Label("Assignment Type", systemImage: "list.bullet.clipboard")
                             .font(.headline)
@@ -284,7 +284,7 @@ struct BookingDetailView: View {
                 }
                 
                 // Government Agency (S&R only)
-                if booking.specialization == .searchRescue, let agency = booking.governmentAgency {
+                if currentBooking.specialization == .searchRescue, let agency = currentBooking.governmentAgency {
                     VStack(alignment: .leading, spacing: 8) {
                         Label("Agency", systemImage: "building.columns")
                             .font(.headline)
@@ -308,7 +308,7 @@ struct BookingDetailView: View {
                 }
                 
                 // Beacon Program (S&R only)
-                if booking.specialization == .searchRescue && booking.usesBeaconProgram == true {
+                if currentBooking.specialization == .searchRescue && currentBooking.usesBeaconProgram == true {
                     VStack(alignment: .leading, spacing: 8) {
                         Label("Program", systemImage: "antenna.radiowaves.left.and.right")
                             .font(.headline)
@@ -333,7 +333,7 @@ struct BookingDetailView: View {
                 }
                 
                 // Number of Pilots (S&R only)
-                if booking.specialization == .searchRescue, let numPilots = booking.numberOfPilots, numPilots > 0 {
+                if currentBooking.specialization == .searchRescue, let numPilots = currentBooking.numberOfPilots, numPilots > 0 {
                     VStack(alignment: .leading, spacing: 8) {
                         Label("Number of Pilots", systemImage: "person.2.fill")
                             .font(.headline)
@@ -352,7 +352,7 @@ struct BookingDetailView: View {
                     // First row: Payment and Hourly rate
                     HStack(spacing: 40) {
                         VStack(alignment: .leading, spacing: 4) {
-                            if booking.specialization == .searchRescue && booking.isVoluntary == true {
+                            if currentBooking.specialization == .searchRescue && currentBooking.isVoluntary == true {
                                 Label("Payment", systemImage: "hand.raised.fill")
                                     .font(.subheadline)
                                     .foregroundColor(.green)
@@ -363,24 +363,24 @@ struct BookingDetailView: View {
                                 Label("Payment", systemImage: "dollarsign.circle.fill")
                                     .font(.subheadline)
                                     .foregroundColor(.green)
-                                Text(String(format: "$%.2f", NSDecimalNumber(decimal: booking.paymentAmount).doubleValue))
+                                Text(String(format: "$%.2f", NSDecimalNumber(decimal: currentBooking.paymentAmount).doubleValue))
                                     .font(.title2)
                                     .fontWeight(.bold)
                             }
                         }
                         
-                        if let hours = booking.estimatedFlightHours, hours > 0 {
+                        if let hours = currentBooking.estimatedFlightHours, hours > 0 {
                             VStack(alignment: .leading, spacing: 4) {
                                 Label("Hourly rate", systemImage: "clock.badge.checkmark")
                                     .font(.subheadline)
                                     .foregroundColor(.purple)
                                 // For S&R, use the stored hourly rate; for others, calculate from total
-                                if booking.specialization == .searchRescue, let hourlyRate = booking.hourlyRate {
+                                if currentBooking.specialization == .searchRescue, let hourlyRate = currentBooking.hourlyRate {
                                     Text(String(format: "$%.2f/hr", NSDecimalNumber(decimal: hourlyRate).doubleValue))
                                         .font(.title2)
                                         .fontWeight(.bold)
                                 } else {
-                                    Text(String(format: "$%.2f/hr", NSDecimalNumber(decimal: booking.paymentAmount).doubleValue / hours))
+                                    Text(String(format: "$%.2f/hr", NSDecimalNumber(decimal: currentBooking.paymentAmount).doubleValue / hours))
                                         .font(.title2)
                                         .fontWeight(.bold)
                                 }
@@ -391,7 +391,7 @@ struct BookingDetailView: View {
                     }
                     
                     // Second row: Duration
-                    if let hours = booking.estimatedFlightHours {
+                    if let hours = currentBooking.estimatedFlightHours {
                         HStack(spacing: 40) {
                             VStack(alignment: .leading, spacing: 4) {
                                 Label("Duration", systemImage: "clock.fill")
@@ -412,7 +412,7 @@ struct BookingDetailView: View {
                     .padding(.horizontal)
                 
                 // Start Time
-                if let scheduledDate = booking.scheduledDate {
+                if let scheduledDate = currentBooking.scheduledDate {
                     VStack(alignment: .leading, spacing: 6) {
                         Label("Start Time", systemImage: "calendar.badge.clock")
                             .font(.headline)
@@ -636,7 +636,7 @@ struct BookingDetailView: View {
                 }
                 
                 // Posted Date
-                Text("Posted on \(booking.createdAt.formatted(date: .long, time: .shortened))")
+                Text("Posted on \(currentBooking.createdAt.formatted(date: .long, time: .shortened))")
                     .font(.caption)
                     .foregroundColor(.secondary)
                     .padding(.horizontal)
@@ -1054,6 +1054,10 @@ struct BookingDetailView: View {
         do {
             let updatedBooking = try await bookingService.getBooking(bookingId: booking.id)
             currentBooking = updatedBooking
+            region = MKCoordinateRegion(
+                center: updatedBooking.coordinate,
+                span: region.span
+            )
         } catch {
             // Ignore NSURLErrorCancelled (-999) - this is a benign cancellation during view updates
             let nsError = error as NSError
@@ -1067,12 +1071,12 @@ struct BookingDetailView: View {
     
     private func loadCustomerProfile() async {
         // Try to get sample customer profile first (for demo)
-        if let sampleProfile = profileService.getSampleCustomerProfile(customerId: booking.customerId) {
+        if let sampleProfile = profileService.getSampleCustomerProfile(customerId: currentBooking.customerId) {
             customerProfile = sampleProfile
         } else {
             // Fallback to real profile fetch
             do {
-                customerProfile = try await profileService.getProfile(userId: booking.customerId)
+                customerProfile = try await profileService.getProfile(userId: currentBooking.customerId)
             } catch {
                 print("Error loading customer profile: \(error)")
             }
@@ -1080,7 +1084,7 @@ struct BookingDetailView: View {
         
         // Fetch customer rating
         do {
-            if let ratingSummary = try await ratingService.getUserRatingSummary(userId: booking.customerId) {
+            if let ratingSummary = try await ratingService.getUserRatingSummary(userId: currentBooking.customerId) {
                 customerRating = ratingSummary.averageRating
             }
         } catch {
@@ -1136,7 +1140,7 @@ struct BookingDetailView: View {
         Task {
             let userId = currentUser.id
             do {
-                try await bookingService.acceptBooking(bookingId: booking.id, pilotId: userId)
+                try await bookingService.acceptBooking(bookingId: currentBooking.id, pilotId: userId)
                 // Refresh booking after accepting
                 await refreshBooking()
                 dismiss()
@@ -1153,10 +1157,10 @@ struct BookingDetailView: View {
         Task {
             let userId = currentUser.id
             do {
-                try await bookingService.completeBooking(bookingId: booking.id)
+                try await bookingService.completeBooking(bookingId: currentBooking.id)
                 
                 // Update pilot stats
-                if let hours = booking.estimatedFlightHours {
+                if let hours = currentBooking.estimatedFlightHours {
                     try await rankingService.updateFlightHours(pilotId: userId, additionalHours: hours)
                 }
                 
@@ -1271,14 +1275,14 @@ struct BookingDetailView: View {
     }
     
     private func openAppleMaps() {
-        let coordinate = booking.coordinate
+        let coordinate = currentBooking.coordinate
         let mapItem = MKMapItem(placemark: MKPlacemark(coordinate: coordinate))
-        mapItem.name = booking.locationName
+        mapItem.name = currentBooking.locationName
         mapItem.openInMaps(launchOptions: [MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeDriving])
     }
     
     private func openGoogleMaps() {
-        let coordinate = booking.coordinate
+        let coordinate = currentBooking.coordinate
         let lat = coordinate.latitude
         let lng = coordinate.longitude
         

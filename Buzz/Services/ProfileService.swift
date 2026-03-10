@@ -11,9 +11,14 @@ import Combine
 
 @MainActor
 class ProfileService: ObservableObject {
+    private static var cachedProfiles: [UUID: UserProfile] = [:]
     private let supabase = SupabaseClient.shared.client
     
     func getProfile(userId: UUID) async throws -> UserProfile {
+        if let cachedProfile = Self.cachedProfiles[userId] {
+            return cachedProfile
+        }
+
         let profile: UserProfile = try await supabase
             .from("profiles")
             .select()
@@ -21,7 +26,8 @@ class ProfileService: ObservableObject {
             .single()
             .execute()
             .value
-        
+
+        Self.cachedProfiles[userId] = profile
         return profile
     }
     
@@ -54,6 +60,8 @@ class ProfileService: ObservableObject {
             .update(updates)
             .eq("id", value: userId.uuidString)
             .execute()
+
+        Self.cachedProfiles.removeValue(forKey: userId)
     }
     
     func updateCommunicationPreference(userId: UUID, preference: CommunicationPreference) async throws {

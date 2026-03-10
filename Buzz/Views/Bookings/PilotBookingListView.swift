@@ -64,6 +64,10 @@ struct PilotBookingListView: View {
     var pendingCrewBookings: [Booking] {
         bookingService.myBookings.filter { $0.isCrewBooking && $0.status == .available }
     }
+
+    private var isAwaitingAuth: Bool {
+        authService.activeUserId == nil && !authService.hasResolvedInitialSession
+    }
     
     var body: some View {
         NavigationView {
@@ -179,7 +183,7 @@ struct PilotBookingListView: View {
                 Divider()
                 
                 // Bookings List
-                if bookingService.isLoading {
+                if bookingService.isLoading || isAwaitingAuth {
                     LoadingView(message: "Loading bookings...")
                 } else {
                     ScrollView {
@@ -377,17 +381,24 @@ struct PilotBookingListView: View {
         .task {
             locationManager.requestPermission()
             locationManager.startLocationUpdates()
+        }
+        .task(id: authService.activeUserId) {
             await loadBookings()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .bookingDidChange)) { _ in
+            Task {
+                await loadBookings()
+            }
         }
     }
     
     private func loadBookings() async {
+        guard let pilotId = authService.activeUserId else { return }
+
         // Pass pilot ID to filter bookings based on eligibility (rank requirements)
-        try? await bookingService.fetchAvailableBookings(forPilotId: authService.activeUserId)
+        try? await bookingService.fetchAvailableBookings(forPilotId: pilotId)
         // Also fetch pilot's own bookings for in-progress and staffed sections
-        if let pilotId = authService.activeUserId {
-            try? await bookingService.fetchMyBookings(userId: pilotId, isPilot: true)
-        }
+        try? await bookingService.fetchMyBookings(userId: pilotId, isPilot: true)
     }
     
     private func acceptFirstAvailableBookingForUITest() async {
@@ -686,4 +697,3 @@ struct ExpressPromotionCard: View {
         )
     }
 }
-

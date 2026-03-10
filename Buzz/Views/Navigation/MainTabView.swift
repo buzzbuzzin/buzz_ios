@@ -329,11 +329,15 @@ struct CustomerTabView: View {
 struct MyFlightsView: View {
     @EnvironmentObject var authService: AuthService
     @StateObject private var bookingService = BookingService()
+
+    private var isAwaitingAuth: Bool {
+        authService.activeUserId == nil && !authService.hasResolvedInitialSession
+    }
     
     var body: some View {
         NavigationView {
             VStack {
-                if bookingService.isLoading {
+                if bookingService.isLoading || isAwaitingAuth {
                     LoadingView(message: "Loading your flights...")
                 } else if bookingService.myBookings.isEmpty {
                     EmptyStateView(
@@ -378,8 +382,13 @@ struct MyFlightsView: View {
             }
             .navigationTitle("My Flights")
         }
-        .task {
+        .task(id: authService.activeUserId) {
             await loadBookings()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .bookingDidChange)) { _ in
+            Task {
+                await loadBookings()
+            }
         }
     }
     

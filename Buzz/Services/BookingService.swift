@@ -10,6 +10,10 @@ import Supabase
 import CoreLocation
 import Combine
 
+extension Notification.Name {
+    static let bookingDidChange = Notification.Name("BookingDidChange")
+}
+
 protocol BookingBackend {
     func createBooking(payload: [String: AnyJSON], bookingId: UUID) async throws -> Booking
     func fetchBooking(id: UUID) async throws -> Booking
@@ -65,6 +69,22 @@ class BookingService: ObservableObject {
         self.notificationManager = notificationManager ?? NotificationManager.shared
         self.notificationPreferencesService = notificationPreferencesService ?? NotificationPreferencesService()
         self.skipNetworkCalls = skipNetworkCalls
+    }
+
+    private func publishBookingChange(for bookingId: UUID) {
+        NotificationCenter.default.post(name: .bookingDidChange, object: bookingId)
+    }
+
+    private func excludeJoinedCrewBookings(from bookings: [Booking], pilotId: UUID) async -> [Booking] {
+        guard let memberships = try? await fetchPilotCrewMemberships(pilotId: pilotId) else {
+            return bookings
+        }
+
+        let joinedBookingIds = Set(memberships.map(\.bookingId))
+        guard !joinedBookingIds.isEmpty else {
+            return bookings
+        }
+        return bookings.filter { !joinedBookingIds.contains($0.id) }
     }
     
     // MARK: - Create Booking (Customer)
@@ -342,6 +362,7 @@ class BookingService: ObservableObject {
             // If pilot ID provided, filter bookings based on pilot eligibility
             if let pilotId = pilotId {
                 bookings = try await filterBookingsForPilot(bookings: bookings, pilotId: pilotId)
+                bookings = await excludeJoinedCrewBookings(from: bookings, pilotId: pilotId)
             }
             
             await MainActor.run {
@@ -1081,6 +1102,7 @@ class BookingService: ObservableObject {
                 "status": .string(BookingStatus.accepted.rawValue)
             ]
             try await backend.updateBooking(id: bookingId, values: updateData)
+            publishBookingChange(for: bookingId)
             
             // Get pilot info for notification
             let pilotProfile = try await backend.fetchUserProfile(userId: pilotId)
@@ -1146,7 +1168,8 @@ class BookingService: ObservableObject {
             if let error = response.error, !response.success {
                 throw NSError(domain: "BookingService", code: -1, userInfo: [NSLocalizedDescriptionKey: error])
             }
-            
+
+            publishBookingChange(for: bookingId)
             return response
         } catch {
             isLoading = false
@@ -1166,6 +1189,7 @@ class BookingService: ObservableObject {
         do {
             let response = try await backend.joinSearchRescueBooking(bookingId: bookingId, pilotId: pilotId)
             isLoading = false
+            publishBookingChange(for: bookingId)
 
             // Notify the beacon creator that a volunteer accepted
             if !skipNetworkCalls {
@@ -1201,6 +1225,7 @@ class BookingService: ObservableObject {
         do {
             let response = try await backend.leaveSearchRescueBooking(bookingId: bookingId, pilotId: pilotId)
             isLoading = false
+            publishBookingChange(for: bookingId)
             return response
         } catch {
             isLoading = false
@@ -1234,6 +1259,7 @@ class BookingService: ObservableObject {
                 throw NSError(domain: "BookingService", code: -1, userInfo: [NSLocalizedDescriptionKey: result.error ?? "Failed to leave crew"])
             }
 
+            publishBookingChange(for: bookingId)
             return JoinCrewResponse(
                 success: result.success,
                 message: result.message,
@@ -1273,6 +1299,7 @@ class BookingService: ObservableObject {
                 throw NSError(domain: "BookingService", code: -1, userInfo: [NSLocalizedDescriptionKey: result.error ?? "Failed to withdraw from booking"])
             }
 
+            publishBookingChange(for: bookingId)
             return JoinCrewResponse(
                 success: result.success,
                 message: result.message,
@@ -1423,6 +1450,7 @@ class BookingService: ObservableObject {
                 .update(updateData)
                 .eq("id", value: bookingId.uuidString)
                 .execute()
+            publishBookingChange(for: bookingId)
             
             // Handle automotive booking completion tasks
             let isCompleted = customerCompleted && pilotCompleted
@@ -1493,6 +1521,7 @@ class BookingService: ObservableObject {
                 .update(updateData)
                 .eq("id", value: bookingId.uuidString)
                 .execute()
+            publishBookingChange(for: bookingId)
             
             // Get booking to find pilot
             let booking: Booking = try await supabase
@@ -1795,6 +1824,7 @@ class BookingService: ObservableObject {
                 .update(updateData)
                 .eq("id", value: bookingId.uuidString)
                 .execute()
+            publishBookingChange(for: bookingId)
 
             // Notify pilot about payout
             if !skipNetworkCalls, let pilotId = booking.pilotId, booking.chargeId != nil {
