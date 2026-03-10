@@ -91,19 +91,19 @@ struct ChecklistTabView: View {
         }
         .navigationTitle("Flight Checklist")
         .navigationBarTitleDisplayMode(.inline)
-        .task {
+        .task(id: authService.activeUserId) {
             guard !hasLoadedInitialData else { return }
-            await loadStatus()
-            hasLoadedInitialData = true
+            hasLoadedInitialData = await loadStatus()
         }
     }
     
-    private func loadStatus() async {
-        guard let pilotId = authService.currentUser?.id else {
+    private func loadStatus() async -> Bool {
+        guard let pilotId = authService.activeUserId else {
             checklistService.errorMessage = "Pilot not found. Please sign in again."
-            return
+            return false
         }
         await checklistService.loadChecklistStatus(pilotId: pilotId, currentUser: authService.currentUser)
+        return true
     }
 }
 
@@ -191,4 +191,3 @@ private struct BookingInfoHeader: View {
         .cornerRadius(12)
     }
 }
-

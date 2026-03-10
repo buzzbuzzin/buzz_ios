@@ -59,10 +59,9 @@ struct BookingChecklistSelectionView: View {
         }
         .navigationTitle("Select Booking")
         .navigationBarTitleDisplayMode(.inline)
-        .task {
+        .task(id: authService.activeUserId) {
             guard !hasLoadedInitialData else { return }
-            await loadBookings()
-            hasLoadedInitialData = true
+            hasLoadedInitialData = await loadBookings()
         }
     }
     
@@ -72,9 +71,10 @@ struct BookingChecklistSelectionView: View {
         }
     }
     
-    private func loadBookings() async {
-        guard let pilotId = authService.currentUser?.id else { return }
+    private func loadBookings() async -> Bool {
+        guard let pilotId = authService.activeUserId else { return false }
         try? await bookingService.fetchMyBookings(userId: pilotId, isPilot: true)
+        return true
     }
 }
 
@@ -156,4 +156,3 @@ private struct BookingChecklistCard: View {
         .cornerRadius(12)
     }
 }
-

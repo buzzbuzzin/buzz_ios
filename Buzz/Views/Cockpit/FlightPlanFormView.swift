@@ -80,6 +80,7 @@ struct FlightPlanFormView: View {
     @State private var generatedPDFData: Data?
     @State private var showErrorAlert = false
     @State private var errorMessage = ""
+    @State private var canRetryUpload = false
     @State private var isGeocoding = false
     @State private var hasInitializedFromBooking = false
     @State private var showZuluTimeInfo = false
@@ -882,7 +883,20 @@ struct FlightPlanFormView: View {
             Text("This will generate a PDF document with your flight plan information.")
         }
         .alert("Error", isPresented: $showErrorAlert) {
-            Button("OK") {}
+            if canRetryUpload {
+                Button("Retry Save") {
+                    retryFlightPlanUpload()
+                }
+                Button("Preview Only") {
+                    canRetryUpload = false
+                    showPDFPreview = true
+                }
+                Button("Cancel", role: .cancel) {
+                    canRetryUpload = false
+                }
+            } else {
+                Button("OK") {}
+            }
         } message: {
             Text(errorMessage)
         }
@@ -1091,6 +1105,7 @@ struct FlightPlanFormView: View {
 
     private func useCurrentLocation() {
         guard let coordinate = locationManager.currentLocation else {
+            canRetryUpload = false
             errorMessage = "Unable to get current location. Please enable location services."
             showErrorAlert = true
             return
@@ -1165,21 +1180,21 @@ struct FlightPlanFormView: View {
             generatedPDFData = pdfData
             lastGeneratedFormData = formData
             
-            // Upload to backend
             Task {
                 await uploadFlightPlanToBackend(pdfData: pdfData, formData: formData)
             }
-            
-            showPDFPreview = true
         } else {
+            canRetryUpload = false
             errorMessage = "Failed to generate PDF. Please try again."
             showErrorAlert = true
         }
     }
 
     private func uploadFlightPlanToBackend(pdfData: Data, formData: FlightPlanFormData) async {
-        guard let pilotId = authService.currentUser?.id else {
-            print("DEBUG FlightPlan: No pilot ID available for upload")
+        guard let pilotId = authService.activeUserId else {
+            canRetryUpload = true
+            errorMessage = "Your flight plan PDF was generated, but Buzz could not verify your session to save it. Retry after signing in again, or preview the PDF locally."
+            showErrorAlert = true
             return
         }
 
@@ -1192,15 +1207,28 @@ struct FlightPlanFormView: View {
                 pilotId: pilotId,
                 bookingId: booking.id
             )
-            print("DEBUG FlightPlan: Flight plan uploaded successfully")
+            canRetryUpload = false
+            showPDFPreview = true
         } catch {
-            print("DEBUG FlightPlan: Upload failed: \(error.localizedDescription)")
-            // Note: We don't show an error to the user here since the PDF was already generated
-            // and shown. The upload failure is logged but doesn't block the user experience.
-            // In production, you might want to implement retry logic or queue failed uploads.
+            canRetryUpload = true
+            errorMessage = "Your flight plan PDF was generated, but Buzz could not save it to your booking. Retry the save, or preview the PDF locally.\n\n\(error.localizedDescription)"
+            showErrorAlert = true
         }
 
         isUploadingFlightPlan = false
+    }
+
+    private func retryFlightPlanUpload() {
+        guard let pdfData = generatedPDFData,
+              let formData = lastGeneratedFormData else {
+            canRetryUpload = false
+            return
+        }
+
+        canRetryUpload = false
+        Task {
+            await uploadFlightPlanToBackend(pdfData: pdfData, formData: formData)
+        }
     }
 
     private func initializeFromBooking() {

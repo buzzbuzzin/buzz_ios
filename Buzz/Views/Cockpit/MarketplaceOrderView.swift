@@ -13,8 +13,7 @@ struct MarketplaceOrderView: View {
     @EnvironmentObject var authService: AuthService
     @EnvironmentObject var marketplaceService: MarketplaceService
 
-    let transactionDetail: MarketplaceTransactionWithDetails
-
+    @State private var currentTransactionDetail: MarketplaceTransactionWithDetails
     @State private var trackingNumber = ""
     @State private var trackingCarrier = ""
     @State private var showShippingForm = false
@@ -28,8 +27,12 @@ struct MarketplaceOrderView: View {
     @State private var errorMessage: String?
     @State private var showErrorAlert = false
 
-    private var tx: MarketplaceTransaction { transactionDetail.transaction }
-    private var isBuyer: Bool { transactionDetail.isBuyer }
+    init(transactionDetail: MarketplaceTransactionWithDetails) {
+        _currentTransactionDetail = State(initialValue: transactionDetail)
+    }
+
+    private var tx: MarketplaceTransaction { currentTransactionDetail.transaction }
+    private var isBuyer: Bool { currentTransactionDetail.isBuyer }
 
     var body: some View {
         ScrollView {
@@ -65,14 +68,18 @@ struct MarketplaceOrderView: View {
         .sheet(isPresented: $showShippingForm) {
             shippingFormSheet
         }
-        .sheet(isPresented: $showReview, onDismiss: {
-            hasReviewed = true
-        }) {
+        .sheet(isPresented: $showReview) {
             NavigationView {
                 MarketplaceReviewView(
                     transactionId: tx.id,
                     toUserId: isBuyer ? tx.sellerId : tx.buyerId,
-                    partnerName: transactionDetail.partnerCallSign ?? transactionDetail.partnerFullName
+                    partnerName: currentTransactionDetail.partnerCallSign ?? currentTransactionDetail.partnerFullName,
+                    onReviewSubmitted: {
+                        hasReviewed = true
+                        Task {
+                            await refreshTransactionDetail()
+                        }
+                    }
                 )
                 .environmentObject(authService)
                 .environmentObject(marketplaceService)
@@ -83,13 +90,19 @@ struct MarketplaceOrderView: View {
                 VStack(spacing: 0) {
                     MeetupLocationView { name, lat, lng in
                         Task {
-                            try? await marketplaceService.scheduleMeetup(
-                                transactionId: tx.id,
-                                locationName: name, lat: lat, lng: lng,
-                                scheduledAt: meetupDate
-                            )
+                            do {
+                                try await marketplaceService.scheduleMeetup(
+                                    transactionId: tx.id,
+                                    locationName: name, lat: lat, lng: lng,
+                                    scheduledAt: meetupDate
+                                )
+                                await refreshTransactionDetail()
+                                showMeetupLocation = false
+                            } catch {
+                                errorMessage = error.localizedDescription
+                                showErrorAlert = true
+                            }
                         }
-                        showMeetupLocation = false
                     }
                     .environmentObject(authService)
 
@@ -116,12 +129,7 @@ struct MarketplaceOrderView: View {
             Text("Tracking number copied.")
         }
         .task {
-            guard let userId = authService.currentUser?.id else { return }
-            if tx.status == .completed || tx.status == .meetupCompleted {
-                hasReviewed = await marketplaceService.hasUserReviewed(
-                    transactionId: tx.id, userId: userId
-                )
-            }
+            await refreshTransactionDetail()
         }
     }
 
@@ -172,7 +180,7 @@ struct MarketplaceOrderView: View {
 
     private var listingCard: some View {
         HStack(spacing: 12) {
-            if let imageUrl = transactionDetail.listingImageUrl,
+            if let imageUrl = currentTransactionDetail.listingImageUrl,
                let url = URL(string: imageUrl) {
                 AsyncImage(url: url) { image in
                     image.resizable().scaledToFill()
@@ -184,7 +192,7 @@ struct MarketplaceOrderView: View {
             }
 
             VStack(alignment: .leading, spacing: 4) {
-                Text(transactionDetail.listingTitle)
+                Text(currentTransactionDetail.listingTitle)
                     .font(.subheadline)
                     .fontWeight(.semibold)
 
@@ -204,7 +212,7 @@ struct MarketplaceOrderView: View {
 
     private var partnerCard: some View {
         HStack(spacing: 12) {
-            if let urlString = transactionDetail.partnerProfilePictureUrl,
+            if let urlString = currentTransactionDetail.partnerProfilePictureUrl,
                let url = URL(string: urlString) {
                 AsyncImage(url: url) { image in
                     image.resizable().scaledToFill()
@@ -227,7 +235,7 @@ struct MarketplaceOrderView: View {
                 Text(isBuyer ? "Seller" : "Buyer")
                     .font(.caption)
                     .foregroundColor(.secondary)
-                Text(transactionDetail.partnerCallSign ?? transactionDetail.partnerFullName)
+                Text(currentTransactionDetail.partnerCallSign ?? currentTransactionDetail.partnerFullName)
                     .font(.subheadline)
                     .fontWeight(.semibold)
             }
@@ -392,6 +400,7 @@ struct MarketplaceOrderView: View {
                         defer { isProcessing = false }
                         do {
                             try await marketplaceService.confirmReceipt(transactionId: tx.id)
+                            await refreshTransactionDetail()
                         } catch {
                             errorMessage = error.localizedDescription
                             showErrorAlert = true
@@ -422,6 +431,7 @@ struct MarketplaceOrderView: View {
                         defer { isProcessing = false }
                         do {
                             try await marketplaceService.releaseSellerPayout(transactionId: tx.id)
+                            await refreshTransactionDetail()
                         } catch {
                             errorMessage = error.localizedDescription
                             showErrorAlert = true
@@ -480,13 +490,19 @@ struct MarketplaceOrderView: View {
                 let hasConfirmed = isBuyer ? tx.buyerConfirmedAt != nil : tx.sellerConfirmedAt != nil
                 if !hasConfirmed {
                     Button {
-                        guard let userId = authService.currentUser?.id, !isProcessing else { return }
+                        guard let userId = authService.activeUserId, !isProcessing else { return }
                         isProcessing = true
                         Task {
                             defer { isProcessing = false }
-                            try? await marketplaceService.confirmMeetupComplete(
-                                transactionId: tx.id, byUserId: userId
-                            )
+                            do {
+                                try await marketplaceService.confirmMeetupComplete(
+                                    transactionId: tx.id, byUserId: userId
+                                )
+                                await refreshTransactionDetail()
+                            } catch {
+                                errorMessage = error.localizedDescription
+                                showErrorAlert = true
+                            }
                         }
                     } label: {
                         HStack {
@@ -573,6 +589,7 @@ struct MarketplaceOrderView: View {
                                 trackingNumber: trackingNumber.isEmpty ? nil : trackingNumber,
                                 carrier: trackingCarrier.isEmpty ? nil : trackingCarrier
                             )
+                            await refreshTransactionDetail()
                             showShippingForm = false
                         } catch {
                             errorMessage = error.localizedDescription
@@ -751,5 +768,23 @@ struct MarketplaceOrderView: View {
             .frame(height: 2)
             .frame(maxWidth: .infinity)
             .padding(.bottom, 16)
+    }
+
+    private func refreshTransactionDetail() async {
+        guard let userId = authService.activeUserId else { return }
+
+        await marketplaceService.fetchTransactionsForUser(userId: userId)
+        if let updatedDetail = marketplaceService.transactions.first(where: { $0.id == tx.id }) {
+            currentTransactionDetail = updatedDetail
+        }
+
+        if tx.status == .completed || tx.status == .meetupCompleted {
+            hasReviewed = await marketplaceService.hasUserReviewed(
+                transactionId: tx.id,
+                userId: userId
+            )
+        } else {
+            hasReviewed = false
+        }
     }
 }

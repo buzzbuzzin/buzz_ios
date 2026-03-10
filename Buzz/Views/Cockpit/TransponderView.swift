@@ -20,6 +20,13 @@ struct TransponderView: View {
     @State private var remoteId = ""
     @State private var isLocationTrackingEnabled = true // Always enabled
     @State private var locationUpdateTimer: Timer?
+
+    private var activeTrackedTransponder: Transponder? {
+        transponderService.transponders
+            .filter(\.isLocationTrackingEnabled)
+            .sorted { $0.createdAt > $1.createdAt }
+            .first
+    }
     
     var body: some View {
         ScrollView {
@@ -166,10 +173,12 @@ struct TransponderView: View {
     }
     
     private func startLocationUpdatesIfNeeded() {
-        // Check if any transponder has location tracking enabled
-        let hasTrackingEnabled = transponderService.transponders.contains { $0.isLocationTrackingEnabled }
-        
-        if hasTrackingEnabled && locationManager.authorizationStatus == .authorizedWhenInUse {
+        let hasTrackingEnabled = activeTrackedTransponder != nil
+        let hasLocationAuthorization =
+            locationManager.authorizationStatus == .authorizedWhenInUse ||
+            locationManager.authorizationStatus == .authorizedAlways
+
+        if hasTrackingEnabled && hasLocationAuthorization {
             locationManager.startLocationUpdates()
         } else {
             locationManager.stopLocationUpdates()
@@ -177,14 +186,13 @@ struct TransponderView: View {
     }
     
     private func updateTransponderLocations(location: CLLocationCoordinate2D) {
-        // Update location for all transponders with tracking enabled
-        for transponder in transponderService.transponders where transponder.isLocationTrackingEnabled {
-            Task {
-                try? await transponderService.updateTransponderLocation(
-                    transponderId: transponder.id,
-                    location: location
-                )
-            }
+        guard let transponder = activeTrackedTransponder else { return }
+
+        Task {
+            try? await transponderService.updateTransponderLocation(
+                transponderId: transponder.id,
+                location: location
+            )
         }
     }
     
@@ -698,4 +706,3 @@ private struct DroneRegistrationRowForTransponder: View {
         .padding(.vertical, 4)
     }
 }
-

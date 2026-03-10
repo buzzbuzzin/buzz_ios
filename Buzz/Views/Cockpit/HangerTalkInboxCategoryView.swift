@@ -176,7 +176,7 @@ private struct NavigableUUID: Hashable {
     let id: UUID
 }
 
-extension HangerTalkPostWithAuthor: @retroactive Hashable {
+extension HangerTalkPostWithAuthor: Hashable {
     public func hash(into hasher: inout Hasher) {
         hasher.combine(id)
     }

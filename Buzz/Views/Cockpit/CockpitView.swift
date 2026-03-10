@@ -2816,7 +2816,7 @@ struct MarketplaceDeepLinkView: View {
                     .environmentObject(authService)
             }
         }
-        .task {
+        .task(id: authService.activeUserId) {
             await loadListingIfNeeded()
         }
     }
@@ -2825,7 +2825,7 @@ struct MarketplaceDeepLinkView: View {
         guard selectedListing == nil,
               transactionId == nil,
               let listingId,
-              let currentUserId = authService.currentUser?.id else {
+              let currentUserId = authService.activeUserId else {
             return
         }
 

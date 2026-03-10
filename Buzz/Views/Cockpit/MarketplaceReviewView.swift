@@ -16,6 +16,7 @@ struct MarketplaceReviewView: View {
     let transactionId: UUID
     let toUserId: UUID
     let partnerName: String
+    var onReviewSubmitted: (() -> Void)? = nil
 
     @State private var rating: Int = 0
     @State private var comment = ""
@@ -120,7 +121,7 @@ struct MarketplaceReviewView: View {
     }
 
     private func submitReview() {
-        guard let userId = authService.currentUser?.id else { return }
+        guard let userId = authService.activeUserId else { return }
 
         isSubmitting = true
 
@@ -134,6 +135,7 @@ struct MarketplaceReviewView: View {
                     comment: comment.isEmpty ? nil : comment
                 )
                 isSubmitting = false
+                onReviewSubmitted?()
                 dismiss()
             } catch {
                 isSubmitting = false
