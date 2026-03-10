@@ -20,42 +20,55 @@ class AuthService: ObservableObject {
     @Published var errorMessage: String?
     @Published var shouldDelayNavigation = false // Flag to delay navigation for promotion flow
     @Published var shouldShowPremiumIntro = false
+    @Published private(set) var hasResolvedInitialSession = false
     
     var activeUserId: UUID? {
         currentUser?.id ?? uiTestUserId
     }
     
     private let supabase = SupabaseClient.shared.client
+    private let userDefaults = UserDefaults.standard
     private var uiTestUserId: UUID?
+    private let cachedUserProfileKey = "auth.cachedUserProfile"
     
     init() {
         if isUITestMode {
             bootstrapUITestUser()
         } else {
             Task {
-                await checkAuthStatus()
+                await checkAuthStatus(isInitialLoad: true)
             }
         }
     }
     
     // MARK: - Auth Status
     
-    func checkAuthStatus() async {
+    func checkAuthStatus(isInitialLoad: Bool = false) async {
+        if isInitialLoad {
+            hasResolvedInitialSession = false
+        }
+
+        defer {
+            if isInitialLoad {
+                hasResolvedInitialSession = true
+            }
+        }
+
         do {
             let session = try await supabase.auth.session
             currentUser = session.user
-            await loadUserProfile()
-            
-            // Only mark as authenticated if we have both user and profile
-            if currentUser != nil && userProfile != nil {
-                isAuthenticated = true
-            } else {
-                isAuthenticated = false
+            let didLoadProfile = await loadUserProfile()
+
+            if !didLoadProfile {
+                userProfile = restoreCachedUserProfile(for: session.user.id)
             }
+
+            isAuthenticated = currentUser != nil && userProfile != nil
         } catch {
             isAuthenticated = false
             currentUser = nil
             userProfile = nil
+            clearCachedUserProfile()
         }
     }
 
@@ -110,50 +123,68 @@ class AuthService: ObservableObject {
         self.isAuthenticated = true
         self.shouldDelayNavigation = false
         self.shouldShowPremiumIntro = false
+        self.hasResolvedInitialSession = true
     }
     
-    private func loadUserProfile() async {
-        guard let userId = currentUser?.id else { return }
-        
-        do {
-            let profile: UserProfile = try await supabase
-                .from("profiles")
-                .select()
-                .eq("id", value: userId.uuidString)
-                .single()
-                .execute()
-                .value
-            
-            userProfile = profile
-            
-            // Sync email from auth to profile if they don't match
-            // This handles the case where user confirmed email change and logged back in
-            if let authEmail = currentUser?.email,
-               authEmail != profile.email {
-                let updates: [String: AnyJSON] = [
-                    "email": .string(authEmail)
-                ]
-                
-                try await supabase
-                    .from("profiles")
-                    .update(updates)
-                    .eq("id", value: userId.uuidString)
-                    .execute()
-                
-                // Reload profile to get updated data
-                let updatedProfile: UserProfile = try await supabase
+    @discardableResult
+    private func loadUserProfile(maxAttempts: Int = 3) async -> Bool {
+        guard let userId = currentUser?.id else { return false }
+
+        for attempt in 1...maxAttempts {
+            do {
+                let profile: UserProfile = try await supabase
                     .from("profiles")
                     .select()
                     .eq("id", value: userId.uuidString)
                     .single()
                     .execute()
                     .value
-                
-                userProfile = updatedProfile
+
+                userProfile = profile
+                cacheUserProfile(profile)
+
+                // Sync email from auth to profile if they don't match
+                // This handles the case where user confirmed email change and logged back in
+                if let authEmail = currentUser?.email,
+                   authEmail != profile.email {
+                    let updates: [String: AnyJSON] = [
+                        "email": .string(authEmail)
+                    ]
+
+                    try await supabase
+                        .from("profiles")
+                        .update(updates)
+                        .eq("id", value: userId.uuidString)
+                        .execute()
+
+                    // Reload profile to get updated data
+                    let updatedProfile: UserProfile = try await supabase
+                        .from("profiles")
+                        .select()
+                        .eq("id", value: userId.uuidString)
+                        .single()
+                        .execute()
+                        .value
+
+                    userProfile = updatedProfile
+                    cacheUserProfile(updatedProfile)
+                }
+
+                return true
+            } catch {
+                let isLastAttempt = attempt == maxAttempts
+                print("Error loading profile (attempt \(attempt)/\(maxAttempts)): \(error)")
+
+                if isLastAttempt {
+                    return false
+                }
+
+                let retryDelay = UInt64(attempt) * 500_000_000
+                try? await Task.sleep(nanoseconds: retryDelay)
             }
-        } catch {
-            print("Error loading profile: \(error)")
         }
+
+        return false
     }
     
     // MARK: - Email/Password Auth
@@ -390,6 +421,7 @@ class AuthService: ObservableObject {
         currentUser = nil
         userProfile = nil
         isAuthenticated = false
+        clearCachedUserProfile()
     }
     
     // MARK: - Change Password
@@ -754,6 +786,7 @@ class AuthService: ObservableObject {
             userProfile = nil
             isAuthenticated = false
             isLoading = false
+            clearCachedUserProfile()
         } catch {
             isLoading = false
             errorMessage = error.localizedDescription
@@ -834,4 +867,31 @@ class AuthService: ObservableObject {
             }
         }
     }
+
+    private func cacheUserProfile(_ profile: UserProfile) {
+        guard let data = try? JSONEncoder().encode(CachedUserProfile(userId: profile.id, profile: profile)) else {
+            return
+        }
+
+        userDefaults.set(data, forKey: cachedUserProfileKey)
+    }
+
+    private func restoreCachedUserProfile(for userId: UUID) -> UserProfile? {
+        guard let data = userDefaults.data(forKey: cachedUserProfileKey),
+              let cachedProfile = try? JSONDecoder().decode(CachedUserProfile.self, from: data),
+              cachedProfile.userId == userId else {
+            return nil
+        }
+
+        return cachedProfile.profile
+    }
+
+    private func clearCachedUserProfile() {
+        userDefaults.removeObject(forKey: cachedUserProfileKey)
+    }
+}
+
+private struct CachedUserProfile: Codable {
+    let userId: UUID
+    let profile: UserProfile
 }

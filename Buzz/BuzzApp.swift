@@ -94,7 +94,10 @@ struct BuzzApp: App {
         WindowGroup {
             ZStack {
                 Group {
-                    if authService.isAuthenticated && !authService.shouldDelayNavigation {
+                    if !authService.hasResolvedInitialSession {
+                        LaunchScreenView()
+                            .transition(.opacity)
+                    } else if authService.isAuthenticated && !authService.shouldDelayNavigation {
                         MainTabView()
                             .environmentObject(authService)
                             .transition(.opacity)
@@ -191,6 +194,25 @@ struct BuzzApp: App {
             return .dark
         default:
             return nil // system
+        }
+    }
+}
+
+private struct LaunchScreenView: View {
+    var body: some View {
+        ZStack {
+            Color(red: 0x28 / 255.0, green: 0x2C / 255.0, blue: 0x35 / 255.0)
+                .ignoresSafeArea()
+
+            VStack(spacing: 20) {
+                Image("Logo")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 140, height: 140)
+
+                ProgressView()
+                    .tint(.white)
+            }
         }
     }
 }
