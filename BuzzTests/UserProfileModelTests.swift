@@ -80,9 +80,47 @@ final class UserProfileModelTests: XCTestCase {
         }
     }
 
+    // MARK: - Measurement System
+
+    func testMeasurementSystemRegionalDefault_USAIsImperial() {
+        XCTAssertEqual(MeasurementSystem.regionalDefault(for: "USA"), .imperial)
+    }
+
+    func testMeasurementSystemRegionalDefault_CanadaAndUKAreMetric() {
+        XCTAssertEqual(MeasurementSystem.regionalDefault(for: "Canada"), .metric)
+        XCTAssertEqual(MeasurementSystem.regionalDefault(for: "UK"), .metric)
+    }
+
+    func testEffectiveMeasurementSystem_UsesRegionalDefaultWhenNoOverrideExists() {
+        let profile = makeProfile(
+            firstName: "John",
+            lastName: "Doe",
+            selectedRegion: "Canada",
+            preferredMeasurementSystem: nil
+        )
+
+        XCTAssertEqual(profile.effectiveMeasurementSystem, .metric)
+    }
+
+    func testEffectiveMeasurementSystem_UsesExplicitOverrideWhenPresent() {
+        let profile = makeProfile(
+            firstName: "John",
+            lastName: "Doe",
+            selectedRegion: "Canada",
+            preferredMeasurementSystem: .imperial
+        )
+
+        XCTAssertEqual(profile.effectiveMeasurementSystem, .imperial)
+    }
+
     // MARK: - Helpers
 
-    private func makeProfile(firstName: String?, lastName: String?) -> UserProfile {
+    private func makeProfile(
+        firstName: String?,
+        lastName: String?,
+        selectedRegion: String? = nil,
+        preferredMeasurementSystem: MeasurementSystem? = nil
+    ) -> UserProfile {
         UserProfile(
             id: UUID(),
             userType: .pilot,
@@ -113,7 +151,8 @@ final class UserProfileModelTests: XCTestCase {
             referralCredits: nil,
             referredBy: nil,
             isBeaconVolunteer: nil,
-            selectedRegion: nil,
+            selectedRegion: selectedRegion,
+            preferredMeasurementSystem: preferredMeasurementSystem,
             isVerified: nil
         )
     }

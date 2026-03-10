@@ -17,6 +17,10 @@ struct SafeFlyView: View {
     @State private var showSettings = false
     @State private var showDetailedTable = true
 
+    private var measurementSystem: MeasurementSystem {
+        authService.userProfile?.effectiveMeasurementSystem ?? .imperial
+    }
+
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
@@ -26,6 +30,7 @@ struct SafeFlyView: View {
                         hour: firstHour,
                         locationString: safeFlyService.currentLocationString,
                         thresholds: safeFlyService.thresholds,
+                        measurementSystem: measurementSystem,
                         sunrise: safeFlyService.dayGroups.first?.sunrise,
                         sunset: safeFlyService.dayGroups.first?.sunset
                     )
@@ -45,10 +50,11 @@ struct SafeFlyView: View {
                     if showDetailedTable {
                         HourlyForecastTableView(
                             dayGroups: safeFlyService.dayGroups,
-                            thresholds: safeFlyService.thresholds
+                            thresholds: safeFlyService.thresholds,
+                            measurementSystem: measurementSystem
                         )
                     } else {
-                        HourlyForecastSection(hours: safeFlyService.hourlyForecasts)
+                        HourlyForecastSection(hours: safeFlyService.hourlyForecasts, measurementSystem: measurementSystem)
                     }
                 } else if safeFlyService.isLoading {
                     LoadingSection()
@@ -80,7 +86,7 @@ struct SafeFlyView: View {
             }
         }
         .sheet(isPresented: $showSettings) {
-            SafeFlySettingsView(safeFlyService: safeFlyService)
+            SafeFlySettingsView(safeFlyService: safeFlyService, measurementSystem: measurementSystem)
         }
         .task {
             await loadData()
@@ -200,6 +206,7 @@ struct CurrentStatusCard: View {
     let hour: SafeFlyHour
     let locationString: String?
     let thresholds: FlyingThresholds
+    let measurementSystem: MeasurementSystem
     let sunrise: Date?
     let sunset: Date?
 
@@ -265,19 +272,35 @@ struct CurrentStatusCard: View {
         var exceeded: [(String, String, String)] = []
 
         if tempStatus == .exceeded {
-            exceeded.append(("Temperature", "\(Int(hour.forecast.temperature))°F", "\(Int(thresholds.minTemperature))°F - \(Int(thresholds.maxTemperature))°F"))
+            exceeded.append((
+                "Temperature",
+                MeasurementFormatter.temperature(hour.forecast.temperature, system: measurementSystem),
+                "\(MeasurementFormatter.temperature(thresholds.minTemperature, system: measurementSystem)) - \(MeasurementFormatter.temperature(thresholds.maxTemperature, system: measurementSystem))"
+            ))
         }
         if windStatus == .exceeded {
-            exceeded.append(("Wind Speed", "\(Int(hour.forecast.windSpeed)) mph", "\(Int(thresholds.maxWindSpeed)) mph"))
+            exceeded.append((
+                "Wind Speed",
+                MeasurementFormatter.windSpeed(hour.forecast.windSpeed, system: measurementSystem),
+                MeasurementFormatter.windSpeed(thresholds.maxWindSpeed, system: measurementSystem)
+            ))
         }
         if gustStatus == .exceeded, let gust = hour.forecast.windGust {
-            exceeded.append(("Wind Gusts", "\(Int(gust)) mph", "\(Int(thresholds.maxWindGust)) mph"))
+            exceeded.append((
+                "Wind Gusts",
+                MeasurementFormatter.windSpeed(gust, system: measurementSystem),
+                MeasurementFormatter.windSpeed(thresholds.maxWindGust, system: measurementSystem)
+            ))
         }
         if precipStatus == .exceeded {
             exceeded.append(("Precipitation", "\(hour.forecast.precipitation)%", "\(thresholds.maxPrecipitation)%"))
         }
         if visibilityStatus == .exceeded, let vis = hour.visibility {
-            exceeded.append(("Visibility", String(format: "%.1f mi", vis), String(format: "%.1f mi", thresholds.minVisibility)))
+            exceeded.append((
+                "Visibility",
+                MeasurementFormatter.distance(vis, system: measurementSystem),
+                MeasurementFormatter.distance(thresholds.minVisibility, system: measurementSystem)
+            ))
         }
         if kpStatus == .exceeded, let kp = hour.kpIndex {
             exceeded.append(("KP Index", String(format: "%.1f", kp), String(format: "%.1f", thresholds.maxKPIndex)))
@@ -336,7 +359,7 @@ struct CurrentStatusCard: View {
                     )
                     WeatherBox(
                         label: "Temp",
-                        value: "\(Int(hour.forecast.temperature))°F",
+                        value: MeasurementFormatter.temperature(hour.forecast.temperature, system: measurementSystem),
                         status: tempStatus
                     )
                 }
@@ -345,12 +368,12 @@ struct CurrentStatusCard: View {
                 HStack(spacing: 8) {
                     WeatherBox(
                         label: "Wind",
-                        value: "\(Int(hour.forecast.windSpeed)) mph",
+                        value: MeasurementFormatter.windSpeed(hour.forecast.windSpeed, system: measurementSystem),
                         status: windStatus
                     )
                     WeatherBox(
                         label: "Gusts",
-                        value: hour.forecast.windGust.map { "\(Int($0)) mph" } ?? "-",
+                        value: hour.forecast.windGust.map { MeasurementFormatter.windSpeed($0, system: measurementSystem) } ?? "-",
                         status: gustStatus
                     )
                     WindDirectionBox(
@@ -368,7 +391,7 @@ struct CurrentStatusCard: View {
                     )
                     WeatherBox(
                         label: "Visibility",
-                        value: hour.visibility.map { String(format: "%.0f mi", $0) } ?? "-",
+                        value: hour.visibility.map { MeasurementFormatter.distance($0, system: measurementSystem, decimals: 0) } ?? "-",
                         status: visibilityStatus
                     )
                     WeatherBox(
@@ -667,6 +690,7 @@ struct KPIndexCard: View {
 
 struct HourlyForecastSection: View {
     let hours: [SafeFlyHour]
+    let measurementSystem: MeasurementSystem
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -676,7 +700,7 @@ struct HourlyForecastSection: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 12) {
                     ForEach(hours) { hour in
-                        HourlyForecastCell(hour: hour)
+                        HourlyForecastCell(hour: hour, measurementSystem: measurementSystem)
                     }
                 }
                 .padding(.horizontal, 4)
@@ -693,6 +717,7 @@ struct HourlyForecastSection: View {
 
 struct HourlyForecastCell: View {
     let hour: SafeFlyHour
+    let measurementSystem: MeasurementSystem
 
     /// Simplified status: only green (safe) or red (not safe)
     private var isSafe: Bool {
@@ -727,15 +752,17 @@ struct HourlyForecastCell: View {
                 )
 
             // Temperature
-            Text("\(Int(hour.forecast.temperature))°")
+            Text(MeasurementFormatter.temperature(hour.forecast.temperature, system: measurementSystem, includeUnit: false))
                 .font(.subheadline)
                 .fontWeight(.medium)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
 
             // Wind
             HStack(spacing: 2) {
                 Image(systemName: "wind")
                     .font(.caption2)
-                Text("\(Int(hour.forecast.windSpeed))")
+                Text(MeasurementFormatter.windSpeed(hour.forecast.windSpeed, system: measurementSystem, includeUnit: false))
                     .font(.caption2)
             }
             .foregroundColor(.secondary)

@@ -54,6 +54,15 @@ struct SettingsView: View {
                     Text("Region")
                 }
             }
+
+            NavigationLink(destination: UnitSettingsView()) {
+                HStack {
+                    Text("Units")
+                    Spacer()
+                    Text(authService.userProfile?.effectiveMeasurementSystem.displayName ?? MeasurementSystem.imperial.displayName)
+                        .foregroundColor(.secondary)
+                }
+            }
             
             // Login & Security
             NavigationLink(destination: LoginSecurityView()) {
@@ -216,4 +225,3 @@ struct LegalDocumentsView: View {
         .navigationTitle("Legal")
     }
 }
-

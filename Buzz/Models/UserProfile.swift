@@ -10,6 +10,143 @@ import Foundation
 // Typealias to avoid circular imports with TrainingCourse
 typealias UserCourseRegion = String
 
+enum MeasurementSystem: String, Codable, CaseIterable {
+    case imperial
+    case metric
+
+    var displayName: String {
+        switch self {
+        case .imperial: return "Imperial"
+        case .metric: return "Metric"
+        }
+    }
+
+    var temperatureUnit: String {
+        switch self {
+        case .imperial: return "°F"
+        case .metric: return "°C"
+        }
+    }
+
+    var windSpeedUnit: String {
+        switch self {
+        case .imperial: return "mph"
+        case .metric: return "km/h"
+        }
+    }
+
+    var visibilityUnit: String {
+        switch self {
+        case .imperial: return "mi"
+        case .metric: return "km"
+        }
+    }
+
+    static func regionalDefault(for region: UserCourseRegion?) -> MeasurementSystem {
+        switch region {
+        case "Canada", "UK", "Australia", "New Zealand", "South Africa":
+            return .metric
+        default:
+            return .imperial
+        }
+    }
+}
+
+enum MeasurementFormatter {
+    static func fahrenheitValue(fromTemperature value: Double, system: MeasurementSystem) -> Double {
+        switch system {
+        case .imperial:
+            return value
+        case .metric:
+            return (value * 9.0 / 5.0) + 32.0
+        }
+    }
+
+    static func temperatureValue(fromFahrenheit fahrenheit: Double, system: MeasurementSystem) -> Double {
+        switch system {
+        case .imperial:
+            return fahrenheit
+        case .metric:
+            return (fahrenheit - 32.0) * 5.0 / 9.0
+        }
+    }
+
+    static func temperatureDeltaValue(fromFahrenheit delta: Double, system: MeasurementSystem) -> Double {
+        switch system {
+        case .imperial:
+            return delta
+        case .metric:
+            return delta * 5.0 / 9.0
+        }
+    }
+
+    static func windSpeedValue(fromMilesPerHour milesPerHour: Double, system: MeasurementSystem) -> Double {
+        switch system {
+        case .imperial:
+            return milesPerHour
+        case .metric:
+            return milesPerHour * 1.609344
+        }
+    }
+
+    static func milesPerHourValue(fromWindSpeed value: Double, system: MeasurementSystem) -> Double {
+        switch system {
+        case .imperial:
+            return value
+        case .metric:
+            return value / 1.609344
+        }
+    }
+
+    static func distanceValue(fromMiles miles: Double, system: MeasurementSystem) -> Double {
+        switch system {
+        case .imperial:
+            return miles
+        case .metric:
+            return miles * 1.609344
+        }
+    }
+
+    static func milesValue(fromDistance value: Double, system: MeasurementSystem) -> Double {
+        switch system {
+        case .imperial:
+            return value
+        case .metric:
+            return value / 1.609344
+        }
+    }
+
+    static func temperature(_ fahrenheit: Double, system: MeasurementSystem, decimals: Int = 0, includeUnit: Bool = true) -> String {
+        format(
+            temperatureValue(fromFahrenheit: fahrenheit, system: system),
+            decimals: decimals,
+            unit: includeUnit ? system.temperatureUnit : nil
+        )
+    }
+
+    static func windSpeed(_ milesPerHour: Double, system: MeasurementSystem, decimals: Int = 0, includeUnit: Bool = true) -> String {
+        format(
+            windSpeedValue(fromMilesPerHour: milesPerHour, system: system),
+            decimals: decimals,
+            unit: includeUnit ? system.windSpeedUnit : nil
+        )
+    }
+
+    static func distance(_ miles: Double, system: MeasurementSystem, decimals: Int = 1, includeUnit: Bool = true) -> String {
+        format(
+            distanceValue(fromMiles: miles, system: system),
+            decimals: decimals,
+            unit: includeUnit ? system.visibilityUnit : nil
+        )
+    }
+
+    private static func format(_ value: Double, decimals: Int, unit: String?) -> String {
+        let number = String(format: "%.\(decimals)f", value)
+        guard let unit else { return number }
+        return "\(number) \(unit)"
+    }
+}
+
 enum UserType: String, Codable {
     case pilot
     case customer
@@ -102,6 +239,7 @@ struct UserProfile: Codable, Identifiable {
     let referredBy: UUID? // UUID of user who referred this user
     let isBeaconVolunteer: Bool? // Beacon emergency response volunteer status
     let selectedRegion: UserCourseRegion? // User's selected region for course filtering
+    var preferredMeasurementSystem: MeasurementSystem? = nil // Nil means "use the region default"
     let isVerified: Bool? // Manual identity verification override (fallback when no government_ids record)
     
     enum CodingKeys: String, CodingKey {
@@ -135,6 +273,7 @@ struct UserProfile: Codable, Identifiable {
         case referredBy = "referred_by"
         case isBeaconVolunteer = "is_beacon_volunteer"
         case selectedRegion = "selected_region"
+        case preferredMeasurementSystem = "preferred_measurement_system"
         case isVerified = "is_verified"
     }
     
@@ -155,6 +294,10 @@ struct UserProfile: Codable, Identifiable {
 
     var publicDisplayName: String {
         userType == .pilot ? publicPilotName : fullName
+    }
+
+    var effectiveMeasurementSystem: MeasurementSystem {
+        preferredMeasurementSystem ?? MeasurementSystem.regionalDefault(for: selectedRegion)
     }
 
     func visibleDisplayName(to viewerUserId: UUID?) -> String {

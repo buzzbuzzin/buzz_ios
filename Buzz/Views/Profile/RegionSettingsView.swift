@@ -23,6 +23,10 @@ struct RegionSettingsView: View {
         .canada, .usa, .uk, .australia, .newZealand, .southAfrica
     ]
 
+    private var hasChanges: Bool {
+        selectedRegion?.rawValue != authService.userProfile?.selectedRegion
+    }
+
     var body: some View {
         Form {
             Section {
@@ -30,7 +34,7 @@ struct RegionSettingsView: View {
                     Text("Course Region")
                         .font(.headline)
 
-                    Text("Select your physical location to see courses relevant to your local regulations and requirements. You'll see courses from your selected region plus global courses.")
+                    Text("Select your physical location to see courses relevant to your local regulations and requirements. The default unit system follows your region unless you override it in Settings > Units.")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -54,6 +58,13 @@ struct RegionSettingsView: View {
                     }
                 } else {
                     Text("No region selected")
+                        .foregroundColor(.secondary)
+                }
+
+                HStack {
+                    Text("Active Units")
+                    Spacer()
+                    Text(authService.userProfile?.effectiveMeasurementSystem.displayName ?? MeasurementSystem.imperial.displayName)
                         .foregroundColor(.secondary)
                 }
             }
@@ -83,15 +94,15 @@ struct RegionSettingsView: View {
                     action: saveRegion,
                     isLoading: isSaving
                 )
-                .disabled(selectedRegion == nil || selectedRegion?.rawValue == authService.userProfile?.selectedRegion)
+                .disabled(selectedRegion == nil || !hasChanges)
             }
         }
         .navigationTitle("Region")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
             if let regionString = authService.userProfile?.selectedRegion {
-            selectedRegion = TrainingCourse.CourseRegion(rawValue: regionString)
-        }
+                selectedRegion = TrainingCourse.CourseRegion(rawValue: regionString)
+            }
         }
         .alert("Error", isPresented: $showError) {
             Button("OK", role: .cancel) {}

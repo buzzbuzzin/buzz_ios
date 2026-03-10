@@ -19,6 +19,10 @@ struct WeatherView: View {
 
     @State private var currentLocationName: String = "Current Location"
     @State private var upcomingBooking: Booking?
+
+    private var measurementSystem: MeasurementSystem {
+        authService.userProfile?.effectiveMeasurementSystem ?? .imperial
+    }
     
     var body: some View {
         ScrollView {
@@ -33,7 +37,8 @@ struct WeatherView: View {
                     WeatherCard(
                         title: "Current Location",
                         location: currentLocationName,
-                        weather: weather
+                        weather: weather,
+                        measurementSystem: measurementSystem
                     )
                 } else if weatherService.isLoading {
                     VStack(spacing: 16) {
@@ -67,7 +72,8 @@ struct WeatherView: View {
                     WeatherCard(
                         title: "Upcoming Booking",
                         location: booking.locationName,
-                        weather: weather
+                        weather: weather,
+                        measurementSystem: measurementSystem
                     )
                 } else if let booking = upcomingBooking {
                     VStack(spacing: 8) {
@@ -339,6 +345,7 @@ struct WeatherCard: View {
     let title: String
     let location: String
     let weather: Weather
+    let measurementSystem: MeasurementSystem
     
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -356,13 +363,13 @@ struct WeatherCard: View {
             HStack(alignment: .top, spacing: 16) {
                 // Temperature
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("\(Int(weather.temperature))°F")
+                    Text(MeasurementFormatter.temperature(weather.temperature, system: measurementSystem))
                         .font(.system(size: 48, weight: .bold))
                     
                     if let min = weather.temperatureMin, let max = weather.temperatureMax {
                         HStack(spacing: 8) {
-                            Text("Min \(Int(min))°F")
-                            Text("Max \(Int(max))°F")
+                            Text("Min \(MeasurementFormatter.temperature(min, system: measurementSystem))")
+                            Text("Max \(MeasurementFormatter.temperature(max, system: measurementSystem))")
                         }
                         .font(.subheadline)
                         .foregroundColor(.secondary)
@@ -401,9 +408,12 @@ struct WeatherCard: View {
                     GridItem(.flexible(), alignment: .leading),
                     GridItem(.flexible(), alignment: .leading)
                 ], spacing: 16) {
-                    WindInfoRow(label: "Wind", value: "\(Int(weather.windSpeed)) mph")
+                    WindInfoRow(label: "Wind", value: MeasurementFormatter.windSpeed(weather.windSpeed, system: measurementSystem))
                     
-                    WindInfoRow(label: "Gusts", value: weather.windGust.map { "\(Int($0)) mph" } ?? "N/A")
+                    WindInfoRow(
+                        label: "Gusts",
+                        value: weather.windGust.map { MeasurementFormatter.windSpeed($0, system: measurementSystem) } ?? "N/A"
+                    )
                     
                     if let degrees = weather.windDirectionDegrees {
                         WindInfoRow(
@@ -950,4 +960,3 @@ struct NWSAlertBannerView: View {
         }
     }
 }
-

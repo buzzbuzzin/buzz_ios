@@ -986,6 +986,7 @@ CREATE TABLE public.profiles (
   referred_by uuid,
   is_beacon_volunteer boolean DEFAULT false,
   selected_region text CHECK (selected_region IS NULL OR (selected_region = ANY (ARRAY['Canada'::text, 'USA'::text, 'UK'::text, 'Australia'::text, 'New Zealand'::text, 'South Africa'::text, 'Other'::text, 'Global'::text]))),
+  preferred_measurement_system text CHECK (preferred_measurement_system IS NULL OR (preferred_measurement_system = ANY (ARRAY['imperial'::text, 'metric'::text]))),
   is_verified boolean NOT NULL DEFAULT false,
   CONSTRAINT profiles_pkey PRIMARY KEY (id),
   CONSTRAINT profiles_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id),

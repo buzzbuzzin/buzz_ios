@@ -9,6 +9,7 @@ import SwiftUI
 
 struct SafeFlySettingsView: View {
     @ObservedObject var safeFlyService: SafeFlyService
+    let measurementSystem: MeasurementSystem
     @Environment(\.dismiss) var dismiss
 
     var body: some View {
@@ -17,24 +18,24 @@ struct SafeFlySettingsView: View {
                 Section(header: Text("Wind Limits")) {
                     ThresholdRow(
                         label: "Max Wind Speed",
-                        value: $safeFlyService.thresholds.maxWindSpeed,
-                        unit: "mph",
-                        range: 10...50
+                        value: windBinding(for: \.maxWindSpeed),
+                        unit: measurementSystem.windSpeedUnit,
+                        range: windRange(10...50)
                     )
                     ThresholdRow(
                         label: "Max Wind Gusts",
-                        value: $safeFlyService.thresholds.maxWindGust,
-                        unit: "mph",
-                        range: 15...60
+                        value: windBinding(for: \.maxWindGust),
+                        unit: measurementSystem.windSpeedUnit,
+                        range: windRange(15...60)
                     )
                 }
 
                 Section(header: Text("Visibility")) {
                     ThresholdRowDecimal(
                         label: "Min Visibility",
-                        value: $safeFlyService.thresholds.minVisibility,
-                        unit: "mi",
-                        range: 0.5...10,
+                        value: distanceBinding(for: \.minVisibility),
+                        unit: measurementSystem.visibilityUnit,
+                        range: distanceRange(0.5...10),
                         step: 0.5
                     )
                 }
@@ -52,15 +53,15 @@ struct SafeFlySettingsView: View {
                 Section(header: Text("Temperature")) {
                     ThresholdRow(
                         label: "Min Temperature",
-                        value: $safeFlyService.thresholds.minTemperature,
-                        unit: "°F",
-                        range: 0...50
+                        value: temperatureBinding(for: \.minTemperature),
+                        unit: measurementSystem.temperatureUnit,
+                        range: temperatureRange(0...50)
                     )
                     ThresholdRow(
                         label: "Max Temperature",
-                        value: $safeFlyService.thresholds.maxTemperature,
-                        unit: "°F",
-                        range: 80...120
+                        value: temperatureBinding(for: \.maxTemperature),
+                        unit: measurementSystem.temperatureUnit,
+                        range: temperatureRange(80...120)
                     )
                 }
 
@@ -103,6 +104,75 @@ struct SafeFlySettingsView: View {
                 }
             }
         }
+    }
+
+    private func windBinding(for keyPath: WritableKeyPath<FlyingThresholds, Double>) -> Binding<Double> {
+        Binding(
+            get: {
+                MeasurementFormatter.windSpeedValue(
+                    fromMilesPerHour: safeFlyService.thresholds[keyPath: keyPath],
+                    system: measurementSystem
+                )
+            },
+            set: { newValue in
+                safeFlyService.thresholds[keyPath: keyPath] = MeasurementFormatter.milesPerHourValue(
+                    fromWindSpeed: newValue,
+                    system: measurementSystem
+                )
+            }
+        )
+    }
+
+    private func temperatureBinding(for keyPath: WritableKeyPath<FlyingThresholds, Double>) -> Binding<Double> {
+        Binding(
+            get: {
+                MeasurementFormatter.temperatureValue(
+                    fromFahrenheit: safeFlyService.thresholds[keyPath: keyPath],
+                    system: measurementSystem
+                )
+            },
+            set: { newValue in
+                safeFlyService.thresholds[keyPath: keyPath] = MeasurementFormatter.fahrenheitValue(
+                    fromTemperature: newValue,
+                    system: measurementSystem
+                )
+            }
+        )
+    }
+
+    private func distanceBinding(for keyPath: WritableKeyPath<FlyingThresholds, Double>) -> Binding<Double> {
+        Binding(
+            get: {
+                MeasurementFormatter.distanceValue(
+                    fromMiles: safeFlyService.thresholds[keyPath: keyPath],
+                    system: measurementSystem
+                )
+            },
+            set: { newValue in
+                safeFlyService.thresholds[keyPath: keyPath] = MeasurementFormatter.milesValue(
+                    fromDistance: newValue,
+                    system: measurementSystem
+                )
+            }
+        )
+    }
+
+    private func windRange(_ imperialRange: ClosedRange<Double>) -> ClosedRange<Double> {
+        let lower = MeasurementFormatter.windSpeedValue(fromMilesPerHour: imperialRange.lowerBound, system: measurementSystem)
+        let upper = MeasurementFormatter.windSpeedValue(fromMilesPerHour: imperialRange.upperBound, system: measurementSystem)
+        return lower...upper
+    }
+
+    private func temperatureRange(_ imperialRange: ClosedRange<Double>) -> ClosedRange<Double> {
+        let lower = MeasurementFormatter.temperatureValue(fromFahrenheit: imperialRange.lowerBound, system: measurementSystem)
+        let upper = MeasurementFormatter.temperatureValue(fromFahrenheit: imperialRange.upperBound, system: measurementSystem)
+        return lower...upper
+    }
+
+    private func distanceRange(_ imperialRange: ClosedRange<Double>) -> ClosedRange<Double> {
+        let lower = MeasurementFormatter.distanceValue(fromMiles: imperialRange.lowerBound, system: measurementSystem)
+        let upper = MeasurementFormatter.distanceValue(fromMiles: imperialRange.upperBound, system: measurementSystem)
+        return lower...upper
     }
 }
 
@@ -178,5 +248,5 @@ struct ThresholdRowInt: View {
 }
 
 #Preview {
-    SafeFlySettingsView(safeFlyService: SafeFlyService())
+    SafeFlySettingsView(safeFlyService: SafeFlyService(), measurementSystem: .imperial)
 }

@@ -40,15 +40,15 @@ enum ForecastTableColumn: String, CaseIterable {
     }
 
     /// Column header with units where applicable
-    var headerWithUnit: String {
+    func headerWithUnit(measurementSystem: MeasurementSystem) -> String {
         switch self {
         case .time: return "Time"
         case .status: return "Fly?"
-        case .wind: return "Wind\n(mph)"
-        case .gusts: return "Gusts\n(mph)"
-        case .temp: return "Temp\n(°F)"
+        case .wind: return "Wind\n(\(measurementSystem.windSpeedUnit))"
+        case .gusts: return "Gusts\n(\(measurementSystem.windSpeedUnit))"
+        case .temp: return "Temp\n(\(measurementSystem.temperatureUnit))"
         case .precip: return "Precip\n(%)"
-        case .visibility: return "Vis\n(mi)"
+        case .visibility: return "Vis\n(\(measurementSystem.visibilityUnit))"
         case .kpIndex: return "Kp"
         }
     }
@@ -59,6 +59,7 @@ enum ForecastTableColumn: String, CaseIterable {
 struct HourlyForecastTableView: View {
     let dayGroups: [SafeFlyDayGroup]
     let thresholds: FlyingThresholds
+    let measurementSystem: MeasurementSystem
 
     @State private var showLegend = false
 
@@ -76,7 +77,7 @@ struct HourlyForecastTableView: View {
                         .foregroundColor(.blue)
                 }
                 .sheet(isPresented: $showLegend) {
-                    ThresholdLegendView(thresholds: thresholds)
+                    ThresholdLegendView(thresholds: thresholds, measurementSystem: measurementSystem)
                 }
 
                 Spacer()
@@ -88,11 +89,16 @@ struct HourlyForecastTableView: View {
                 let tableWidth = geometry.size.width
                 VStack(alignment: .leading, spacing: 0) {
                     // Table Header
-                    ForecastTableHeaderRow(tableWidth: tableWidth)
+                    ForecastTableHeaderRow(tableWidth: tableWidth, measurementSystem: measurementSystem)
 
                     // Day sections with hours
                     ForEach(dayGroups) { dayGroup in
-                        DaySectionView(dayGroup: dayGroup, thresholds: thresholds, tableWidth: tableWidth)
+                        DaySectionView(
+                            dayGroup: dayGroup,
+                            thresholds: thresholds,
+                            tableWidth: tableWidth,
+                            measurementSystem: measurementSystem
+                        )
                     }
                 }
             }
@@ -126,11 +132,12 @@ struct HourlyForecastTableView: View {
 
 struct ForecastTableHeaderRow: View {
     let tableWidth: CGFloat
+    let measurementSystem: MeasurementSystem
 
     var body: some View {
         HStack(spacing: 0) {
             ForEach(ForecastTableColumn.allCases, id: \.self) { column in
-                Text(column.headerWithUnit)
+                Text(column.headerWithUnit(measurementSystem: measurementSystem))
                     .font(.caption2)
                     .fontWeight(.semibold)
                     .foregroundColor(.secondary)
@@ -149,6 +156,7 @@ struct DaySectionView: View {
     let dayGroup: SafeFlyDayGroup
     let thresholds: FlyingThresholds
     let tableWidth: CGFloat
+    let measurementSystem: MeasurementSystem
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -160,6 +168,7 @@ struct DaySectionView: View {
                 ForecastTableRow(
                     hour: hour,
                     thresholds: thresholds,
+                    measurementSystem: measurementSystem,
                     isAlternate: index % 2 == 1,
                     tableWidth: tableWidth,
                     sunrise: dayGroup.sunrise,
@@ -254,6 +263,7 @@ enum CellThresholdStatus {
 struct ForecastTableRow: View {
     let hour: SafeFlyHour
     let thresholds: FlyingThresholds
+    let measurementSystem: MeasurementSystem
     let isAlternate: Bool
     let tableWidth: CGFloat
     let sunrise: Date?
@@ -366,17 +376,17 @@ struct ForecastTableRow: View {
                 .frame(width: ForecastTableColumn.status.width(for: tableWidth), height: 32)
 
             // Wind column with threshold background
-            WindCell(speed: hour.forecast.windSpeed, direction: hour.forecast.windDirection)
+            WindCell(speed: hour.forecast.windSpeed, direction: hour.forecast.windDirection, measurementSystem: measurementSystem)
                 .frame(width: ForecastTableColumn.wind.width(for: tableWidth), height: 32)
                 .background(windStatus.backgroundColor)
 
             // Gusts column with threshold background
-            GustCell(gust: hour.forecast.windGust, direction: hour.forecast.windDirection)
+            GustCell(gust: hour.forecast.windGust, direction: hour.forecast.windDirection, measurementSystem: measurementSystem)
                 .frame(width: ForecastTableColumn.gusts.width(for: tableWidth), height: 32)
                 .background(gustStatus.backgroundColor)
 
             // Temperature column with threshold background
-            Text("\(Int(hour.forecast.temperature))°")
+            Text(MeasurementFormatter.temperature(hour.forecast.temperature, system: measurementSystem, includeUnit: false))
                 .font(.caption)
                 .monospacedDigit()
                 .frame(width: ForecastTableColumn.temp.width(for: tableWidth), height: 32)
@@ -390,7 +400,7 @@ struct ForecastTableRow: View {
                 .background(precipStatus.backgroundColor)
 
             // Visibility column with threshold background
-            Text(hour.visibility.map { String(format: "%.0f", $0) } ?? "-")
+            Text(hour.visibility.map { MeasurementFormatter.distance($0, system: measurementSystem, decimals: 0, includeUnit: false) } ?? "-")
                 .font(.caption)
                 .monospacedDigit()
                 .frame(width: ForecastTableColumn.visibility.width(for: tableWidth), height: 32)
@@ -412,6 +422,7 @@ struct ForecastTableRow: View {
 struct WindCell: View {
     let speed: Double
     let direction: String
+    let measurementSystem: MeasurementSystem
 
     private var directionArrow: String {
         getDirectionArrow(for: direction)
@@ -419,7 +430,7 @@ struct WindCell: View {
 
     var body: some View {
         HStack(spacing: 2) {
-            Text("\(Int(speed))")
+            Text(MeasurementFormatter.windSpeed(speed, system: measurementSystem, includeUnit: false))
                 .font(.caption)
                 .monospacedDigit()
             Image(systemName: directionArrow)
@@ -434,6 +445,7 @@ struct WindCell: View {
 struct GustCell: View {
     let gust: Double?
     let direction: String
+    let measurementSystem: MeasurementSystem
 
     private var directionArrow: String {
         getDirectionArrow(for: direction)
@@ -442,7 +454,7 @@ struct GustCell: View {
     var body: some View {
         if let gustValue = gust {
             HStack(spacing: 2) {
-                Text("\(Int(gustValue))")
+                Text(MeasurementFormatter.windSpeed(gustValue, system: measurementSystem, includeUnit: false))
                     .font(.caption)
                     .monospacedDigit()
                 Image(systemName: directionArrow)
@@ -497,6 +509,7 @@ struct SafetyStatusCell: View {
 
 struct ThresholdLegendView: View {
     let thresholds: FlyingThresholds
+    let measurementSystem: MeasurementSystem
     @Environment(\.dismiss) private var dismiss
     
     var body: some View {
@@ -554,20 +567,20 @@ struct ThresholdLegendView: View {
                         
                         ThresholdDetailRow(
                             column: "Wind",
-                            threshold: "\(Int(thresholds.maxWindSpeed)) mph max",
-                            cautionRange: ">\(Int(thresholds.maxWindSpeed * 0.8)) mph"
+                            threshold: "\(MeasurementFormatter.windSpeed(thresholds.maxWindSpeed, system: measurementSystem)) max",
+                            cautionRange: ">\(MeasurementFormatter.windSpeed(thresholds.maxWindSpeed * 0.8, system: measurementSystem))"
                         )
                         
                         ThresholdDetailRow(
                             column: "Gusts",
-                            threshold: "\(Int(thresholds.maxWindGust)) mph max",
-                            cautionRange: ">\(Int(thresholds.maxWindGust * 0.8)) mph"
+                            threshold: "\(MeasurementFormatter.windSpeed(thresholds.maxWindGust, system: measurementSystem)) max",
+                            cautionRange: ">\(MeasurementFormatter.windSpeed(thresholds.maxWindGust * 0.8, system: measurementSystem))"
                         )
                         
                         ThresholdDetailRow(
                             column: "Temp",
-                            threshold: "\(Int(thresholds.minTemperature))°F - \(Int(thresholds.maxTemperature))°F",
-                            cautionRange: "Within 5°F of limits"
+                            threshold: "\(MeasurementFormatter.temperature(thresholds.minTemperature, system: measurementSystem)) - \(MeasurementFormatter.temperature(thresholds.maxTemperature, system: measurementSystem))",
+                            cautionRange: "Within \(MeasurementFormatter.temperatureDeltaValue(fromFahrenheit: 5, system: measurementSystem).rounded(.toNearestOrEven))\(measurementSystem.temperatureUnit) of limits"
                         )
                         
                         ThresholdDetailRow(
@@ -578,8 +591,8 @@ struct ThresholdLegendView: View {
 
                         ThresholdDetailRow(
                             column: "Visibility",
-                            threshold: "\(String(format: "%.1f", thresholds.minVisibility)) mi min",
-                            cautionRange: "<\(String(format: "%.1f", thresholds.minVisibility * 1.5)) mi"
+                            threshold: "\(MeasurementFormatter.distance(thresholds.minVisibility, system: measurementSystem)) min",
+                            cautionRange: "<\(MeasurementFormatter.distance(thresholds.minVisibility * 1.5, system: measurementSystem))"
                         )
                         
                         ThresholdDetailRow(
@@ -703,7 +716,8 @@ struct ThresholdDetailRow: View {
     return ScrollView {
         HourlyForecastTableView(
             dayGroups: [sampleDayGroup],
-            thresholds: .default
+            thresholds: .default,
+            measurementSystem: .imperial
         )
         .padding()
     }

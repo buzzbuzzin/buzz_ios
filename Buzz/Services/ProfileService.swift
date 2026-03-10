@@ -74,6 +74,8 @@ class ProfileService: ObservableObject {
             .update(updates)
             .eq("id", value: userId.uuidString)
             .execute()
+
+        Self.cachedProfiles.removeValue(forKey: userId)
     }
 
     func updateRegion(userId: UUID, regionString: String) async throws {
@@ -86,6 +88,44 @@ class ProfileService: ObservableObject {
             .update(updates)
             .eq("id", value: userId.uuidString)
             .execute()
+
+        Self.cachedProfiles.removeValue(forKey: userId)
+    }
+
+    func updateRegionalPreferences(
+        userId: UUID,
+        regionString: String,
+        preferredMeasurementSystem: MeasurementSystem?
+    ) async throws {
+        let updates: [String: AnyJSON] = [
+            "selected_region": .string(regionString),
+            "preferred_measurement_system": preferredMeasurementSystem.map { .string($0.rawValue) } ?? .null
+        ]
+
+        try await supabase
+            .from("profiles")
+            .update(updates)
+            .eq("id", value: userId.uuidString)
+            .execute()
+
+        Self.cachedProfiles.removeValue(forKey: userId)
+    }
+
+    func updatePreferredMeasurementSystem(
+        userId: UUID,
+        preferredMeasurementSystem: MeasurementSystem?
+    ) async throws {
+        let updates: [String: AnyJSON] = [
+            "preferred_measurement_system": preferredMeasurementSystem.map { .string($0.rawValue) } ?? .null
+        ]
+
+        try await supabase
+            .from("profiles")
+            .update(updates)
+            .eq("id", value: userId.uuidString)
+            .execute()
+
+        Self.cachedProfiles.removeValue(forKey: userId)
     }
     
     func updateExMilitaryStatus(userId: UUID, isExMilitary: Bool) async throws {

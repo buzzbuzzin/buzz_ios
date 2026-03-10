@@ -80,7 +80,7 @@ struct RegionOnboardingView: View {
                     VStack(spacing: 16) {
                         // Footer text moved above button
                         VStack(spacing: 8) {
-                            Text("You can always change your region later in Settings > Account > Region")
+                            Text("You can always change your region and units later in Settings > Account > Region & Units")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                                 .multilineTextAlignment(.center)
