@@ -75,4 +75,72 @@ final class MessageServiceTests: XCTestCase {
 
         XCTAssertEqual(filterAB, filterBA)
     }
+
+    func testBuildDirectMessageConversations_marksThreadUnreadWhenAnyIncomingMessageIsUnread() {
+        let currentUser = UUID()
+        let partner = UUID()
+        let baseDate = Date()
+
+        let messages = [
+            DirectMessage(
+                id: UUID(),
+                fromUserId: partner,
+                toUserId: currentUser,
+                text: "Need your reply",
+                createdAt: baseDate.addingTimeInterval(-120),
+                isRead: false,
+                metadata: nil
+            ),
+            DirectMessage(
+                id: UUID(),
+                fromUserId: currentUser,
+                toUserId: partner,
+                text: "I saw this later",
+                createdAt: baseDate,
+                isRead: true,
+                metadata: nil
+            )
+        ]
+
+        let conversations = MessageService.buildDirectMessageConversations(for: currentUser, from: messages)
+
+        XCTAssertEqual(conversations.count, 1)
+        XCTAssertEqual(conversations.first?.partnerId, partner)
+        XCTAssertEqual(conversations.first?.lastMessage.text, "I saw this later")
+        XCTAssertEqual(conversations.first?.hasUnreadMessages, true)
+    }
+
+    func testBuildDirectMessageConversations_sortsByNewestMessageAndIgnoresOutgoingUnreadState() {
+        let currentUser = UUID()
+        let olderPartner = UUID()
+        let newerPartner = UUID()
+        let baseDate = Date()
+
+        let messages = [
+            DirectMessage(
+                id: UUID(),
+                fromUserId: currentUser,
+                toUserId: olderPartner,
+                text: "outgoing only",
+                createdAt: baseDate.addingTimeInterval(-300),
+                isRead: false,
+                metadata: nil
+            ),
+            DirectMessage(
+                id: UUID(),
+                fromUserId: newerPartner,
+                toUserId: currentUser,
+                text: "latest unread",
+                createdAt: baseDate,
+                isRead: false,
+                metadata: nil
+            )
+        ]
+
+        let conversations = MessageService.buildDirectMessageConversations(for: currentUser, from: messages)
+
+        XCTAssertEqual(conversations.map(\.partnerId), [newerPartner, olderPartner])
+        XCTAssertEqual(conversations.first?.hasUnreadMessages, true)
+        XCTAssertEqual(conversations.last?.hasUnreadMessages, false)
+    }
 }

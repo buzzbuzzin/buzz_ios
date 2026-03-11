@@ -111,8 +111,10 @@ struct ConversationsListView: View {
             }
             .navigationTitle("Messages")
             .navigationBarTitleDisplayMode(.large)
-            .task {
-                await loadConversations()
+            .onAppear {
+                Task {
+                    await loadConversations()
+                }
             }
             .alert("Delete Conversation", isPresented: $showDeleteConfirmation) {
                 Button("Cancel", role: .cancel) { }
@@ -196,7 +198,8 @@ struct ConversationsListView: View {
                         id: conversation.id,
                         partnerId: conversation.partnerId,
                         partnerProfile: partnerProfile,
-                        lastMessage: conversation.lastMessage
+                        lastMessage: conversation.lastMessage,
+                        hasUnreadMessages: conversation.hasUnreadMessages
                     ))
                 } catch {
                     print("Error loading profile for \(conversation.partnerId): \(error)")
@@ -353,6 +356,7 @@ struct ConversationRow: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(displayName)
                     .font(.headline)
+                    .fontWeight(conversation.hasUnreadMessages ? .semibold : .regular)
                 
                 if conversation.otherUserProfile.userType != .pilot,
                    let callSign = conversation.otherUserProfile.callSign,
@@ -366,7 +370,8 @@ struct ConversationRow: View {
                 if let lastMessage = conversation.lastMessage {
                     Text(lastMessage.text)
                         .font(.subheadline)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(conversation.hasUnreadMessages ? .primary : .secondary)
+                        .fontWeight(conversation.hasUnreadMessages ? .semibold : .regular)
                         .lineLimit(1)
                 } else {
                     Text(conversation.booking.locationName)
@@ -402,6 +407,7 @@ struct DirectMessageConversationItem: Identifiable {
     let partnerId: UUID
     let partnerProfile: UserProfile
     let lastMessage: DirectMessage
+    let hasUnreadMessages: Bool
 }
 
 // MARK: - Direct Message Conversation Row
@@ -410,16 +416,10 @@ struct DirectMessageConversationRow: View {
     let conversation: DirectMessageConversationItem
     @EnvironmentObject var authService: AuthService
     
-    var hasUnreadMessages: Bool {
-        // Check if last message is unread and was sent to current user
-        guard let currentUserId = authService.currentUser?.id else { return false }
-        return !conversation.lastMessage.isRead && conversation.lastMessage.toUserId == currentUserId
-    }
-    
     var body: some View {
         HStack(spacing: 12) {
             // Unread indicator dot
-            if hasUnreadMessages {
+            if conversation.hasUnreadMessages {
                 Circle()
                     .fill(Color.blue)
                     .frame(width: 8, height: 8)
@@ -460,6 +460,7 @@ struct DirectMessageConversationRow: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(conversation.partnerProfile.visibleDisplayName(to: authService.currentUser?.id))
                     .font(.headline)
+                    .fontWeight(conversation.hasUnreadMessages ? .semibold : .regular)
                 
                 HStack(spacing: 4) {
                     if conversation.lastMessage.isListingCard {
@@ -469,7 +470,8 @@ struct DirectMessageConversationRow: View {
                     }
                     Text(conversation.lastMessage.text)
                         .font(.subheadline)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(conversation.hasUnreadMessages ? .primary : .secondary)
+                        .fontWeight(conversation.hasUnreadMessages ? .semibold : .regular)
                         .lineLimit(1)
                 }
             }

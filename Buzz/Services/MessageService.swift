@@ -192,6 +192,41 @@ class MessageService: ObservableObject {
         let secondId = sortedIds[1]
         return "and(from_user_id.eq.\(firstId),to_user_id.eq.\(secondId)),and(from_user_id.eq.\(secondId),to_user_id.eq.\(firstId))"
     }
+
+    static func buildDirectMessageConversations(
+        for userId: UUID,
+        from messages: [DirectMessage]
+    ) -> [DirectMessageConversation] {
+        var conversations: [UUID: (lastMessage: DirectMessage, hasUnreadMessages: Bool)] = [:]
+
+        for message in messages {
+            let partnerId = message.fromUserId == userId ? message.toUserId : message.fromUserId
+            let hasUnreadIncomingMessage = message.toUserId == userId && !message.isRead
+
+            if var existing = conversations[partnerId] {
+                if message.createdAt > existing.lastMessage.createdAt {
+                    existing.lastMessage = message
+                }
+                existing.hasUnreadMessages = existing.hasUnreadMessages || hasUnreadIncomingMessage
+                conversations[partnerId] = existing
+            } else {
+                conversations[partnerId] = (
+                    lastMessage: message,
+                    hasUnreadMessages: hasUnreadIncomingMessage
+                )
+            }
+        }
+
+        return conversations.map { partnerId, state in
+            DirectMessageConversation(
+                id: Self.conversationId(fromUserId: userId, toUserId: partnerId),
+                partnerId: partnerId,
+                lastMessage: state.lastMessage,
+                hasUnreadMessages: state.hasUnreadMessages
+            )
+        }
+        .sorted { $0.lastMessage.createdAt > $1.lastMessage.createdAt }
+    }
     
     /// Fetch direct messages between two users (not tied to a booking)
     func fetchDirectMessages(fromUserId: UUID, toUserId: UUID) async throws {
@@ -649,23 +684,8 @@ class MessageService: ObservableObject {
             .order("created_at", ascending: false)
             .execute()
             .value
-        
-        // Group by conversation partner
-        var conversations: [UUID: DirectMessage] = [:]
-        for message in allMessages {
-            let partnerId = message.fromUserId == userId ? message.toUserId : message.fromUserId
-            if conversations[partnerId] == nil || message.createdAt > (conversations[partnerId]?.createdAt ?? Date.distantPast) {
-                conversations[partnerId] = message
-            }
-        }
-        
-        return conversations.map { partnerId, lastMessage in
-            DirectMessageConversation(
-                id: Self.conversationId(fromUserId: userId, toUserId: partnerId),
-                partnerId: partnerId,
-                lastMessage: lastMessage
-            )
-        }.sorted { $0.lastMessage.createdAt > $1.lastMessage.createdAt }
+
+        return Self.buildDirectMessageConversations(for: userId, from: allMessages)
     }
     
     // MARK: - Sample Data for Demo

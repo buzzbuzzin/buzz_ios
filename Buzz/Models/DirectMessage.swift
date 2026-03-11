@@ -85,4 +85,5 @@ struct DirectMessageConversation: Identifiable {
     let id: UUID
     let partnerId: UUID
     let lastMessage: DirectMessage
+    let hasUnreadMessages: Bool
 }

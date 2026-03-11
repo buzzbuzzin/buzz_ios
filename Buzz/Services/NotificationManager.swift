@@ -104,6 +104,12 @@ class NotificationManager: NSObject, ObservableObject {
             await saveDeviceTokenToDatabase(token: tokenString)
         }
     }
+
+    /// Retry persisting the current APNs token after authentication becomes available.
+    func syncDeviceTokenIfNeeded() async {
+        guard let deviceToken else { return }
+        await saveDeviceTokenToDatabase(token: deviceToken)
+    }
     
     /// Handle failed device token registration
     func didFailToRegisterForRemoteNotifications(error: Error) {
@@ -127,7 +133,11 @@ class NotificationManager: NSObject, ObservableObject {
             
             print("Device token saved successfully for user: \(userId)")
         } catch {
-            print("Error saving device token: \(error.localizedDescription)")
+            if error.localizedDescription == "Auth session missing." {
+                print("Device token received before auth session; will retry after login.")
+            } else {
+                print("Error saving device token: \(error.localizedDescription)")
+            }
         }
     }
     

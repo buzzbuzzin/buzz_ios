@@ -126,6 +126,7 @@ struct BuzzApp: App {
                 // Update location and track app version whenever authentication status changes
                 if isAuthenticated, let userId = authService.activeUserId {
                     Task {
+                        await notificationManager.syncDeviceTokenIfNeeded()
                         do {
                             try await locationTrackingService.updateUserLocation(userId: userId)
                         } catch {
@@ -162,6 +163,7 @@ struct BuzzApp: App {
 
                     // Update user location and track app version if authenticated
                     if authService.isAuthenticated, let userId = authService.activeUserId {
+                        await notificationManager.syncDeviceTokenIfNeeded()
                         do {
                             try await locationTrackingService.updateUserLocation(userId: userId)
                         } catch {
