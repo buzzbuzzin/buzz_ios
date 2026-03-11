@@ -29,7 +29,9 @@ struct BeaconOnboardingView: View {
     @State private var showError: Bool = false
     @State private var errorMessage: String = ""
     @State private var showConfetti: Bool = false
-    
+    @State private var showCertificateHistory: Bool = false
+    @State private var historyTrainingType: BeaconTrainingType?
+
     var onComplete: () -> Void
     
     var body: some View {
@@ -82,6 +84,13 @@ struct BeaconOnboardingView: View {
                             onAddExpirationTap: {
                                 beginExpirationEntry(for: .cpr)
                             },
+                            onEditExpirationTap: {
+                                beginExpirationEntry(for: .cpr)
+                            },
+                            onHistoryTap: {
+                                historyTrainingType = .cpr
+                                showCertificateHistory = true
+                            },
                             isLoading: isLoading && currentUploadType == .cpr
                         )
                         
@@ -97,6 +106,13 @@ struct BeaconOnboardingView: View {
                             onAddExpirationTap: {
                                 beginExpirationEntry(for: .firefighting)
                             },
+                            onEditExpirationTap: {
+                                beginExpirationEntry(for: .firefighting)
+                            },
+                            onHistoryTap: {
+                                historyTrainingType = .firefighting
+                                showCertificateHistory = true
+                            },
                             isLoading: isLoading && currentUploadType == .firefighting
                         )
                         
@@ -111,6 +127,13 @@ struct BeaconOnboardingView: View {
                             },
                             onAddExpirationTap: {
                                 beginExpirationEntry(for: .cert)
+                            },
+                            onEditExpirationTap: {
+                                beginExpirationEntry(for: .cert)
+                            },
+                            onHistoryTap: {
+                                historyTrainingType = .cert
+                                showCertificateHistory = true
                             },
                             isLoading: isLoading && currentUploadType == .cert
                         )
@@ -221,6 +244,15 @@ struct BeaconOnboardingView: View {
         .sheet(isPresented: $showExpirationSheet) {
             expirationSheet
         }
+        .sheet(isPresented: $showCertificateHistory) {
+            if let historyType = historyTrainingType, let userId = authService.currentUser?.id {
+                CertificateHistoryView(
+                    beaconService: beaconService,
+                    userId: userId,
+                    trainingType: historyType
+                )
+            }
+        }
         .onChange(of: selectedImage) { _, newImage in
             if let image = newImage, let uploadType = currentUploadType {
                 prepareUpload(image: image, type: uploadType)
@@ -261,6 +293,16 @@ struct BeaconOnboardingView: View {
                     .font(.subheadline)
                     .foregroundColor(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+
+                HStack(spacing: 12) {
+                    ForEach([1, 2, 3], id: \.self) { years in
+                        Button("+\(years) Year\(years > 1 ? "s" : "")") {
+                            selectedExpirationDate = Calendar.current.date(byAdding: .year, value: years, to: Date()) ?? Date()
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(.blue)
+                    }
+                }
 
                 DatePicker(
                     "Expiration Date",
@@ -440,9 +482,14 @@ struct BeaconOnboardingView: View {
                     expiresAt: selectedExpirationDate
                 )
             } else {
+                guard let record = trainingRecords[type] else {
+                    errorMessage = "No existing record found for this training type."
+                    showError = true
+                    isLoading = false
+                    return
+                }
                 updatedRecord = try await beaconService.updateTrainingExpiration(
-                    userId: userId,
-                    trainingType: type,
+                    progressId: record.id,
                     expiresAt: selectedExpirationDate
                 )
             }
@@ -482,7 +529,7 @@ struct BeaconOnboardingView: View {
     }
 
     private func refreshTrainingState(with progress: [BeaconTrainingProgress]) {
-        trainingRecords = Dictionary(uniqueKeysWithValues: progress.map { ($0.trainingType, $0) })
+        trainingRecords = Dictionary(progress.map { ($0.trainingType, $0) }, uniquingKeysWith: { _, latest in latest })
         completedTraining = Set(progress.filter(\.isCurrent).map(\.trainingType))
         currentStep = nextRequiredStep()
     }
@@ -574,6 +621,8 @@ struct TrainingStepView: View {
     let isCompleted: Bool
     let onUploadTap: () -> Void
     let onAddExpirationTap: () -> Void
+    var onEditExpirationTap: (() -> Void)? = nil
+    var onHistoryTap: (() -> Void)? = nil
     let isLoading: Bool
     
     var body: some View {
@@ -614,6 +663,27 @@ struct TrainingStepView: View {
                     text: "Current until \(formattedExpiration(trainingRecord?.expiresAt))",
                     color: .green
                 )
+
+                HStack(spacing: 12) {
+                    if let onEditExpirationTap {
+                        Button(action: onEditExpirationTap) {
+                            Label("Edit Expiration", systemImage: "pencil")
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(.green)
+                    }
+                    if let onHistoryTap {
+                        Button(action: onHistoryTap) {
+                            Label("History", systemImage: "clock.arrow.circlepath")
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(.secondary)
+                    }
+                }
             } else if let trainingRecord, trainingRecord.needsExpiration {
                 VStack(spacing: 12) {
                     statusBanner(

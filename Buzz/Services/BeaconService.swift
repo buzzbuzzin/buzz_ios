@@ -16,7 +16,8 @@ protocol BeaconBackend {
     func syncBadgesToTraining(userId: UUID) async throws
     func getTrainingProgress(userId: UUID) async throws -> [BeaconTrainingProgress]
     func uploadTrainingCertificate(userId: UUID, trainingType: BeaconTrainingType, data: Data, fileName: String, isPDF: Bool, expiresAt: Date) async throws -> BeaconTrainingProgress
-    func updateTrainingExpiration(userId: UUID, trainingType: BeaconTrainingType, expiresAt: Date) async throws -> BeaconTrainingProgress
+    func updateTrainingExpiration(progressId: UUID, expiresAt: Date) async throws -> BeaconTrainingProgress
+    func getTrainingHistory(userId: UUID, trainingType: BeaconTrainingType) async throws -> [BeaconTrainingProgress]
     func isUserBeaconVolunteer(userId: UUID) async throws -> Bool
     func getVolunteerStatus(userId: UUID) async throws -> BeaconVolunteer?
     func enrollAsVolunteer(userId: UUID) async throws
@@ -39,9 +40,7 @@ private struct SupabaseBeaconBackend: BeaconBackend {
 
     func getTrainingProgress(userId: UUID) async throws -> [BeaconTrainingProgress] {
         try await client
-            .from("beacon_training_progress")
-            .select()
-            .eq("pilot_id", value: userId.uuidString)
+            .rpc("get_latest_beacon_training", params: ["p_pilot_id": userId.uuidString])
             .execute()
             .value
     }
@@ -79,14 +78,14 @@ private struct SupabaseBeaconBackend: BeaconBackend {
 
         return try await client
             .from("beacon_training_progress")
-            .upsert(trainingRecord, onConflict: "pilot_id,training_type")
+            .insert(trainingRecord)
             .select()
             .single()
             .execute()
             .value
     }
 
-    func updateTrainingExpiration(userId: UUID, trainingType: BeaconTrainingType, expiresAt: Date) async throws -> BeaconTrainingProgress {
+    func updateTrainingExpiration(progressId: UUID, expiresAt: Date) async throws -> BeaconTrainingProgress {
         let updates: [String: AnyJSON] = [
             "expires_at": .string(ISO8601DateFormatter().string(from: expiresAt))
         ]
@@ -94,10 +93,20 @@ private struct SupabaseBeaconBackend: BeaconBackend {
         return try await client
             .from("beacon_training_progress")
             .update(updates)
-            .eq("pilot_id", value: userId.uuidString)
-            .eq("training_type", value: trainingType.rawValue)
+            .eq("id", value: progressId.uuidString)
             .select()
             .single()
+            .execute()
+            .value
+    }
+
+    func getTrainingHistory(userId: UUID, trainingType: BeaconTrainingType) async throws -> [BeaconTrainingProgress] {
+        try await client
+            .from("beacon_training_progress")
+            .select()
+            .eq("pilot_id", value: userId.uuidString)
+            .eq("training_type", value: trainingType.rawValue)
+            .order("uploaded_at", ascending: false)
             .execute()
             .value
     }
@@ -263,26 +272,28 @@ class BeaconService: ObservableObject {
     }
 
     func updateTrainingExpiration(
-        userId: UUID,
-        trainingType: BeaconTrainingType,
+        progressId: UUID,
         expiresAt: Date
     ) async throws -> BeaconTrainingProgress {
         isLoading = true
         defer { isLoading = false }
 
         let updatedProgress = try await backend.updateTrainingExpiration(
-            userId: userId,
-            trainingType: trainingType,
+            progressId: progressId,
             expiresAt: normalizedExpirationDate(expiresAt)
         )
 
-        if let index = self.trainingProgress.firstIndex(where: { $0.trainingType == trainingType }) {
+        if let index = self.trainingProgress.firstIndex(where: { $0.id == progressId }) {
             self.trainingProgress[index] = updatedProgress
         } else {
             self.trainingProgress.append(updatedProgress)
         }
 
         return updatedProgress
+    }
+
+    func getTrainingHistory(userId: UUID, trainingType: BeaconTrainingType) async throws -> [BeaconTrainingProgress] {
+        try await backend.getTrainingHistory(userId: userId, trainingType: trainingType)
     }
     
     // MARK: - Volunteer Status

@@ -236,6 +236,16 @@ struct CertificateBadgeUploadView: View {
                     .foregroundColor(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
 
+                HStack(spacing: 12) {
+                    ForEach([1, 2, 3], id: \.self) { years in
+                        Button("+\(years) Year\(years > 1 ? "s" : "")") {
+                            selectedExpirationDate = Calendar.current.date(byAdding: .year, value: years, to: Date()) ?? Date()
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(.blue)
+                    }
+                }
+
                 DatePicker(
                     "Expiration Date",
                     selection: $selectedExpirationDate,

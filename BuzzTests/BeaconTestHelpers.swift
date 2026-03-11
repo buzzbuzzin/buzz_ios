@@ -42,7 +42,7 @@ final class MockBeaconBackend: BeaconBackend {
     var nearbyVolunteers: [NearbyVolunteer] = []
     var uploadResult: BeaconTrainingProgress? = nil
     var updateExpirationCalled = false
-    var lastExpirationUpdate: (trainingType: BeaconTrainingType, expiresAt: Date)?
+    var lastExpirationUpdate: (progressId: UUID, expiresAt: Date)?
 
     // Captured parameters
     var lastAvailability: Bool?
@@ -72,13 +72,17 @@ final class MockBeaconBackend: BeaconBackend {
         return uploadResult ?? BeaconTestHelpers.sampleTrainingProgress(trainingType: trainingType, expiresAt: expiresAt)
     }
 
-    func updateTrainingExpiration(userId: UUID, trainingType: BeaconTrainingType, expiresAt: Date) async throws -> BeaconTrainingProgress {
+    func updateTrainingExpiration(progressId: UUID, expiresAt: Date) async throws -> BeaconTrainingProgress {
         updateExpirationCalled = true
-        lastExpirationUpdate = (trainingType, expiresAt)
+        lastExpirationUpdate = (progressId, expiresAt)
         if shouldThrowOnUpdateExpiration {
             throw NSError(domain: "MockBeaconBackend", code: -1, userInfo: [NSLocalizedDescriptionKey: "Mock update expiration error"])
         }
-        return BeaconTestHelpers.sampleTrainingProgress(trainingType: trainingType, expiresAt: expiresAt)
+        return BeaconTestHelpers.sampleTrainingProgress(id: progressId, expiresAt: expiresAt)
+    }
+
+    func getTrainingHistory(userId: UUID, trainingType: BeaconTrainingType) async throws -> [BeaconTrainingProgress] {
+        return trainingProgress.filter { $0.trainingType == trainingType }
     }
 
     func isUserBeaconVolunteer(userId: UUID) async throws -> Bool {

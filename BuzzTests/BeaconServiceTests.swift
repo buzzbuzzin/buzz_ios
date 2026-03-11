@@ -145,14 +145,14 @@ final class BeaconServiceTests: XCTestCase {
 
     func testUpdateTrainingExpiration_updatesProgress() async throws {
         let backend = MockBeaconBackend()
-        backend.trainingProgress = [BeaconTestHelpers.sampleTrainingProgress(trainingType: .cpr, expiresAt: nil)]
+        let progressId = UUID()
+        backend.trainingProgress = [BeaconTestHelpers.sampleTrainingProgress(id: progressId, trainingType: .cpr, expiresAt: nil)]
         let service = BeaconService(backend: backend)
         let futureDate = Date().addingTimeInterval(7 * 86400)
 
         _ = try await service.getTrainingProgress(userId: UUID())
         let result = try await service.updateTrainingExpiration(
-            userId: UUID(),
-            trainingType: .cpr,
+            progressId: progressId,
             expiresAt: futureDate
         )
 
