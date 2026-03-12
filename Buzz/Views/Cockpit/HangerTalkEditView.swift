@@ -38,6 +38,14 @@ struct HangerTalkEditView: View {
                 VStack(alignment: .leading, spacing: 16) {
                     // Text input
                     ZStack(alignment: .topLeading) {
+                        // Invisible text to drive dynamic height
+                        Text(bodyText.isEmpty ? " " : bodyText)
+                            .font(.body)
+                            .foregroundColor(.clear)
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 8)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+
                         if bodyText.isEmpty {
                             Text("What's happening?")
                                 .font(.body)
@@ -47,10 +55,11 @@ struct HangerTalkEditView: View {
                         }
                         TextEditor(text: $bodyText)
                             .font(.body)
-                            .frame(minHeight: 120)
                             .padding(.horizontal, 15)
                             .scrollContentBackground(.hidden)
+                            .scrollDisabled(true)
                     }
+                    .frame(minHeight: 120)
 
                     // Existing image previews
                     if !existingImageUrls.isEmpty || !newImages.isEmpty {

@@ -65,6 +65,14 @@ struct HangerHelpEditPostView: View {
 
                     // Body
                     ZStack(alignment: .topLeading) {
+                        // Invisible text to drive dynamic height
+                        Text(bodyText.isEmpty ? " " : bodyText)
+                            .font(.body)
+                            .foregroundColor(.clear)
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 8)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+
                         if bodyText.isEmpty {
                             Text("body text (optional)")
                                 .font(.body)
@@ -74,10 +82,11 @@ struct HangerHelpEditPostView: View {
                         }
                         TextEditor(text: $bodyText)
                             .font(.body)
-                            .frame(minHeight: 120)
                             .padding(.horizontal, 15)
                             .scrollContentBackground(.hidden)
+                            .scrollDisabled(true)
                     }
+                    .frame(minHeight: 120)
 
                     // Existing images
                     if !existingImageUrls.isEmpty || !newImages.isEmpty {
