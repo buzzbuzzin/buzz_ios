@@ -27,8 +27,7 @@ struct PilotBookingListView: View {
     private let maxRadius: Double = 200
     
     var filteredBookings: [Booking] {
-        // Exclude expired bookings from available list
-        var bookings = bookingService.availableBookings.filter { $0.status != .expired }
+        var bookings = bookingService.availableBookings.filter { $0.status == .available }
 
         // Filter by category
         if let category = selectedCategory {
@@ -58,11 +57,6 @@ struct PilotBookingListView: View {
     /// S&R bookings that are staffed and ready to start
     var staffedBookings: [Booking] {
         bookingService.myBookings.filter { $0.status == .staffed }
-    }
-
-    /// Crew bookings the pilot has joined, still filling crew slots
-    var pendingCrewBookings: [Booking] {
-        bookingService.myBookings.filter { $0.isCrewBooking && $0.status == .available }
     }
 
     private var isAwaitingAuth: Bool {
@@ -262,40 +256,8 @@ struct PilotBookingListView: View {
                                     .padding(.horizontal)
                             }
 
-                            // Pending Crew Section (joined but still recruiting)
-                            if !pendingCrewBookings.isEmpty {
-                                VStack(alignment: .leading, spacing: 8) {
-                                    Label("Pending Crew", systemImage: "person.badge.clock")
-                                        .font(.headline)
-                                        .foregroundColor(.yellow)
-                                        .padding(.horizontal)
-
-                                    ForEach(pendingCrewBookings) { booking in
-                                        NavigationLink(destination: BookingDetailView(booking: booking)) {
-                                            HStack {
-                                                BookingCard(booking: booking)
-                                                Spacer()
-                                                Text("Joined")
-                                                    .font(.caption)
-                                                    .fontWeight(.bold)
-                                                    .foregroundColor(.yellow)
-                                                    .padding(.horizontal, 8)
-                                                    .padding(.vertical, 4)
-                                                    .background(Color.yellow.opacity(0.15))
-                                                    .cornerRadius(6)
-                                            }
-                                        }
-                                        .padding(.horizontal)
-                                    }
-                                }
-                                .padding(.top, 4)
-
-                                Divider()
-                                    .padding(.horizontal)
-                            }
-
                             // Available Bookings
-                            if filteredBookings.isEmpty && inProgressBookings.isEmpty && staffedBookings.isEmpty && pendingCrewBookings.isEmpty {
+                            if filteredBookings.isEmpty && inProgressBookings.isEmpty && staffedBookings.isEmpty {
                                 EmptyStateView(
                                     icon: "airplane.departure",
                                     title: selectedCategory == nil ? "No Available Bookings" : "No \(selectedCategory?.displayName ?? "") Jobs",
@@ -303,7 +265,7 @@ struct PilotBookingListView: View {
                                 )
                                 .padding(.top, 40)
                             } else if !filteredBookings.isEmpty {
-                                if !inProgressBookings.isEmpty || !staffedBookings.isEmpty || !pendingCrewBookings.isEmpty {
+                                if !inProgressBookings.isEmpty || !staffedBookings.isEmpty {
                                     Text("Available Jobs")
                                         .font(.headline)
                                         .padding(.horizontal)
