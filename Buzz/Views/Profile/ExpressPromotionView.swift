@@ -17,27 +17,28 @@ struct CommanderPromotionCard: View {
     let applications: [ExpressPromotionApplication]
     let hasPassedGroundSchoolTest: Bool
     let isLoadingTestStatus: Bool
-    
+    var onTakeTest: (() -> Void)? = nil
+
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Step 2: Commander Promotion")
                 .font(.title2)
                 .fontWeight(.bold)
                 .padding(.horizontal)
-            
+
             // Check from applications as well in case state hasn't updated
             let hasVerifiedLieutenant = hasLieutenantPromotion || applications.contains { $0.promotionType == .lieutenant && $0.status == .verified }
             let hasCommanderPromotion = applications.contains { $0.promotionType == .commander && $0.status == .verified }
             // Locked if: Step 1 not finished OR (Step 1 finished but test not passed and not promoted)
             let isLocked = !hasVerifiedLieutenant || (!hasPassedGroundSchoolTest && !hasCommanderPromotion)
-            
+
             HStack(spacing: 16) {
                 // Lock/Checkmark Icon
                 ZStack {
                     Circle()
                         .fill(isLocked ? Color.gray.opacity(0.2) : Color.green.opacity(0.2))
                         .frame(width: 50, height: 50)
-                    
+
                     if isLocked {
                         Image(systemName: "lock.fill")
                             .foregroundColor(.gray)
@@ -52,24 +53,19 @@ struct CommanderPromotionCard: View {
                             .font(.headline)
                     }
                 }
-                
+
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
                         Text("Commander")
                             .font(.headline)
                             .foregroundColor(isLocked ? .secondary : .primary)
-                        
+
                         if isLocked {
                             Text("🔒")
                                 .font(.caption)
                         }
                     }
-                    
-//                    Text("Pass the Ground School Test to automatically advance to Commander rank")
-//                        .font(.subheadline)
-//                        .foregroundColor(.secondary)
-//                        .lineLimit(2)
-                    
+
                     if isLoadingTestStatus {
                         ProgressView()
                             .scaleEffect(0.8)
@@ -102,9 +98,9 @@ struct CommanderPromotionCard: View {
                             .padding(.top, 4)
                     }
                 }
-                
+
                 Spacer()
-                
+
                 if isLocked {
                     Image(systemName: "lock.circle.fill")
                         .foregroundColor(.gray)
@@ -120,6 +116,25 @@ struct CommanderPromotionCard: View {
             .cornerRadius(12)
             .opacity(isLocked ? 0.7 : 1.0)
             .padding(.horizontal)
+
+            // Take Ground School Test button for express-promoted pilots
+            if hasVerifiedLieutenant && !hasPassedGroundSchoolTest && !hasCommanderPromotion && !isLoadingTestStatus && onTakeTest != nil {
+                Button(action: {
+                    onTakeTest?()
+                }) {
+                    HStack {
+                        Image(systemName: "doc.text.fill")
+                        Text("Take Ground School Test")
+                            .fontWeight(.semibold)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color.blue)
+                    .foregroundColor(.white)
+                    .cornerRadius(12)
+                }
+                .padding(.horizontal)
+            }
         }
         .padding(.top)
     }
@@ -142,6 +157,10 @@ struct ExpressPromotionView: View {
     @State private var hasLieutenantPromotion = false
     @State private var hasPassedGroundSchoolTest = false
     @State private var isLoadingTestStatus = false
+    @State private var showGroundSchoolTestIntro = false
+    @State private var showGroundSchoolTest = false
+    @State private var pendingStartTest = false
+    @State private var groundSchoolCourseTest: CourseTest?
     
     var body: some View {
         ScrollView {
@@ -333,7 +352,10 @@ struct ExpressPromotionView: View {
                     hasLieutenantPromotion: hasLieutenantPromotion,
                     applications: expressPromotionService.applications,
                     hasPassedGroundSchoolTest: hasPassedGroundSchoolTest,
-                    isLoadingTestStatus: isLoadingTestStatus
+                    isLoadingTestStatus: isLoadingTestStatus,
+                    onTakeTest: {
+                        showGroundSchoolTestIntro = true
+                    }
                 )
             }
             .padding(.bottom)
@@ -364,19 +386,58 @@ struct ExpressPromotionView: View {
         } message: {
             Text(errorMessage)
         }
+        .sheet(isPresented: $showGroundSchoolTestIntro, onDismiss: {
+            if pendingStartTest {
+                pendingStartTest = false
+                showGroundSchoolTest = true
+            }
+        }) {
+            if let test = groundSchoolCourseTest {
+                GroundSchoolTestIntroView(
+                    course: uasPilotCourse,
+                    test: test,
+                    onStartTest: {
+                        pendingStartTest = true
+                        showGroundSchoolTestIntro = false
+                    }
+                )
+            } else {
+                VStack(spacing: 16) {
+                    ProgressView()
+                    Text("Loading test information...")
+                        .foregroundColor(.secondary)
+                }
+            }
+        }
+        .fullScreenCover(isPresented: $showGroundSchoolTest) {
+            if let currentUser = authService.currentUser,
+               let test = groundSchoolCourseTest {
+                MultipleChoiceTestView(
+                    testId: test.id,
+                    course: uasPilotCourse,
+                    pilotId: currentUser.id,
+                    testName: test.testName,
+                    passingScore: test.passingScore,
+                    durationMinutes: test.duration ?? 60,
+                    onDismiss: {
+                        showGroundSchoolTest = false
+                        Task {
+                            await checkStatus()
+                        }
+                    }
+                )
+                .environmentObject(authService)
+            }
+        }
         .task {
             await loadApplications()
             await checkStatus()
+            await loadGroundSchoolTest()
         }
         .refreshable {
             await loadApplications()
             await checkStatus()
-        }
-        .onAppear {
-            // Refresh status when view appears (one-time check)
-            Task {
-                await checkStatus()
-            }
+            await loadGroundSchoolTest()
         }
     }
     
@@ -523,6 +584,44 @@ struct ExpressPromotionView: View {
                 showError = true
                 isSubmitting = false
             }
+        }
+    }
+
+    // MARK: - Ground School Test (Express Promotion)
+
+    private static let uasPilotCourseId = UUID(uuidString: "a1b2c3d4-e5f6-7890-abcd-ef1234567890")!
+
+    private var uasPilotCourse: TrainingCourse {
+        TrainingCourse(
+            id: Self.uasPilotCourseId,
+            title: "UAS Pilot Course",
+            description: "UAS Pilot Ground School",
+            duration: "10 hours",
+            level: .beginner,
+            category: .mandatory,
+            instructor: "Buzz",
+            instructorPictureUrl: nil,
+            rating: 5.0,
+            studentsCount: 0,
+            isEnrolled: true,
+            provider: .buzz,
+            requiresUasGroundSchool: false,
+            requiresFlightReviewPassed: false,
+            requiresRocAPassed: false,
+            externalUrl: nil,
+            coverImageUrl: nil,
+            region: .global,
+            active: true
+        )
+    }
+
+    private func loadGroundSchoolTest() async {
+        let academyService = AcademyService()
+        do {
+            let tests = try await academyService.fetchCourseTests(courseId: Self.uasPilotCourseId)
+            groundSchoolCourseTest = tests.first { $0.testType == "multiple_choice" }
+        } catch {
+            print("Error loading ground school test: \(error)")
         }
     }
 }

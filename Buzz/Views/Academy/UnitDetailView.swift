@@ -22,6 +22,7 @@ struct UnitDetailView: View {
     @State private var courseTest: CourseTest?
     @State private var showSlidePresentation = false
     @State private var isLastMandatoryUnit = false
+    @State private var hasExpressPromotion = false
     
     var body: some View {
         ScrollView {
@@ -188,8 +189,8 @@ struct UnitDetailView: View {
                 }
                 
                 
-                // Take Test Button (after completing required units)
-                if isLastMandatoryUnit && isCompleted && canTakeTest, let test = courseTest {
+                // Take Test Button (after completing required units, or express promotion bypass)
+                if ((isLastMandatoryUnit && isCompleted) || hasExpressPromotion) && canTakeTest, let test = courseTest {
                     Button(action: {
                         showTestView = true
                     }) {
@@ -239,8 +240,9 @@ struct UnitDetailView: View {
         .task {
             await checkCompletionStatus()
             await loadCourseTest()
+            await checkExpressPromotionStatus()
             await checkIfLastMandatoryUnit()
-            if isLastMandatoryUnit {
+            if isLastMandatoryUnit || hasExpressPromotion {
                 await checkIfCanTakeTest()
             }
         }
@@ -308,6 +310,17 @@ struct UnitDetailView: View {
         print("✅ [UnitDetailView] Is last mandatory unit: \(isLastMandatoryUnit) (unit \(unit.unitNumber), required: \(requiredUnitIds))")
     }
     
+    private static let uasPilotCourseId = UUID(uuidString: "a1b2c3d4-e5f6-7890-abcd-ef1234567890")!
+
+    private func checkExpressPromotionStatus() async {
+        // Express promotion bypass only applies to the UAS Pilot course
+        guard course.id == Self.uasPilotCourseId else { return }
+        guard !DemoModeManager.shared.isDemoModeEnabled else { return }
+        guard let currentUser = authService.currentUser else { return }
+        let expressPromotionService = ExpressPromotionService()
+        hasExpressPromotion = await expressPromotionService.hasLieutenantPromotion(pilotId: currentUser.id)
+    }
+
     private func checkCompletionStatus() async {
         guard let currentUser = authService.currentUser else { return }
         
@@ -353,8 +366,8 @@ struct UnitDetailView: View {
             try? await Task.sleep(nanoseconds: 2_000_000_000)
             showCompletionSuccess = false
 
-            // If this is unit 3, check if can take test
-            if isLastMandatoryUnit {
+            // If this is the last mandatory unit or express promoted, check if can take test
+            if isLastMandatoryUnit || hasExpressPromotion {
                 await checkIfCanTakeTest()
             }
         } catch {
@@ -368,18 +381,26 @@ struct UnitDetailView: View {
             canTakeTest = false
             return
         }
-        
+
         do {
+            // Express promotion bypass: if pilot has verified lieutenant promotion,
+            // they can take the ground school test without completing prerequisite units
+            if hasExpressPromotion {
+                canTakeTest = true
+                print("✅ [UnitDetailView] Express promotion bypass - can take test")
+                return
+            }
+
             let supabase = SupabaseClient.shared.client
-            
+
             // Get the required units from the test (fetched from backend)
             let requiredUnitIds = test.requiredUnits
-            
+
             if requiredUnitIds.isEmpty {
                 // If no required units specified, default to checking mandatory units (legacy behavior)
                 let allUnits = try await academyService.fetchCourseUnits(courseId: course.id)
                 let mandatoryUnits = allUnits.filter { $0.isMandatory }
-                
+
                 // Check if all mandatory units are completed
                 var allCompleted = true
                 for mandatoryUnit in mandatoryUnits {
@@ -390,7 +411,7 @@ struct UnitDetailView: View {
                         .eq("unit_id", value: mandatoryUnit.id.uuidString)
                         .execute()
                         .value
-                    
+
                     if response.isEmpty {
                         allCompleted = false
                         break
@@ -408,7 +429,7 @@ struct UnitDetailView: View {
                 // Check if all required units are in the completed set
                 canTakeTest = requiredUnitIds.allSatisfy { completedUnitIds.contains($0) }
             }
-            
+
             print("✅ [UnitDetailView] Can take test: \(canTakeTest)")
         } catch {
             print("Error checking if can take test: \(error)")
