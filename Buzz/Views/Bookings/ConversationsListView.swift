@@ -44,30 +44,35 @@ struct ConversationsListView: View {
                         if !directMessageConversations.isEmpty {
                             Section("Direct Messages") {
                                 ForEach(directMessageConversations) { conversation in
-                                    SwipeableConversationRow(
-                                        content: {
-                                            NavigationLink(
-                                                destination: DirectMessageView(
-                                                    pilotId: conversation.partnerId,
-                                                    pilotProfile: conversation.partnerProfile
-                                                ),
-                                                tag: conversation.id,
-                                                selection: $selectedDirectConversationId
-                                            ) {
-                                                DirectMessageConversationRow(conversation: conversation)
-                                            }
-                                        },
-                                        onDelete: {
+                                    NavigationLink(
+                                        destination: DirectMessageView(
+                                            pilotId: conversation.partnerId,
+                                            pilotProfile: conversation.partnerProfile
+                                        ),
+                                        tag: conversation.id,
+                                        selection: $selectedDirectConversationId
+                                    ) {
+                                        DirectMessageConversationRow(conversation: conversation)
+                                    }
+                                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                        Button(role: .destructive) {
                                             conversationToDelete = conversation.partnerId
                                             isDirectMessageDelete = true
                                             showDeleteConfirmation = true
-                                        },
-                                        onMarkUnread: {
+                                        } label: {
+                                            Label("Delete", systemImage: "trash")
+                                        }
+                                    }
+                                    .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                                        Button {
                                             Task {
                                                 await markDirectMessageAsUnread(partnerId: conversation.partnerId)
                                             }
+                                        } label: {
+                                            Label("Unread", systemImage: "message.badge")
                                         }
-                                    )
+                                        .tint(.blue)
+                                    }
                                 }
                             }
                         }
@@ -76,30 +81,35 @@ struct ConversationsListView: View {
                         if !conversations.isEmpty {
                             Section("Booking Messages") {
                                 ForEach(conversations) { conversation in
-                                    SwipeableConversationRow(
-                                        content: {
-                                            NavigationLink(
-                                                destination: MessageView(
-                                                    customerProfile: conversation.otherUserProfile,
-                                                    booking: conversation.booking
-                                                ),
-                                                tag: conversation.id,
-                                                selection: $selectedBookingConversationId
-                                            ) {
-                                                ConversationRow(conversation: conversation)
-                                            }
-                                        },
-                                        onDelete: {
+                                    NavigationLink(
+                                        destination: MessageView(
+                                            customerProfile: conversation.otherUserProfile,
+                                            booking: conversation.booking
+                                        ),
+                                        tag: conversation.id,
+                                        selection: $selectedBookingConversationId
+                                    ) {
+                                        ConversationRow(conversation: conversation)
+                                    }
+                                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                        Button(role: .destructive) {
                                             conversationToDelete = conversation.id
                                             isDirectMessageDelete = false
                                             showDeleteConfirmation = true
-                                        },
-                                        onMarkUnread: {
+                                        } label: {
+                                            Label("Delete", systemImage: "trash")
+                                        }
+                                    }
+                                    .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                                        Button {
                                             Task {
                                                 await markBookingMessagesAsUnread(bookingId: conversation.id)
                                             }
+                                        } label: {
+                                            Label("Unread", systemImage: "message.badge")
                                         }
-                                    )
+                                        .tint(.blue)
+                                    }
                                 }
                             }
                         }
@@ -489,116 +499,3 @@ struct DirectMessageConversationRow: View {
     }
 }
 
-// MARK: - Swipeable Conversation Row
-
-struct SwipeableConversationRow<Content: View>: View {
-    let content: Content
-    let onDelete: () -> Void
-    let onMarkUnread: () -> Void
-    
-    @State private var offset: CGFloat = 0
-    @State private var isDeleting = false
-    
-    init(
-        @ViewBuilder content: () -> Content,
-        onDelete: @escaping () -> Void,
-        onMarkUnread: @escaping () -> Void
-    ) {
-        self.content = content()
-        self.onDelete = onDelete
-        self.onMarkUnread = onMarkUnread
-    }
-    
-    var body: some View {
-        ZStack(alignment: .trailing) {
-            // Background actions
-            HStack(spacing: 0) {
-                // Mark as unread (swipe right)
-                HStack(spacing: 0) {
-                    Button(action: {
-                        withAnimation {
-                            offset = 0
-                        }
-                        onMarkUnread()
-                    }) {
-                        Image(systemName: "message.badge")
-                            .foregroundColor(.blue)
-                            .font(.system(size: 18, weight: .semibold))
-                            .frame(width: 42, height: 50)
-                            .background(
-                                RoundedRectangle(cornerRadius: 10)
-                                    .fill(Color.blue.opacity(0.12))
-                            )
-                    }
-                    .buttonStyle(.plain)
-                    .padding(.leading, 8)
-                    Spacer()
-                        .frame(width: 15) // Gap between button and content
-                }
-                
-                Spacer()
-                
-                // Delete (swipe left)
-                HStack(spacing: 0) {
-                    Spacer()
-                        .frame(width: 15) // Gap between content and button
-                    Button(action: {
-                        withAnimation {
-                            offset = 0
-                            isDeleting = true
-                        }
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                            onDelete()
-                        }
-                    }) {
-                        Image(systemName: "trash.fill")
-                            .foregroundColor(.white)
-                            .font(.system(size: 18, weight: .semibold))
-                            .frame(width: 42, height: 50)
-                            .background(
-                                RoundedRectangle(cornerRadius: 10)
-                                    .fill(Color.red)
-                            )
-                    }
-                    .buttonStyle(.plain)
-                    .padding(.trailing, 8)
-                }
-            }
-            
-            // Content
-            content
-                .background(Color(.systemBackground))
-                .offset(x: offset)
-                .simultaneousGesture(
-                    DragGesture()
-                        .onChanged { value in
-                            let dragAmount = value.translation.width
-                            // Limit swipe distance (42 for button + 15 for gap + 8 for edge padding)
-                            if dragAmount > 0 {
-                                // Swipe right - show unread
-                                offset = min(dragAmount, 65)
-                            } else {
-                                // Swipe left - show delete
-                                offset = max(dragAmount, -65)
-                            }
-                        }
-                        .onEnded { value in
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                if abs(value.translation.width) > 30 {
-                                    // Snap to action
-                                    offset = value.translation.width > 0 ? 65 : -65
-                                } else {
-                                    // Snap back
-                                    offset = 0
-                                }
-                            }
-                        }
-                )
-        }
-        .onChange(of: isDeleting) { _, newValue in
-            if newValue {
-                offset = 0
-            }
-        }
-    }
-}

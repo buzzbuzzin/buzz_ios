@@ -18,13 +18,10 @@ struct PilotBookingListView: View {
     @State private var showMapView = false
     @State private var showConversations = false
     @State private var selectedCategory: BookingSpecialization? = nil
-    @State private var radiusMiles: Double = 25.0 // Default 25 miles
+    @AppStorage(MissionDistancePreference.storageKey)
+    private var missionDistanceMiles: Double = MissionDistancePreference.defaultMiles
     @State private var isRadiusExpanded = false // Collapse/expand radius filter
     @State private var showExpressPromotionCard = true // Show promotion card
-    
-    // Radius options: 5, 25, 50, 100, 200 miles
-    private let radiusOptions: [Double] = [5, 25, 50, 100, 200]
-    private let maxRadius: Double = 200
     
     var filteredBookings: [Booking] {
         var bookings = bookingService.availableBookings.filter { $0.status == .available }
@@ -37,7 +34,7 @@ struct PilotBookingListView: View {
         // Filter by radius if location is available
         if let pilotLocation = locationManager.currentLocation {
             let pilotCLLocation = CLLocation(latitude: pilotLocation.latitude, longitude: pilotLocation.longitude)
-            let radiusMeters = radiusMiles * 1609.34 // Convert miles to meters
+            let radiusMeters = missionDistanceMiles * 1609.34 // Convert miles to meters
 
             bookings = bookings.filter { booking in
                 let bookingLocation = CLLocation(latitude: booking.locationLat, longitude: booking.locationLng)
@@ -113,13 +110,13 @@ struct PilotBookingListView: View {
                             .foregroundColor(.blue)
                             .font(.system(size: 16))
                         
-                        Text("Search Radius")
+                        Text("Mission Distance")
                             .font(.subheadline)
                             .fontWeight(.medium)
                         
                         Spacer()
                         
-                        Text(String(format: "%.0f mi", radiusMiles))
+                        Text(String(format: "%.0f mi", missionDistanceMiles))
                             .font(.subheadline)
                             .fontWeight(.semibold)
                             .foregroundColor(.blue)
@@ -143,25 +140,25 @@ struct PilotBookingListView: View {
                     if isRadiusExpanded {
                         VStack(spacing: 4) {
                             // Slider
-                            Slider(value: $radiusMiles, in: 1...maxRadius, step: 1)
+                            Slider(value: $missionDistanceMiles, in: 1...MissionDistancePreference.maxMiles, step: 1)
                                 .tint(.blue)
                                 .padding(.horizontal)
                             
                             // Quick selection buttons
                             HStack(spacing: 8) {
-                                ForEach(radiusOptions, id: \.self) { radius in
+                                ForEach(MissionDistancePreference.quickOptions, id: \.self) { radius in
                                     Button(action: {
                                         withAnimation {
-                                            radiusMiles = radius
+                                            missionDistanceMiles = radius
                                         }
                                     }) {
                                         Text("\(Int(radius))")
                                             .font(.caption)
-                                            .fontWeight(radiusMiles == radius ? .bold : .regular)
+                                            .fontWeight(missionDistanceMiles == radius ? .bold : .regular)
                                             .padding(.horizontal, 12)
                                             .padding(.vertical, 4)
-                                            .background(radiusMiles == radius ? Color.blue : Color(.systemGray5))
-                                            .foregroundColor(radiusMiles == radius ? .white : .primary)
+                                            .background(missionDistanceMiles == radius ? Color.blue : Color(.systemGray5))
+                                            .foregroundColor(missionDistanceMiles == radius ? .white : .primary)
                                             .cornerRadius(12)
                                     }
                                 }
@@ -199,10 +196,10 @@ struct PilotBookingListView: View {
                                 .padding(.top, 8)
                             }
 
-                            // Active Jobs Section (in_progress bookings)
+                            // Active Missions Section (in_progress bookings)
                             if !inProgressBookings.isEmpty {
                                 VStack(alignment: .leading, spacing: 8) {
-                                    Label("Active Jobs", systemImage: "bolt.fill")
+                                    Label("Active Missions", systemImage: "bolt.fill")
                                         .font(.headline)
                                         .foregroundColor(.orange)
                                         .padding(.horizontal)
@@ -256,17 +253,17 @@ struct PilotBookingListView: View {
                                     .padding(.horizontal)
                             }
 
-                            // Available Bookings
+                            // Open Missions
                             if filteredBookings.isEmpty && inProgressBookings.isEmpty && staffedBookings.isEmpty {
                                 EmptyStateView(
                                     icon: "airplane.departure",
-                                    title: selectedCategory == nil ? "No Available Bookings" : "No \(selectedCategory?.displayName ?? "") Jobs",
-                                    message: selectedCategory == nil ? "Check back later for new drone pilot opportunities" : "Try selecting a different category"
+                                    title: "No Missions",
+                                    message: "Check regularly for missions to accept or decline."
                                 )
                                 .padding(.top, 40)
                             } else if !filteredBookings.isEmpty {
                                 if !inProgressBookings.isEmpty || !staffedBookings.isEmpty {
-                                    Text("Available Jobs")
+                                    Text("Open Missions")
                                         .font(.headline)
                                         .padding(.horizontal)
                                 }
@@ -285,7 +282,7 @@ struct PilotBookingListView: View {
                     }
                 }
             }
-            .navigationTitle("Available Jobs")
+            .navigationTitle("Accept or Decline Mission")
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button {
@@ -469,8 +466,8 @@ struct BookingCard: View {
                     }
                 }
                 
-                if let scheduledDate = booking.scheduledDate {
-                    Text("Start at \(formatStartTime(scheduledDate)) (\(formatZuluTime(scheduledDate)))")
+            if let scheduledDate = booking.scheduledDate {
+                Text("Start at \(formatStartTime(scheduledDate)) (\(formatZuluTime(scheduledDate)))")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }

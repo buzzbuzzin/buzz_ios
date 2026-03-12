@@ -63,6 +63,17 @@ struct SettingsView: View {
                         .foregroundColor(.secondary)
                 }
             }
+
+            if authService.userProfile?.userType == .pilot {
+                NavigationLink(destination: MissionDistanceSettingsView()) {
+                    HStack {
+                        Text("Mission Distance")
+                        Spacer()
+                        Text(String(format: "%.0f mi", MissionDistancePreference.savedMiles))
+                            .foregroundColor(.secondary)
+                    }
+                }
+            }
             
             // Login & Security
             NavigationLink(destination: LoginSecurityView()) {

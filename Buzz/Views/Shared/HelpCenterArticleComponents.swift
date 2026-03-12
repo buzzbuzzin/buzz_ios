@@ -323,61 +323,61 @@ extension HelpCenterArticle {
         ),
         HelpCenterArticle(
             id: "accept-booking",
-            title: "How to Accept a Booking",
-            summary: "Find available jobs, review the details, clear the identity requirement, and move the booking into your active flight list.",
+            title: "How to Accept or Join a Mission",
+            summary: "Find available missions, review the details, clear the identity requirement, and move the mission into your active flight list.",
             icon: "airplane.departure",
             accent: .orange,
             category: .bookings,
             readTime: "5 min",
-            keywords: ["accept booking", "jobs", "my flights", "available bookings", "identity verification", "join mission", "join crew"],
+            keywords: ["accept booking", "accept mission", "missions", "my flights", "available missions", "identity verification", "join mission", "join crew"],
             sections: [
                 HelpCenterArticleSection(
-                    title: "Where pilots find jobs",
+                    title: "Where pilots find missions",
                     paragraphs: [
-                        "Pilots browse work from the Jobs tab. This list supports category filters and a search radius, so it is designed for scanning nearby opportunities quickly before opening a full booking detail page.",
-                        "Once you accept a job, it stops being just a listing and becomes part of your active workload inside My Flights."
+                        "Pilots browse work from the Missions tab. The screen title is Accept or Decline Mission, and the list supports category filters plus a mission distance setting so you can scan nearby opportunities before opening the full detail page.",
+                        "Once you accept or join a mission, it stops being just a listing and becomes part of your active workload inside My Flights."
                     ],
                     steps: [
-                        "Open the Jobs tab.",
+                        "Open the Missions tab.",
                         "Use the specialization chips across the top if you only want certain mission types.",
-                        "Expand Search Radius to tighten or widen the distance filter based on how far you are willing to travel.",
-                        "Open a booking card to read the full booking detail, schedule, pay, address, specialization, and any crew requirements."
+                        "Adjust Mission Distance from the filter on the Missions screen, or go to Account > Settings > Mission Distance to set how far you are prepared to travel.",
+                        "Open a mission card to read the full mission detail, schedule, pay, address, specialization, and any crew requirements."
                     ],
                     tips: [
-                        "Expired jobs are filtered out of the available list, so if a listing disappears it may have timed out or been accepted.",
-                        "Crew bookings use Join Crew or Join Mission language instead of the standard Accept Booking button."
+                        "Expired missions are filtered out of the available list, so if a listing disappears it may have timed out or been accepted.",
+                        "Crew missions use Join Crew or Join Mission language instead of the standard Accept Mission button."
                     ]
                 ),
                 HelpCenterArticleSection(
                     title: "What blocks acceptance",
                     paragraphs: [
-                        "The app checks pilot identity before allowing acceptance. If you are not verified, the booking detail page disables the accept action and tells you that identity verification is required.",
+                        "The app checks pilot identity before allowing acceptance. If you are not verified, the mission detail page disables the accept action and tells you that identity verification is required.",
                         "License readiness also matters operationally. Buzz encourages you to upload your pilot certificates early so the account is clearly flight-ready."
                     ],
                     steps: [
-                        "If the booking detail shows Identity verification required to accept bookings, leave the booking and go to Account > Government ID.",
+                        "If the mission detail shows Identity verification required to accept missions, leave the mission and go to Account > Government ID.",
                         "Finish or retry the Stripe Identity flow until the status becomes verified.",
-                        "Return to the booking detail page after verification and review the booking again before accepting."
+                        "Return to the mission detail page after verification and review the mission again before accepting."
                     ],
                     tips: [
-                        "Government ID is the explicit in-app blocker for booking acceptance.",
+                        "Government ID is the explicit in-app blocker for mission acceptance.",
                         "Keeping Pilot Licenses current is still recommended before taking work, especially if you expect your account to be reviewed."
                     ]
                 ),
                 HelpCenterArticleSection(
                     title: "The actual acceptance flow",
                     paragraphs: [
-                        "Regular jobs and crew jobs diverge at the final button, but the review discipline is the same: check timing, location, scope, pay, and whether the mission type fits your equipment and rank."
+                        "Regular missions and crew missions diverge at the final button, but the review discipline is the same: check timing, location, scope, pay, and whether the mission type fits your equipment and rank."
                     ],
                     steps: [
-                        "In Booking Details, tap Accept Booking for a standard job, or Join Crew / Join Mission for a crew-based job.",
+                        "In Mission Details, tap Accept Mission for a standard mission, or Join Crew / Join Mission for a crew-based mission.",
                         "Confirm the alert when Buzz asks whether you are sure you want to accept or join.",
-                        "Wait for the booking to refresh. A successful acceptance updates the booking state and the listing leaves the available pool.",
-                        "Open My Flights to confirm the booking appears under Active once you are assigned."
+                        "Wait for the mission to refresh. A successful acceptance updates the mission state and the listing leaves the available pool.",
+                        "Open My Flights to confirm the mission appears under Active once you are assigned."
                     ],
                     tips: [
                         "Crew missions can remain in an available state while the crew is still filling, so do not assume available always means unassigned to everyone.",
-                        "Notifications and deep links can bring you back into Booking Details later for reminders, cancellation updates, and accepted-booking events."
+                        "Notifications and deep links can bring you back into Mission Details later for reminders, cancellation updates, and accepted-mission events."
                     ]
                 )
             ]

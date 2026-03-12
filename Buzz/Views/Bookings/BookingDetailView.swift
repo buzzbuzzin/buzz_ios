@@ -725,7 +725,7 @@ struct BookingDetailView: View {
                                 } else {
                                     // Non-crew booking - regular accept
                                     CustomButton(
-                                        title: "Accept Booking",
+                                        title: "Accept Mission",
                                         action: { showAcceptAlert = true },
                                         isLoading: bookingService.isLoading
                                     )
@@ -734,7 +734,7 @@ struct BookingDetailView: View {
                             } else {
                                 VStack(spacing: 8) {
                                     CustomButton(
-                                        title: currentBooking.isCrewBooking ? (currentBooking.isSearchRescueCrewBooking ? "Join Mission" : "Join Crew") : "Accept Booking",
+                                        title: currentBooking.isCrewBooking ? (currentBooking.isSearchRescueCrewBooking ? "Join Mission" : "Join Crew") : "Accept Mission",
                                         action: { showVerificationRequiredAlert = true },
                                         isLoading: false
                                     )
@@ -746,7 +746,7 @@ struct BookingDetailView: View {
                                         Image(systemName: "exclamationmark.triangle.fill")
                                             .foregroundColor(.orange)
                                             .font(.caption)
-                                        Text("Identity verification required to accept bookings")
+                                        Text("Identity verification required to accept missions")
                                             .font(.caption)
                                             .foregroundColor(.orange)
                                     }
@@ -882,7 +882,7 @@ struct BookingDetailView: View {
                 await loadCrewInfo()
             }
         }
-        .navigationTitle("Booking Details")
+        .navigationTitle("Mission Details")
         .navigationBarTitleDisplayMode(.inline)
         .modifier(WithdrawModifier(
             booking: currentBooking,
@@ -893,13 +893,13 @@ struct BookingDetailView: View {
             isPresented: $showWithdrawAlert,
             onConfirm: { withdrawFromBooking() }
         ))
-        .alert("Accept Booking", isPresented: $showAcceptAlert) {
+        .alert("Accept Mission", isPresented: $showAcceptAlert) {
             Button("Cancel", role: .cancel) {}
             Button("Accept") {
                 acceptBooking()
             }
         } message: {
-            Text("Are you sure you want to accept this booking?")
+            Text("Are you sure you want to accept this mission?")
         }
         .alert("Complete Booking", isPresented: $showCompleteAlert) {
             Button("Cancel", role: .cancel) {}

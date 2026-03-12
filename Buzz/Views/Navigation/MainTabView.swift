@@ -30,6 +30,8 @@ struct MainTabView: View {
 struct PilotTabView: View {
     @EnvironmentObject var authService: AuthService
     @EnvironmentObject var deepLinkManager: DeepLinkManager
+    @AppStorage(MissionDistancePreference.storageKey)
+    private var missionDistanceMiles: Double = MissionDistancePreference.defaultMiles
     @StateObject private var bookingService = BookingService()
     @StateObject private var locationManager = BookingMapLocationManager()
     @StateObject private var beaconService = BeaconService()
@@ -45,7 +47,7 @@ struct PilotTabView: View {
         TabView(selection: $selectedTab) {
             PilotBookingListView()
                 .tabItem {
-                    Label("Jobs", systemImage: "drone.fill")
+                    Label("Missions", systemImage: "drone.fill")
                 }
                 .tag(0)
 
@@ -115,6 +117,11 @@ struct PilotTabView: View {
                 await checkForNearbyBeaconMissions()
             }
         }
+        .onChange(of: missionDistanceMiles) { _, _ in
+            Task {
+                await checkForNearbyBeaconMissions()
+            }
+        }
         .alert("Unable to Open Booking", isPresented: $showDeepLinkError) {
             Button("OK", role: .cancel) {
                 deepLinkErrorMessage = nil
@@ -153,7 +160,7 @@ struct PilotTabView: View {
         // Filter by proximity if location is available
         if let pilotLocation = locationManager.currentLocation {
             let pilotCLLocation = CLLocation(latitude: pilotLocation.latitude, longitude: pilotLocation.longitude)
-            let radiusMeters = 25.0 * 1609.34 // 25 miles default radius
+            let radiusMeters = missionDistanceMiles * 1609.34
 
             let nearbyBeaconMissions = beaconMissions.filter { booking in
                 let bookingLocation = CLLocation(latitude: booking.locationLat, longitude: booking.locationLng)
@@ -343,7 +350,7 @@ struct MyFlightsView: View {
                     EmptyStateView(
                         icon: "airplane",
                         title: "No Flights Yet",
-                        message: "Accept bookings to see them here"
+                        message: "Accept missions to see them here"
                     )
                 } else {
                     List {
