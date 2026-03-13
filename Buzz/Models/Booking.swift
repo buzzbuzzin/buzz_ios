@@ -442,44 +442,21 @@ struct CrewStatusInfo: Codable {
 
 // MARK: - Booking Disputes
 
-enum DisputeStatus: String, Codable {
-    case open
-    case underReview = "under_review"
-    case resolved
-    case dismissed
-}
-
 enum DisputeReason: String, Codable {
     case incorrectCharge = "incorrect_charge"
     case serviceNotProvided = "service_not_provided"
     case qualityIssue = "quality_issue"
     case safetyConcern = "safety_concern"
     case other
-}
 
-struct BookingDispute: Codable, Identifiable {
-    let id: UUID
-    let bookingId: UUID
-    let initiatedBy: UUID
-    let reason: String
-    let description: String?
-    var status: DisputeStatus
-    var resolution: String?
-    let createdAt: Date
-    var resolvedAt: Date?
-    var resolvedBy: UUID?
-
-    enum CodingKeys: String, CodingKey {
-        case id
-        case bookingId = "booking_id"
-        case initiatedBy = "initiated_by"
-        case reason
-        case description
-        case status
-        case resolution
-        case createdAt = "created_at"
-        case resolvedAt = "resolved_at"
-        case resolvedBy = "resolved_by"
+    var displayName: String {
+        switch self {
+        case .incorrectCharge: return "Incorrect Charge"
+        case .serviceNotProvided: return "Service Not Provided"
+        case .qualityIssue: return "Quality Issue"
+        case .safetyConcern: return "Safety Concern"
+        case .other: return "Other"
+        }
     }
 }
 
