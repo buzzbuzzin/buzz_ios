@@ -17,6 +17,7 @@ struct BookingDetailView: View {
     @StateObject private var ratingService = RatingService()
     @StateObject private var profileService = ProfileService()
     @StateObject private var identityService = IdentityVerificationService()
+    @StateObject private var reportService = TicketReportService()
     @Environment(\.dismiss) var dismiss
     
     let booking: Booking
@@ -1027,7 +1028,7 @@ struct BookingDetailView: View {
             }
         }
         .sheet(isPresented: $showCreateDisputeSheet) {
-            CreateDisputeView(bookingId: currentBooking.id)
+            CreateTicketReportView(reportService: reportService, reportType: .dispute, bookingId: currentBooking.id)
         }
         .alert("Copied!", isPresented: $showCopyConfirmation) {
             Button("OK", role: .cancel) {}

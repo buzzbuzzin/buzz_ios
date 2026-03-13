@@ -147,31 +147,6 @@ final class BookingModelTests: XCTestCase {
         }
     }
 
-    // MARK: - DisputeStatus Enum
-
-    func testDisputeStatusRawValues() {
-        XCTAssertEqual(DisputeStatus.open.rawValue, "open")
-        XCTAssertEqual(DisputeStatus.underReview.rawValue, "under_review")
-        XCTAssertEqual(DisputeStatus.resolved.rawValue, "resolved")
-        XCTAssertEqual(DisputeStatus.dismissed.rawValue, "dismissed")
-    }
-
-    func testDisputeStatusDecodesFromJSON() throws {
-        let testCases: [(String, DisputeStatus)] = [
-            ("\"open\"", .open),
-            ("\"under_review\"", .underReview),
-            ("\"resolved\"", .resolved),
-            ("\"dismissed\"", .dismissed)
-        ]
-
-        let decoder = JSONDecoder()
-        for (json, expected) in testCases {
-            let data = json.data(using: .utf8)!
-            let decoded = try decoder.decode(DisputeStatus.self, from: data)
-            XCTAssertEqual(decoded, expected, "JSON \(json) should decode to \(expected)")
-        }
-    }
-
     // MARK: - DisputeReason Enum
 
     func testDisputeReasonRawValues() {
@@ -197,88 +172,6 @@ final class BookingModelTests: XCTestCase {
             let decoded = try decoder.decode(DisputeReason.self, from: data)
             XCTAssertEqual(decoded, expected, "JSON \(json) should decode to \(expected)")
         }
-    }
-
-    // MARK: - BookingDispute Model
-
-    func testBookingDisputeCodableRoundtrip() throws {
-        let disputeId = UUID()
-        let bookingId = UUID()
-        let userId = UUID()
-        let now = Date()
-
-        let dispute = BookingDispute(
-            id: disputeId,
-            bookingId: bookingId,
-            initiatedBy: userId,
-            reason: "quality_issue",
-            description: "Poor footage quality",
-            status: .open,
-            resolution: nil,
-            createdAt: now,
-            resolvedAt: nil,
-            resolvedBy: nil
-        )
-
-        let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
-        let data = try encoder.encode(dispute)
-
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        let decoded = try decoder.decode(BookingDispute.self, from: data)
-
-        XCTAssertEqual(decoded.id, disputeId)
-        XCTAssertEqual(decoded.bookingId, bookingId)
-        XCTAssertEqual(decoded.initiatedBy, userId)
-        XCTAssertEqual(decoded.reason, "quality_issue")
-        XCTAssertEqual(decoded.description, "Poor footage quality")
-        XCTAssertEqual(decoded.status, .open)
-        XCTAssertNil(decoded.resolution)
-        XCTAssertNil(decoded.resolvedAt)
-        XCTAssertNil(decoded.resolvedBy)
-    }
-
-    func testBookingDisputeCodingKeys_snakeCaseMapping() throws {
-        let json = """
-        {
-            "id": "11111111-1111-1111-1111-111111111111",
-            "booking_id": "22222222-2222-2222-2222-222222222222",
-            "initiated_by": "33333333-3333-3333-3333-333333333333",
-            "reason": "safety_concern",
-            "description": "Safety issue during flight",
-            "status": "under_review",
-            "resolution": null,
-            "created_at": "2026-01-15T10:00:00Z",
-            "resolved_at": null,
-            "resolved_by": null
-        }
-        """.data(using: .utf8)!
-
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        let dispute = try decoder.decode(BookingDispute.self, from: json)
-
-        XCTAssertEqual(dispute.id, UUID(uuidString: "11111111-1111-1111-1111-111111111111"))
-        XCTAssertEqual(dispute.bookingId, UUID(uuidString: "22222222-2222-2222-2222-222222222222"))
-        XCTAssertEqual(dispute.initiatedBy, UUID(uuidString: "33333333-3333-3333-3333-333333333333"))
-        XCTAssertEqual(dispute.reason, "safety_concern")
-        XCTAssertEqual(dispute.status, .underReview)
-    }
-
-    func testBookingDisputeResolvedFields() throws {
-        let resolverId = UUID()
-        let now = Date()
-        var dispute = MockBackend.sampleDispute(status: .open)
-        dispute.status = .resolved
-        dispute.resolution = "Refund issued"
-        dispute.resolvedAt = now
-        dispute.resolvedBy = resolverId
-
-        XCTAssertEqual(dispute.status, .resolved)
-        XCTAssertEqual(dispute.resolution, "Refund issued")
-        XCTAssertNotNil(dispute.resolvedAt)
-        XCTAssertEqual(dispute.resolvedBy, resolverId)
     }
 
     // MARK: - Booking Expiration Fields

@@ -1301,6 +1301,7 @@ struct CustomerBookingDetailView: View {
     @StateObject private var bookingService = BookingService()
     @StateObject private var ratingService = RatingService()
     @StateObject private var profileService = ProfileService()
+    @StateObject private var reportService = TicketReportService()
     let booking: Booking
     @State private var currentBooking: Booking
     @State private var region: MKCoordinateRegion
@@ -1855,7 +1856,7 @@ struct CustomerBookingDetailView: View {
             }
         }
         .sheet(isPresented: $showCreateDisputeSheet) {
-            CreateDisputeView(bookingId: currentBooking.id)
+            CreateTicketReportView(reportService: reportService, reportType: .dispute, bookingId: currentBooking.id)
         }
         .task {
             // Load pilot profile and refresh booking

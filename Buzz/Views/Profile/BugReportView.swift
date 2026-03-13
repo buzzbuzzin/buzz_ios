@@ -38,18 +38,20 @@ struct TicketReportListView: View {
                 }
             }
 
-            // FAB
-            Button(action: { showCreateSheet = true }) {
-                Image(systemName: "plus")
-                    .font(.title2)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.white)
-                    .frame(width: 56, height: 56)
-                    .background(Color.blue)
-                    .clipShape(Circle())
-                    .shadow(radius: 4)
+            if reportType != .dispute {
+                // FAB
+                Button(action: { showCreateSheet = true }) {
+                    Image(systemName: "plus")
+                        .font(.title2)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.white)
+                        .frame(width: 56, height: 56)
+                        .background(Color.blue)
+                        .clipShape(Circle())
+                        .shadow(radius: 4)
+                }
+                .padding(20)
             }
-            .padding(20)
         }
         .navigationTitle(reportType.listTitle)
         .navigationBarTitleDisplayMode(.inline)
@@ -152,6 +154,21 @@ struct TicketReportDetailView: View {
                 Divider()
                     .padding(.horizontal)
 
+                // Reason (for disputes)
+                if let reason = report.reason, !reason.isEmpty {
+                    Divider()
+                        .padding(.horizontal)
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Label("Reason", systemImage: "questionmark.circle.fill")
+                            .font(.headline)
+                        Text(DisputeReason(rawValue: reason)?.displayName ?? reason.capitalized)
+                            .font(.body)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(.horizontal)
+                }
+
                 // Description
                 VStack(alignment: .leading, spacing: 8) {
                     Label("Description", systemImage: "text.alignleft")
@@ -246,6 +263,8 @@ struct TicketReportDetailView: View {
 struct CreateTicketReportView: View {
     @ObservedObject var reportService: TicketReportService
     var reportType: TicketReportType = .bug
+    var bookingId: UUID? = nil
+    @State private var selectedReason: DisputeReason = .incorrectCharge
     @Environment(\.dismiss) private var dismiss
     @State private var title = ""
     @State private var description = ""
@@ -258,98 +277,123 @@ struct CreateTicketReportView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(alignment: .leading, spacing: 24) {
-                // Title Field
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Title")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
+            VStack(spacing: 0) {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 24) {
+                        // Title / Reason Field
+                        if reportType == .dispute {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Reason")
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
 
-                    TextField(reportType.titlePlaceholder, text: $title)
-                        .textContentType(.none)
-                        .textFieldStyle(PlainTextFieldStyle())
-                        .padding()
-                        .background(Color(.systemGray6))
-                        .cornerRadius(10)
-                }
+                                Picker("Select a reason", selection: $selectedReason) {
+                                    Text("Incorrect Charge").tag(DisputeReason.incorrectCharge)
+                                    Text("Service Not Provided").tag(DisputeReason.serviceNotProvided)
+                                    Text("Quality Issue").tag(DisputeReason.qualityIssue)
+                                    Text("Safety Concern").tag(DisputeReason.safetyConcern)
+                                    Text("Other").tag(DisputeReason.other)
+                                }
+                                .pickerStyle(.menu)
+                                .padding()
+                                .background(Color(.systemGray6))
+                                .cornerRadius(10)
+                            }
+                        } else {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Title")
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
 
-                // Description Field
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Description")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-
-                    ZStack(alignment: .topLeading) {
-                        if description.isEmpty {
-                            Text(reportType.descriptionPlaceholder)
-                                .foregroundColor(.secondary)
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 12)
+                                TextField(reportType.titlePlaceholder, text: $title)
+                                    .textContentType(.none)
+                                    .textFieldStyle(PlainTextFieldStyle())
+                                    .padding()
+                                    .background(Color(.systemGray6))
+                                    .cornerRadius(10)
+                            }
                         }
 
-                        TextEditor(text: $description)
-                            .frame(minHeight: 150)
-                            .padding(8)
-                            .scrollContentBackground(.hidden)
-                    }
-                    .background(Color(.systemGray6))
-                    .cornerRadius(10)
-                }
+                        // Description Field
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Description")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
 
-                // Photos
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Screenshots")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
+                            ZStack(alignment: .topLeading) {
+                                if description.isEmpty {
+                                    Text(reportType.descriptionPlaceholder)
+                                        .foregroundColor(.secondary)
+                                        .padding(.horizontal, 16)
+                                        .padding(.vertical, 12)
+                                }
 
-                    if !selectedImages.isEmpty {
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 10) {
-                                ForEach(Array(selectedImages.enumerated()), id: \.offset) { index, image in
-                                    ZStack(alignment: .topTrailing) {
-                                        Image(uiImage: image)
-                                            .resizable()
-                                            .aspectRatio(contentMode: .fill)
-                                            .frame(width: 120, height: 120)
-                                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                                TextEditor(text: $description)
+                                    .frame(minHeight: 150)
+                                    .padding(8)
+                                    .scrollContentBackground(.hidden)
+                            }
+                            .background(Color(.systemGray6))
+                            .cornerRadius(10)
+                        }
 
-                                        Button {
-                                            removeImage(at: index)
-                                        } label: {
-                                            Image(systemName: "xmark.circle.fill")
-                                                .font(.system(size: 22))
-                                                .foregroundColor(.white)
-                                                .shadow(radius: 2)
+                        // Photos
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Screenshots")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+
+                            if !selectedImages.isEmpty {
+                                ScrollView(.horizontal, showsIndicators: false) {
+                                    HStack(spacing: 10) {
+                                        ForEach(Array(selectedImages.enumerated()), id: \.offset) { index, image in
+                                            ZStack(alignment: .topTrailing) {
+                                                Image(uiImage: image)
+                                                    .resizable()
+                                                    .aspectRatio(contentMode: .fill)
+                                                    .frame(width: 120, height: 120)
+                                                    .clipShape(RoundedRectangle(cornerRadius: 12))
+
+                                                Button {
+                                                    removeImage(at: index)
+                                                } label: {
+                                                    Image(systemName: "xmark.circle.fill")
+                                                        .font(.system(size: 22))
+                                                        .foregroundColor(.white)
+                                                        .shadow(radius: 2)
+                                                }
+                                                .offset(x: 6, y: -6)
+                                            }
                                         }
-                                        .offset(x: 6, y: -6)
                                     }
                                 }
                             }
+
+                            PhotosPicker(
+                                selection: $selectedPhotos,
+                                maxSelectionCount: 4,
+                                matching: .images
+                            ) {
+                                Label("Add Screenshots (\(selectedImages.count)/4)", systemImage: "photo")
+                                    .font(.subheadline)
+                                    .foregroundColor(.blue)
+                            }
                         }
                     }
-
-                    PhotosPicker(
-                        selection: $selectedPhotos,
-                        maxSelectionCount: 4,
-                        matching: .images
-                    ) {
-                        Label("Add Screenshots (\(selectedImages.count)/4)", systemImage: "photo")
-                            .font(.subheadline)
-                            .foregroundColor(.blue)
-                    }
+                    .padding(.horizontal, 20)
+                    .padding(.top, 8)
+                    .padding(.bottom, 16)
                 }
-
-                Spacer()
 
                 CustomButton(
                     title: reportType.submitButtonTitle,
                     action: submitReport,
                     isLoading: isSubmitting,
-                    isDisabled: isSubmitting || title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    isDisabled: isSubmitting || (reportType != .dispute && title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) || description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                 )
+                .padding(.horizontal, 20)
+                .padding(.bottom, 20)
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 8)
             .navigationTitle(reportType.createTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -388,27 +432,73 @@ struct CreateTicketReportView: View {
     }
 
     private func submitReport() {
-        guard !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-              !description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+        guard !description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return
+        }
+
+        if reportType != .dispute {
+            guard !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                return
+            }
         }
 
         isSubmitting = true
 
         Task {
             do {
-                _ = try await reportService.submitReport(
-                    title: title.trimmingCharacters(in: .whitespacesAndNewlines),
-                    description: description.trimmingCharacters(in: .whitespacesAndNewlines),
-                    type: reportType,
-                    images: selectedImages
-                )
+                if reportType == .dispute, let bookingId = bookingId {
+                    _ = try await reportService.submitDispute(
+                        bookingId: bookingId,
+                        reason: selectedReason,
+                        description: description.trimmingCharacters(in: .whitespacesAndNewlines),
+                        images: selectedImages
+                    )
+                } else {
+                    _ = try await reportService.submitReport(
+                        title: title.trimmingCharacters(in: .whitespacesAndNewlines),
+                        description: description.trimmingCharacters(in: .whitespacesAndNewlines),
+                        type: reportType,
+                        images: selectedImages
+                    )
+                }
                 isSubmitting = false
                 showSuccessAlert = true
             } catch {
                 isSubmitting = false
                 errorMessage = error.localizedDescription
                 showErrorAlert = true
+            }
+        }
+    }
+}
+
+// MARK: - Timeline Row
+
+struct TimelineRow: View {
+    let icon: String
+    let color: Color
+    let title: String
+    let date: Date?
+    let isActive: Bool
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .foregroundColor(isActive ? color : .gray.opacity(0.4))
+                .font(.system(size: 14))
+                .frame(width: 20)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .foregroundColor(isActive ? .primary : .secondary)
+
+                if let date = date {
+                    Text(date.formatted(date: .abbreviated, time: .shortened))
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
             }
         }
     }

@@ -38,7 +38,16 @@ struct HelpView: View {
                     description: "Report safety concerns or incidents"
                 )
             }
-            
+
+            // File a booking dispute
+            NavigationLink(destination: TicketReportListView(reportType: .dispute)) {
+                HelpCard(
+                    icon: "exclamationmark.bubble.fill",
+                    title: "File a booking dispute",
+                    description: "View and manage disputes on your bookings"
+                )
+            }
+
             // Give us feedback
             NavigationLink(destination: FeedbackView()) {
                 HelpCard(
@@ -293,69 +302,68 @@ struct FeedbackView: View {
     var body: some View {
         VStack(spacing: 0) {
             // Content
-            VStack(alignment: .leading, spacing: 24) {
-                // Title
-                Text("Help & Support")
-                    .font(.largeTitle)
-                    .fontWeight(.bold)
-                    .padding(.top, 8)
-                
-                // Description
-                Text("Have a question or need assistance? Send us a message and we'll get back to you as soon as possible. Please note this is not for sensitive information.")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                
-                // Subject Field
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Subject")
+            ScrollView {
+                VStack(alignment: .leading, spacing: 24) {
+                    // Title
+                    Text("Help & Support")
+                        .font(.largeTitle)
+                        .fontWeight(.bold)
+                        .padding(.top, 8)
+
+                    // Description
+                    Text("Have a question or need assistance? Send us a message and we'll get back to you as soon as possible. Please note this is not for sensitive information.")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
-                    
-                    TextField("What can we help you with?", text: $subject)
-                        .textContentType(.none)
-                        .textFieldStyle(PlainTextFieldStyle())
-                        .padding()
-                        .background(Color(.systemGray6))
-                        .cornerRadius(10)
-                }
-                
-                // Message Field
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Message")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                    
-                    ZStack(alignment: .topLeading) {
-                        if message.isEmpty {
-                            Text("Tell us more about your question or concern...")
-                                .foregroundColor(.secondary)
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 12)
-                        }
-                        
-                        TextEditor(text: $message)
-                            .frame(minHeight: 150)
-                            .padding(8)
+
+                    // Subject Field
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Subject")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+
+                        TextField("What can we help you with?", text: $subject)
+                            .textContentType(.none)
+                            .textFieldStyle(PlainTextFieldStyle())
+                            .padding()
                             .background(Color(.systemGray6))
                             .cornerRadius(10)
                     }
+
+                    // Message Field
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Message")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+
+                        ZStack(alignment: .topLeading) {
+                            if message.isEmpty {
+                                Text("Tell us more about your question or concern...")
+                                    .foregroundColor(.secondary)
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 12)
+                            }
+
+                            TextEditor(text: $message)
+                                .frame(minHeight: 150)
+                                .padding(8)
+                                .background(Color(.systemGray6))
+                                .cornerRadius(10)
+                        }
+                    }
                 }
-                
-                Spacer()
-            }
-            .padding(.horizontal, 20)
-            .padding(.top, 8)
-            
-            // Send Button
-            VStack {
-                CustomButton(
-                    title: "Send Message",
-                    action: sendMessage,
-                    isDisabled: subject.isEmpty || message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                )
                 .padding(.horizontal, 20)
-                .padding(.bottom, 20)
+                .padding(.top, 8)
+                .padding(.bottom, 16)
             }
+
+            // Send Button
+            CustomButton(
+                title: "Send Message",
+                action: sendMessage,
+                isDisabled: subject.isEmpty || message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            )
+            .padding(.horizontal, 20)
+            .padding(.bottom, 20)
         }
         .navigationTitle("Give us feedback")
         .navigationBarTitleDisplayMode(.inline)
