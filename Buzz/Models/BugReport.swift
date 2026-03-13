@@ -11,11 +11,13 @@ import SwiftUI
 enum TicketReportType: String, Codable {
     case bug
     case safety
+    case dispute
 
     var listTitle: String {
         switch self {
         case .bug: return "Bug Reports"
         case .safety: return "Safety Reports"
+        case .dispute: return "Booking Disputes"
         }
     }
 
@@ -23,6 +25,7 @@ enum TicketReportType: String, Codable {
         switch self {
         case .bug: return "Report a Bug"
         case .safety: return "Report a Safety Issue"
+        case .dispute: return "File a Dispute"
         }
     }
 
@@ -30,6 +33,7 @@ enum TicketReportType: String, Codable {
         switch self {
         case .bug: return "Bug Report Details"
         case .safety: return "Safety Report Details"
+        case .dispute: return "Dispute Details"
         }
     }
 
@@ -37,6 +41,7 @@ enum TicketReportType: String, Codable {
         switch self {
         case .bug: return "Submit Bug Report"
         case .safety: return "Submit Safety Report"
+        case .dispute: return "Submit Dispute"
         }
     }
 
@@ -44,6 +49,7 @@ enum TicketReportType: String, Codable {
         switch self {
         case .bug: return "No Bug Reports"
         case .safety: return "No Safety Reports"
+        case .dispute: return "No Disputes"
         }
     }
 
@@ -51,6 +57,7 @@ enum TicketReportType: String, Codable {
         switch self {
         case .bug: return "You haven't submitted any bug reports yet"
         case .safety: return "You haven't submitted any safety reports yet"
+        case .dispute: return "You haven't filed any disputes"
         }
     }
 
@@ -58,6 +65,7 @@ enum TicketReportType: String, Codable {
         switch self {
         case .bug: return "ladybug.fill"
         case .safety: return "shield.fill"
+        case .dispute: return "exclamationmark.bubble.fill"
         }
     }
 
@@ -65,6 +73,7 @@ enum TicketReportType: String, Codable {
         switch self {
         case .bug: return "Brief description of the bug"
         case .safety: return "Brief description of the safety issue"
+        case .dispute: return ""
         }
     }
 
@@ -72,6 +81,7 @@ enum TicketReportType: String, Codable {
         switch self {
         case .bug: return "Please describe the bug in detail, including steps to reproduce..."
         case .safety: return "Please provide as much detail as possible about the safety issue..."
+        case .dispute: return "Please describe the issue in detail..."
         }
     }
 
@@ -79,6 +89,7 @@ enum TicketReportType: String, Codable {
         switch self {
         case .bug: return "Bug Report Submitted"
         case .safety: return "Safety Report Submitted"
+        case .dispute: return "Dispute Filed"
         }
     }
 
@@ -86,6 +97,7 @@ enum TicketReportType: String, Codable {
         switch self {
         case .bug: return "Thank you for your report. We'll look into it and get back to you."
         case .safety: return "Thank you for reporting this safety issue. We take safety very seriously and will respond promptly."
+        case .dispute: return "Your dispute has been submitted and is under review."
         }
     }
 
@@ -93,6 +105,7 @@ enum TicketReportType: String, Codable {
         switch self {
         case .bug: return "Loading bug reports..."
         case .safety: return "Loading safety reports..."
+        case .dispute: return "Loading disputes..."
         }
     }
 }
@@ -142,6 +155,8 @@ struct TicketReport: Codable, Identifiable {
     let imageUrls: [String]
     let createdAt: Date
     var updatedAt: Date
+    var bookingId: UUID?
+    var reason: String?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -154,6 +169,8 @@ struct TicketReport: Codable, Identifiable {
         case imageUrls = "image_urls"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
+        case bookingId = "booking_id"
+        case reason
     }
 
     init(from decoder: Decoder) throws {
@@ -168,9 +185,11 @@ struct TicketReport: Codable, Identifiable {
         imageUrls = try container.decodeIfPresent([String].self, forKey: .imageUrls) ?? []
         createdAt = try container.decode(Date.self, forKey: .createdAt)
         updatedAt = try container.decode(Date.self, forKey: .updatedAt)
+        bookingId = try container.decodeIfPresent(UUID.self, forKey: .bookingId)
+        reason = try container.decodeIfPresent(String.self, forKey: .reason)
     }
 
-    init(id: UUID, userId: UUID, type: TicketReportType, title: String, description: String, status: TicketReportStatus, adminResponse: String? = nil, imageUrls: [String] = [], createdAt: Date, updatedAt: Date) {
+    init(id: UUID, userId: UUID, type: TicketReportType, title: String, description: String, status: TicketReportStatus, adminResponse: String? = nil, imageUrls: [String] = [], createdAt: Date, updatedAt: Date, bookingId: UUID? = nil, reason: String? = nil) {
         self.id = id
         self.userId = userId
         self.type = type
@@ -181,6 +200,8 @@ struct TicketReport: Codable, Identifiable {
         self.imageUrls = imageUrls
         self.createdAt = createdAt
         self.updatedAt = updatedAt
+        self.bookingId = bookingId
+        self.reason = reason
     }
 }
 
@@ -190,6 +211,8 @@ struct TicketReportInsert: Codable {
     let title: String
     let description: String
     let imageUrls: [String]
+    var bookingId: UUID?
+    var reason: String?
 
     enum CodingKeys: String, CodingKey {
         case userId = "user_id"
@@ -197,5 +220,7 @@ struct TicketReportInsert: Codable {
         case title
         case description
         case imageUrls = "image_urls"
+        case bookingId = "booking_id"
+        case reason
     }
 }
