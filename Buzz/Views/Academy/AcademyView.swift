@@ -505,24 +505,13 @@ struct AcademyView: View {
     
     /// Get the list of missing prerequisites for a course
     private func getMissingPrerequisites(for course: TrainingCourse) -> [String] {
-        var missing: [String] = []
-        
-        // Check Ground School prerequisite
-        if course.requiresUasGroundSchool && !hasPassedGroundSchoolTest {
-            missing.append("UAS Pilot Ground School Test")
-        }
-        
-        // Check Flight Review prerequisite
-        if course.requiresFlightReviewPassed && !hasPassedFlightReview {
-            missing.append("Flight Review Test")
-        }
-        
-        // Check ROC-A prerequisite
-        if course.requiresRocAPassed && !hasPassedRocA {
-            missing.append("ROC-A Test")
-        }
-        
-        return missing
+        AcademyCourseAccessPolicy.missingEnrollmentRequirements(
+            for: course,
+            hasSubscription: hasSubscription,
+            hasPassedGroundSchool: hasPassedGroundSchoolTest,
+            hasPassedFlightReview: hasPassedFlightReview,
+            hasPassedRocA: hasPassedRocA
+        )
     }
     
     private func loadRecurrentNotices() async {
@@ -869,11 +858,14 @@ struct CourseDetailView: View {
     @State private var isEnrolled: Bool
     @State private var showUnenrollConfirmation = false
     @State private var showExternalCourseConfirmation = false
+    @State private var showSubscriptionSheet = false
     @State private var isUnenrolling = false
     @State private var unenrollError: String?
     @State private var enrollError: String?
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var authService: AuthService
+    @StateObject private var storeKitManager = StoreKitManager()
+    @ObservedObject private var entitlementManager = EntitlementManager.shared
     @StateObject private var badgeService = BadgeService()
     @StateObject private var academyService = AcademyService()
     @StateObject private var identityService = IdentityVerificationService()
@@ -884,6 +876,10 @@ struct CourseDetailView: View {
         self.course = course
         self.onEnrollmentChange = onEnrollmentChange
         _isEnrolled = State(initialValue: course.isEnrolled)
+    }
+
+    private var hasSubscription: Bool {
+        entitlementManager.hasAcademyPass
     }
     
     var body: some View {
@@ -1083,6 +1079,25 @@ struct CourseDetailView: View {
                                     .cornerRadius(12)
                             }
                             .padding(.horizontal)
+                        } else if course.requiresSubscriptionToEnroll && !hasSubscription {
+                            VStack(alignment: .leading, spacing: 12) {
+                                Button(action: {
+                                    showSubscriptionSheet = true
+                                }) {
+                                    Text("Unlock with Academy Pass")
+                                        .font(.headline)
+                                        .foregroundColor(.white)
+                                        .frame(maxWidth: .infinity)
+                                        .frame(height: 50)
+                                        .background(Color.orange)
+                                        .cornerRadius(12)
+                                }
+
+                                Text("An active Buzz Academy Pass is required before you can enroll in this course.")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            .padding(.horizontal)
                         } else {
                             // Buzz course - show "Enroll Now" button
                             Button(action: {
@@ -1159,8 +1174,16 @@ struct CourseDetailView: View {
         } message: {
             Text("You must verify your identity before enrolling in courses. Please complete identity verification in your Profile settings under Personal Info.")
         }
+        .sheet(isPresented: $showSubscriptionSheet) {
+            if let currentUser = authService.currentUser {
+                CourseSubscriptionView(course: course, pilotId: currentUser.id)
+            }
+        }
         .task {
             await checkIdentityVerification()
+            if let currentUser = authService.currentUser {
+                _ = await storeKitManager.checkAllSubscriptions(pilotId: currentUser.id)
+            }
         }
     }
 
