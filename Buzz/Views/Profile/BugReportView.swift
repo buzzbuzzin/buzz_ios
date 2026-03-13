@@ -466,3 +466,35 @@ struct CreateTicketReportView: View {
         }
     }
 }
+
+// MARK: - Timeline Row
+
+struct TimelineRow: View {
+    let icon: String
+    let color: Color
+    let title: String
+    let date: Date?
+    let isActive: Bool
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .foregroundColor(isActive ? color : .gray.opacity(0.4))
+                .font(.system(size: 14))
+                .frame(width: 20)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .foregroundColor(isActive ? .primary : .secondary)
+
+                if let date = date {
+                    Text(date.formatted(date: .abbreviated, time: .shortened))
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+        }
+    }
+}
