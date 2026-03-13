@@ -78,6 +78,39 @@ class TicketReportService: ObservableObject {
         return report
     }
 
+    func submitDispute(bookingId: UUID, reason: DisputeReason, description: String?, images: [UIImage] = []) async throws -> TicketReport {
+        if DemoModeManager.shared.isDemoModeEnabled {
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            throw NSError(domain: "TicketReportService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Disputes are not available in demo mode"])
+        }
+
+        guard let userId = try? await supabase.auth.session.user.id else {
+            throw NSError(domain: "TicketReportService", code: -1, userInfo: [NSLocalizedDescriptionKey: "User not authenticated"])
+        }
+
+        let imageUrls = try await uploadReportImages(userId: userId, images: images)
+        let insert = TicketReportInsert(
+            userId: userId,
+            type: .dispute,
+            title: reason.displayName,
+            description: description ?? "",
+            imageUrls: imageUrls,
+            bookingId: bookingId,
+            reason: reason.rawValue
+        )
+
+        let report: TicketReport = try await supabase
+            .from("ticket_reports")
+            .insert(insert)
+            .select()
+            .single()
+            .execute()
+            .value
+
+        reports.insert(report, at: 0)
+        return report
+    }
+
     // MARK: - Upload Images
 
     private func uploadReportImages(userId: UUID, images: [UIImage]) async throws -> [String] {
