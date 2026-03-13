@@ -28,6 +28,7 @@ struct TrainingCourse: Identifiable {
     var coverImageUrl: String? // Cover image URL for the course
     var region: CourseRegion // Region where the course is available
     var active: Bool // Whether the course is active and should be displayed
+    var requiresSubscriptionToEnroll: Bool = false // Whether Academy Pass is required before enrollment
 
     enum CourseLevel: String {
         case beginner = "Beginner"

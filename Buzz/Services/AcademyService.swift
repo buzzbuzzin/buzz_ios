@@ -17,7 +17,11 @@ class AcademyService: ObservableObject {
     
     private let supabase = SupabaseClient.shared.client
 
-    private func makeCourse(from courseResponse: TrainingCourseResponse, isEnrolled: Bool) -> TrainingCourse {
+    private func makeCourse(
+        from courseResponse: TrainingCourseResponse,
+        isEnrolled: Bool,
+        sectionSnapshots: [CourseSectionAccessSnapshot]
+    ) -> TrainingCourse {
         TrainingCourse(
             id: courseResponse.id,
             title: courseResponse.title,
@@ -37,8 +41,36 @@ class AcademyService: ObservableObject {
             externalUrl: courseResponse.externalUrl,
             coverImageUrl: courseResponse.coverImageUrl,
             region: TrainingCourse.CourseRegion(rawValue: courseResponse.region ?? "Global") ?? .global,
-            active: courseResponse.active ?? false
+            active: courseResponse.active ?? false,
+            requiresSubscriptionToEnroll: AcademyCourseAccessPolicy.requiresSubscriptionToEnroll(
+                courseTitle: courseResponse.title,
+                provider: courseResponse.provider,
+                externalUrl: courseResponse.externalUrl,
+                sectionSnapshots: sectionSnapshots
+            )
         )
+    }
+
+    private func fetchSectionSnapshots(courseIds: [UUID]) async throws -> [CourseSectionAccessSnapshot] {
+        guard !courseIds.isEmpty else {
+            return []
+        }
+
+        return try await supabase
+            .from("course_sections")
+            .select("course_id, name, exam_type, requires_subscription")
+            .in("course_id", values: courseIds.map(\.uuidString))
+            .eq("is_active", value: true)
+            .is("deleted_at", value: nil)
+            .execute()
+            .value
+    }
+
+    private func sectionSnapshotsByCourse(
+        for courseIds: [UUID]
+    ) async throws -> [UUID: [CourseSectionAccessSnapshot]] {
+        let snapshots = try await fetchSectionSnapshots(courseIds: courseIds)
+        return Dictionary(grouping: snapshots, by: \.courseId)
     }
 
     private func fetchCourseDefinition(courseId: UUID) async throws -> TrainingCourse {
@@ -55,7 +87,8 @@ class AcademyService: ObservableObject {
             .execute()
             .value
 
-        return makeCourse(from: response, isEnrolled: false)
+        let sectionSnapshots = try await fetchSectionSnapshots(courseIds: [response.id])
+        return makeCourse(from: response, isEnrolled: false, sectionSnapshots: sectionSnapshots)
     }
     
     // MARK: - Fetch All Courses
@@ -76,9 +109,17 @@ class AcademyService: ObservableObject {
                 .order("created_at", ascending: false)
                 .execute()
                 .value
+
+            let snapshotsByCourse = try await sectionSnapshotsByCourse(for: response.map(\.id))
             
             // Convert to TrainingCourse models
-            courses = response.map { makeCourse(from: $0, isEnrolled: false) }
+            courses = response.map { courseResponse in
+                makeCourse(
+                    from: courseResponse,
+                    isEnrolled: false,
+                    sectionSnapshots: snapshotsByCourse[courseResponse.id] ?? []
+                )
+            }
 
             isLoading = false
         } catch {
@@ -131,6 +172,8 @@ class AcademyService: ObservableObject {
             let enrollmentsData = try JSONDecoder().decode([CourseEnrollmentResponse].self, from: enrollmentsResponse.data)
             let step2Duration = Date().timeIntervalSince(step2Start)
             print("✅ [AcademyService] Step 2 complete: Fetched \(enrollmentsData.count) enrollments in \(String(format: "%.2f", step2Duration))s")
+
+            let snapshotsByCourse = try await sectionSnapshotsByCourse(for: coursesResponse.map(\.id))
             
             // Process data
             print("🔄 [AcademyService] Step 3: Processing course data...")
@@ -138,7 +181,13 @@ class AcademyService: ObservableObject {
             let enrolledCourseIds = Set(enrollmentsData.map { $0.courseId })
             
             // Convert to TrainingCourse models with enrollment status
-            courses = coursesResponse.map { makeCourse(from: $0, isEnrolled: enrolledCourseIds.contains($0.id)) }
+            courses = coursesResponse.map { courseResponse in
+                makeCourse(
+                    from: courseResponse,
+                    isEnrolled: enrolledCourseIds.contains(courseResponse.id),
+                    sectionSnapshots: snapshotsByCourse[courseResponse.id] ?? []
+                )
+            }
             let step3Duration = Date().timeIntervalSince(step3Start)
             print("✅ [AcademyService] Step 3 complete: Processed data in \(String(format: "%.2f", step3Duration))s")
             
@@ -700,6 +749,23 @@ class AcademyService: ObservableObject {
                     NSLocalizedDescriptionKey: "You must pass the following before enrolling: \(prerequisiteList)"
                 ]
             )
+        }
+
+        if course.requiresSubscriptionToEnroll {
+            let hasActiveSubscription = await EntitlementManager.shared.checkAllSubscriptionSources(
+                pilotId: pilotId,
+                appleProductIDs: ProductIdentifiers.academyPassProductIDs
+            )
+
+            if !hasActiveSubscription {
+                throw NSError(
+                    domain: "AcademyService",
+                    code: 402,
+                    userInfo: [
+                        NSLocalizedDescriptionKey: "Buzz Academy Pass is required before enrolling in this course."
+                    ]
+                )
+            }
         }
         
         do {
