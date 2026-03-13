@@ -277,108 +277,113 @@ struct CreateTicketReportView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(alignment: .leading, spacing: 24) {
-                // Title / Reason Field
-                if reportType == .dispute {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Reason")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
+            VStack(spacing: 0) {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 24) {
+                        // Title / Reason Field
+                        if reportType == .dispute {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Reason")
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
 
-                        Picker("Select a reason", selection: $selectedReason) {
-                            Text("Incorrect Charge").tag(DisputeReason.incorrectCharge)
-                            Text("Service Not Provided").tag(DisputeReason.serviceNotProvided)
-                            Text("Quality Issue").tag(DisputeReason.qualityIssue)
-                            Text("Safety Concern").tag(DisputeReason.safetyConcern)
-                            Text("Other").tag(DisputeReason.other)
+                                Picker("Select a reason", selection: $selectedReason) {
+                                    Text("Incorrect Charge").tag(DisputeReason.incorrectCharge)
+                                    Text("Service Not Provided").tag(DisputeReason.serviceNotProvided)
+                                    Text("Quality Issue").tag(DisputeReason.qualityIssue)
+                                    Text("Safety Concern").tag(DisputeReason.safetyConcern)
+                                    Text("Other").tag(DisputeReason.other)
+                                }
+                                .pickerStyle(.menu)
+                                .padding()
+                                .background(Color(.systemGray6))
+                                .cornerRadius(10)
+                            }
+                        } else {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Title")
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+
+                                TextField(reportType.titlePlaceholder, text: $title)
+                                    .textContentType(.none)
+                                    .textFieldStyle(PlainTextFieldStyle())
+                                    .padding()
+                                    .background(Color(.systemGray6))
+                                    .cornerRadius(10)
+                            }
                         }
-                        .pickerStyle(.menu)
-                        .padding()
-                        .background(Color(.systemGray6))
-                        .cornerRadius(10)
-                    }
-                } else {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Title")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
 
-                        TextField(reportType.titlePlaceholder, text: $title)
-                            .textContentType(.none)
-                            .textFieldStyle(PlainTextFieldStyle())
-                            .padding()
+                        // Description Field
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Description")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+
+                            ZStack(alignment: .topLeading) {
+                                if description.isEmpty {
+                                    Text(reportType.descriptionPlaceholder)
+                                        .foregroundColor(.secondary)
+                                        .padding(.horizontal, 16)
+                                        .padding(.vertical, 12)
+                                }
+
+                                TextEditor(text: $description)
+                                    .frame(minHeight: 150)
+                                    .padding(8)
+                                    .scrollContentBackground(.hidden)
+                            }
                             .background(Color(.systemGray6))
                             .cornerRadius(10)
-                    }
-                }
-
-                // Description Field
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Description")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-
-                    ZStack(alignment: .topLeading) {
-                        if description.isEmpty {
-                            Text(reportType.descriptionPlaceholder)
-                                .foregroundColor(.secondary)
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 12)
                         }
 
-                        TextEditor(text: $description)
-                            .frame(minHeight: 150)
-                            .padding(8)
-                            .scrollContentBackground(.hidden)
-                    }
-                    .background(Color(.systemGray6))
-                    .cornerRadius(10)
-                }
+                        // Photos
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Screenshots")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
 
-                // Photos
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Screenshots")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
+                            if !selectedImages.isEmpty {
+                                ScrollView(.horizontal, showsIndicators: false) {
+                                    HStack(spacing: 10) {
+                                        ForEach(Array(selectedImages.enumerated()), id: \.offset) { index, image in
+                                            ZStack(alignment: .topTrailing) {
+                                                Image(uiImage: image)
+                                                    .resizable()
+                                                    .aspectRatio(contentMode: .fill)
+                                                    .frame(width: 120, height: 120)
+                                                    .clipShape(RoundedRectangle(cornerRadius: 12))
 
-                    if !selectedImages.isEmpty {
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 10) {
-                                ForEach(Array(selectedImages.enumerated()), id: \.offset) { index, image in
-                                    ZStack(alignment: .topTrailing) {
-                                        Image(uiImage: image)
-                                            .resizable()
-                                            .aspectRatio(contentMode: .fill)
-                                            .frame(width: 120, height: 120)
-                                            .clipShape(RoundedRectangle(cornerRadius: 12))
-
-                                        Button {
-                                            removeImage(at: index)
-                                        } label: {
-                                            Image(systemName: "xmark.circle.fill")
-                                                .font(.system(size: 22))
-                                                .foregroundColor(.white)
-                                                .shadow(radius: 2)
+                                                Button {
+                                                    removeImage(at: index)
+                                                } label: {
+                                                    Image(systemName: "xmark.circle.fill")
+                                                        .font(.system(size: 22))
+                                                        .foregroundColor(.white)
+                                                        .shadow(radius: 2)
+                                                }
+                                                .offset(x: 6, y: -6)
+                                            }
                                         }
-                                        .offset(x: 6, y: -6)
                                     }
                                 }
                             }
+
+                            PhotosPicker(
+                                selection: $selectedPhotos,
+                                maxSelectionCount: 4,
+                                matching: .images
+                            ) {
+                                Label("Add Screenshots (\(selectedImages.count)/4)", systemImage: "photo")
+                                    .font(.subheadline)
+                                    .foregroundColor(.blue)
+                            }
                         }
                     }
-
-                    PhotosPicker(
-                        selection: $selectedPhotos,
-                        maxSelectionCount: 4,
-                        matching: .images
-                    ) {
-                        Label("Add Screenshots (\(selectedImages.count)/4)", systemImage: "photo")
-                            .font(.subheadline)
-                            .foregroundColor(.blue)
-                    }
+                    .padding(.horizontal, 20)
+                    .padding(.top, 8)
+                    .padding(.bottom, 16)
                 }
-
-                Spacer()
 
                 CustomButton(
                     title: reportType.submitButtonTitle,
@@ -386,9 +391,9 @@ struct CreateTicketReportView: View {
                     isLoading: isSubmitting,
                     isDisabled: isSubmitting || (reportType != .dispute && title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) || description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                 )
+                .padding(.horizontal, 20)
+                .padding(.bottom, 20)
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 8)
             .navigationTitle(reportType.createTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
