@@ -11,6 +11,7 @@ import Auth
 struct CustomerActivityView: View {
     @EnvironmentObject var authService: AuthService
     @StateObject private var bookingService = BookingService()
+    @StateObject private var reportService = TicketReportService()
 
     var body: some View {
         NavigationView {
@@ -38,7 +39,7 @@ struct CustomerActivityView: View {
                                         return date1 > date2
                                     })) { booking in
                                         NavigationLink(destination: CustomerBookingDetailView(booking: booking)) {
-                                            CompletedBookingCard(booking: booking, disputes: bookingService.disputes)
+                                            CompletedBookingCard(booking: booking, disputes: reportService.reports)
                                         }
                                     }
                                 }
@@ -80,7 +81,7 @@ struct CustomerActivityView: View {
     private func loadBookings() async {
         guard let currentUser = authService.currentUser else { return }
         try? await bookingService.fetchMyBookings(userId: currentUser.id, isPilot: false)
-        try? await bookingService.fetchMyDisputes()
+        await reportService.fetchMyReports(type: .dispute)
     }
 }
 
@@ -88,7 +89,7 @@ struct CustomerActivityView: View {
 
 struct CompletedBookingCard: View {
     let booking: Booking
-    var disputes: [BookingDispute] = []
+    var disputes: [TicketReport] = []
 
     private var hasDispute: Bool {
         disputes.contains { $0.bookingId == booking.id }
