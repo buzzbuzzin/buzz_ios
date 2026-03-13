@@ -38,7 +38,16 @@ struct HelpView: View {
                     description: "Report safety concerns or incidents"
                 )
             }
-            
+
+            // File a booking dispute
+            NavigationLink(destination: TicketReportListView(reportType: .dispute)) {
+                HelpCard(
+                    icon: "exclamationmark.bubble.fill",
+                    title: "File a booking dispute",
+                    description: "View and manage disputes on your bookings"
+                )
+            }
+
             // Give us feedback
             NavigationLink(destination: FeedbackView()) {
                 HelpCard(
