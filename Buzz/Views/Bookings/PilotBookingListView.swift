@@ -283,6 +283,7 @@ struct PilotBookingListView: View {
                 }
             }
             .navigationTitle("Accept or Decline Mission")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button {

@@ -16,7 +16,7 @@ struct MissionDistanceSettingsView: View {
                     Text("Mission Distance")
                         .font(.headline)
 
-                    Text("Choose how far you are prepared to travel for missions. The Missions tab uses this distance to filter the list around your current location.")
+                    Text("Choose how far you are prepared to travel for assignments. The mission tab calculates the distance automatically from your current location.")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
