@@ -38,18 +38,20 @@ struct TicketReportListView: View {
                 }
             }
 
-            // FAB
-            Button(action: { showCreateSheet = true }) {
-                Image(systemName: "plus")
-                    .font(.title2)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.white)
-                    .frame(width: 56, height: 56)
-                    .background(Color.blue)
-                    .clipShape(Circle())
-                    .shadow(radius: 4)
+            if reportType != .dispute {
+                // FAB
+                Button(action: { showCreateSheet = true }) {
+                    Image(systemName: "plus")
+                        .font(.title2)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.white)
+                        .frame(width: 56, height: 56)
+                        .background(Color.blue)
+                        .clipShape(Circle())
+                        .shadow(radius: 4)
+                }
+                .padding(20)
             }
-            .padding(20)
         }
         .navigationTitle(reportType.listTitle)
         .navigationBarTitleDisplayMode(.inline)
@@ -152,6 +154,21 @@ struct TicketReportDetailView: View {
                 Divider()
                     .padding(.horizontal)
 
+                // Reason (for disputes)
+                if let reason = report.reason, !reason.isEmpty {
+                    Divider()
+                        .padding(.horizontal)
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Label("Reason", systemImage: "questionmark.circle.fill")
+                            .font(.headline)
+                        Text(DisputeReason(rawValue: reason)?.displayName ?? reason.capitalized)
+                            .font(.body)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(.horizontal)
+                }
+
                 // Description
                 VStack(alignment: .leading, spacing: 8) {
                     Label("Description", systemImage: "text.alignleft")
@@ -246,6 +263,8 @@ struct TicketReportDetailView: View {
 struct CreateTicketReportView: View {
     @ObservedObject var reportService: TicketReportService
     var reportType: TicketReportType = .bug
+    var bookingId: UUID? = nil
+    @State private var selectedReason: DisputeReason = .incorrectCharge
     @Environment(\.dismiss) private var dismiss
     @State private var title = ""
     @State private var description = ""
@@ -259,18 +278,38 @@ struct CreateTicketReportView: View {
     var body: some View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 24) {
-                // Title Field
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Title")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
+                // Title / Reason Field
+                if reportType == .dispute {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Reason")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
 
-                    TextField(reportType.titlePlaceholder, text: $title)
-                        .textContentType(.none)
-                        .textFieldStyle(PlainTextFieldStyle())
+                        Picker("Select a reason", selection: $selectedReason) {
+                            Text("Incorrect Charge").tag(DisputeReason.incorrectCharge)
+                            Text("Service Not Provided").tag(DisputeReason.serviceNotProvided)
+                            Text("Quality Issue").tag(DisputeReason.qualityIssue)
+                            Text("Safety Concern").tag(DisputeReason.safetyConcern)
+                            Text("Other").tag(DisputeReason.other)
+                        }
+                        .pickerStyle(.menu)
                         .padding()
                         .background(Color(.systemGray6))
                         .cornerRadius(10)
+                    }
+                } else {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Title")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+
+                        TextField(reportType.titlePlaceholder, text: $title)
+                            .textContentType(.none)
+                            .textFieldStyle(PlainTextFieldStyle())
+                            .padding()
+                            .background(Color(.systemGray6))
+                            .cornerRadius(10)
+                    }
                 }
 
                 // Description Field
@@ -345,7 +384,7 @@ struct CreateTicketReportView: View {
                     title: reportType.submitButtonTitle,
                     action: submitReport,
                     isLoading: isSubmitting,
-                    isDisabled: isSubmitting || title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    isDisabled: isSubmitting || (reportType != .dispute && title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) || description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                 )
             }
             .padding(.horizontal, 20)
@@ -388,21 +427,35 @@ struct CreateTicketReportView: View {
     }
 
     private func submitReport() {
-        guard !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-              !description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+        guard !description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return
+        }
+
+        if reportType != .dispute {
+            guard !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                return
+            }
         }
 
         isSubmitting = true
 
         Task {
             do {
-                _ = try await reportService.submitReport(
-                    title: title.trimmingCharacters(in: .whitespacesAndNewlines),
-                    description: description.trimmingCharacters(in: .whitespacesAndNewlines),
-                    type: reportType,
-                    images: selectedImages
-                )
+                if reportType == .dispute, let bookingId = bookingId {
+                    _ = try await reportService.submitDispute(
+                        bookingId: bookingId,
+                        reason: selectedReason,
+                        description: description.trimmingCharacters(in: .whitespacesAndNewlines),
+                        images: selectedImages
+                    )
+                } else {
+                    _ = try await reportService.submitReport(
+                        title: title.trimmingCharacters(in: .whitespacesAndNewlines),
+                        description: description.trimmingCharacters(in: .whitespacesAndNewlines),
+                        type: reportType,
+                        images: selectedImages
+                    )
+                }
                 isSubmitting = false
                 showSuccessAlert = true
             } catch {
