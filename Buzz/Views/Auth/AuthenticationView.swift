@@ -13,8 +13,6 @@ struct AuthenticationView: View {
     @EnvironmentObject var authService: AuthService
     @State private var showSignUp = false
     @State private var showPasswordReset = false
-    // Temporarily disabled: swipe between auth methods
-    // @State private var selectedTab = 0
     @State private var showPremiumIntro = false
     
     var body: some View {
@@ -38,24 +36,6 @@ struct AuthenticationView: View {
                     .padding(.top, 10)
                     .padding(.bottom, 10)
                     
-                    // Auth Methods - Temporarily showing only email sign-in
-                    // Original TabView with swipe between Email, Phone, and Social sign-in is disabled
-                    /*
-                    TabView(selection: $selectedTab) {
-                        EmailSignInView()
-                            .tag(0)
-                        
-                        PhoneSignInView()
-                            .tag(1)
-                        
-                        SocialSignInView()
-                            .tag(2)
-                    }
-                    .tabViewStyle(.page(indexDisplayMode: .always))
-                    .frame(height: 400)
-                    */
-                    
-                    // Email sign-in only (temporary)
                     EmailSignInView()
                     
                     // Sign Up Link
@@ -169,40 +149,6 @@ struct EmailSignInView: View {
                     .foregroundColor(.secondary)
             }
             
-            // Divider - Temporarily commented out
-            /*
-            HStack {
-                Rectangle()
-                    .fill(Color(.systemGray4))
-                    .frame(height: 1)
-                Text("or")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                    .padding(.horizontal, 8)
-                Rectangle()
-                    .fill(Color(.systemGray4))
-                    .frame(height: 1)
-            }
-            .padding(.horizontal)
-            .padding(.top, 8)
-            */
-            
-            // Social Sign In Options - Temporarily commented out
-            /*
-            VStack(spacing: 12) {
-                SignInWithAppleButton(.continue) { request in
-                    request.requestedScopes = [.email, .fullName]
-                } onCompletion: { result in
-                    handleAppleSignIn(result)
-                }
-                .frame(height: 50)
-                .cornerRadius(10)
-                
-                GoogleSignInButton(action: handleGoogleSignInButton)
-                .frame(height: 50)
-            }
-            .padding(.horizontal)
-            */
         }
         .alert("Error", isPresented: $showError) {
             Button("OK", role: .cancel) {}
@@ -460,37 +406,6 @@ struct SocialSignInView: View {
             Text("Sign In with Social")
                 .font(.title3)
                 .fontWeight(.semibold)
-            
-            // Temporarily commented out
-            /*
-            VStack(spacing: 16) {
-                SignInWithAppleButton(.signIn) { request in
-                    request.requestedScopes = [.email, .fullName]
-                } onCompletion: { result in
-                    handleAppleSignIn(result)
-                }
-                .frame(height: 50)
-                .cornerRadius(10)
-                
-                Button {
-                    selectedAuthMethod = .google
-                    showUserTypeSelection = true
-                } label: {
-                    HStack {
-                        Image(systemName: "g.circle.fill")
-                            .font(.title3)
-                        Text("Sign in with Google")
-                            .font(.headline)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 50)
-                    .background(Color(.systemGray6))
-                    .foregroundColor(.primary)
-                    .cornerRadius(10)
-                }
-            }
-            .padding(.horizontal)
-            */
             
             Text("Social sign-in temporarily disabled")
                 .font(.subheadline)

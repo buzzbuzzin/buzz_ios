@@ -169,7 +169,7 @@ struct RatingView: View {
                             .foregroundColor(.white)
                             .frame(maxWidth: .infinity)
                             .frame(height: 56)
-                            .background(selectedRating == 0 ? Color.gray : Color.black)
+                            .background(selectedRating == 0 ? Color(.systemGray3) : Color.primary)
                             .cornerRadius(12)
                     }
                     .disabled(selectedRating == 0)
@@ -271,7 +271,7 @@ struct CustomTipSheet: View {
                             .foregroundColor(.white)
                             .frame(maxWidth: .infinity)
                             .frame(height: 56)
-                            .background(customTipAmount.isEmpty || Double(customTipAmount) == nil || Double(customTipAmount)! <= 0 ? Color.gray : Color.black)
+                            .background(customTipAmount.isEmpty || Double(customTipAmount) == nil || Double(customTipAmount)! <= 0 ? Color(.systemGray3) : Color.primary)
                             .cornerRadius(12)
                     }
                     .disabled(customTipAmount.isEmpty || Double(customTipAmount) == nil || Double(customTipAmount)! <= 0)
@@ -323,7 +323,7 @@ struct TipPercentageButton: View {
             }
             .frame(minWidth: 80)
             .frame(height: 60)
-            .background(isSelected ? Color.black : Color(.systemGray6))
+            .background(isSelected ? Color.primary : Color(.systemGray6))
             .cornerRadius(22)
             .overlay(
                 RoundedRectangle(cornerRadius: 22)

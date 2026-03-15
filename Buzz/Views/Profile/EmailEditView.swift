@@ -362,9 +362,9 @@ struct EmailEditView: View {
                 }
                 .padding(.horizontal, 32)
                 
-                // Log Out Button (now enabled and blue)
+                // Sign Out Button
                 CustomButton(
-                    title: "Log Out",
+                    title: "Sign Out",
                     action: {
                         Task {
                             try? await authService.signOut()

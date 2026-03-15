@@ -1068,8 +1068,6 @@ struct CourseDetailView: View {
                         .accessibilityLabel("Region: \(course.region.rawValue)")
                         
                         InfoRow(icon: "star.fill", label: "Rating", value: String(format: "%.1f / 5.0", course.rating))
-                        // Students count - temporarily hidden
-                        // InfoRow(icon: "person.2.fill", label: "Students", value: "\(course.studentsCount)")
                     }
                     .padding(.horizontal)
                     

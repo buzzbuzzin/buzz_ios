@@ -536,7 +536,7 @@ struct CollapsibleSection<Content: View>: View {
                 }
                 .padding()
                 .background(Color(.tertiarySystemBackground))
-                .cornerRadius(isExpanded ? 12 : 12)
+                .cornerRadius(12)
             }
             .buttonStyle(PlainButtonStyle())
             

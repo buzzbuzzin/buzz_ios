@@ -147,16 +147,6 @@ struct CockpitView: View {
                                 }
                                 .buttonStyle(PlainButtonStyle())
 
-                                // ATIS Card - temporarily hidden (work in progress)
-                                // NavigationLink(destination: ATISView().environmentObject(authService)) {
-                                //     CockpitGridCard(
-                                //         title: "ATIS",
-                                //         icon: "radio.fill",
-                                //         color: .purple
-                                //     )
-                                // }
-                                // .buttonStyle(PlainButtonStyle())
-
                                 // Flight Plan Card - Using fullScreenCover for stable presentation
                                 Button {
                                     logTap("Flight Plan", section: "Flight")
@@ -1200,16 +1190,16 @@ struct AvailabilityView: View {
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 14)
-                        .background(Color.black)
+                        .background(Color.primary)
                         .cornerRadius(12)
                     }
                     .padding(.horizontal)
-                    
+
                     // Show existing blockouts count
                     if !blockoutService.blockouts.isEmpty {
                         HStack {
                             Image(systemName: "info.circle.fill")
-                                .foregroundColor(.black)
+                                .foregroundColor(.primary)
                             Text("\(blockoutService.blockouts.count) blockout\(blockoutService.blockouts.count == 1 ? "" : "s") active")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
