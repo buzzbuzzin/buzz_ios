@@ -27,8 +27,6 @@ struct HangerTalkSearchView: View {
             // Search bar
             searchBar
 
-            Divider()
-
             // Results
             ScrollView {
                 if isSearching {
@@ -145,7 +143,7 @@ struct HangerTalkSearchView: View {
             .cornerRadius(10)
         }
         .padding(.horizontal, 16)
-        .padding(.top, 8)
+        .padding(.vertical, 8)
     }
 
     // MARK: - Empty Prompt
