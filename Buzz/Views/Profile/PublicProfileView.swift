@@ -41,6 +41,7 @@ struct PublicProfileView: View {
     @State private var navigateToProfileId: UUID?
     @State private var showFollowList = false
     @State private var followListInitialTab: FollowListTab = .followers
+    @State private var showDirectMessage = false
     
     var isOwnProfile: Bool {
         authService.currentUser?.id == pilotId
@@ -298,7 +299,9 @@ struct PublicProfileView: View {
                         }
                         .buttonStyle(PlainButtonStyle())
 
-                        NavigationLink(destination: DirectMessageView(pilotId: pilotId, pilotProfile: profile)) {
+                        Button {
+                            showDirectMessage = true
+                        } label: {
                             HStack {
                                 Image(systemName: "message.fill")
                                     .font(.title3)
@@ -451,6 +454,11 @@ struct PublicProfileView: View {
             Button("OK", role: .cancel) {}
         } message: {
             Text(errorMessage)
+        }
+        .navigationDestination(isPresented: $showDirectMessage) {
+            if let profile = pilotProfile {
+                DirectMessageView(pilotId: pilotId, pilotProfile: profile)
+            }
         }
         .sheet(isPresented: $showSpaceRoom) {
             if let liveSpace = pilotLiveSpace {
