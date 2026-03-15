@@ -81,6 +81,8 @@ struct BookingDetailView: View {
                     .background(Color.orange.opacity(0.15))
                     .cornerRadius(12)
                     .padding(.horizontal)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel("Warning: This booking expires soon, \(expiresAt, style: .relative) remaining")
                 }
 
                 // Map
@@ -92,18 +94,20 @@ struct BookingDetailView: View {
                 .frame(height: 250)
                 .cornerRadius(12)
                 .padding(.horizontal)
+                .accessibilityLabel("Map showing booking location at \(currentBooking.locationName)")
 
                 // Location
                 VStack(alignment: .leading, spacing: 8) {
                     Label("Location", systemImage: "mappin.circle.fill")
                         .font(.headline)
                         .foregroundColor(.red)
-                    
+
                     Text(currentBooking.locationName)
                         .font(.title3)
                         .fontWeight(.semibold)
                         .multilineTextAlignment(.leading)
                         .frame(maxWidth: .infinity, alignment: .leading)
+                        .accessibilityLabel("Location: \(currentBooking.locationName)")
                     
                     // Detailed Address with Get directions button
                     HStack {
@@ -128,7 +132,10 @@ struct BookingDetailView: View {
                             .padding(.vertical, 6)
                             .background(Color.blue.opacity(0.1))
                             .cornerRadius(8)
+                            .frame(minWidth: 44, minHeight: 44)
+                            .contentShape(Rectangle())
                         }
+                        .accessibilityLabel("Get directions to \(currentBooking.locationName)")
                     }
                 }
                 .padding(.horizontal)
@@ -141,7 +148,7 @@ struct BookingDetailView: View {
                     VStack(alignment: .leading, spacing: 12) {
                         Label("Charted by", systemImage: "person.fill")
                             .font(.headline)
-                        
+
                         HStack(spacing: 12) {
                             // Customer Profile Picture
                             Group {
@@ -174,15 +181,16 @@ struct BookingDetailView: View {
                                 }
                             }
                             .frame(width: 60, height: 60)
-                            
+                            .accessibilityLabel("Customer profile picture")
+
                             // Customer Name
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(customerProfile?.fullName ?? "Customer")
                                     .font(.headline)
                             }
-                            
+
                             Spacer()
-                            
+
                             // Message Button (for accepted/staffed/inProgress/completed bookings)
                             if currentBooking.status == .accepted || currentBooking.status == .staffed || currentBooking.status == .inProgress || currentBooking.status == .completed {
                                 Button(action: {
@@ -199,13 +207,18 @@ struct BookingDetailView: View {
                                     .padding(.vertical, 8)
                                     .background(Color.blue)
                                     .cornerRadius(20)
+                                    .frame(minHeight: 44)
+                                    .contentShape(Rectangle())
                                 }
+                                .accessibilityLabel("Message \(customerProfile?.fullName ?? "customer")")
+                                .accessibilityHint("Opens a conversation with the customer")
                             } else {
                                 Text("Message available after booking is accepted")
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                             }
                         }
+                        .accessibilityElement(children: .combine)
                     }
                     .padding(.horizontal)
                     
@@ -218,7 +231,7 @@ struct BookingDetailView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         Label("Category", systemImage: "tag.fill")
                             .font(.headline)
-                        
+
                         HStack {
                             Label(specialization.displayName, systemImage: specialization.icon)
                                 .font(.body)
@@ -230,6 +243,8 @@ struct BookingDetailView: View {
                         }
                     }
                     .padding(.horizontal)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel("Category: \(specialization.displayName)")
                     
                     Divider()
                         .padding(.horizontal)
@@ -239,7 +254,7 @@ struct BookingDetailView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Label("Description", systemImage: "text.alignleft")
                         .font(.headline)
-                    
+
                     if let description = currentBooking.description, !description.isEmpty {
                         Text(description)
                             .font(.body)
@@ -256,6 +271,7 @@ struct BookingDetailView: View {
                     }
                 }
                 .padding(.horizontal)
+                .accessibilityElement(children: .combine)
                 
                 Divider()
                     .padding(.horizontal)
@@ -265,7 +281,7 @@ struct BookingDetailView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         Label("Assignment Type", systemImage: "list.bullet.clipboard")
                             .font(.headline)
-                        
+
                         HStack(spacing: 8) {
                             Image(systemName: assignmentType.icon)
                                 .foregroundColor(.blue)
@@ -279,6 +295,8 @@ struct BookingDetailView: View {
                         .cornerRadius(8)
                     }
                     .padding(.horizontal)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel("Assignment type: \(assignmentType.displayName)")
                     
                     Divider()
                         .padding(.horizontal)
@@ -289,7 +307,7 @@ struct BookingDetailView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         Label("Agency", systemImage: "building.columns")
                             .font(.headline)
-                        
+
                         HStack(spacing: 8) {
                             Image(systemName: agency.icon)
                                 .foregroundColor(.purple)
@@ -303,6 +321,8 @@ struct BookingDetailView: View {
                         .cornerRadius(8)
                     }
                     .padding(.horizontal)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel("Agency: \(agency.displayName)")
                     
                     Divider()
                         .padding(.horizontal)
@@ -314,7 +334,7 @@ struct BookingDetailView: View {
                         Label("Program", systemImage: "antenna.radiowaves.left.and.right")
                             .font(.headline)
                             .foregroundColor(.black)
-                        
+
                         HStack(spacing: 8) {
                             Image(systemName: "antenna.radiowaves.left.and.right")
                                 .foregroundColor(.orange)
@@ -328,6 +348,8 @@ struct BookingDetailView: View {
                         .cornerRadius(8)
                     }
                     .padding(.horizontal)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel("Program: Beacon Volunteer Program")
                     
                     Divider()
                         .padding(.horizontal)
@@ -338,11 +360,12 @@ struct BookingDetailView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         Label("Number of Pilots", systemImage: "person.2.fill")
                             .font(.headline)
-                        
+
                         Text("\(numPilots) \(numPilots == 1 ? "pilot" : "pilots")")
                             .font(.body)
                     }
                     .padding(.horizontal)
+                    .accessibilityElement(children: .combine)
                     
                     Divider()
                         .padding(.horizontal)
@@ -369,7 +392,8 @@ struct BookingDetailView: View {
                                     .fontWeight(.bold)
                             }
                         }
-                        
+                        .accessibilityElement(children: .combine)
+
                         if let hours = currentBooking.estimatedFlightHours, hours > 0 {
                             VStack(alignment: .leading, spacing: 4) {
                                 Label("Hourly rate", systemImage: "clock.badge.checkmark")
@@ -386,11 +410,12 @@ struct BookingDetailView: View {
                                         .fontWeight(.bold)
                                 }
                             }
+                            .accessibilityElement(children: .combine)
                         }
-                        
+
                         Spacer()
                     }
-                    
+
                     // Second row: Duration
                     if let hours = currentBooking.estimatedFlightHours {
                         HStack(spacing: 40) {
@@ -402,7 +427,8 @@ struct BookingDetailView: View {
                                     .font(.title2)
                                     .fontWeight(.bold)
                             }
-                            
+                            .accessibilityElement(children: .combine)
+
                             Spacer()
                         }
                     }
@@ -417,17 +443,18 @@ struct BookingDetailView: View {
                     VStack(alignment: .leading, spacing: 6) {
                         Label("Start Time", systemImage: "calendar.badge.clock")
                             .font(.headline)
-                        
+
                         VStack(alignment: .leading, spacing: 2) {
                             Text(formatStartTime(scheduledDate))
                                 .font(.body)
-                            
+
                             Text("Zulu: \(formatZuluTime(scheduledDate))")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
                     }
                     .padding(.horizontal)
+                    .accessibilityElement(children: .combine)
                     
                     Divider()
                         .padding(.horizontal)
@@ -437,7 +464,7 @@ struct BookingDetailView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Label("Status", systemImage: "info.circle.fill")
                         .font(.headline)
-                    
+
                     Text(currentBooking.status.displayName.capitalized)
                         .font(.body)
                         .padding(.horizontal, 12)
@@ -445,8 +472,10 @@ struct BookingDetailView: View {
                         .background(statusColor.opacity(0.2))
                         .foregroundColor(statusColor)
                         .cornerRadius(8)
+                        .accessibilityLabel("Booking status: \(currentBooking.status.displayName.capitalized)")
                 }
                 .padding(.horizontal)
+                .accessibilityElement(children: .combine)
                 
                 // Checklist Section (for pilots with accepted bookings)
                 if authService.userProfile?.userType == .pilot &&
@@ -479,6 +508,8 @@ struct BookingDetailView: View {
                             .cornerRadius(12)
                         }
                         .buttonStyle(PlainButtonStyle())
+                        .accessibilityLabel("View Flight Checklist")
+                        .accessibilityHint("Review pre-flight and post-flight requirements")
                     }
                     .padding(.horizontal)
                 }
@@ -515,14 +546,17 @@ struct BookingDetailView: View {
                                         Label("Ready", systemImage: "checkmark.circle.fill")
                                             .font(.caption)
                                             .foregroundColor(.green)
+                                            .accessibilityLabel("Crew status: Ready")
                                     } else if crew.hasQualifiedLead == true {
                                         Label("Has Lead", systemImage: "star.fill")
                                             .font(.caption)
                                             .foregroundColor(.orange)
+                                            .accessibilityLabel("Crew status: Has lead pilot")
                                     } else {
                                         Label("Needs Lieutenant+", systemImage: "exclamationmark.triangle.fill")
                                             .font(.caption)
                                             .foregroundColor(.orange)
+                                            .accessibilityLabel("Crew status: Needs a Lieutenant or above")
                                     }
                                 }
                                 
@@ -532,13 +566,14 @@ struct BookingDetailView: View {
                                         RoundedRectangle(cornerRadius: 4)
                                             .fill(Color.gray.opacity(0.2))
                                             .frame(height: 8)
-                                        
+
                                         RoundedRectangle(cornerRadius: 4)
                                             .fill(crew.isReady == true ? Color.green : Color.blue)
                                             .frame(width: geometry.size.width * CGFloat(crew.crewCount) / CGFloat(crew.maxCrew), height: 8)
                                     }
                                 }
                                 .frame(height: 8)
+                                .accessibilityLabel("Crew progress: \(crew.crewCount) of \(crew.maxCrew) pilots joined")
                                 
                                 // Lead pilot info (if available)
                                 if let lead = crew.leadPilot {
@@ -611,6 +646,7 @@ struct BookingDetailView: View {
                                                         .padding(.vertical, 2)
                                                         .background(Color.orange.opacity(0.2))
                                                         .cornerRadius(4)
+                                                        .accessibilityLabel("Lead pilot")
                                                 }
                                                 
                                                 Spacer()
@@ -666,7 +702,9 @@ struct BookingDetailView: View {
                                             .background(Color.green.opacity(0.1))
                                             .cornerRadius(12)
                                             .padding(.horizontal)
-                                            
+                                            .accessibilityElement(children: .combine)
+                                            .accessibilityLabel("You have joined this crew")
+
                                             if let crew = crewInfo {
                                                 Text("Waiting for \(crew.maxCrew - crew.crewCount) more pilot(s) to join")
                                                     .font(.caption)
@@ -708,6 +746,8 @@ struct BookingDetailView: View {
                                             .background(Color.green.opacity(0.1))
                                             .cornerRadius(12)
                                             .padding(.horizontal)
+                                            .accessibilityElement(children: .combine)
+                                            .accessibilityLabel("You have joined this mission")
 
                                             if let crew = crewInfo {
                                                 Text("Waiting for \(crew.maxCrew - crew.crewCount) more pilot(s) to join")
@@ -752,6 +792,8 @@ struct BookingDetailView: View {
                                             .foregroundColor(.orange)
                                     }
                                     .padding(.horizontal)
+                                    .accessibilityElement(children: .combine)
+                                    .accessibilityLabel("Warning: Identity verification required to accept missions")
                                 }
                             }
                         } else if (currentBooking.status == .accepted || currentBooking.status == .staffed) && currentBooking.pilotId == authService.currentUser?.id {
@@ -866,10 +908,13 @@ struct BookingDetailView: View {
                                 .padding(.horizontal, 16)
                                 .padding(.vertical, 10)
                                 .frame(maxWidth: .infinity)
+                                .frame(minHeight: 44)
                                 .background(Color.orange.opacity(0.1))
                                 .cornerRadius(12)
                             }
                             .padding(.horizontal)
+                            .accessibilityLabel("File a dispute for this booking")
+                            .accessibilityHint("Opens the dispute form")
                         }
                     }
                 }
@@ -1454,9 +1499,11 @@ struct DirectionsBottomSheet: View {
                         .frame(maxWidth: .infinity)
                         .frame(height: 56)
                 }
-                
+                .accessibilityLabel("Open in Apple Maps")
+                .accessibilityHint("Opens directions in Apple Maps")
+
                 Divider()
-                
+
                 Button(action: onOpenGoogleMaps) {
                     Text("Open Google Maps")
                         .font(.headline)
@@ -1464,9 +1511,11 @@ struct DirectionsBottomSheet: View {
                         .frame(maxWidth: .infinity)
                         .frame(height: 56)
                 }
-                
+                .accessibilityLabel("Open in Google Maps")
+                .accessibilityHint("Opens directions in Google Maps")
+
                 Divider()
-                
+
                 Button(action: onCopyToClipboard) {
                     Text("Copy to Clipboard")
                         .font(.headline)
@@ -1474,6 +1523,8 @@ struct DirectionsBottomSheet: View {
                         .frame(maxWidth: .infinity)
                         .frame(height: 56)
                 }
+                .accessibilityLabel("Copy address to clipboard")
+                .accessibilityHint("Copies the location address to your clipboard")
             }
             .background(Color(.systemGray6))
             .cornerRadius(14)
@@ -1492,6 +1543,7 @@ struct DirectionsBottomSheet: View {
                     .frame(maxWidth: .infinity)
                     .frame(height: 56)
             }
+            .accessibilityLabel("Cancel")
             .background(Color(.systemGray6))
             .cornerRadius(14)
             .padding(.horizontal, 8)
@@ -1566,6 +1618,7 @@ struct WithdrawModifier: ViewModifier {
                                 .frame(width: 44, height: 44)
                                 .contentShape(Rectangle())
                         }
+                        .accessibilityLabel("More options")
                     }
                 }
             }

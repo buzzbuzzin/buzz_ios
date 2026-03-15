@@ -122,7 +122,10 @@ struct HangerTalkView: View {
                     Image(systemName: "magnifyingglass")
                         .font(.body)
                         .foregroundColor(.primary)
+                        .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(Rectangle())
                 }
+                .accessibilityLabel("Search")
             }
         }
         .sheet(isPresented: $showSearch) {
@@ -308,8 +311,12 @@ struct HangerTalkView: View {
                             .frame(height: 3)
                             .cornerRadius(1.5)
                     }
+                    .frame(minHeight: 44)
+                    .contentShape(Rectangle())
                 }
                 .frame(maxWidth: .infinity)
+                .accessibilityLabel("\(tab.rawValue) tab")
+                .accessibilityHint(selectedTab == tab ? "Currently selected" : "Double tap to switch to \(tab.rawValue)")
             }
         }
         .padding(.top, 4)
@@ -492,9 +499,12 @@ struct HangerTalkView: View {
                         .background(Color.red)
                         .clipShape(Capsule())
                         .offset(x: 4, y: -4)
+                        .accessibilityHidden(true)
                 }
             }
         }
+        .accessibilityLabel(service.unreadCount > 0 ? "Inbox, \(service.unreadCount) unread" : "Inbox")
+        .accessibilityHint("Opens your notifications")
     }
 
     private var composeButton: some View {
@@ -510,6 +520,8 @@ struct HangerTalkView: View {
                 .clipShape(Circle())
                 .shadow(color: .blue.opacity(0.3), radius: 8, x: 0, y: 4)
         }
+        .accessibilityLabel("New post")
+        .accessibilityHint("Compose a new post")
     }
 
     // MARK: - Refresh

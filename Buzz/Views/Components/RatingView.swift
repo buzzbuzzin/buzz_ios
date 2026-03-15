@@ -118,8 +118,13 @@ struct RatingView: View {
                                     Image(systemName: rating <= selectedRating ? "star.fill" : "star")
                                         .font(.system(size: 32))
                                         .foregroundColor(rating <= selectedRating ? .yellow : .gray)
+                                        .frame(minWidth: 44, minHeight: 44)
+                                        .contentShape(Rectangle())
                                 }
                                 .buttonStyle(PlainButtonStyle())
+                                .accessibilityLabel("\(rating) star\(rating == 1 ? "" : "s")")
+                                .accessibilityValue(rating <= selectedRating ? "Selected" : "Not selected")
+                                .accessibilityHint("Tap to rate \(rating) star\(rating == 1 ? "" : "s")")
                             }
                         }
                         
@@ -168,6 +173,8 @@ struct RatingView: View {
                             .cornerRadius(12)
                     }
                     .disabled(selectedRating == 0)
+                    .accessibilityLabel("Submit review")
+                    .accessibilityHint(selectedRating == 0 ? "Select a star rating first" : "Submits your \(selectedRating) star review")
                     .padding(.horizontal)
                     .padding(.bottom, 20)
                 }
@@ -179,7 +186,10 @@ struct RatingView: View {
                     Button(action: { dismiss() }) {
                         Image(systemName: "chevron.left")
                             .foregroundColor(.primary)
+                            .frame(minWidth: 44, minHeight: 44)
+                            .contentShape(Rectangle())
                     }
+                    .accessibilityLabel("Back")
                 }
             }
             .sheet(isPresented: $showCustomTipSheet) {
@@ -321,6 +331,10 @@ struct TipPercentageButton: View {
             )
         }
         .buttonStyle(PlainButtonStyle())
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(percentage) percent tip, \(String(format: "$%.2f", NSDecimalNumber(decimal: calculatedTip).doubleValue))")
+        .accessibilityValue(isSelected ? "Selected" : "Not selected")
+        .accessibilityAddTraits(.isButton)
     }
 }
 
@@ -330,7 +344,7 @@ struct StarRatingView: View {
     let rating: Double
     let maxRating: Int = 5
     let starSize: CGFloat = 16
-    
+
     var body: some View {
         HStack(spacing: 4) {
             ForEach(1...maxRating, id: \.self) { index in
@@ -344,6 +358,8 @@ struct StarRatingView: View {
                     .foregroundColor(.secondary)
             }
         }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Rating: \(String(format: "%.1f", rating)) out of \(maxRating) stars")
     }
 }
 

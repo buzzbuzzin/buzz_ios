@@ -91,11 +91,12 @@ struct MessageView: View {
                                     .foregroundColor(.blue)
                             }
                         }
+                        .accessibilityHidden(true)
 
                         VStack(alignment: .leading, spacing: 2) {
                             Text(displayName)
                                 .font(.headline)
-                            
+
                             if profile.userType != .pilot,
                                let callSign = profile.callSign,
                                !callSign.isEmpty {
@@ -103,7 +104,7 @@ struct MessageView: View {
                                     .font(.caption)
                                     .foregroundColor(.blue)
                             }
-                            
+
                             Text(booking.locationName)
                                 .font(.caption)
                                 .foregroundColor(.secondary)
@@ -115,6 +116,8 @@ struct MessageView: View {
                     .padding(.horizontal)
                     .padding(.vertical, 12)
                     .background(Color(.systemGray6))
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel("Conversation with \(displayName), \(booking.locationName)")
                 }
                 
                 // Messages List
@@ -205,7 +208,10 @@ struct MessageView: View {
                                 .font(.system(size: 32))
                                 .foregroundColor(messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? .gray : .blue)
                         }
+                        .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(Rectangle())
                         .disabled(messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        .accessibilityLabel("Send message")
                     }
                     .padding(.horizontal)
                     .padding(.vertical, 8)
@@ -221,6 +227,7 @@ struct MessageView: View {
                     Button("Done") {
                         dismiss()
                     }
+                    .accessibilityLabel("Done, dismiss message view")
                 }
             }
         }
@@ -362,7 +369,7 @@ struct MessageBubble: View {
             if isFromCurrentUser {
                 Spacer(minLength: 60)
             }
-            
+
             VStack(alignment: isFromCurrentUser ? .trailing : .leading, spacing: 4) {
                 Text(message.text)
                     .font(.body)
@@ -381,12 +388,16 @@ struct MessageBubble: View {
                     reactions: message.reactions,
                     currentUserId: currentUserId
                 )
-                
+
                 Text(message.createdAt.formatted(date: .omitted, time: .shortened))
                     .font(.caption2)
                     .foregroundColor(.secondary)
+                    .accessibilityLabel("Sent at \(message.createdAt.formatted(date: .omitted, time: .shortened))")
             }
-            
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("\(isFromCurrentUser ? "You" : "Them"): \(message.text), \(message.createdAt.formatted(date: .omitted, time: .shortened))")
+            .accessibilityHint("Long press to react")
+
             if !isFromCurrentUser {
                 Spacer(minLength: 60)
             }

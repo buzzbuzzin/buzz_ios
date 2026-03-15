@@ -28,6 +28,8 @@ struct SignatureCanvasView: View {
                     )
                     .background(Color(.systemBackground))
                     .cornerRadius(12)
+                    .accessibilityLabel("Signature drawing area")
+                    .accessibilityHint("Draw your signature using your finger or Apple Pencil")
                 
                 // Clear button below signature area - show when signature exists
                 if signatureImage != nil {

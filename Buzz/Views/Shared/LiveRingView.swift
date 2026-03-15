@@ -44,5 +44,8 @@ struct LiveRingView: View {
             }
         }
         .onAppear { isAnimating = true }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Live indicator")
+        .accessibilityAddTraits(.updatesFrequently)
     }
 }

@@ -122,6 +122,8 @@ struct HangerImageCarousel: View {
         if imageUrls.count == 1 {
             // Single image — no carousel
             singleImage(urlString: imageUrls[0])
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Post image")
         } else {
             // Multiple images — swipeable carousel
             ZStack(alignment: .topTrailing) {
@@ -129,6 +131,7 @@ struct HangerImageCarousel: View {
                     ForEach(Array(imageUrls.enumerated()), id: \.offset) { index, urlString in
                         carouselImage(urlString: urlString)
                             .tag(index)
+                            .accessibilityLabel("Image \(index + 1) of \(imageUrls.count)")
                     }
                 }
                 .tabViewStyle(.page(indexDisplayMode: .automatic))
@@ -144,7 +147,12 @@ struct HangerImageCarousel: View {
                     .background(Color.black.opacity(0.6))
                     .cornerRadius(10)
                     .padding(8)
+                    .accessibilityHidden(true)
             }
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel("Image carousel, \(imageUrls.count) images")
+            .accessibilityValue("Showing image \(currentPage + 1) of \(imageUrls.count)")
+            .accessibilityHint("Swipe left or right to browse images")
         }
     }
 

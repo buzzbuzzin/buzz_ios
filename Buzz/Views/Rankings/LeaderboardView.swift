@@ -166,8 +166,10 @@ struct LeaderboardRow: View {
             }
         }
         .padding(.vertical, 8)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Rank \(rank), \(stats.tierName), \(stats.callsign ?? "Unknown pilot"), \(String(format: "%.0f", stats.totalFlightHours)) flight hours, \(stats.completedBookings) flights")
     }
-    
+
     private var rankColor: Color {
         switch rank {
         case 1: return .yellow
@@ -228,6 +230,8 @@ struct TierInfoRow: View {
             Spacer()
         }
         .padding(.vertical, 4)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Tier \(tier): \(tierInfo.name), \(tierInfo.hours)")
     }
 }
 

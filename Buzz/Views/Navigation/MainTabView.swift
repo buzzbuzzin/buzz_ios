@@ -506,11 +506,29 @@ struct MyFlightsBookingCard: View {
             }
         }
         .padding(.vertical, 8)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(bookingAccessibilityLabel)
         .task {
             await loadCustomerProfile()
         }
     }
-    
+
+    private var bookingAccessibilityLabel: String {
+        var parts = [booking.locationName]
+        if let specialization = booking.specialization {
+            parts.append(specialization.displayName)
+        }
+        if booking.specialization == .searchRescue && booking.isVoluntary == true {
+            parts.append("Voluntary")
+        } else {
+            parts.append(String(format: "$%.2f", NSDecimalNumber(decimal: booking.paymentAmount).doubleValue))
+        }
+        if let hours = booking.estimatedFlightHours {
+            parts.append(String(format: "%.1f hours", hours))
+        }
+        return parts.joined(separator: ", ")
+    }
+
     private func loadCustomerProfile() async {
         // Try to get sample customer profile first (for demo)
         if let sampleProfile = profileService.getSampleCustomerProfile(customerId: booking.customerId) {

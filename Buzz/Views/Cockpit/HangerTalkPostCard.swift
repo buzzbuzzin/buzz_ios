@@ -104,6 +104,7 @@ struct HangerTalkPostCard: View {
                 }
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("View profile of \(postWithAuthor.authorCallSign ?? "author")")
 
             // Threads-style follow "+" button
             if !isOwnPost && !postWithAuthor.isFollowedByCurrentUser, let onFollow {
@@ -121,8 +122,11 @@ struct HangerTalkPostCard: View {
                                 .stroke(Color(.systemBackground), lineWidth: 2)
                         )
                 }
+                .frame(minWidth: 44, minHeight: 44)
+                .contentShape(Circle())
                 .buttonStyle(.plain)
                 .offset(y: 6)
+                .accessibilityLabel("Follow \(postWithAuthor.authorCallSign ?? "this pilot")")
             }
         }
     }
@@ -194,8 +198,10 @@ struct HangerTalkPostCard: View {
                 }
                 .font(.subheadline)
                 .foregroundColor(.secondary)
+                .frame(minHeight: 44)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Reply, \(postWithAuthor.post.replyCount) replies")
 
             Spacer()
 
@@ -209,8 +215,11 @@ struct HangerTalkPostCard: View {
                 }
                 .font(.subheadline)
                 .foregroundColor(postWithAuthor.isRepostedByCurrentUser ? .green : .secondary)
+                .frame(minHeight: 44)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Repost, \(postWithAuthor.post.repostCount) reposts")
+            .accessibilityValue(postWithAuthor.isRepostedByCurrentUser ? "Reposted" : "Not reposted")
 
             Spacer()
 
@@ -232,8 +241,11 @@ struct HangerTalkPostCard: View {
                 }
                 .font(.subheadline)
                 .foregroundColor(postWithAuthor.isLikedByCurrentUser ? .red : .secondary)
+                .frame(minHeight: 44)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Like, \(postWithAuthor.post.likeCount) likes")
+            .accessibilityValue(postWithAuthor.isLikedByCurrentUser ? "Liked" : "Not liked")
 
             Spacer()
 
@@ -244,8 +256,11 @@ struct HangerTalkPostCard: View {
                 Image(systemName: postWithAuthor.isBookmarkedByCurrentUser ? "bookmark.fill" : "bookmark")
                     .font(.subheadline)
                     .foregroundColor(postWithAuthor.isBookmarkedByCurrentUser ? .blue : .secondary)
+                    .frame(minWidth: 44, minHeight: 44)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Bookmark")
+            .accessibilityValue(postWithAuthor.isBookmarkedByCurrentUser ? "Bookmarked" : "Not bookmarked")
 
             Spacer()
 
@@ -254,10 +269,12 @@ struct HangerTalkPostCard: View {
                 Image(systemName: "square.and.arrow.up")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
+                    .frame(minWidth: 44, minHeight: 44)
             }
             .simultaneousGesture(TapGesture().onEnded {
                 markActionTap()
             })
+            .accessibilityLabel("Share post")
         }
     }
 

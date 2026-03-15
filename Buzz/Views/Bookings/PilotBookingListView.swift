@@ -79,6 +79,10 @@ struct PilotBookingListView: View {
                                 .foregroundColor(selectedCategory == nil ? .white : .primary)
                                 .cornerRadius(20)
                         }
+                        .accessibilityLabel("All categories")
+                        .accessibilityAddTraits(selectedCategory == nil ? .isSelected : [])
+                        .frame(minHeight: 44)
+                        .contentShape(Rectangle())
                         
                         // Category buttons
                         ForEach(BookingSpecialization.allCases, id: \.self) { category in
@@ -94,6 +98,10 @@ struct PilotBookingListView: View {
                                     .foregroundColor(selectedCategory == category ? .white : .primary)
                                     .cornerRadius(20)
                             }
+                            .accessibilityLabel("\(category.displayName) category")
+                            .accessibilityAddTraits(selectedCategory == category ? .isSelected : [])
+                            .frame(minHeight: 44)
+                            .contentShape(Rectangle())
                         }
                     }
                     .padding(.horizontal)
@@ -133,6 +141,9 @@ struct PilotBookingListView: View {
                                 .foregroundColor(.blue)
                                 .padding(4)
                         }
+                        .accessibilityLabel(isRadiusExpanded ? "Collapse mission distance filter" : "Expand mission distance filter")
+                        .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(Rectangle())
                     }
                     .padding(.horizontal)
                     .padding(.vertical, 8)
@@ -143,6 +154,8 @@ struct PilotBookingListView: View {
                             Slider(value: $missionDistanceMiles, in: 1...MissionDistancePreference.maxMiles, step: 1)
                                 .tint(.blue)
                                 .padding(.horizontal)
+                                .accessibilityLabel("Mission distance")
+                                .accessibilityValue(String(format: "%.0f miles", missionDistanceMiles))
                             
                             // Quick selection buttons
                             HStack(spacing: 8) {
@@ -161,6 +174,10 @@ struct PilotBookingListView: View {
                                             .foregroundColor(missionDistanceMiles == radius ? .white : .primary)
                                             .cornerRadius(12)
                                     }
+                                    .accessibilityLabel("\(Int(radius)) miles")
+                                    .accessibilityAddTraits(missionDistanceMiles == radius ? .isSelected : [])
+                                    .frame(minWidth: 44, minHeight: 44)
+                                    .contentShape(Rectangle())
                                 }
                             }
                             .padding(.horizontal)
@@ -212,6 +229,8 @@ struct PilotBookingListView: View {
                                                         .stroke(Color.orange, lineWidth: 2)
                                                 )
                                         }
+                                        .accessibilityElement(children: .combine)
+                                        .accessibilityLabel("Active mission: \(booking.locationName), \(booking.specialization?.displayName ?? "General")")
                                         .padding(.horizontal)
                                     }
                                 }
@@ -242,8 +261,11 @@ struct PilotBookingListView: View {
                                                     .padding(.vertical, 4)
                                                     .background(Color.cyan.opacity(0.15))
                                                     .cornerRadius(6)
+                                                    .accessibilityLabel("Status: Staffed")
                                             }
                                         }
+                                        .accessibilityElement(children: .combine)
+                                        .accessibilityLabel("Staffed mission: \(booking.locationName), \(booking.specialization?.displayName ?? "General")")
                                         .padding(.horizontal)
                                     }
                                 }
@@ -272,6 +294,8 @@ struct PilotBookingListView: View {
                                     NavigationLink(destination: BookingDetailView(booking: booking)) {
                                         BookingCard(booking: booking)
                                     }
+                                    .accessibilityElement(children: .combine)
+                                    .accessibilityLabel("Mission: \(booking.locationName), \(booking.specialization?.displayName ?? "General")")
                                     .padding(.horizontal)
                                 }
                             }
@@ -292,14 +316,16 @@ struct PilotBookingListView: View {
                         Image(systemName: "message.fill")
                             .foregroundColor(.blue)
                     }
+                    .accessibilityLabel("Conversations")
                 }
-                
+
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button {
                         showMapView = true
                     } label: {
                         Image(systemName: "map")
                     }
+                    .accessibilityLabel("Map view")
                 }
                 
                 if ProcessInfo.processInfo.arguments.contains("UI_TESTING") || ProcessInfo.processInfo.environment["UITEST_MODE"] == "1" {
@@ -408,7 +434,8 @@ struct BookingCard: View {
                 }
             }
             .frame(width: 50, height: 50)
-            
+            .accessibilityHidden(true)
+
             // Booking Info
             VStack(alignment: .leading, spacing: 12) {
                 // Title
@@ -417,7 +444,7 @@ struct BookingCard: View {
                     .foregroundColor(.primary)
                     .multilineTextAlignment(.leading)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                
+
                 // Category badge below title
                 if let specialization = booking.specialization {
                     Label(specialization.displayName, systemImage: specialization.icon)
@@ -427,6 +454,7 @@ struct BookingCard: View {
                         .background(Color.blue.opacity(0.1))
                         .foregroundColor(.blue)
                         .cornerRadius(8)
+                        .accessibilityLabel("Category: \(specialization.displayName)")
                 }
                 
                 if let description = booking.description, !description.isEmpty {
@@ -545,6 +573,7 @@ struct BookingMapCard: View {
                             .background(Color.blue.opacity(0.1))
                             .foregroundColor(.blue)
                             .cornerRadius(6)
+                            .accessibilityLabel("Category: \(specialization.displayName)")
                     }
                     
                     if let description = booking.description, !description.isEmpty {
@@ -562,6 +591,9 @@ struct BookingMapCard: View {
                         .font(.title)
                         .foregroundColor(.blue)
                 }
+                .accessibilityLabel("View booking details for \(booking.locationName)")
+                .frame(minWidth: 44, minHeight: 44)
+                .contentShape(Rectangle())
             }
             
             HStack {
@@ -593,6 +625,8 @@ struct BookingMapCard: View {
         .background(.ultraThinMaterial)
         .cornerRadius(16)
         .shadow(radius: 10)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Booking at \(booking.locationName)")
     }
 }
 
@@ -621,7 +655,7 @@ struct ExpressPromotionCard: View {
                     Text("Express Promotion")
                         .font(.headline)
                         .foregroundColor(.primary)
-                    
+
                     Text("Fast-track your rank advancement with verified credentials")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
@@ -629,6 +663,7 @@ struct ExpressPromotionCard: View {
                 }
             }
             .buttonStyle(PlainButtonStyle())
+            .accessibilityLabel("Express Promotion. Fast-track your rank advancement with verified credentials.")
             
             Spacer()
             
@@ -641,6 +676,9 @@ struct ExpressPromotionCard: View {
                     .font(.title3)
             }
             .buttonStyle(PlainButtonStyle())
+            .accessibilityLabel("Dismiss promotion card")
+            .frame(minWidth: 44, minHeight: 44)
+            .contentShape(Rectangle())
         }
         .padding()
         .background(

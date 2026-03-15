@@ -91,6 +91,8 @@ struct UpdatePopupView: View {
             .cornerRadius(20)
             .shadow(radius: 20)
             .padding(.horizontal, 40)
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel("Update available popup")
         }
         .transition(.scale.combined(with: .opacity))
         .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isPresented)

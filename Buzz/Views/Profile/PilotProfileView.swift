@@ -95,7 +95,9 @@ struct PilotProfileView: View {
                     )
                 }
                 .buttonStyle(PlainButtonStyle())
-                
+                .accessibilityLabel("Profile picture")
+                .accessibilityHint("Double tap to change your profile picture")
+
                 // Call Sign and Ratings below picture
                 VStack(alignment: .center, spacing: 4) {
                     if let callSign = authService.userProfile?.callSign, !callSign.isEmpty {
@@ -157,7 +159,8 @@ struct PilotProfileView: View {
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
-                    
+                    .accessibilityElement(children: .combine)
+
                     // Flight Hours
                     VStack(alignment: .leading, spacing: 2) {
                         Text(String(format: "%.0f", stats.totalFlightHours))
@@ -167,7 +170,8 @@ struct PilotProfileView: View {
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
-                    
+                    .accessibilityElement(children: .combine)
+
                     // Years on Buzz
                     VStack(alignment: .leading, spacing: 2) {
                         Text("\(yearsOnBuzz)")
@@ -177,6 +181,7 @@ struct PilotProfileView: View {
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
+                    .accessibilityElement(children: .combine)
                 }
             }
         }
@@ -233,6 +238,8 @@ struct PilotProfileView: View {
                                 profileHeaderContent
                             }
                             .buttonStyle(PlainButtonStyle())
+                            .accessibilityLabel("View public profile")
+                            .accessibilityHint("Double tap to view your public profile")
                         } else {
                             profileHeaderContent
                         }
@@ -252,7 +259,7 @@ struct PilotProfileView: View {
                                             .foregroundColor(.secondary)
                                     }
                                 }
-                                
+
                                 if badgeService.badges.isEmpty {
                                     Text("Complete courses to earn badges")
                                         .font(.subheadline)
@@ -270,6 +277,8 @@ struct PilotProfileView: View {
                             }
                         }
                         .buttonStyle(PlainButtonStyle())
+                        .accessibilityLabel(badgeService.badges.isEmpty ? "Badges, complete courses to earn badges" : "Badges, \(badgeService.badges.count) earned")
+                        .accessibilityHint("Double tap to view all badges")
                     }
                     
                     // Reviews and Balance Cards
@@ -288,7 +297,9 @@ struct PilotProfileView: View {
                                     }
                                     .buttonStyle(PlainButtonStyle())
                                     .frame(maxWidth: .infinity)
-                                    
+                                    .accessibilityLabel("Reviews")
+                                    .accessibilityHint("View your reviews")
+
                                     Button(action: {
                                         navigateToBalance = true
                                     }) {
@@ -300,6 +311,8 @@ struct PilotProfileView: View {
                                     }
                                     .buttonStyle(PlainButtonStyle())
                                     .frame(maxWidth: .infinity)
+                                    .accessibilityLabel("Balance")
+                                    .accessibilityHint("View your balance")
                                 }
                                 
                                 // Connections Button
@@ -337,6 +350,8 @@ struct PilotProfileView: View {
                                     )
                                 }
                                 .buttonStyle(PlainButtonStyle())
+                                .accessibilityLabel("Connections")
+                                .accessibilityHint("View your connections")
                             }
                             .listRowInsets(EdgeInsets())
                             .listRowBackground(Color.clear)
@@ -357,7 +372,8 @@ struct PilotProfileView: View {
                             }
                             Spacer()
                         }
-                        
+                        .accessibilityElement(children: .combine)
+
                         HStack {
                             Image(systemName: "clock")
                                 .foregroundColor(.secondary)
@@ -370,7 +386,8 @@ struct PilotProfileView: View {
                                 .fontWeight(.medium)
                                 .foregroundColor(.primary)
                         }
-                                                    
+                        .accessibilityElement(children: .combine)
+
                         HStack {
                             Image(systemName: "checkmark.circle")
                                 .foregroundColor(.secondary)
@@ -383,6 +400,7 @@ struct PilotProfileView: View {
                                 .fontWeight(.medium)
                                 .foregroundColor(.primary)
                         }
+                        .accessibilityElement(children: .combine)
 
                         // Examiner/Proctor stats (only show if user has activity)
                         if let examinerStats = examinerStats, examinerStats.hasActivity {
@@ -399,6 +417,7 @@ struct PilotProfileView: View {
                                         .fontWeight(.medium)
                                         .foregroundColor(.primary)
                                 }
+                                .accessibilityElement(children: .combine)
                             }
 
                             if examinerStats.rocAExamCount > 0 {
@@ -414,6 +433,7 @@ struct PilotProfileView: View {
                                         .fontWeight(.medium)
                                         .foregroundColor(.primary)
                                 }
+                                .accessibilityElement(children: .combine)
                             }
                         }
                     } else if rankingService.isLoading {
@@ -441,7 +461,8 @@ struct PilotProfileView: View {
                                 .foregroundColor(.primary)
                         }
                     }
-                    
+                    .accessibilityLabel("Government ID")
+
                     NavigationLink(destination: LicenseManagementView()
                         .onDisappear {
                             if let userId = authService.currentUser?.id {
@@ -466,7 +487,8 @@ struct PilotProfileView: View {
                             }
                         }
                     }
-                    
+                    .accessibilityLabel("Pilot Licenses")
+
                     NavigationLink(destination: DroneRegistrationView()) {
                         HStack {
                             Image(systemName: "airplane")
@@ -477,7 +499,8 @@ struct PilotProfileView: View {
                                 .foregroundColor(.primary)
                         }
                     }
-                    
+                    .accessibilityLabel("Drone Registration")
+
                     NavigationLink(destination: InsuranceView()) {
                         HStack {
                             Image(systemName: "shield.fill")
@@ -488,6 +511,7 @@ struct PilotProfileView: View {
                                 .foregroundColor(.primary)
                         }
                     }
+                    .accessibilityLabel("Insurance")
                 } header: {
                     Text("License")
                         .font(.subheadline)
@@ -506,7 +530,8 @@ struct PilotProfileView: View {
                                 .foregroundColor(.primary)
                         }
                     }
-                    
+                    .accessibilityLabel("Settings")
+
                     NavigationLink(destination: TaxDocumentView()) {
                         HStack {
                             Image(systemName: "doc.text.fill")
@@ -517,7 +542,8 @@ struct PilotProfileView: View {
                                 .foregroundColor(.primary)
                         }
                     }
-                    
+                    .accessibilityLabel("Tax Document")
+
                     NavigationLink(destination: StripeAccountSetupView()) {
                         HStack {
                             Image(systemName: "creditcard.fill")
@@ -528,7 +554,8 @@ struct PilotProfileView: View {
                                 .foregroundColor(.primary)
                         }
                     }
-                    
+                    .accessibilityLabel("Payment Account")
+
                     // Buzz Academy Pass
                     if let userId = authService.currentUser?.id {
                         NavigationLink(destination: AcademyPassManagementView(pilotId: userId)) {
@@ -541,8 +568,9 @@ struct PilotProfileView: View {
                                     .foregroundColor(.primary)
                             }
                         }
+                        .accessibilityLabel("Buzz Academy Pass")
                     }
-                    
+
                     NavigationLink(destination: HelpView()) {
                         HStack {
                             Image(systemName: "questionmark.circle")
@@ -553,7 +581,8 @@ struct PilotProfileView: View {
                                 .foregroundColor(.primary)
                         }
                     }
-                                        
+                    .accessibilityLabel("Get Help")
+
                     Button(role: .destructive) {
                         showSignOutAlert = true
                     } label: {
@@ -566,6 +595,8 @@ struct PilotProfileView: View {
                                 .foregroundColor(.red)
                         }
                     }
+                    .accessibilityLabel("Sign Out")
+                    .accessibilityHint("Double tap to sign out of your account")
                 } header: {
                     Text("Account")
                         .font(.subheadline)

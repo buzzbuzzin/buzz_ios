@@ -56,6 +56,8 @@ struct ProfileCard: View {
             RoundedRectangle(cornerRadius: 12)
                 .stroke(Color(.separator).opacity(0.2), lineWidth: 0.5)
         )
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(title)
     }
 }
 
@@ -81,23 +83,29 @@ struct EditProfileView: View {
             Section("Profile Information") {
                 TextField("First Name", text: $firstName)
                     .textContentType(.givenName)
-                
+                    .accessibilityLabel("First Name")
+
                 TextField("Last Name", text: $lastName)
                     .textContentType(.familyName)
-                
+                    .accessibilityLabel("Last Name")
+
                 if authService.userProfile?.userType == .pilot {
                     TextField("Call Sign", text: $callSign)
                         .autocapitalization(.allCharacters)
+                        .accessibilityLabel("Call Sign")
+                        .accessibilityHint("Your pilot call sign in all capital letters")
                 }
-                
+
                 TextField("Email", text: $email)
                     .textContentType(.emailAddress)
                     .autocapitalization(.none)
                     .keyboardType(.emailAddress)
-                
+                    .accessibilityLabel("Email")
+
                 TextField("Phone", text: $phone)
                     .textContentType(.telephoneNumber)
                     .keyboardType(.phonePad)
+                    .accessibilityLabel("Phone")
             }
             
             Section {
@@ -106,6 +114,8 @@ struct EditProfileView: View {
                     action: saveProfile,
                     isLoading: isLoading
                 )
+                .accessibilityLabel("Save Changes")
+                .accessibilityHint("Saves your updated profile information")
             }
         }
         .navigationTitle("Edit Profile")

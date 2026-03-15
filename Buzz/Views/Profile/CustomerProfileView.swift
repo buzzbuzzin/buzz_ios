@@ -91,7 +91,9 @@ struct CustomerProfileView: View {
                     )
                 }
                 .buttonStyle(PlainButtonStyle())
-                
+                .accessibilityLabel("Profile picture")
+                .accessibilityHint("Double tap to change your profile picture")
+
                 // Name and Ratings below picture
                 VStack(alignment: .center, spacing: 4) {
                     Text(authService.userProfile?.firstName ?? "User")
@@ -144,9 +146,10 @@ struct CustomerProfileView: View {
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
-                
+                .accessibilityElement(children: .combine)
+
                 Divider()
-                
+
                 // Years on Buzz
                 VStack(alignment: .leading, spacing: 2) {
                     Text("\(yearsOnBuzz)")
@@ -156,6 +159,7 @@ struct CustomerProfileView: View {
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
+                .accessibilityElement(children: .combine)
             }
         }
         .padding(.vertical, 8)
@@ -229,7 +233,9 @@ struct CustomerProfileView: View {
                                     }
                                     .buttonStyle(PlainButtonStyle())
                                     .frame(maxWidth: .infinity)
-                                    
+                                    .accessibilityLabel("Reviews")
+                                    .accessibilityHint("View your reviews")
+
                                     Button(action: {
                                         navigateToFlightPackages = true
                                     }) {
@@ -241,6 +247,8 @@ struct CustomerProfileView: View {
                                     }
                                     .buttonStyle(PlainButtonStyle())
                                     .frame(maxWidth: .infinity)
+                                    .accessibilityLabel("Flight Packages")
+                                    .accessibilityHint("View your flight packages")
                                 }
                                 
                                 HStack(spacing: 8) {
@@ -255,7 +263,9 @@ struct CustomerProfileView: View {
                                     }
                                     .buttonStyle(PlainButtonStyle())
                                     .frame(maxWidth: .infinity)
-                                    
+                                    .accessibilityLabel("Connections")
+                                    .accessibilityHint("View your connections")
+
                                     Button(action: {
                                         navigateToShop = true
                                     }) {
@@ -267,6 +277,8 @@ struct CustomerProfileView: View {
                                     }
                                     .buttonStyle(PlainButtonStyle())
                                     .frame(maxWidth: .infinity)
+                                    .accessibilityLabel("Shop")
+                                    .accessibilityHint("Browse the shop")
                                 }
                                 
                                 // Become a Pilot Button
@@ -304,6 +316,8 @@ struct CustomerProfileView: View {
                                     )
                                 }
                                 .buttonStyle(PlainButtonStyle())
+                                .accessibilityLabel("Become a Pilot")
+                                .accessibilityHint("Double tap to start the pilot application process")
                             }
                             .listRowInsets(EdgeInsets())
                             .listRowBackground(Color.clear)
@@ -322,7 +336,8 @@ struct CustomerProfileView: View {
                                     .foregroundColor(.primary)
                             }
                         }
-                        
+                        .accessibilityLabel("Settings")
+
                         NavigationLink(destination: SavedPaymentsView()) {
                             HStack {
                                 Image(systemName: "creditcard")
@@ -333,7 +348,8 @@ struct CustomerProfileView: View {
                                     .foregroundColor(.primary)
                             }
                         }
-                        
+                        .accessibilityLabel("Saved Payments")
+
                         NavigationLink(destination: HelpView()) {
                             HStack {
                                 Image(systemName: "questionmark.circle")
@@ -344,7 +360,8 @@ struct CustomerProfileView: View {
                                     .foregroundColor(.primary)
                             }
                         }
-                                        
+                        .accessibilityLabel("Get Help")
+
                         Button(role: .destructive) {
                             showSignOutAlert = true
                         } label: {
@@ -357,6 +374,8 @@ struct CustomerProfileView: View {
                                     .foregroundColor(.red)
                             }
                         }
+                        .accessibilityLabel("Sign Out")
+                        .accessibilityHint("Double tap to sign out of your account")
                     } header: {
                         Text("Account")
                             .font(.subheadline)

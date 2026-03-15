@@ -20,6 +20,9 @@ struct LoadingView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(.systemBackground))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(message)
+        .accessibilityAddTraits(.updatesFrequently)
     }
 }
 

@@ -141,12 +141,14 @@ struct EmailSignInView: View {
                     .padding()
                     .background(Color(.systemGray6))
                     .cornerRadius(10)
-                
+                    .accessibilityLabel("Email address")
+
                 SecureField("Password", text: $password)
                     .textContentType(.password)
                     .padding()
                     .background(Color(.systemGray6))
                     .cornerRadius(10)
+                    .accessibilityLabel("Password")
             }
             .padding(.horizontal)
             

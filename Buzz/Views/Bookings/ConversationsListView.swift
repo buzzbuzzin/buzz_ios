@@ -54,6 +54,7 @@ struct ConversationsListView: View {
                                     ) {
                                         DirectMessageConversationRow(conversation: conversation)
                                     }
+                                    .accessibilityLabel("Open conversation with \(conversation.partnerProfile.visibleDisplayName(to: authService.currentUser?.id))")
                                     .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                                         Button(role: .destructive) {
                                             conversationToDelete = conversation.partnerId
@@ -62,6 +63,7 @@ struct ConversationsListView: View {
                                         } label: {
                                             Label("Delete", systemImage: "trash")
                                         }
+                                        .accessibilityLabel("Delete conversation")
                                     }
                                     .swipeActions(edge: .leading, allowsFullSwipe: true) {
                                         Button {
@@ -72,6 +74,7 @@ struct ConversationsListView: View {
                                             Label("Unread", systemImage: "message.badge")
                                         }
                                         .tint(.blue)
+                                        .accessibilityLabel("Mark as unread")
                                     }
                                 }
                             }
@@ -91,6 +94,7 @@ struct ConversationsListView: View {
                                     ) {
                                         ConversationRow(conversation: conversation)
                                     }
+                                    .accessibilityLabel("Open booking conversation with \(conversation.otherUserProfile.visibleDisplayName(to: authService.currentUser?.id))")
                                     .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                                         Button(role: .destructive) {
                                             conversationToDelete = conversation.id
@@ -99,6 +103,7 @@ struct ConversationsListView: View {
                                         } label: {
                                             Label("Delete", systemImage: "trash")
                                         }
+                                        .accessibilityLabel("Delete conversation")
                                     }
                                     .swipeActions(edge: .leading, allowsFullSwipe: true) {
                                         Button {
@@ -109,6 +114,7 @@ struct ConversationsListView: View {
                                             Label("Unread", systemImage: "message.badge")
                                         }
                                         .tint(.blue)
+                                        .accessibilityLabel("Mark as unread")
                                     }
                                 }
                             }
@@ -128,11 +134,13 @@ struct ConversationsListView: View {
             }
             .alert("Delete Conversation", isPresented: $showDeleteConfirmation) {
                 Button("Cancel", role: .cancel) { }
+                    .accessibilityLabel("Cancel deletion")
                 Button("Delete", role: .destructive) {
                     Task {
                         await performDelete()
                     }
                 }
+                .accessibilityLabel("Confirm delete conversation")
             } message: {
                 Text("By deleting this conversation, it will be removed from your device. For security reasons, messages will be kept on our servers for up to 7 days before permanent deletion.")
             }
@@ -316,12 +324,26 @@ struct ConversationItem: Identifiable {
 struct ConversationRow: View {
     @EnvironmentObject var authService: AuthService
     let conversation: ConversationItem
-    
+
     // Computed property to determine display name based on user types
     private var displayName: String {
         conversation.otherUserProfile.visibleDisplayName(to: authService.currentUser?.id)
     }
-    
+
+    private var timeText: String {
+        if let lastMessage = conversation.lastMessage {
+            return lastMessage.createdAt.formattedConversationTime()
+        }
+        return conversation.booking.createdAt.formattedConversationTime()
+    }
+
+    private var previewText: String {
+        if let lastMessage = conversation.lastMessage {
+            return lastMessage.text
+        }
+        return conversation.booking.locationName
+    }
+
     var body: some View {
         HStack(spacing: 12) {
             // Unread indicator dot
@@ -329,8 +351,9 @@ struct ConversationRow: View {
                 Circle()
                     .fill(Color.blue)
                     .frame(width: 8, height: 8)
+                    .accessibilityHidden(true)
             }
-            
+
             // Other User Profile Picture (Customer for pilots, Pilot for customers)
             Group {
                 if let pictureUrl = conversation.otherUserProfile.profilePictureUrl,
@@ -361,13 +384,14 @@ struct ConversationRow: View {
                 }
             }
             .frame(width: 50, height: 50)
-            
+            .accessibilityHidden(true)
+
             // Conversation Info
             VStack(alignment: .leading, spacing: 4) {
                 Text(displayName)
                     .font(.headline)
                     .fontWeight(conversation.hasUnreadMessages ? .semibold : .regular)
-                
+
                 if conversation.otherUserProfile.userType != .pilot,
                    let callSign = conversation.otherUserProfile.callSign,
                    !callSign.isEmpty {
@@ -375,7 +399,7 @@ struct ConversationRow: View {
                         .font(.caption)
                         .foregroundColor(.blue)
                 }
-                
+
                 // Show last message text or location name
                 if let lastMessage = conversation.lastMessage {
                     Text(lastMessage.text)
@@ -390,9 +414,9 @@ struct ConversationRow: View {
                         .lineLimit(1)
                 }
             }
-            
+
             Spacer()
-            
+
             // Last message time
             VStack(alignment: .trailing, spacing: 4) {
                 if let lastMessage = conversation.lastMessage {
@@ -405,8 +429,11 @@ struct ConversationRow: View {
                         .foregroundColor(.secondary)
                 }
             }
+            .accessibilityHidden(true)
         }
         .padding(.vertical, 8)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(displayName)\(conversation.hasUnreadMessages ? ", unread" : ""), \(previewText), \(timeText)")
     }
 }
 
@@ -425,7 +452,11 @@ struct DirectMessageConversationItem: Identifiable {
 struct DirectMessageConversationRow: View {
     let conversation: DirectMessageConversationItem
     @EnvironmentObject var authService: AuthService
-    
+
+    private var partnerDisplayName: String {
+        conversation.partnerProfile.visibleDisplayName(to: authService.currentUser?.id)
+    }
+
     var body: some View {
         HStack(spacing: 12) {
             // Unread indicator dot
@@ -433,8 +464,9 @@ struct DirectMessageConversationRow: View {
                 Circle()
                     .fill(Color.blue)
                     .frame(width: 8, height: 8)
+                    .accessibilityHidden(true)
             }
-            
+
             // Partner Profile Picture
             Group {
                 if let pictureUrl = conversation.partnerProfile.profilePictureUrl,
@@ -465,13 +497,14 @@ struct DirectMessageConversationRow: View {
                 }
             }
             .frame(width: 50, height: 50)
-            
+            .accessibilityHidden(true)
+
             // Conversation Info
             VStack(alignment: .leading, spacing: 4) {
-                Text(conversation.partnerProfile.visibleDisplayName(to: authService.currentUser?.id))
+                Text(partnerDisplayName)
                     .font(.headline)
                     .fontWeight(conversation.hasUnreadMessages ? .semibold : .regular)
-                
+
                 HStack(spacing: 4) {
                     if conversation.lastMessage.isListingCard {
                         Image(systemName: "tag.fill")
@@ -485,17 +518,20 @@ struct DirectMessageConversationRow: View {
                         .lineLimit(1)
                 }
             }
-            
+
             Spacer()
-            
+
             // Last message time
             VStack(alignment: .trailing, spacing: 4) {
                 Text(conversation.lastMessage.createdAt.formattedConversationTime())
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
+            .accessibilityHidden(true)
         }
         .padding(.vertical, 8)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(partnerDisplayName)\(conversation.hasUnreadMessages ? ", unread" : ""), \(conversation.lastMessage.isListingCard ? "listing: " : "")\(conversation.lastMessage.text), \(conversation.lastMessage.createdAt.formattedConversationTime())")
     }
 }
 

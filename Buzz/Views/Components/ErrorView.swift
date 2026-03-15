@@ -34,6 +34,8 @@ struct ErrorView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(.systemBackground))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Error. \(message)")
     }
 }
 

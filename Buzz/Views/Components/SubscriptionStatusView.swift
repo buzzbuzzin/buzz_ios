@@ -73,6 +73,8 @@ struct SubscriptionStatusView: View {
                 .padding()
                 .background(Color.green.opacity(0.1))
                 .cornerRadius(12)
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("Academy Pass Active, via \(entitlementManager.subscriptionSourceDisplayName)")
             } else {
                 // No active subscription
                 VStack(spacing: 12) {
@@ -97,6 +99,8 @@ struct SubscriptionStatusView: View {
                 .padding()
                 .background(Color.orange.opacity(0.1))
                 .cornerRadius(12)
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("No active subscription. Subscribe to unlock all content.")
             }
         }
         .task {

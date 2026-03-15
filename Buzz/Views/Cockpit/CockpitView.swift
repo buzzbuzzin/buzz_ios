@@ -1148,6 +1148,9 @@ struct CockpitGridCard: View {
             RoundedRectangle(cornerRadius: 12)
                 .stroke(Color(.separator).opacity(0.15), lineWidth: 0.5)
         )
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(title)
+        .accessibilityAddTraits(.isButton)
     }
 }
 

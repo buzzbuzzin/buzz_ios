@@ -178,6 +178,9 @@ struct AcademyView: View {
                                 Image(systemName: "xmark.circle.fill")
                                     .foregroundColor(.secondary)
                             }
+                            .accessibilityLabel("Dismiss recurrent training notices")
+                            .frame(minWidth: 44, minHeight: 44)
+                            .contentShape(Rectangle())
                         }
                         .padding(.horizontal)
                         .padding(.top, 8)
@@ -316,10 +319,11 @@ struct AcademyView: View {
                                     isLocked: true,
                                     missingPrerequisites: missingPrerequisites
                                 )
+                                .accessibilityHint("Course is locked. Complete prerequisites to unlock.")
                             } else {
                                 NavigationLink(destination: CourseDetailView(
                                     course: courses.first(where: { $0.id == course.id }) ?? course,
-                                    onEnrollmentChange: { 
+                                    onEnrollmentChange: {
                                         toggleEnrollment(for: course.id)
                                         // Reload courses from backend to ensure sync
                                         Task {
@@ -329,6 +333,7 @@ struct AcademyView: View {
                                 )) {
                                     CourseCard(course: courses.first(where: { $0.id == course.id }) ?? course)
                                 }
+                                .accessibilityHint("Double tap to view course details")
                             }
                         }
                     }
@@ -361,6 +366,7 @@ struct AcademyView: View {
                         }
                         .foregroundColor(.mint)
                     }
+                    .accessibilityLabel("Hanger Help")
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     NavigationLink(destination: TestCenterView()) {
@@ -371,6 +377,7 @@ struct AcademyView: View {
                         }
                         .foregroundColor(.blue)
                     }
+                    .accessibilityLabel("Test Center")
                 }
             }
             .fullScreenCover(isPresented: $showHangerHelp) {
@@ -386,6 +393,9 @@ struct AcademyView: View {
                                         .font(.title2)
                                         .foregroundColor(.secondary)
                                 }
+                                .accessibilityLabel("Close Hanger Help")
+                                .frame(minWidth: 44, minHeight: 44)
+                                .contentShape(Rectangle())
                             }
                         }
                 }
@@ -554,7 +564,7 @@ struct ProviderChip: View {
     let isSelected: Bool
     var color: Color = .blue
     let action: () -> Void
-    
+
     var body: some View {
         Button(action: action) {
             HStack(spacing: 6) {
@@ -566,6 +576,7 @@ struct ProviderChip: View {
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 8)
+            .frame(minHeight: 44)
             .background(isSelected ? color : Color(.systemBackground))
             .foregroundColor(isSelected ? .white : .primary)
             .cornerRadius(20)
@@ -575,6 +586,7 @@ struct ProviderChip: View {
             )
         }
         .buttonStyle(PlainButtonStyle())
+        .accessibilityLabel("\(title) provider filter\(isSelected ? ", selected" : "")")
     }
 }
 
@@ -627,6 +639,8 @@ struct RecurrentTrainingCard: View {
                 .stroke(notice.urgencyColor.opacity(0.5), lineWidth: 2)
         )
         .shadow(color: notice.urgencyColor.opacity(0.2), radius: 4)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(notice.courseTitle), \(notice.provider.rawValue), \(notice.isOverdue ? "Overdue" : "Due in \(notice.daysUntilDue) days")")
     }
 }
 
@@ -637,7 +651,7 @@ struct CategoryChip: View {
     let icon: String
     let isSelected: Bool
     let action: () -> Void
-    
+
     var body: some View {
         Button(action: action) {
             HStack(spacing: 6) {
@@ -649,6 +663,7 @@ struct CategoryChip: View {
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 8)
+            .frame(minHeight: 44)
             .background(isSelected ? Color.orange : Color(.systemBackground))
             .foregroundColor(isSelected ? .white : .primary)
             .cornerRadius(20)
@@ -658,6 +673,7 @@ struct CategoryChip: View {
             )
         }
         .buttonStyle(PlainButtonStyle())
+        .accessibilityLabel("\(title) category filter\(isSelected ? ", selected" : "")")
     }
 }
 
@@ -668,7 +684,7 @@ struct RegionChip: View {
     let icon: String
     let isSelected: Bool
     let action: () -> Void
-    
+
     var body: some View {
         Button(action: action) {
             HStack(spacing: 6) {
@@ -680,6 +696,7 @@ struct RegionChip: View {
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 8)
+            .frame(minHeight: 44)
             .background(isSelected ? Color.green : Color(.systemBackground))
             .foregroundColor(isSelected ? .white : .primary)
             .cornerRadius(20)
@@ -689,6 +706,7 @@ struct RegionChip: View {
             )
         }
         .buttonStyle(PlainButtonStyle())
+        .accessibilityLabel("\(title) region filter\(isSelected ? ", selected" : "")")
     }
 }
 
@@ -847,6 +865,26 @@ struct CourseCard: View {
         }
         .padding(.vertical, 8)
         .opacity(isLocked ? 0.7 : 1.0)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(courseAccessibilityLabel)
+    }
+
+    private var courseAccessibilityLabel: String {
+        var parts: [String] = []
+        parts.append(course.title)
+        if isLocked {
+            parts.append("Locked")
+            if !missingPrerequisites.isEmpty {
+                parts.append("Missing prerequisites: \(missingPrerequisites.joined(separator: ", "))")
+            }
+        } else if course.isEnrolled {
+            parts.append("Enrolled")
+        }
+        parts.append("Provider: \(course.provider.rawValue)")
+        parts.append("Level: \(course.level.rawValue)")
+        parts.append("Duration: \(course.duration)")
+        parts.append("Rating: \(String(format: "%.1f", course.rating)) out of 5")
+        return parts.joined(separator: ", ")
     }
 }
 
@@ -937,6 +975,7 @@ struct CourseDetailView: View {
                                 .padding(.vertical, 6)
                                 .background(Color.black.opacity(0.4))
                                 .cornerRadius(20)
+                                .accessibilityLabel("You are enrolled in this course")
                             }
                         }
                         
@@ -1025,6 +1064,8 @@ struct CourseDetailView: View {
                         .padding()
                         .background(Color(.systemGray6))
                         .cornerRadius(10)
+                        .accessibilityElement(children: .combine)
+                        .accessibilityLabel("Region: \(course.region.rawValue)")
                         
                         InfoRow(icon: "star.fill", label: "Rating", value: String(format: "%.1f / 5.0", course.rating))
                         // Students count - temporarily hidden
@@ -1044,7 +1085,8 @@ struct CourseDetailView: View {
                                     .background(Color.blue)
                                     .cornerRadius(12)
                             }
-                            
+                            .accessibilityLabel("Continue learning \(course.title)")
+
                             Button(action: {
                                 showUnenrollConfirmation = true
                             }) {
@@ -1057,6 +1099,7 @@ struct CourseDetailView: View {
                                     .background(Color.red.opacity(0.1))
                                     .cornerRadius(12)
                             }
+                            .accessibilityLabel("Unenroll from \(course.title)")
                         }
                         .padding(.horizontal)
                     } else {
@@ -1078,6 +1121,7 @@ struct CourseDetailView: View {
                                     .background(Color.blue)
                                     .cornerRadius(12)
                             }
+                            .accessibilityLabel("Go to external course \(course.title)")
                             .padding(.horizontal)
                         } else if course.requiresSubscriptionToEnroll && !hasSubscription {
                             VStack(alignment: .leading, spacing: 12) {
@@ -1092,6 +1136,7 @@ struct CourseDetailView: View {
                                         .background(Color.orange)
                                         .cornerRadius(12)
                                 }
+                                .accessibilityLabel("Unlock \(course.title) with Academy Pass")
 
                                 Text("An active Buzz Academy Pass is required before you can enroll in this course.")
                                     .font(.caption)
@@ -1117,6 +1162,7 @@ struct CourseDetailView: View {
                                     .background(Color.blue)
                                     .cornerRadius(12)
                             }
+                            .accessibilityLabel("Enroll in \(course.title)")
                             .padding(.horizontal)
                         }
                     }
@@ -1269,7 +1315,7 @@ struct InfoRow: View {
     let icon: String
     let label: String
     let value: String
-    
+
     var body: some View {
         HStack {
             Image(systemName: icon)
@@ -1284,6 +1330,8 @@ struct InfoRow: View {
         .padding()
         .background(Color(.systemGray6))
         .cornerRadius(10)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(label): \(value)")
     }
 }
 
@@ -1315,8 +1363,11 @@ struct UASPilotCoursePromotionCard: View {
                         .foregroundColor(.secondary)
                         .font(.title3)
                 }
+                .accessibilityLabel("Dismiss Academy Pass promotion")
+                .frame(minWidth: 44, minHeight: 44)
+                .contentShape(Rectangle())
             }
-            
+
             if hasSubscription {
                 Text("🎓 You have full access to all course units!")
                     .font(.subheadline)
@@ -1348,9 +1399,11 @@ struct UASPilotCoursePromotionCard: View {
                             .background(Color.blue)
                             .cornerRadius(8)
                     }
+                    .accessibilityLabel("Subscribe to Academy Pass for $9.99 per month")
+                    .frame(minHeight: 44)
                 }
             }
-            
+
             Text("✓ More perks and benefits for future courses")
                 .font(.caption)
                 .foregroundColor(.secondary)

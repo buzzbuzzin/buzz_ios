@@ -53,7 +53,8 @@ struct ChecklistView: View {
                             )
                         }
                         .buttonStyle(PlainButtonStyle())
-                        
+                        .accessibilityHint("Tap to toggle")
+
                         Button(action: {
                             checklistService.hasFlightPlan.toggle()
                         }) {
@@ -64,7 +65,8 @@ struct ChecklistView: View {
                             )
                         }
                         .buttonStyle(PlainButtonStyle())
-                        
+                        .accessibilityHint("Tap to toggle")
+
                         Button(action: {
                             checklistService.hasFAAWaiver.toggle()
                         }) {
@@ -75,6 +77,7 @@ struct ChecklistView: View {
                             )
                         }
                         .buttonStyle(PlainButtonStyle())
+                        .accessibilityHint("Tap to toggle")
                     }
                     .padding(.horizontal)
                 }
@@ -174,5 +177,8 @@ private struct ChecklistItemRow: View {
         .padding()
         .background(Color(.secondarySystemBackground))
         .cornerRadius(12)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(title), \(isComplete ? "complete" : "incomplete")")
+        .accessibilityValue(isComplete ? "Done" : "Not done")
     }
 }

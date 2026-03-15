@@ -112,6 +112,8 @@ struct MarketplaceListingCard: View {
         }
         .background(Color(.secondarySystemBackground))
         .cornerRadius(12)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(listing.listing.title), \(listing.listing.formattedPrice), \(listing.listing.condition.displayName)")
     }
 
     private var imagePlaceholder: some View {

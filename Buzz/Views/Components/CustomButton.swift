@@ -39,6 +39,11 @@ struct CustomButton: View {
         }
         .disabled(isDisabled || isLoading)
         .opacity(isDisabled ? 0.5 : 1.0)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(title)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityRemoveTraits(isDisabled ? .isButton : [])
+        .accessibilityHint(isLoading ? "Loading" : isDisabled ? "Disabled" : "")
     }
     
     private var backgroundColor: Color {
