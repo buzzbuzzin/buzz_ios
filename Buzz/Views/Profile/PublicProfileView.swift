@@ -455,9 +455,16 @@ struct PublicProfileView: View {
         } message: {
             Text(errorMessage)
         }
-        .navigationDestination(isPresented: $showDirectMessage) {
+        .sheet(isPresented: $showDirectMessage) {
             if let profile = pilotProfile {
-                DirectMessageView(pilotId: pilotId, pilotProfile: profile)
+                NavigationStack {
+                    DirectMessageView(
+                        pilotId: pilotId,
+                        pilotProfile: profile,
+                        showsDismissButton: true
+                    )
+                    .environmentObject(authService)
+                }
             }
         }
         .sheet(isPresented: $showSpaceRoom) {
@@ -707,5 +714,4 @@ struct CompletedCourseRow: View {
         .padding(.vertical, 4)
     }
 }
-
 
