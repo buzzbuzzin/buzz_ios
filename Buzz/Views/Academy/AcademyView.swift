@@ -92,64 +92,54 @@ struct AcademyView: View {
         
         // Sort courses in specific order:
         // 1. Unlocked courses first, then locked courses
-        // 2. Within each group (unlocked/locked):
-        //    - UAS Pilot
-        //    - Flight Review
-        //    - ROC-A
-        //    - Part 107 Recurrent Training
-        //    - Extension Courses
-        //    - Everything else
+        // 2. Buzz courses first, then other providers alphabetically
+        // 3. Buzz courses sorted by category: mandatory → extension → intermediate → advanced → specialized → general
         return filtered.sorted { course1, course2 in
             let isLocked1 = !getMissingPrerequisites(for: course1).isEmpty
             let isLocked2 = !getMissingPrerequisites(for: course2).isEmpty
-            
+
             // First sort by lock status (unlocked first)
             if isLocked1 != isLocked2 {
-                return !isLocked1 // false (unlocked) comes before true (locked)
+                return !isLocked1
             }
-            
-            // Then sort by priority
-            let priority1 = courseSortPriority(course1)
-            let priority2 = courseSortPriority(course2)
-            
-            if priority1 != priority2 {
-                return priority1 < priority2
+
+            // Then sort by provider: Buzz first, others alphabetically
+            let isBuzz1 = course1.provider == .buzz
+            let isBuzz2 = course2.provider == .buzz
+
+            if isBuzz1 != isBuzz2 {
+                return isBuzz1
             }
-            
-            // Same priority - maintain original order
+
+            // For Buzz courses, sort by category priority
+            if isBuzz1 && isBuzz2 {
+                let catPriority1 = categorySort(course1.category)
+                let catPriority2 = categorySort(course2.category)
+                if catPriority1 != catPriority2 {
+                    return catPriority1 < catPriority2
+                }
+            }
+
+            // For non-Buzz courses with different providers, sort alphabetically
+            if !isBuzz1 && !isBuzz2 && course1.provider != course2.provider {
+                return course1.provider.rawValue < course2.provider.rawValue
+            }
+
+            // Same group - maintain original order
             return false
         }
     }
-    
-    /// Returns sort priority for a course (lower number = higher priority)
-    private func courseSortPriority(_ course: TrainingCourse) -> Int {
-        // UAS Pilot Course
-        if course.id.uuidString.lowercased() == "a1b2c3d4-e5f6-7890-abcd-ef1234567890" {
-            return 1
+
+    /// Returns sort priority for a course category (lower number = higher priority)
+    private func categorySort(_ category: TrainingCourse.CourseCategory) -> Int {
+        switch category {
+        case .mandatory: return 0
+        case .general: return 1
+        case .extensions: return 2
+        case .intermediate: return 3
+        case .advanced: return 4
+        case .specialized: return 5
         }
-        
-        // Flight Review
-        if course.title.lowercased().contains("flight review") {
-            return 2
-        }
-        
-        // ROC-A (with or without "Exam")
-        if course.title.lowercased().contains("roc-a") || course.title.lowercased().contains("roc a") {
-            return 3
-        }
-        
-        // Part 107 Recurrent Training (matches both "FAA 107" and "Part 107")
-        if course.title.lowercased().contains("107 recurrent") {
-            return 4
-        }
-        
-        // Extension Courses
-        if course.title.lowercased().contains("extension courses") {
-            return 5
-        }
-        
-        // Everything else
-        return 999
     }
     
     @ViewBuilder
