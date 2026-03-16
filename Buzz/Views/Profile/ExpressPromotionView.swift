@@ -17,6 +17,7 @@ struct CommanderPromotionCard: View {
     let applications: [ExpressPromotionApplication]
     let hasPassedGroundSchoolTest: Bool
     let isLoadingTestStatus: Bool
+    var isAlreadyCommander: Bool = false
     var onTakeTest: (() -> Void)? = nil
 
     var body: some View {
@@ -28,7 +29,7 @@ struct CommanderPromotionCard: View {
 
             // Check from applications as well in case state hasn't updated
             let hasVerifiedLieutenant = hasLieutenantPromotion || applications.contains { $0.promotionType == .lieutenant && $0.status == .verified }
-            let hasCommanderPromotion = applications.contains { $0.promotionType == .commander && $0.status == .verified }
+            let hasCommanderPromotion = isAlreadyCommander || applications.contains { $0.promotionType == .commander && $0.status == .verified }
             // Locked if: Step 1 not finished OR (Step 1 finished but test not passed and not promoted)
             let isLocked = !hasVerifiedLieutenant || (!hasPassedGroundSchoolTest && !hasCommanderPromotion)
 
@@ -85,9 +86,9 @@ struct CommanderPromotionCard: View {
                                 .padding(.top, 4)
                         }
                     } else if hasCommanderPromotion {
-                        Text("✓ Express Promotion: Promoted to Commander")
+                        Text(isAlreadyCommander ? "✓ Already at Commander rank" : "✓ Express Promotion: Promoted to Commander")
                             .font(.caption)
-                            .foregroundColor(.orange)
+                            .foregroundColor(isAlreadyCommander ? .green : .orange)
                             .fontWeight(.semibold)
                             .padding(.top, 4)
                     } else if hasVerifiedLieutenant && hasPassedGroundSchoolTest {
@@ -157,6 +158,7 @@ struct ExpressPromotionView: View {
     @State private var hasLieutenantPromotion = false
     @State private var hasPassedGroundSchoolTest = false
     @State private var isLoadingTestStatus = false
+    @State private var isAlreadyCommander = false
     @State private var showGroundSchoolTestIntro = false
     @State private var showGroundSchoolTest = false
     @State private var pendingStartTest = false
@@ -353,6 +355,7 @@ struct ExpressPromotionView: View {
                     applications: expressPromotionService.applications,
                     hasPassedGroundSchoolTest: hasPassedGroundSchoolTest,
                     isLoadingTestStatus: isLoadingTestStatus,
+                    isAlreadyCommander: isAlreadyCommander,
                     onTakeTest: {
                         showGroundSchoolTestIntro = true
                     }
@@ -453,36 +456,52 @@ struct ExpressPromotionView: View {
     
     private func checkStatus() async {
         guard let pilotId = authService.currentUser?.id else { return }
-        
+
         // First reload applications to get latest status
         do {
             try await expressPromotionService.loadApplications(pilotId: pilotId)
         } catch {
             print("Error loading applications: \(error)")
         }
-        
-        // Check if pilot has Lieutenant promotion (verified) from loaded applications
+
+        // Fetch pilot's actual current tier from pilot_stats
+        let currentTier = await fetchPilotTier(pilotId: pilotId)
+
+        // If pilot is already at Commander rank (tier >= 3), mark express promotion as completed
+        isAlreadyCommander = currentTier >= 3
+
+        // Check if pilot has Lieutenant promotion (verified) from express promotion applications
+        // OR if they've already reached Lieutenant+ rank through normal progression
         let lieutenantPromoted = expressPromotionService.applications.contains { $0.promotionType == .lieutenant && $0.status == .verified }
+            || currentTier >= 2
         hasLieutenantPromotion = lieutenantPromoted
-        
+
         print("🔍 [ExpressPromotionView] Lieutenant promoted: \(lieutenantPromoted)")
+        print("🔍 [ExpressPromotionView] Current tier: \(currentTier)")
         print("🔍 [ExpressPromotionView] Applications count: \(expressPromotionService.applications.count)")
         for app in expressPromotionService.applications {
             print("🔍 [ExpressPromotionView] App: \(app.promotionType.rawValue), Status: \(app.status.rawValue)")
         }
-        
-        // Check Ground School Test status (only if Lieutenant is verified)
+
+        // If already at Commander rank, mark test as passed (they've already achieved the rank)
+        if isAlreadyCommander {
+            hasPassedGroundSchoolTest = true
+            isLoadingTestStatus = false
+            return
+        }
+
+        // Check Ground School Test status if at least Lieutenant rank
         if lieutenantPromoted {
             isLoadingTestStatus = true
             do {
                 let testPassed = try await expressPromotionService.checkGroundSchoolTestStatus(pilotId: pilotId)
-                
+
                 // Check if Commander promotion already exists
                 let hasCommanderPromotion = expressPromotionService.applications.contains { $0.promotionType == .commander && $0.status == .verified }
-                
+
                 print("🔍 [ExpressPromotionView] Test passed: \(testPassed)")
                 print("🔍 [ExpressPromotionView] Has Commander promotion: \(hasCommanderPromotion)")
-                
+
                 // If test passed and pilot hasn't been promoted yet, auto-promote
                 if testPassed && !hasCommanderPromotion {
                     print("🚀 [ExpressPromotionView] Auto-promoting to Commander...")
@@ -492,8 +511,9 @@ struct ExpressPromotionView: View {
                     try await expressPromotionService.loadApplications(pilotId: pilotId)
                     // Update state again after promotion
                     hasLieutenantPromotion = expressPromotionService.applications.contains { $0.promotionType == .lieutenant && $0.status == .verified }
+                        || currentTier >= 2
                 }
-                
+
                 hasPassedGroundSchoolTest = testPassed
             } catch {
                 print("Error checking test status: \(error)")
@@ -503,6 +523,15 @@ struct ExpressPromotionView: View {
             // If Lieutenant not verified, reset test status
             hasPassedGroundSchoolTest = false
             isLoadingTestStatus = false
+        }
+    }
+
+    private func fetchPilotTier(pilotId: UUID) async -> Int {
+        do {
+            return try await expressPromotionService.fetchPilotTier(pilotId: pilotId)
+        } catch {
+            print("Error fetching pilot tier: \(error)")
+            return 0
         }
     }
     

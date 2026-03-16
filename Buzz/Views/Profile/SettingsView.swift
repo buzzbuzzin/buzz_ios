@@ -16,6 +16,7 @@ struct SettingsView: View {
     
     @State private var communicationPreference: CommunicationPreference = .email
     @State private var appearanceMode: AppearanceMode = .system
+    @State private var pilotTier: Int = 0
     
     enum AppearanceMode: String, CaseIterable {
         case light = "light"
@@ -96,8 +97,8 @@ struct SettingsView: View {
                 }
             }
             
-            // Express Promotion (Pilot only)
-            if authService.userProfile?.userType == .pilot {
+            // Express Promotion (Pilot only, hide if already at Commander rank or higher)
+            if authService.userProfile?.userType == .pilot && pilotTier < 3 {
                 NavigationLink(destination: ExpressPromotionView()) {
                     Text("Express Promotion")
                 }
@@ -169,8 +170,18 @@ struct SettingsView: View {
         .onAppear {
             loadCurrentSettings()
         }
+        .task {
+            await loadPilotTier()
+        }
     }
     
+    private func loadPilotTier() async {
+        guard let pilotId = authService.currentUser?.id,
+              authService.userProfile?.userType == .pilot else { return }
+        let service = ExpressPromotionService()
+        pilotTier = (try? await service.fetchPilotTier(pilotId: pilotId)) ?? 0
+    }
+
     private func loadCurrentSettings() {
         // Load communication preference
         communicationPreference = authService.userProfile?.communicationPreference ?? .email

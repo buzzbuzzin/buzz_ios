@@ -189,12 +189,14 @@ class ExpressPromotionService: ObservableObject {
     // MARK: - Automatically promote to Commander
 
     func autoPromoteToCommander(pilotId: UUID) async throws {
-        // Check if pilot has Lieutenant promotion
-        guard await hasLieutenantPromotion(pilotId: pilotId) else {
+        // Check if pilot has Lieutenant promotion (via express promotion OR normal progression)
+        let hasExpressLieutenant = await hasLieutenantPromotion(pilotId: pilotId)
+        let currentTier = (try? await fetchPilotTier(pilotId: pilotId)) ?? 0
+        guard hasExpressLieutenant || currentTier >= 2 else {
             throw NSError(
                 domain: "ExpressPromotionService",
                 code: -1,
-                userInfo: [NSLocalizedDescriptionKey: "Must be promoted to Lieutenant via Express Promotion first"]
+                userInfo: [NSLocalizedDescriptionKey: "Must be promoted to Lieutenant first"]
             )
         }
 
@@ -259,6 +261,19 @@ class ExpressPromotionService: ObservableObject {
 
         // Reload applications
         try await loadApplications(pilotId: pilotId)
+    }
+
+    // MARK: - Fetch Pilot Tier
+
+    func fetchPilotTier(pilotId: UUID) async throws -> Int {
+        let stats: PilotStats = try await supabase
+            .from("pilot_stats")
+            .select()
+            .eq("pilot_id", value: pilotId.uuidString)
+            .single()
+            .execute()
+            .value
+        return stats.tier
     }
 
     // MARK: - Withdraw Application
