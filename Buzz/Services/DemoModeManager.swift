@@ -11,19 +11,13 @@ import Combine
 @MainActor
 class DemoModeManager: ObservableObject {
     static let shared = DemoModeManager()
-    
-    @Published var isDemoModeEnabled: Bool {
-        didSet {
-            UserDefaults.standard.set(isDemoModeEnabled, forKey: "demoModeEnabled")
-        }
-    }
-    
+
+    @Published var isDemoModeEnabled: Bool = false
+
     private init() {
-        self.isDemoModeEnabled = UserDefaults.standard.bool(forKey: "demoModeEnabled")
-    }
-    
-    func toggleDemoMode() {
-        isDemoModeEnabled.toggle()
+        let args = ProcessInfo.processInfo.arguments
+        let env = ProcessInfo.processInfo.environment
+        self.isDemoModeEnabled = args.contains("DEMO_MODE") || args.contains("UI_TESTING") || env["UITEST_MODE"] == "1"
     }
 }
 

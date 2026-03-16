@@ -83,11 +83,8 @@ struct BuzzApp: App {
         // Configure Stripe
         StripeAPI.defaultPublishableKey = Config.stripePublishableKey
         
-        // Enable demo mode during UI tests to avoid network calls
-        if isUITestMode {
-            DemoModeManager.shared.isDemoModeEnabled = true
-            UserDefaults.standard.set(true, forKey: "demoModeEnabled")
-        }
+        // Demo mode is now controlled solely by launch arguments (DEMO_MODE or UI_TESTING)
+        // via DemoModeManager — no UserDefaults persistence
     }
 
     var body: some Scene {
