@@ -45,13 +45,14 @@ struct UpdatePopupView: View {
 
                 // Version info (if available)
                 if let latestVersion = updateService.latestVersion {
-                    Text("Latest version: \(latestVersion)")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                        .padding(.top, 5)
+                    VStack(spacing: 4) {
+                        Text("Latest version: \(latestVersion)")
+                        Text("Your version: \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "Unknown")")
+                    }
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .padding(.top, 5)
                 }
-
-                Spacer(minLength: 20)
 
                 // Buttons
                 VStack(spacing: 12) {

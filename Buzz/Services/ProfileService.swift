@@ -11,14 +11,44 @@ import Combine
 
 @MainActor
 class ProfileService: ObservableObject {
-    private static var cachedProfiles: [UUID: UserProfile] = [:]
+    @Published var loadedProfile: UserProfile?
+
     private let supabase = SupabaseClient.shared.client
-    
+    private let userDefaults = UserDefaults.standard
+
+    // MARK: - Persistent Cache
+
+    private func cacheKey(for userId: UUID) -> String {
+        "profileCache.\(userId.uuidString)"
+    }
+
+    func persistProfile(_ profile: UserProfile) {
+        guard let data = try? JSONEncoder().encode(profile) else { return }
+        userDefaults.set(data, forKey: cacheKey(for: profile.id))
+    }
+
+    func restoreCachedProfile(for userId: UUID) -> UserProfile? {
+        guard let data = userDefaults.data(forKey: cacheKey(for: userId)),
+              let profile = try? JSONDecoder().decode(UserProfile.self, from: data) else {
+            return nil
+        }
+        return profile
+    }
+
+    func invalidateCache(for userId: UUID) {
+        userDefaults.removeObject(forKey: cacheKey(for: userId))
+    }
+
+    // MARK: - Get Profile (stale-while-revalidate)
+
     func getProfile(userId: UUID) async throws -> UserProfile {
-        if let cachedProfile = Self.cachedProfiles[userId] {
-            return cachedProfile
+        // Return cached immediately if available, then revalidate in background
+        if let cached = restoreCachedProfile(for: userId) {
+            Task { await revalidateProfile(userId: userId) }
+            return cached
         }
 
+        // No cache — fetch from network
         let profile: UserProfile = try await supabase
             .from("profiles")
             .select()
@@ -27,8 +57,24 @@ class ProfileService: ObservableObject {
             .execute()
             .value
 
-        Self.cachedProfiles[userId] = profile
+        persistProfile(profile)
         return profile
+    }
+
+    private func revalidateProfile(userId: UUID) async {
+        guard let fresh: UserProfile = try? await supabase
+            .from("profiles")
+            .select()
+            .eq("id", value: userId.uuidString)
+            .single()
+            .execute()
+            .value else { return }
+
+        let cached = restoreCachedProfile(for: userId)
+        persistProfile(fresh)
+        if cached != fresh {
+            loadedProfile = fresh
+        }
     }
     
     func updateProfile(userId: UUID, firstName: String?, lastName: String?, callSign: String?, email: String?, phone: String?, gender: Gender?) async throws {
@@ -61,7 +107,7 @@ class ProfileService: ObservableObject {
             .eq("id", value: userId.uuidString)
             .execute()
 
-        Self.cachedProfiles.removeValue(forKey: userId)
+        invalidateCache(for: userId)
     }
     
     func updateCommunicationPreference(userId: UUID, preference: CommunicationPreference) async throws {
@@ -75,7 +121,7 @@ class ProfileService: ObservableObject {
             .eq("id", value: userId.uuidString)
             .execute()
 
-        Self.cachedProfiles.removeValue(forKey: userId)
+        invalidateCache(for: userId)
     }
 
     func updateRegion(userId: UUID, regionString: String) async throws {
@@ -89,7 +135,7 @@ class ProfileService: ObservableObject {
             .eq("id", value: userId.uuidString)
             .execute()
 
-        Self.cachedProfiles.removeValue(forKey: userId)
+        invalidateCache(for: userId)
     }
 
     func updateRegionalPreferences(
@@ -108,7 +154,7 @@ class ProfileService: ObservableObject {
             .eq("id", value: userId.uuidString)
             .execute()
 
-        Self.cachedProfiles.removeValue(forKey: userId)
+        invalidateCache(for: userId)
     }
 
     func updatePreferredMeasurementSystem(
@@ -125,7 +171,7 @@ class ProfileService: ObservableObject {
             .eq("id", value: userId.uuidString)
             .execute()
 
-        Self.cachedProfiles.removeValue(forKey: userId)
+        invalidateCache(for: userId)
     }
     
     func updateExMilitaryStatus(userId: UUID, isExMilitary: Bool) async throws {
@@ -141,7 +187,7 @@ class ProfileService: ObservableObject {
     }
     
     func updateVeteranVerification(userId: UUID, serviceName: String, serviceCountry: String, militaryBranch: String, serviceNumber: String) async throws {
-        var updates: [String: AnyJSON] = [
+        let updates: [String: AnyJSON] = [
             "is_ex_military": .bool(true),
             "veteran_service_name": .string(serviceName),
             "veteran_service_country": .string(serviceCountry),

@@ -67,6 +67,7 @@ struct BuzzApp: App {
     @StateObject private var notificationManager = NotificationManager.shared
     @StateObject private var locationTrackingService = LocationTrackingService.shared
     @StateObject private var updateService = AppUpdateService()
+    @StateObject private var networkMonitor = NetworkMonitor.shared
     @AppStorage("appearanceMode") private var appearanceModeString: String = "system"
     @State private var showUpdatePopup = false
     private let isUITestMode = ProcessInfo.processInfo.arguments.contains("UI_TESTING") || ProcessInfo.processInfo.environment["UITEST_MODE"] == "1"
@@ -113,7 +114,17 @@ struct BuzzApp: App {
                 }
 
                 EmergencyFlashOverlay()
+
+                if !networkMonitor.isConnected {
+                    VStack {
+                        NoConnectionBannerView()
+                            .padding(.top, 50)
+                        Spacer()
+                    }
+                    .zIndex(999)
+                }
             }
+            .animation(.easeInOut(duration: 0.3), value: networkMonitor.isConnected)
             .onChange(of: updateService.isUpdateAvailable) { _, isAvailable in
                 if isAvailable {
                     showUpdatePopup = true

@@ -33,7 +33,7 @@ struct RatingWithUser: Identifiable {
     let raterProfile: UserProfile
 }
 
-struct UserRatingSummary: Codable {
+struct UserRatingSummary: Codable, Equatable {
     let userId: UUID
     let averageRating: Double
     let totalRatings: Int

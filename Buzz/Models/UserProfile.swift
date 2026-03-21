@@ -208,7 +208,7 @@ enum CustomerRole: String, Codable, CaseIterable {
     }
 }
 
-struct UserProfile: Codable, Identifiable {
+struct UserProfile: Codable, Identifiable, Equatable {
     let id: UUID
     let userType: UserType
     let firstName: String?

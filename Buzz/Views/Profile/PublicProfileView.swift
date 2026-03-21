@@ -487,6 +487,11 @@ struct PublicProfileView: View {
                            hangerTalkService: hangerTalkService)
                 .environmentObject(authService)
         }
+        .onChange(of: profileService.loadedProfile) { _, newProfile in
+            if let newProfile, newProfile.id == pilotId {
+                pilotProfile = newProfile
+            }
+        }
         .task {
             await loadProfileData()
         }
@@ -504,19 +509,25 @@ struct PublicProfileView: View {
     }
 
     private func loadProfileData() async {
-        isLoading = true
-        
+        // Try cached profile first — skip spinner if we have one
+        if let cached = profileService.restoreCachedProfile(for: pilotId) {
+            pilotProfile = cached
+            isLoading = false
+        } else {
+            isLoading = true
+        }
+
         do {
-            // Load pilot profile
+            // Load pilot profile (returns cached immediately if available, revalidates in bg)
             pilotProfile = try await profileService.getProfile(userId: pilotId)
-            
-            // Load pilot stats
+
+            // Load pilot stats (uses its own cache)
             try? await rankingService.getPilotStats(pilotId: pilotId)
             pilotStats = rankingService.pilotStats
-            
-            // Load ratings summary
+
+            // Load ratings summary (uses its own cache)
             ratingSummary = try? await ratingService.getUserRatingSummary(userId: pilotId)
-            
+
             // Load badges
             try? await badgeService.fetchPilotBadges(pilotId: pilotId)
 
@@ -525,7 +536,7 @@ struct PublicProfileView: View {
 
             // Load drone registrations
             try? await droneRegistrationService.fetchRegistrations(pilotId: pilotId)
-            
+
             // Sync progress for all enrolled courses, then load completed courses
             await academyService.syncAllCourseProgress(pilotId: pilotId)
             do {
@@ -555,9 +566,12 @@ struct PublicProfileView: View {
 
             isLoading = false
         } catch {
+            // Only show error if we have no cached data at all
+            if pilotProfile == nil {
+                errorMessage = error.localizedDescription
+                showError = true
+            }
             isLoading = false
-            errorMessage = error.localizedDescription
-            showError = true
         }
     }
 }

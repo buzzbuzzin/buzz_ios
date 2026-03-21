@@ -13,10 +13,30 @@ import Combine
 class RatingService: ObservableObject {
     @Published var isLoading = false
     @Published var errorMessage: String?
-    
+
     private let supabase = SupabaseClient.shared.client
     private let notificationManager = NotificationManager.shared
     private let notificationPreferencesService = NotificationPreferencesService()
+    private let userDefaults = UserDefaults.standard
+
+    // MARK: - Rating Summary Cache
+
+    private func summaryCacheKey(for userId: UUID) -> String {
+        "ratingSummaryCache.\(userId.uuidString)"
+    }
+
+    private func persistSummary(_ summary: UserRatingSummary) {
+        guard let data = try? JSONEncoder().encode(summary) else { return }
+        userDefaults.set(data, forKey: summaryCacheKey(for: summary.userId))
+    }
+
+    private func restoreCachedSummary(for userId: UUID) -> UserRatingSummary? {
+        guard let data = userDefaults.data(forKey: summaryCacheKey(for: userId)),
+              let summary = try? JSONDecoder().decode(UserRatingSummary.self, from: data) else {
+            return nil
+        }
+        return summary
+    }
     
     // MARK: - Submit Rating
     
@@ -701,47 +721,52 @@ class RatingService: ObservableObject {
         if DemoModeManager.shared.isDemoModeEnabled {
             // Simulate API call delay
             try? await Task.sleep(nanoseconds: 300_000_000) // 0.3 seconds
-            
+
             // SAMPLE DATA FOR DEMO PURPOSES
             // Using sample ratings to calculate summary
             let sampleRatings = createSampleRatingsWithUsers(for: userId)
             let ratings = sampleRatings.map { $0.rating }
-            
+
             guard !ratings.isEmpty else {
                 return nil
             }
-            
+
             let averageRating = Double(ratings.reduce(0) { $0 + $1.rating }) / Double(ratings.count)
-            
+
             return UserRatingSummary(
                 userId: userId,
                 averageRating: averageRating,
                 totalRatings: ratings.count
             )
         }
-        
+
+        // Return cached summary first, then fetch fresh
+        let cached = restoreCachedSummary(for: userId)
+
         // Real backend call
         do {
-            // Use Supabase RPC or calculate in app
             let ratings: [Rating] = try await supabase
                 .from("ratings")
                 .select()
                 .eq("to_user_id", value: userId.uuidString)
                 .execute()
                 .value
-            
+
             guard !ratings.isEmpty else {
-                return nil
+                return cached // return stale if network returns empty unexpectedly
             }
-            
+
             let averageRating = Double(ratings.reduce(0) { $0 + $1.rating }) / Double(ratings.count)
-            
-            return UserRatingSummary(
+
+            let summary = UserRatingSummary(
                 userId: userId,
                 averageRating: averageRating,
                 totalRatings: ratings.count
             )
+            persistSummary(summary)
+            return summary
         } catch {
+            if let cached { return cached }
             throw error
         }
     }

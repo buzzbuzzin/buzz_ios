@@ -7,7 +7,7 @@
 
 import Foundation
 
-struct PilotStats: Codable, Identifiable {
+struct PilotStats: Codable, Identifiable, Equatable {
     let pilotId: UUID
     var totalFlightHours: Double
     var completedBookings: Int

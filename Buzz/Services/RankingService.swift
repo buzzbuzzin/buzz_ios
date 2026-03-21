@@ -15,15 +15,41 @@ class RankingService: ObservableObject {
     @Published var leaderboard: [PilotStats] = []
     @Published var isLoading = false
     @Published var errorMessage: String?
-    
+
     private let supabase = SupabaseClient.shared.client
-    
+    private let userDefaults = UserDefaults.standard
+
+    // MARK: - PilotStats Cache
+
+    private func statsCacheKey(for pilotId: UUID) -> String {
+        "pilotStatsCache.\(pilotId.uuidString)"
+    }
+
+    private func persistStats(_ stats: PilotStats) {
+        guard let data = try? JSONEncoder().encode(stats) else { return }
+        userDefaults.set(data, forKey: statsCacheKey(for: stats.pilotId))
+    }
+
+    private func restoreCachedStats(for pilotId: UUID) -> PilotStats? {
+        guard let data = userDefaults.data(forKey: statsCacheKey(for: pilotId)),
+              let stats = try? JSONDecoder().decode(PilotStats.self, from: data) else {
+            return nil
+        }
+        return stats
+    }
+
     // MARK: - Get Pilot Stats
-    
+
     func getPilotStats(pilotId: UUID) async throws {
-        isLoading = true
         errorMessage = nil
-        
+
+        // Restore from cache immediately to skip spinner
+        if let cached = restoreCachedStats(for: pilotId) {
+            self.pilotStats = cached
+        } else {
+            isLoading = true
+        }
+
         do {
             let stats: PilotStats = try await supabase
                 .from("pilot_stats")
@@ -32,7 +58,8 @@ class RankingService: ObservableObject {
                 .single()
                 .execute()
                 .value
-            
+
+            persistStats(stats)
             await MainActor.run {
                 self.pilotStats = stats
                 self.isLoading = false
