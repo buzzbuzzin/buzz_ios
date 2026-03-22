@@ -675,12 +675,14 @@ class AcademyService: ObservableObject {
     ///   - unitIds: Array of unit UUIDs to check
     /// - Returns: Set of completed unit UUIDs
     func checkUnitCompletionsByUUID(pilotId: UUID, courseId: UUID, unitIds: [UUID]) async -> Set<UUID> {
+        guard !unitIds.isEmpty else { return [] }
         do {
             let response = try await supabase
                 .from("unit_completions")
                 .select("unit_id")
                 .eq("pilot_id", value: pilotId.uuidString)
                 .eq("course_id", value: courseId.uuidString)
+                .in("unit_id", values: unitIds.map(\.uuidString))
                 .execute()
 
             let data = response.data
@@ -752,10 +754,8 @@ class AcademyService: ObservableObject {
         }
 
         if course.requiresSubscriptionToEnroll {
-            let hasActiveSubscription = await EntitlementManager.shared.checkAllSubscriptionSources(
-                pilotId: pilotId,
-                appleProductIDs: ProductIdentifiers.academyPassProductIDs
-            )
+            // Use StoreKitManager to refresh Apple entitlements before checking
+            let hasActiveSubscription = await StoreKitManager().checkAllSubscriptions(pilotId: pilotId)
 
             if !hasActiveSubscription {
                 throw NSError(
@@ -908,13 +908,11 @@ class AcademyService: ObservableObject {
         }
 
         do {
-            // Fetch unit completions with unit details for this pilot
-            // Filter for unit_number >= 4
+            // Fetch all unit completions with unit details for this pilot
             let response = try await supabase
                 .from("unit_completions")
                 .select("*, course_units!inner(unit_number, title)")
                 .eq("pilot_id", value: pilotId.uuidString)
-                .gte("course_units.unit_number", value: 4)
                 .order("completed_at", ascending: false)
                 .execute()
             

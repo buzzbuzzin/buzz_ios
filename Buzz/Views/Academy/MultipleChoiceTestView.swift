@@ -527,14 +527,13 @@ struct MultipleChoiceTestView: View {
     
     private func submitTest() {
         stopTimer() // Stop timer when submitting
-        isLoading = true
         errorMessage = nil
-        
+
         // If manually submitted, clear auto-submit flag
         if !wasAutoSubmitted {
             wasAutoSubmitted = false
         }
-        
+
         // Calculate score
         var correctAnswers = 0
         for question in questions {
@@ -543,11 +542,16 @@ struct MultipleChoiceTestView: View {
                 correctAnswers += 1
             }
         }
-        
+
         testScore = Int((Double(correctAnswers) / Double(questions.count)) * 100)
         passed = testScore >= passingScore
-        
-        // Save test results
+
+        // Show results immediately so the user always sees their score
+        withAnimation {
+            showResults = true
+        }
+
+        // Save test results asynchronously
         Task {
             await saveTestResults(score: testScore, passed: passed)
         }
@@ -571,20 +575,18 @@ struct MultipleChoiceTestView: View {
                    let arr = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]],
                    !arr.isEmpty {
                     // Already passed this test; skip saving a failing result
-                    isLoading = false
-                    withAnimation {
-                        showResults = true
-                    }
                     return
                 }
             }
 
-            // Fetch previous attempt count
+            // Fetch previous attempt count (get the highest attempt number)
             let previousResults = try await supabase
                 .from("test_results")
                 .select("attempt_number")
                 .eq("pilot_id", value: pilotId.uuidString)
                 .eq("test_id", value: testId.uuidString)
+                .order("attempt_number", ascending: false)
+                .limit(1)
                 .execute()
 
             var attemptNumber = 1
@@ -612,10 +614,19 @@ struct MultipleChoiceTestView: View {
                 "attempt_number": .integer(attemptNumber)
             ]
 
-            try await supabase
-                .from("test_results")
-                .upsert(testResult, onConflict: "pilot_id,test_id")
-                .execute()
+            if passed {
+                // Upsert: a passing result should always be recorded
+                try await supabase
+                    .from("test_results")
+                    .upsert(testResult, onConflict: "pilot_id,test_id")
+                    .execute()
+            } else {
+                // Insert only: don't overwrite a potentially-passing row
+                try? await supabase
+                    .from("test_results")
+                    .insert(testResult)
+                    .execute()
+            }
 
             // Update course progress
             await academyService.updateCourseProgress(pilotId: pilotId, courseId: course.id)
@@ -653,13 +664,8 @@ struct MultipleChoiceTestView: View {
                 }
             }
             
-            isLoading = false
-            withAnimation {
-                showResults = true
-            }
         } catch {
-            isLoading = false
-            errorMessage = "Error saving test results: \(error.localizedDescription)"
+            print("⚠️ [MultipleChoiceTestView] Error saving test results: \(error.localizedDescription)")
         }
     }
 }
