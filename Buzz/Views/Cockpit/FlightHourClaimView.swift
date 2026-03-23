@@ -168,11 +168,11 @@ struct FlightHourClaimView: View {
 
     private var evidenceField: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Evidence Files")
+            Text("Evidence Files *")
                 .font(.subheadline)
                 .fontWeight(.medium)
 
-            Text("Upload scans of your logbook or other supporting documents")
+            Text("Upload scans of your logbook or other supporting documents (required)")
                 .font(.caption)
                 .foregroundColor(.secondary)
 
@@ -288,7 +288,7 @@ struct FlightHourClaimView: View {
     // MARK: - Helpers
 
     private var isFormValid: Bool {
-        claimedFlights > 0 && (Double(claimedHours) ?? 0) > 0
+        claimedFlights > 0 && (Double(claimedHours) ?? 0) > 0 && !selectedImages.isEmpty
     }
 
     private func submitClaim() {
