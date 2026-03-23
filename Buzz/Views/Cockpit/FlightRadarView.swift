@@ -11,18 +11,41 @@ import CoreLocation
 import Combine
 import Auth
 
+enum RadarMode: String, CaseIterable {
+    case all = "All"
+    case drones = "Drones"
+    case flights = "Flights"
+}
+
+// Wrapper to show both drones and flights on one map
+struct RadarAnnotationItem: Identifiable {
+    let id: String
+    let coordinate: CLLocationCoordinate2D
+    let kind: Kind
+
+    enum Kind {
+        case drone(Transponder, isSelected: Bool)
+        case flight(FR24FlightPosition, isSelected: Bool)
+    }
+}
+
 struct FlightRadarView: View {
     @EnvironmentObject var authService: AuthService
     @StateObject private var transponderService = TransponderService()
+    @StateObject private var fr24Service = FlightRadar24Service()
     @StateObject private var locationManager = FlightRadarLocationManager()
     @State private var activeTransponders: [Transponder] = []
     @State private var selectedTransponder: Transponder?
+    @State private var selectedFlight: FR24FlightPosition?
+    @State private var radarMode: RadarMode = .all
     @State private var region = MKCoordinateRegion(
         center: LocationHelper.shared.defaultSimulatorLocation,
         span: MKCoordinateSpan(latitudeDelta: 2.0, longitudeDelta: 2.0)
     )
     @State private var updateTimer: Timer?
     @State private var isLoading = false
+    @State private var flightFetchTask: Task<Void, Never>?
+    @State private var flightDetailsTask: Task<Void, Never>?
     
     // Filter transponders to only those with valid locations
     private var activeTranspondersWithLocation: [Transponder] {
@@ -50,83 +73,190 @@ struct FlightRadarView: View {
             return .caution
         }
     }
-    
+
+    // Combined annotations for "All" mode
+    private var allAnnotations: [RadarAnnotationItem] {
+        let droneItems = activeTranspondersWithLocation.map { transponder in
+            RadarAnnotationItem(
+                id: "drone-\(transponder.id.uuidString)",
+                coordinate: transponder.lastLocation!,
+                kind: .drone(transponder, isSelected: selectedTransponder?.id == transponder.id)
+            )
+        }
+        let flightItems = fr24Service.flights.map { flight in
+            RadarAnnotationItem(
+                id: "flight-\(flight.fr24Id)",
+                coordinate: flight.coordinate,
+                kind: .flight(flight, isSelected: selectedFlight?.id == flight.id)
+            )
+        }
+        return droneItems + flightItems
+    }
+
     var body: some View {
         ZStack {
-            // Map View
-            Map(coordinateRegion: $region, annotationItems: activeTranspondersWithLocation) { transponder in
-                MapAnnotation(coordinate: transponder.lastLocation!) {
-                    DroneAnnotation(
-                        transponder: transponder,
-                        isSelected: selectedTransponder?.id == transponder.id
-                    )
-                    .onTapGesture {
-                        selectedTransponder = transponder
+            // Map View - switches annotation source based on mode
+            if radarMode == .all {
+                Map(coordinateRegion: $region, annotationItems: allAnnotations) { item in
+                    MapAnnotation(coordinate: item.coordinate) {
+                        switch item.kind {
+                        case .drone(let transponder, let isSelected):
+                            DroneAnnotation(transponder: transponder, isSelected: isSelected)
+                                .onTapGesture {
+                                    flightDetailsTask?.cancel()
+                                    withAnimation {
+                                        selectedTransponder = transponder
+                                        selectedFlight = nil
+                                    }
+                                }
+                        case .flight(let flight, let isSelected):
+                            FlightAnnotation(flight: flight, isSelected: isSelected)
+                                .onTapGesture {
+                                    selectFlight(flight)
+                                }
+                        }
                     }
                 }
+                .ignoresSafeArea(edges: .top)
+            } else if radarMode == .drones {
+                Map(coordinateRegion: $region, annotationItems: activeTranspondersWithLocation) { transponder in
+                    MapAnnotation(coordinate: transponder.lastLocation!) {
+                        DroneAnnotation(
+                            transponder: transponder,
+                            isSelected: selectedTransponder?.id == transponder.id
+                        )
+                        .onTapGesture {
+                            flightDetailsTask?.cancel()
+                            withAnimation {
+                                selectedTransponder = transponder
+                                selectedFlight = nil
+                            }
+                        }
+                    }
+                }
+                .ignoresSafeArea(edges: .top)
+            } else {
+                Map(coordinateRegion: $region, annotationItems: fr24Service.flights) { flight in
+                    MapAnnotation(coordinate: flight.coordinate) {
+                        FlightAnnotation(
+                            flight: flight,
+                            isSelected: selectedFlight?.id == flight.id
+                        )
+                        .onTapGesture {
+                            selectFlight(flight)
+                        }
+                    }
+                }
+                .ignoresSafeArea(edges: .top)
             }
-            .ignoresSafeArea(edges: .top)
-            
+
             // Info Overlay
             VStack {
-                // Header (Flight Radar title, buttons, and active drone count)
-                HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Flight Radar")
-                            .font(.title2)
-                            .fontWeight(.bold)
-                        
-                        Text("\(activeTransponders.count) active drone\(activeTransponders.count == 1 ? "" : "s")")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                    
-                    Spacer()
-                    
-                    HStack(spacing: 12) {
-                        // My Location Button
-                        Button(action: {
-                            centerOnUserLocation()
-                        }) {
-                            Image(systemName: "location.fill")
-                                .font(.title3)
-                                .foregroundColor(.blue)
-                                .padding(8)
-                                .background(Color(.systemBackground))
-                                .clipShape(Circle())
-                                .shadow(radius: 2)
-                        }
-                        
-                        // Refresh Button
-                        Button(action: {
-                            Task {
-                                await loadActiveTransponders()
+                // Header
+                VStack(spacing: 8) {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Flight Radar")
+                                .font(.title2)
+                                .fontWeight(.bold)
+
+                            if radarMode == .all {
+                                Text("\(activeTransponders.count) drone\(activeTransponders.count == 1 ? "" : "s"), \(fr24Service.flights.count) aircraft")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            } else if radarMode == .drones {
+                                Text("\(activeTransponders.count) active drone\(activeTransponders.count == 1 ? "" : "s")")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            } else {
+                                Text("\(fr24Service.flights.count) flight\(fr24Service.flights.count == 1 ? "" : "s") in view")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
                             }
-                        }) {
-                            Image(systemName: "arrow.clockwise")
-                                .font(.title3)
-                                .foregroundColor(.blue)
-                                .padding(8)
-                                .background(Color(.systemBackground))
-                                .clipShape(Circle())
-                                .shadow(radius: 2)
+
+                            Text("Refreshes every 10 seconds")
+                                .font(.system(size: 10))
+                                .foregroundColor(.secondary.opacity(0.7))
+                        }
+
+                        Spacer()
+
+                        HStack(spacing: 12) {
+                            // My Location Button
+                            Button(action: {
+                                centerOnUserLocation()
+                            }) {
+                                Image(systemName: "location.fill")
+                                    .font(.title3)
+                                    .foregroundColor(.blue)
+                                    .padding(8)
+                                    .background(Color(.systemBackground))
+                                    .clipShape(Circle())
+                                    .shadow(radius: 2)
+                            }
+
+                            // Refresh Button
+                            Button(action: {
+                                Task {
+                                    if radarMode == .all {
+                                        await loadActiveTransponders()
+                                        await loadLiveFlights(force: true)
+                                    } else if radarMode == .drones {
+                                        await loadActiveTransponders()
+                                    } else {
+                                        await loadLiveFlights(force: true)
+                                    }
+                                }
+                            }) {
+                                Image(systemName: "arrow.clockwise")
+                                    .font(.title3)
+                                    .foregroundColor(.blue)
+                                    .padding(8)
+                                    .background(Color(.systemBackground))
+                                    .clipShape(Circle())
+                                    .shadow(radius: 2)
+                            }
                         }
                     }
+
+                    // Mode Picker
+                    Picker("Mode", selection: $radarMode) {
+                        ForEach(RadarMode.allCases, id: \.self) { mode in
+                            Text(mode.rawValue).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.segmented)
                 }
                 .padding()
                 .background(Color(.systemBackground).opacity(0.95))
-                
-                // Safety Notification Card (only show if pilot location is available)
-                if locationManager.currentLocation != nil {
+
+                // Safety Notification Card (drones and all mode)
+                if (radarMode == .drones || radarMode == .all), locationManager.currentLocation != nil {
                     SafetyNotificationCard(status: safetyStatus, nearbyDroneCount: nearbyDrones.count)
                         .padding(.horizontal)
                         .transition(.move(edge: .top).combined(with: .opacity))
                 }
-                
+
+                // Error message for flights/all mode
+                if (radarMode == .flights || radarMode == .all), let error = fr24Service.errorMessage {
+                    HStack(spacing: 8) {
+                        Image(systemName: "info.circle.fill")
+                            .foregroundColor(.white)
+                        Text(error)
+                            .font(.subheadline)
+                            .foregroundColor(.white)
+                    }
+                    .padding()
+                    .background(Color.blue)
+                    .cornerRadius(12)
+                    .padding(.horizontal)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                }
+
                 Spacer()
-                
+
                 // Selected Drone Info Card
-                if let selected = selectedTransponder, selected.lastLocation != nil {
+                if (radarMode == .drones || radarMode == .all), let selected = selectedTransponder, selected.lastLocation != nil {
                     DroneInfoCard(
                         transponder: selected,
                         onDismiss: {
@@ -141,10 +271,28 @@ struct FlightRadarView: View {
                     .padding()
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
+
+                // Selected Flight Info Card
+                if (radarMode == .flights || radarMode == .all), let selected = selectedFlight {
+                    FlightInfoCard(
+                        flight: selected,
+                        onDismiss: {
+                            flightDetailsTask?.cancel()
+                            withAnimation {
+                                selectedFlight = nil
+                            }
+                        },
+                        onZoomToFlight: {
+                            zoomToFlight(selected)
+                        }
+                    )
+                    .padding()
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
             }
-            
+
             // Loading Indicator
-            if isLoading {
+            if isLoading || ((radarMode == .all || radarMode == .flights) && fr24Service.isLoading) {
                 ProgressView()
                     .scaleEffect(1.5)
                     .padding()
@@ -157,6 +305,9 @@ struct FlightRadarView: View {
         .onAppear {
             Task {
                 await loadActiveTransponders()
+                if radarMode == .all || radarMode == .flights {
+                    await loadLiveFlights(force: true)
+                }
             }
             startPeriodicUpdates()
             adjustMapRegion()
@@ -165,7 +316,52 @@ struct FlightRadarView: View {
         }
         .onDisappear {
             stopPeriodicUpdates()
+            flightFetchTask?.cancel()
+            flightDetailsTask?.cancel()
             locationManager.stopLocationUpdates()
+        }
+        .onChange(of: radarMode) { _ in
+            // Clear selections when switching mode
+            flightFetchTask?.cancel()
+            flightDetailsTask?.cancel()
+            withAnimation {
+                selectedTransponder = nil
+                selectedFlight = nil
+            }
+            // Load data for new mode
+            stopPeriodicUpdates()
+            switch radarMode {
+            case .all:
+                Task {
+                    await loadActiveTransponders()
+                    await loadLiveFlights(force: true)
+                }
+            case .drones:
+                Task { await loadActiveTransponders() }
+            case .flights:
+                Task { await loadLiveFlights(force: true) }
+            }
+            startPeriodicUpdates()
+        }
+        .onChange(of: region.center.latitude) { _ in
+            if radarMode == .flights || radarMode == .all {
+                debouncedFetchFlights()
+            }
+        }
+        .onChange(of: region.center.longitude) { _ in
+            if radarMode == .flights || radarMode == .all {
+                debouncedFetchFlights()
+            }
+        }
+        .onChange(of: region.span.latitudeDelta) { _ in
+            if radarMode == .flights || radarMode == .all {
+                debouncedFetchFlights()
+            }
+        }
+        .onChange(of: region.span.longitudeDelta) { _ in
+            if radarMode == .flights || radarMode == .all {
+                debouncedFetchFlights()
+            }
         }
     }
     
@@ -224,11 +420,60 @@ struct FlightRadarView: View {
         )
     }
     
+    private func loadLiveFlights(force: Bool = false) async {
+        await fr24Service.fetchFlights(region: region, force: force)
+    }
+
+    private func debouncedFetchFlights() {
+        flightFetchTask?.cancel()
+        flightFetchTask = Task {
+            try? await Task.sleep(nanoseconds: 1_500_000_000) // 1.5s debounce
+            guard !Task.isCancelled else { return }
+            await loadLiveFlights()
+        }
+    }
+
+    private func selectFlight(_ flight: FR24FlightPosition) {
+        flightDetailsTask?.cancel()
+        withAnimation {
+            selectedTransponder = nil
+            selectedFlight = flight
+        }
+
+        flightDetailsTask = Task {
+            let details = await fr24Service.fetchFlightDetails(fr24Id: flight.fr24Id)
+            guard !Task.isCancelled else { return }
+
+            await MainActor.run {
+                guard !Task.isCancelled else { return }
+                withAnimation {
+                    selectedFlight = details ?? flight
+                }
+            }
+        }
+    }
+
+    private func zoomToFlight(_ flight: FR24FlightPosition) {
+        withAnimation(.easeInOut(duration: 0.5)) {
+            region = MKCoordinateRegion(
+                center: flight.coordinate,
+                span: MKCoordinateSpan(latitudeDelta: 0.5, longitudeDelta: 0.5)
+            )
+        }
+    }
+
     private func startPeriodicUpdates() {
-        // Update every 10 seconds
         updateTimer = Timer.scheduledTimer(withTimeInterval: 10.0, repeats: true) { _ in
             Task {
-                await loadActiveTransponders()
+                switch await self.radarMode {
+                case .all:
+                    await self.loadActiveTransponders()
+                    await self.loadLiveFlights()
+                case .drones:
+                    await self.loadActiveTransponders()
+                case .flights:
+                    await self.loadLiveFlights()
+                }
             }
         }
     }
@@ -468,6 +713,199 @@ struct DroneInfoCard: View {
     }
 }
 
+// MARK: - Flight Annotation
+
+struct FlightAnnotation: View {
+    let flight: FR24FlightPosition
+    let isSelected: Bool
+
+    var body: some View {
+        VStack(spacing: 2) {
+            ZStack {
+                Circle()
+                    .fill(isSelected ? Color.orange : Color.orange.opacity(0.8))
+                    .frame(width: isSelected ? 44 : 34, height: isSelected ? 44 : 34)
+                    .shadow(color: Color.black.opacity(0.3), radius: 4, x: 0, y: 2)
+
+                Image(systemName: "airplane")
+                    .foregroundColor(.white)
+                    .font(.system(size: isSelected ? 18 : 14))
+                    .rotationEffect(.degrees(Double(flight.track) - 90))
+            }
+
+            if let callsign = flight.callsign {
+                Text(callsign)
+                    .font(.system(size: 8, weight: .bold))
+                    .foregroundColor(.primary)
+                    .padding(.horizontal, 4)
+                    .padding(.vertical, 1)
+                    .background(Color(.systemBackground).opacity(0.85))
+                    .cornerRadius(4)
+            }
+        }
+        .scaleEffect(isSelected ? 1.2 : 1.0)
+        .animation(.spring(response: 0.3), value: isSelected)
+    }
+}
+
+// MARK: - Flight Info Card
+
+struct FlightInfoCard: View {
+    let flight: FR24FlightPosition
+    let onDismiss: () -> Void
+    let onZoomToFlight: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            // Header
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(flight.displayName)
+                        .font(.headline)
+                        .foregroundColor(.primary)
+
+                    HStack(spacing: 8) {
+                        if let reg = flight.reg {
+                            Text(reg)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        if let type = flight.type {
+                            Text(type)
+                                .font(.caption)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Color.orange.opacity(0.15))
+                                .cornerRadius(4)
+                        }
+                    }
+                }
+
+                Spacer()
+
+                Button(action: onDismiss) {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundColor(.secondary)
+                        .font(.title3)
+                }
+            }
+
+            Divider()
+
+            VStack(spacing: 8) {
+                // Route
+                if let route = flight.routeString {
+                    HStack(spacing: 12) {
+                        Label {
+                            Text(route)
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                                .foregroundColor(.primary)
+                        } icon: {
+                            Image(systemName: "airplane.departure")
+                                .foregroundColor(.orange)
+                        }
+
+                        Spacer()
+
+                        if let airline = flight.operatingAs ?? flight.paintedAs {
+                            Text(airline)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+
+                // Location
+                HStack(spacing: 12) {
+                    Label {
+                        Text(String(format: "%.4f, %.4f", flight.lat, flight.lon))
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    } icon: {
+                        Image(systemName: "location.fill")
+                            .foregroundColor(.blue)
+                    }
+                    Spacer()
+                }
+
+                // Speed, Altitude, Heading row
+                HStack(spacing: 16) {
+                    Label {
+                        Text("\(flight.gspeed) kts")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    } icon: {
+                        Image(systemName: "speedometer")
+                            .foregroundColor(.green)
+                    }
+
+                    Label {
+                        Text("\(formatAltitude(flight.alt)) ft")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    } icon: {
+                        Image(systemName: "arrow.up.circle.fill")
+                            .foregroundColor(.purple)
+                    }
+
+                    Label {
+                        Text("\(flight.track)\u{00B0}")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    } icon: {
+                        Image(systemName: "safari")
+                            .foregroundColor(.teal)
+                    }
+
+                    Spacer()
+                }
+
+                // Vertical speed (if non-zero)
+                if flight.vspeed != 0 {
+                    HStack(spacing: 12) {
+                        Label {
+                            Text("\(flight.vspeed > 0 ? "+" : "")\(flight.vspeed) fpm")
+                                .font(.caption)
+                                .foregroundColor(flight.vspeed > 0 ? .green : .orange)
+                        } icon: {
+                            Image(systemName: flight.vspeed > 0 ? "arrow.up.right" : "arrow.down.right")
+                                .foregroundColor(flight.vspeed > 0 ? .green : .orange)
+                        }
+                        Spacer()
+                    }
+                }
+            }
+
+            // Zoom Button
+            Button(action: onZoomToFlight) {
+                HStack {
+                    Image(systemName: "magnifyingglass")
+                        .font(.caption)
+                    Text("Zoom to Flight")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                }
+                .foregroundColor(.orange)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 8)
+                .background(Color.orange.opacity(0.1))
+                .cornerRadius(8)
+            }
+        }
+        .padding()
+        .background(Color(.systemBackground))
+        .cornerRadius(12)
+        .shadow(color: Color.black.opacity(0.15), radius: 8, x: 0, y: 4)
+    }
+
+    private func formatAltitude(_ altFeet: Int) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        return formatter.string(from: NSNumber(value: altFeet)) ?? "\(altFeet)"
+    }
+}
+
 // MARK: - Safety Status
 
 enum SafetyStatus {
@@ -623,4 +1061,3 @@ class FlightRadarLocationManager: NSObject, ObservableObject, CLLocationManagerD
         }
     }
 }
-
