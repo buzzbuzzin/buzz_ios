@@ -210,6 +210,12 @@ struct SafeFlyGridPointProperties: Codable {
 
 struct OpenMeteoResponse: Codable {
     let hourly: OpenMeteoHourlyData
+    let utcOffsetSeconds: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case hourly
+        case utcOffsetSeconds = "utc_offset_seconds"
+    }
 }
 
 struct OpenMeteoHourlyData: Codable {

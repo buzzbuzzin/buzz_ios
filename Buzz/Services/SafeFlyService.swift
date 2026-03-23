@@ -175,7 +175,7 @@ class SafeFlyService: ObservableObject {
     private func fetchOpenMeteoData(coordinate: CLLocationCoordinate2D) async throws -> [Date: OpenMeteoHourlyEntry] {
         let urlString = "\(openMeteoURL)?latitude=\(coordinate.latitude)&longitude=\(coordinate.longitude)" +
             "&hourly=temperature_2m,wind_speed_10m,wind_direction_10m,wind_gusts_10m,precipitation_probability,visibility,cloud_cover,weather_code,relative_humidity_2m" +
-            "&temperature_unit=fahrenheit&wind_speed_unit=mph&forecast_days=2"
+            "&temperature_unit=fahrenheit&wind_speed_unit=mph&forecast_days=2&timezone=auto"
         guard let url = URL(string: urlString) else {
             throw SafeFlyError.invalidURL
         }
@@ -193,9 +193,14 @@ class SafeFlyService: ObservableObject {
 
         // Convert to dictionary keyed by date
         // Open-Meteo uses format: "2026-01-30T00:00" (no seconds, no timezone)
+        // With timezone=auto, times are in the location's local timezone
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm"
-        dateFormatter.timeZone = TimeZone(secondsFromGMT: 0) // Open-Meteo returns UTC times
+        if let utcOffset = openMeteoResponse.utcOffsetSeconds {
+            dateFormatter.timeZone = TimeZone(secondsFromGMT: utcOffset)
+        } else {
+            dateFormatter.timeZone = TimeZone.current
+        }
 
         var result: [Date: OpenMeteoHourlyEntry] = [:]
         let hourly = openMeteoResponse.hourly
