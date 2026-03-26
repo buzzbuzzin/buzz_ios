@@ -62,9 +62,11 @@ struct HourlyForecastTableView: View {
     let measurementSystem: MeasurementSystem
 
     @State private var showLegend = false
+    @State private var tableWidth: CGFloat = UIScreen.main.bounds.width
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        Group {
+            // Title row (scrolls normally with content)
             HStack {
                 Text("Detailed Forecast")
                     .font(.headline)
@@ -82,49 +84,31 @@ struct HourlyForecastTableView: View {
 
                 Spacer()
             }
-            .padding(.horizontal)
 
-            // Table content without internal scroll - uses page scroll
-            GeometryReader { geometry in
-                let tableWidth = geometry.size.width
-                VStack(alignment: .leading, spacing: 0) {
-                    // Table Header
-                    ForecastTableHeaderRow(tableWidth: tableWidth, measurementSystem: measurementSystem)
-
-                    // Day sections with hours
-                    ForEach(dayGroups) { dayGroup in
-                        DaySectionView(
-                            dayGroup: dayGroup,
-                            thresholds: thresholds,
-                            tableWidth: tableWidth,
-                            measurementSystem: measurementSystem
-                        )
-                    }
+            // Table with sticky column headers
+            Section {
+                // Day sections with hours
+                ForEach(dayGroups) { dayGroup in
+                    DaySectionView(
+                        dayGroup: dayGroup,
+                        thresholds: thresholds,
+                        tableWidth: tableWidth,
+                        measurementSystem: measurementSystem
+                    )
                 }
+            } header: {
+                ForecastTableHeaderRow(tableWidth: tableWidth, measurementSystem: measurementSystem)
+                    .background(
+                        GeometryReader { geo in
+                            Color.clear
+                                .onAppear { tableWidth = geo.size.width }
+                                .onChange(of: geo.size.width) { _, newWidth in
+                                    tableWidth = newWidth
+                                }
+                        }
+                    )
             }
-            // Calculate height based on content
-            .frame(height: calculateTableHeight())
         }
-        .padding(.vertical)
-        .background(Color(.systemBackground))
-        .cornerRadius(16)
-        .shadow(color: Color.black.opacity(0.06), radius: 8, x: 0, y: 2)
-    }
-
-    /// Calculate the total height needed for the table content
-    private func calculateTableHeight() -> CGFloat {
-        let headerHeight: CGFloat = 44 // Header row height
-        let daySectionHeaderHeight: CGFloat = 40 // Day header height
-        let rowHeight: CGFloat = 40 // Each hour row height (32 + 8 padding)
-
-        var totalHeight = headerHeight
-
-        for dayGroup in dayGroups {
-            totalHeight += daySectionHeaderHeight
-            totalHeight += CGFloat(dayGroup.hours.count) * rowHeight
-        }
-
-        return max(totalHeight, 300) // Minimum height
     }
 }
 
@@ -714,11 +698,13 @@ struct ThresholdDetailRow: View {
     )
 
     return ScrollView {
-        HourlyForecastTableView(
-            dayGroups: [sampleDayGroup],
-            thresholds: .default,
-            measurementSystem: .imperial
-        )
+        LazyVStack(pinnedViews: [.sectionHeaders]) {
+            HourlyForecastTableView(
+                dayGroups: [sampleDayGroup],
+                thresholds: .default,
+                measurementSystem: .imperial
+            )
+        }
         .padding()
     }
 }

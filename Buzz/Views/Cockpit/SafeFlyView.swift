@@ -23,7 +23,7 @@ struct SafeFlyView: View {
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 24) {
+            LazyVStack(spacing: 24, pinnedViews: [.sectionHeaders]) {
                 // Current Status Summary
                 if let firstHour = safeFlyService.hourlyForecasts.first {
                     CurrentStatusCard(
