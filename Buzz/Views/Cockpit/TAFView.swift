@@ -27,6 +27,7 @@ struct TAFView: View {
             await loadTAFData()
         }
         .refreshable {
+            tafService.clearCache()
             await loadTAFData()
         }
         .onChange(of: locationManager.currentLocation?.latitude) { _, _ in
@@ -74,6 +75,8 @@ struct TAFView: View {
         }
 
         guard let location = deviceLocation else {
+            tafService.nearbyTAFs = []
+            tafService.errorMessage = "Location unavailable. Enable location access to load nearby TAFs."
             print("Unable to get device location for TAF")
             return
         }
