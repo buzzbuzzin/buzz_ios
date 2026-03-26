@@ -283,7 +283,7 @@ struct Booking: Codable, Identifiable, Hashable {
     /// when the booking was processed through it.
     var settledTipAmount: Decimal {
         if tipChargeId == nil && tipTransferId == nil {
-            return tipAmount ?? 0
+            return hasSettledTransfer ? (tipAmount ?? 0) : 0
         }
         return hasSettledTipTransfer ? (tipAmount ?? 0) : 0
     }

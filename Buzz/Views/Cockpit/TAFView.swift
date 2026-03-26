@@ -14,6 +14,11 @@ struct TAFView: View {
     @StateObject private var tafService = TAFService()
     @StateObject private var locationManager = WeatherLocationManager()
 
+    private var locationObservationKey: String? {
+        guard let location = locationManager.currentLocation else { return nil }
+        return String(format: "%.6f,%.6f", location.latitude, location.longitude)
+    }
+
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
@@ -30,15 +35,8 @@ struct TAFView: View {
             tafService.clearCache()
             await loadTAFData()
         }
-        .onChange(of: locationManager.currentLocation?.latitude) { _, _ in
-            if locationManager.currentLocation != nil {
-                Task {
-                    await loadNearbyTAFs()
-                }
-            }
-        }
-        .onChange(of: locationManager.currentLocation?.longitude) { _, _ in
-            if locationManager.currentLocation != nil {
+        .onChange(of: locationObservationKey) { _, newKey in
+            if newKey != nil {
                 Task {
                     await loadNearbyTAFs()
                 }
@@ -75,7 +73,6 @@ struct TAFView: View {
         }
 
         guard let location = deviceLocation else {
-            tafService.nearbyTAFs = []
             tafService.errorMessage = "Location unavailable. Enable location access to load nearby TAFs."
             print("Unable to get device location for TAF")
             return
@@ -106,33 +103,46 @@ struct TAFSectionView: View {
                 Spacer()
             }
 
-            if tafService.isLoading {
-                HStack {
-                    Spacer()
-                    ProgressView()
-                    Text("Loading TAF data...")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                    Spacer()
+            if tafService.nearbyTAFs.isEmpty {
+                if tafService.isLoading {
+                    HStack {
+                        Spacer()
+                        ProgressView()
+                        Text("Loading TAF data...")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                        Spacer()
+                    }
+                    .padding(.vertical, 20)
+                } else {
+                    VStack(spacing: 8) {
+                        Image(systemName: "doc.text.magnifyingglass")
+                            .font(.system(size: 32))
+                            .foregroundColor(.secondary)
+                        Text("No nearby TAF forecasts found")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                        if let error = tafService.errorMessage {
+                            Text(error)
+                                .font(.caption)
+                                .foregroundColor(.red)
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 20)
                 }
-                .padding(.vertical, 20)
-            } else if tafService.nearbyTAFs.isEmpty {
-                VStack(spacing: 8) {
-                    Image(systemName: "doc.text.magnifyingglass")
-                        .font(.system(size: 32))
-                        .foregroundColor(.secondary)
-                    Text("No nearby TAF forecasts found")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                    if let error = tafService.errorMessage {
-                        Text(error)
+            } else {
+                if tafService.isLoading {
+                    HStack(spacing: 8) {
+                        ProgressView()
+                            .controlSize(.small)
+                        Text("Refreshing TAF data...")
                             .font(.caption)
-                            .foregroundColor(.red)
+                            .foregroundColor(.secondary)
+                        Spacer()
                     }
                 }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 20)
-            } else {
+
                 ForEach(tafService.nearbyTAFs) { taf in
                     TAFCard(taf: taf, userCoordinate: userCoordinate)
                 }

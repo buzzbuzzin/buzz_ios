@@ -535,4 +535,121 @@ struct SafeFlyServiceTests {
             #expect(diff < 0.01, "Expected ~\(testCase.expectedMilesApprox) miles for \(testCase.meters)m, got \(miles)")
         }
     }
+
+    // MARK: - TAF Safety and Freshness
+
+    @Test func tafForecastPeriod_withoutCeilingOrVisibility_isUnknown() {
+        let period = TAFForecastPeriod(
+            timeFrom: Date(timeIntervalSince1970: 1_775_000_000),
+            timeTo: Date(timeIntervalSince1970: 1_775_003_600),
+            changeType: nil,
+            probability: nil,
+            windDirection: nil,
+            windSpeed: nil,
+            windGust: nil,
+            visibility: nil,
+            weatherPhenomena: nil,
+            clouds: [],
+            verticalVisibility: nil
+        )
+
+        #expect(period.derivedFlightCategory == .unknown)
+    }
+
+    @MainActor
+    @Test func tafService_parseIssueTime_supportsNonFractionalISO8601() {
+        let fallback = Date(timeIntervalSince1970: 0)
+        let parsed = TAFService.parseIssueTime("2026-03-26T18:30:00Z", fallback: fallback)
+
+        let calendar = Calendar(identifier: .gregorian)
+        let components = calendar.dateComponents(in: TimeZone(secondsFromGMT: 0)!, from: parsed)
+
+        #expect(components.year == 2026)
+        #expect(components.month == 3)
+        #expect(components.day == 26)
+        #expect(components.hour == 18)
+        #expect(components.minute == 30)
+    }
+
+    @MainActor
+    @Test func tafService_selectFreshestResponses_prefersMostRecentUnexpiredReportPerStation() {
+        let now = Date(timeIntervalSince1970: 1_774_659_200) // 2026-03-27T00:00:00Z
+        let responses = [
+            TAFAPIResponse(
+                icaoId: "KITH",
+                name: "Ithaca",
+                rawTAF: "KITH OLD",
+                issueTime: "2026-03-26T10:00:00Z",
+                validTimeFrom: 1_774_605_200,
+                validTimeTo: 1_774_641_200,
+                lat: 42.49,
+                lon: -76.45,
+                elev: 1099,
+                mostRecent: 0,
+                remarks: nil,
+                fcsts: nil
+            ),
+            TAFAPIResponse(
+                icaoId: "KITH",
+                name: "Ithaca",
+                rawTAF: "KITH NEW",
+                issueTime: "2026-03-26T12:00:00Z",
+                validTimeFrom: 1_774_612_400,
+                validTimeTo: 1_774_698_800,
+                lat: 42.49,
+                lon: -76.45,
+                elev: 1099,
+                mostRecent: 1,
+                remarks: nil,
+                fcsts: nil
+            ),
+            TAFAPIResponse(
+                icaoId: "KBGM",
+                name: "Binghamton",
+                rawTAF: "KBGM ONLY",
+                issueTime: "2026-03-26T09:00:00Z",
+                validTimeFrom: 1_774_601_600,
+                validTimeTo: 1_774_688_000,
+                lat: 42.21,
+                lon: -75.98,
+                elev: 1636,
+                mostRecent: 0,
+                remarks: nil,
+                fcsts: nil
+            )
+        ]
+
+        let selected = TAFService.selectFreshestResponses(responses, now: now)
+
+        #expect(selected.count == 2)
+        #expect(selected.first(where: { $0.icaoId == "KITH" })?.rawTAF == "KITH NEW")
+        #expect(selected.first(where: { $0.icaoId == "KBGM" })?.rawTAF == "KBGM ONLY")
+    }
+
+    @MainActor
+    @Test func tafService_clearCache_preservesDisplayedTAFsByDefault() {
+        let service = TAFService()
+        let sampleTAF = TAF(
+            id: "KDCA-0",
+            stationId: "KDCA",
+            stationName: "Washington/Reagan-National Arpt",
+            rawTAF: "TAF KDCA 261743Z",
+            issueTime: Date(timeIntervalSince1970: 0),
+            validFrom: Date(timeIntervalSince1970: 0),
+            validTo: Date(timeIntervalSince1970: 3_600),
+            latitude: 38.8512,
+            longitude: -77.0402,
+            elevation: 15,
+            forecastPeriods: []
+        )
+
+        service.nearbyTAFs = [sampleTAF]
+        service.errorMessage = "Old error"
+
+        service.clearCache()
+
+        #expect(service.nearbyTAFs.count == 1)
+        #expect(service.nearbyTAFs.first?.stationId == "KDCA")
+        #expect(service.errorMessage == nil)
+    }
 }

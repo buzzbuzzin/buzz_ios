@@ -87,6 +87,32 @@ final class BookingModelTests: XCTestCase {
         XCTAssertEqual(nilRankBooking.rankName, "Any Rank")
     }
 
+    func testSettledTipAmount_requiresSettledBaseTransferForLegacyTips() {
+        var booking = MockBackend.sampleBooking(status: .completed)
+        booking.tipAmount = Decimal(25)
+        booking.transferId = nil
+        booking.tipChargeId = nil
+        booking.tipTransferId = nil
+
+        XCTAssertEqual(booking.settledTipAmount, 0)
+
+        booking.transferId = "tr_base_123"
+        XCTAssertEqual(booking.settledTipAmount, Decimal(25))
+    }
+
+    func testSettledTipAmount_usesDedicatedTipTransferWhenPresent() {
+        var booking = MockBackend.sampleBooking(status: .completed)
+        booking.tipAmount = Decimal(25)
+        booking.transferId = "tr_base_123"
+        booking.tipChargeId = "ch_tip_123"
+        booking.tipTransferId = nil
+
+        XCTAssertEqual(booking.settledTipAmount, 0)
+
+        booking.tipTransferId = "tr_tip_123"
+        XCTAssertEqual(booking.settledTipAmount, Decimal(25))
+    }
+
     // MARK: - BookingStatus Enum
 
     func testBookingStatusDisplayNames() {

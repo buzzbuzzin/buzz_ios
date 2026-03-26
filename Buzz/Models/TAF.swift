@@ -70,6 +70,10 @@ struct TAFForecastPeriod: Identifiable {
 
         let vis = visibility
 
+        if ceiling == nil && vis == nil {
+            return .unknown
+        }
+
         // LIFR: ceiling < 500 ft OR visibility < 1 SM
         if let c = ceiling, c < 500 { return .lifr }
         if let v = vis, v < 1 { return .lifr }

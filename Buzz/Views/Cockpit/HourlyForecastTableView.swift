@@ -85,6 +85,18 @@ struct HourlyForecastTableView: View {
                 Spacer()
             }
 
+            Color.clear
+                .frame(height: 0)
+                .background(
+                    GeometryReader { geo in
+                        Color.clear
+                            .onAppear { tableWidth = geo.size.width }
+                            .onChange(of: geo.size.width) { _, newWidth in
+                                tableWidth = newWidth
+                            }
+                    }
+                )
+
             // Table with sticky column headers
             Section {
                 // Day sections with hours
@@ -98,15 +110,6 @@ struct HourlyForecastTableView: View {
                 }
             } header: {
                 ForecastTableHeaderRow(tableWidth: tableWidth, measurementSystem: measurementSystem)
-                    .background(
-                        GeometryReader { geo in
-                            Color.clear
-                                .onAppear { tableWidth = geo.size.width }
-                                .onChange(of: geo.size.width) { _, newWidth in
-                                    tableWidth = newWidth
-                                }
-                        }
-                    )
             }
         }
     }

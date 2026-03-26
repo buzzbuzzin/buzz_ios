@@ -11,6 +11,7 @@ struct RatingView: View {
     let userName: String
     let isPilotRatingCustomer: Bool
     let onRatingSubmitted: (Int, String?, Decimal?) -> Void
+    let isSubmitting: Bool
     let allowsTip: Bool
     let customTitle: String? // Optional custom title (e.g., "Booking is completed")
     let paymentAmount: Decimal? // Payment amount for calculating tip amounts (only for customers rating pilots)
@@ -21,6 +22,7 @@ struct RatingView: View {
     @State private var selectedTipPercentage: Int? = nil // 5, 10, or 15
     @State private var customTipAmount: Decimal? = nil // Custom tip amount entered by user
     @State private var showCustomTipSheet = false
+    @State private var hasSubmitted = false
     @Environment(\.dismiss) var dismiss
     
     // Predefined tip percentages
@@ -30,6 +32,7 @@ struct RatingView: View {
         userName: String,
         isPilotRatingCustomer: Bool,
         onRatingSubmitted: @escaping (Int, String?, Decimal?) -> Void,
+        isSubmitting: Bool = false,
         allowsTip: Bool = true,
         customTitle: String? = nil,
         paymentAmount: Decimal? = nil,
@@ -38,6 +41,7 @@ struct RatingView: View {
         self.userName = userName
         self.isPilotRatingCustomer = isPilotRatingCustomer
         self.onRatingSubmitted = onRatingSubmitted
+        self.isSubmitting = isSubmitting
         self.allowsTip = allowsTip
         self.customTitle = customTitle
         self.paymentAmount = paymentAmount
@@ -163,6 +167,8 @@ struct RatingView: View {
                     
                     // Submit Button
                     Button(action: {
+                        guard !hasSubmitted, !isSubmitting else { return }
+                        hasSubmitted = true
                         let tip: Decimal? = if let customTip = customTipAmount {
                             customTip
                         } else if let percentage = selectedTipPercentage, let paymentAmount = paymentAmount {
@@ -182,7 +188,7 @@ struct RatingView: View {
                             .background(selectedRating == 0 ? Color(.systemGray3) : Color.primary)
                             .cornerRadius(12)
                     }
-                    .disabled(selectedRating == 0)
+                    .disabled(selectedRating == 0 || isSubmitting || hasSubmitted)
                     .accessibilityLabel("Submit review")
                     .accessibilityHint(selectedRating == 0 ? "Select a star rating first" : "Submits your \(selectedRating) star review")
                     .padding(.horizontal)

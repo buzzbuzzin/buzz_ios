@@ -20,6 +20,7 @@ class TAFService: ObservableObject {
     // Cache to avoid excessive API calls
     private var lastFetchTime: Date?
     private var lastFetchCoordinate: CLLocationCoordinate2D?
+    private var inFlightCoordinate: CLLocationCoordinate2D?
     private let cacheValiditySeconds: TimeInterval = 300 // 5 minutes
 
     // MARK: - Fetch TAFs Near Location
@@ -44,8 +45,22 @@ class TAFService: ObservableObject {
             }
         }
 
+        if isLoading,
+           let requestedCoord = inFlightCoordinate {
+            let latDiff = abs(requestedCoord.latitude - coordinate.latitude)
+            let lonDiff = abs(requestedCoord.longitude - coordinate.longitude)
+            if latDiff < 0.01 && lonDiff < 0.01 {
+                return nearbyTAFs
+            }
+        }
+
         isLoading = true
+        inFlightCoordinate = coordinate
         errorMessage = nil
+        defer {
+            isLoading = false
+            inFlightCoordinate = nil
+        }
 
         do {
             // Calculate bounding box
@@ -74,8 +89,9 @@ class TAFService: ObservableObject {
 
             // Handle 204 No Content - valid but no data available
             if httpResponse.statusCode == 204 {
-                isLoading = false
                 nearbyTAFs = []
+                lastFetchTime = Date()
+                lastFetchCoordinate = coordinate
                 return []
             }
 
@@ -94,13 +110,10 @@ class TAFService: ObservableObject {
             nearbyTAFs = Array(sortedTAFs)
             lastFetchTime = Date()
             lastFetchCoordinate = coordinate
-            isLoading = false
 
             return nearbyTAFs
 
         } catch {
-            isLoading = false
-
             // Handle cancellation gracefully
             let nsError = error as NSError
             if nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled {
@@ -125,25 +138,16 @@ class TAFService: ObservableObject {
             throw TAFError.parsingError
         }
 
-        return tafResponses.compactMap { response -> TAF? in
+        return Self.selectFreshestResponses(tafResponses).compactMap { response -> TAF? in
             guard let stationId = response.icaoId,
                   let rawTAF = response.rawTAF else {
                 return nil
             }
 
-            // Parse issue time
-            let issueTime: Date
-            if let issueTimeStr = response.issueTime {
-                let formatter = ISO8601DateFormatter()
-                formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-                issueTime = formatter.date(from: issueTimeStr) ?? Date()
-            } else {
-                issueTime = Date()
-            }
-
             // Convert Unix timestamps to Date
             let validFrom = response.validTimeFrom.map { Date(timeIntervalSince1970: TimeInterval($0)) } ?? Date()
             let validTo = response.validTimeTo.map { Date(timeIntervalSince1970: TimeInterval($0)) } ?? Date()
+            let issueTime = Self.parseIssueTime(response.issueTime, fallback: validFrom)
 
             // Parse forecast periods
             let forecastPeriods = parseForecastPeriods(from: response.fcsts)
@@ -225,11 +229,66 @@ class TAFService: ObservableObject {
         }
     }
 
-    /// Clear the cache to force a fresh fetch
-    func clearCache() {
+    /// Clear the fetch cache to force a fresh request.
+    /// By default this preserves the currently displayed TAFs so pull-to-refresh
+    /// does not blank the UI before replacement data arrives.
+    func clearCache(keepDisplayedTAFs: Bool = true) {
         lastFetchTime = nil
         lastFetchCoordinate = nil
-        nearbyTAFs = []
+        inFlightCoordinate = nil
+        errorMessage = nil
+        if !keepDisplayedTAFs {
+            nearbyTAFs = []
+        }
+    }
+
+    static func parseIssueTime(_ issueTimeString: String?, fallback: Date) -> Date {
+        guard let issueTimeString, !issueTimeString.isEmpty else { return fallback }
+
+        let formatterWithFractionalSeconds = ISO8601DateFormatter()
+        formatterWithFractionalSeconds.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let parsedDate = formatterWithFractionalSeconds.date(from: issueTimeString) {
+            return parsedDate
+        }
+
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter.date(from: issueTimeString) ?? fallback
+    }
+
+    static func selectFreshestResponses(_ responses: [TAFAPIResponse], now: Date = Date()) -> [TAFAPIResponse] {
+        let groupedResponses = Dictionary(grouping: responses) { response in
+            response.icaoId ?? UUID().uuidString
+        }
+
+        return groupedResponses.values.compactMap { stationResponses in
+            let unexpiredResponses = stationResponses.filter { response in
+                guard let validTimeTo = response.validTimeTo else { return true }
+                return Date(timeIntervalSince1970: TimeInterval(validTimeTo)) > now
+            }
+
+            let candidateResponses = unexpiredResponses.isEmpty ? stationResponses : unexpiredResponses
+
+            return candidateResponses.max { lhs, rhs in
+                let lhsMostRecent = lhs.mostRecent ?? 0
+                let rhsMostRecent = rhs.mostRecent ?? 0
+                if lhsMostRecent != rhsMostRecent {
+                    return lhsMostRecent < rhsMostRecent
+                }
+
+                let lhsValidFrom = lhs.validTimeFrom ?? Int.min
+                let rhsValidFrom = rhs.validTimeFrom ?? Int.min
+                if lhsValidFrom != rhsValidFrom {
+                    return lhsValidFrom < rhsValidFrom
+                }
+
+                let lhsFallback = lhs.validTimeFrom.map { Date(timeIntervalSince1970: TimeInterval($0)) } ?? .distantPast
+                let rhsFallback = rhs.validTimeFrom.map { Date(timeIntervalSince1970: TimeInterval($0)) } ?? .distantPast
+                let lhsIssueTime = parseIssueTime(lhs.issueTime, fallback: lhsFallback)
+                let rhsIssueTime = parseIssueTime(rhs.issueTime, fallback: rhsFallback)
+                return lhsIssueTime < rhsIssueTime
+            }
+        }
     }
 }
 

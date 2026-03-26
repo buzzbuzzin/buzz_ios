@@ -1308,6 +1308,7 @@ struct CustomerBookingDetailView: View {
     @State private var showSearchRescueCompletion = false
     @State private var showExtendBookingSheet = false
     @State private var showCreateDisputeSheet = false
+    @State private var isSubmittingRating = false
     @Environment(\.dismiss) var dismiss
 
     // Check if pilot info should be visible (always show if pilot is assigned)
@@ -1811,6 +1812,7 @@ struct CustomerBookingDetailView: View {
                 onRatingSubmitted: { rating, comment, tip in
                     submitRating(rating: rating, comment: comment, tip: tip)
                 },
+                isSubmitting: isSubmittingRating,
                 allowsTip: currentBooking.specialization != .automotive && currentBooking.specialization != .searchRescue,
                 customTitle: currentBooking.status == .completed ? "Booking is completed" : nil,
                 paymentAmount: currentBooking.paymentAmount,
@@ -1927,15 +1929,22 @@ struct CustomerBookingDetailView: View {
     }
     
     private func submitRating(rating: Int, comment: String?, tip: Decimal?) {
+        guard !isSubmittingRating else { return }
         guard let currentUser = authService.currentUser,
               let pilotId = currentBooking.pilotId else { return }
         
+        isSubmittingRating = true
         Task {
+            defer { isSubmittingRating = false }
+
             do {
-                if let tipAmount = tip, tipAmount > 0,
-                   currentBooking.tipPaymentIntentId == nil {
-                    guard currentBooking.specialization != .automotive,
-                          currentBooking.specialization != .searchRescue else {
+                var latestBooking = currentBooking
+                if let tipAmount = tip, tipAmount > 0 {
+                    latestBooking = try await bookingService.getBooking(bookingId: currentBooking.id)
+                    currentBooking = latestBooking
+
+                    guard latestBooking.specialization != .automotive,
+                          latestBooking.specialization != .searchRescue else {
                         throw NSError(
                             domain: "CustomerBookingDetailView",
                             code: -1,
@@ -1943,31 +1952,35 @@ struct CustomerBookingDetailView: View {
                         )
                     }
 
-                    let paymentIntentResponse = try await paymentService.createPaymentIntent(
-                        amount: tipAmount,
-                        customerId: currentUser.id,
-                        transferGroup: "booking_tip_\(currentBooking.id.uuidString)"
-                    )
-
-                    let paymentResult = try await paymentService.presentPaymentSheet(
-                        paymentIntentClientSecret: paymentIntentResponse.clientSecret,
-                        customerId: paymentIntentResponse.customerId,
-                        customerEphemeralKeySecret: paymentIntentResponse.ephemeralKeySecret
-                    )
-
-                    switch paymentResult {
-                    case .completed:
-                        let chargeId = try await paymentService.getChargeId(paymentIntentId: paymentIntentResponse.paymentIntentId)
-                        try await bookingService.recordPaidTip(
-                            bookingId: currentBooking.id,
-                            tipAmount: tipAmount,
-                            paymentIntentId: paymentIntentResponse.paymentIntentId,
-                            chargeId: chargeId
+                    if latestBooking.tipPaymentIntentId == nil {
+                        let paymentIntentResponse = try await paymentService.createPaymentIntent(
+                            amount: tipAmount,
+                            customerId: currentUser.id,
+                            transferGroup: "booking_tip_\(currentBooking.id.uuidString)"
                         )
-                    case .cancelled:
-                        return
-                    case .failed(let error):
-                        throw error
+
+                        let paymentResult = try await paymentService.presentPaymentSheet(
+                            paymentIntentClientSecret: paymentIntentResponse.clientSecret,
+                            customerId: paymentIntentResponse.customerId,
+                            customerEphemeralKeySecret: paymentIntentResponse.ephemeralKeySecret
+                        )
+
+                        switch paymentResult {
+                        case .completed:
+                            let chargeId = try await paymentService.getChargeId(paymentIntentId: paymentIntentResponse.paymentIntentId)
+                            try await bookingService.recordPaidTip(
+                                bookingId: currentBooking.id,
+                                tipAmount: tipAmount,
+                                paymentIntentId: paymentIntentResponse.paymentIntentId,
+                                chargeId: chargeId
+                            )
+                            latestBooking = try await bookingService.getBooking(bookingId: currentBooking.id)
+                            currentBooking = latestBooking
+                        case .cancelled:
+                            return
+                        case .failed(let error):
+                            throw error
+                        }
                     }
                 }
 
@@ -1990,6 +2003,7 @@ struct CustomerBookingDetailView: View {
                 // Refresh booking to update rated status
                 await refreshBooking()
             } catch {
+                await refreshBooking()
                 errorMessage = error.localizedDescription
                 showError = true
             }

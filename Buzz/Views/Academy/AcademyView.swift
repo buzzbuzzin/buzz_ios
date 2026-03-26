@@ -143,119 +143,48 @@ struct AcademyView: View {
     }
     
     var body: some View {
+        Group {
+            if isAwaitingAuth {
+                LoadingView(message: "Loading academy...")
+            } else if authService.currentUser != nil,
+                      let userProfile = authService.userProfile,
+                      userProfile.selectedRegion == nil {
+                RegionOnboardingView()
+                    .navigationBarBackButtonHidden(true)
+            } else {
+                academyNavigationContent
+            }
+        }
+    }
+
+    private var academyNavigationContent: some View {
         NavigationStack {
-            Group {
-                if isAwaitingAuth {
-                    LoadingView(message: "Loading academy...")
-                } else if authService.currentUser != nil,
-                          let userProfile = authService.userProfile,
-                          userProfile.selectedRegion == nil {
-                    RegionOnboardingView()
-                        .navigationBarBackButtonHidden(true)
-                } else {
-                    ZStack {
-                    List {
-                        // Recurrent Training Notices Section
-                        if showRecurrentNotices && !recurrentNotices.isEmpty {
-                            Section {
-                                VStack(alignment: .leading, spacing: 8) {
-                                    HStack {
-                                        Text("Recurrent Training Due")
-                                            .font(.headline)
-                                            .fontWeight(.semibold)
-                                        Spacer()
-                                        Button(action: {
-                                            showRecurrentNotices.toggle()
-                                        }) {
-                                            Image(systemName: "xmark.circle.fill")
-                                                .foregroundColor(.secondary)
-                                        }
-                                        .accessibilityLabel("Dismiss recurrent training notices")
-                                        .frame(minWidth: 44, minHeight: 44)
-                                        .contentShape(Rectangle())
-                                    }
-
-                                    ScrollView(.horizontal, showsIndicators: false) {
-                                        HStack(spacing: 12) {
-                                            ForEach(recurrentNotices) { notice in
-                                                RecurrentTrainingCard(notice: notice)
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                            .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
-                            .listRowBackground(Color(.systemGray6))
-                        }
-
-                        // UAS Pilot Course Promotion Section
-                        if let uasCourse = courses.first(where: {
-                            $0.id.uuidString.lowercased() == "a1b2c3d4-e5f6-7890-abcd-ef1234567890" ||
-                            $0.title.lowercased().contains("uas pilot")
-                        }), !hasSubscription && !isPromotionCardDismissed {
-                            Section {
-                                UASPilotCoursePromotionCard(
-                                    course: uasCourse,
-                                    hasSubscription: hasSubscription,
-                                    onDismiss: {
-                                        isPromotionCardDismissed = true
-                                    }
-                                )
-                            }
-                            .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
-                            .listRowBackground(Color(.systemGray6))
-                        }
-
-                        // Provider Filter
+            ZStack {
+                List {
+                    // Recurrent Training Notices Section
+                    if showRecurrentNotices && !recurrentNotices.isEmpty {
                         Section {
-                            ScrollView(.horizontal, showsIndicators: false) {
-                                HStack(spacing: 12) {
-                                    // All Providers Button
-                                    ProviderChip(
-                                        title: "All Providers",
-                                        icon: "square.grid.2x2",
-                                        isSelected: selectedProvider == nil
-                                    ) {
-                                        selectedProvider = nil
-                                        selectedCategory = nil
+                            VStack(alignment: .leading, spacing: 8) {
+                                HStack {
+                                    Text("Recurrent Training Due")
+                                        .font(.headline)
+                                        .fontWeight(.semibold)
+                                    Spacer()
+                                    Button(action: {
+                                        showRecurrentNotices.toggle()
+                                    }) {
+                                        Image(systemName: "xmark.circle.fill")
+                                            .foregroundColor(.secondary)
                                     }
-
-                                    ForEach(allProviders, id: \.self) { provider in
-                                        ProviderChip(
-                                            title: provider.rawValue,
-                                            icon: provider.icon,
-                                            isSelected: selectedProvider == provider,
-                                            color: provider.color
-                                        ) {
-                                            selectedProvider = provider
-                                            if provider != .buzz {
-                                                selectedCategory = nil
-                                            }
-                                        }
-                                    }
+                                    .accessibilityLabel("Dismiss recurrent training notices")
+                                    .frame(minWidth: 44, minHeight: 44)
+                                    .contentShape(Rectangle())
                                 }
-                            }
 
-                            // Category Filter - Only show when Buzz is selected as provider
-                            if selectedProvider == .buzz {
                                 ScrollView(.horizontal, showsIndicators: false) {
                                     HStack(spacing: 12) {
-                                        CategoryChip(
-                                            title: "All",
-                                            icon: "square.grid.2x2",
-                                            isSelected: selectedCategory == nil
-                                        ) {
-                                            selectedCategory = nil
-                                        }
-
-                                        ForEach(allCategories, id: \.self) { category in
-                                            CategoryChip(
-                                                title: category.rawValue,
-                                                icon: category.icon,
-                                                isSelected: selectedCategory == category
-                                            ) {
-                                                selectedCategory = category
-                                            }
+                                        ForEach(recurrentNotices) { notice in
+                                            RecurrentTrainingCard(notice: notice)
                                         }
                                     }
                                 }
@@ -263,9 +192,93 @@ struct AcademyView: View {
                         }
                         .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
                         .listRowBackground(Color(.systemGray6))
+                    }
 
-                        // Courses
+                    // UAS Pilot Course Promotion Section
+                    if let uasCourse = courses.first(where: {
+                        $0.id.uuidString.lowercased() == "a1b2c3d4-e5f6-7890-abcd-ef1234567890" ||
+                        $0.title.lowercased().contains("uas pilot")
+                    }), !hasSubscription && !isPromotionCardDismissed {
                         Section {
+                            UASPilotCoursePromotionCard(
+                                course: uasCourse,
+                                hasSubscription: hasSubscription,
+                                onDismiss: {
+                                    isPromotionCardDismissed = true
+                                }
+                            )
+                        }
+                        .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                        .listRowBackground(Color(.systemGray6))
+                    }
+
+                    // Provider Filter
+                    Section {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 12) {
+                                ProviderChip(
+                                    title: "All Providers",
+                                    icon: "square.grid.2x2",
+                                    isSelected: selectedProvider == nil
+                                ) {
+                                    selectedProvider = nil
+                                    selectedCategory = nil
+                                }
+
+                                ForEach(allProviders, id: \.self) { provider in
+                                    ProviderChip(
+                                        title: provider.rawValue,
+                                        icon: provider.icon,
+                                        isSelected: selectedProvider == provider,
+                                        color: provider.color
+                                    ) {
+                                        selectedProvider = provider
+                                        if provider != .buzz {
+                                            selectedCategory = nil
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        if selectedProvider == .buzz {
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 12) {
+                                    CategoryChip(
+                                        title: "All",
+                                        icon: "square.grid.2x2",
+                                        isSelected: selectedCategory == nil
+                                    ) {
+                                        selectedCategory = nil
+                                    }
+
+                                    ForEach(allCategories, id: \.self) { category in
+                                        CategoryChip(
+                                            title: category.rawValue,
+                                            icon: category.icon,
+                                            isSelected: selectedCategory == category
+                                        ) {
+                                            selectedCategory = category
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                    .listRowBackground(Color(.systemGray6))
+
+                    // Courses
+                    Section {
+                        if !isLoading && !isPreparingAcademy && filteredCourses.isEmpty {
+                            EmptyStateView(
+                                icon: "book.closed",
+                                title: "No Courses Available",
+                                message: "Check back soon for new training courses"
+                            )
+                            .listRowInsets(EdgeInsets(top: 16, leading: 16, bottom: 16, trailing: 16))
+                            .listRowBackground(Color.clear)
+                        } else {
                             ForEach(filteredCourses) { course in
                                 let missingPrerequisites = getMissingPrerequisites(for: course)
                                 let isLocked = !missingPrerequisites.isEmpty
@@ -294,18 +307,11 @@ struct AcademyView: View {
                             }
                         }
                     }
-                    .listStyle(PlainListStyle())
+                }
+                .listStyle(PlainListStyle())
 
-                    if isLoading || isPreparingAcademy {
-                        LoadingView(message: "Loading courses...")
-                    } else if filteredCourses.isEmpty && !courses.isEmpty {
-                        EmptyStateView(
-                            icon: "book.closed",
-                            title: "No Courses Available",
-                            message: "Check back soon for new training courses"
-                        )
-                    }
-                    }
+                if isLoading || isPreparingAcademy {
+                    LoadingView(message: "Loading courses...")
                 }
             }
             .navigationTitle("Academy")

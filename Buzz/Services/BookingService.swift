@@ -1822,11 +1822,27 @@ class BookingService: ObservableObject {
                 "tip_payment_intent_id": .string(paymentIntentId),
                 "tip_charge_id": .string(chargeId)
             ]
-            try await supabase
-                .from("bookings")
-                .update(updateData)
-                .eq("id", value: bookingId.uuidString)
-                .execute()
+            do {
+                let _: Booking = try await supabase
+                    .from("bookings")
+                    .update(updateData)
+                    .eq("id", value: bookingId.uuidString)
+                    .is("tip_payment_intent_id", value: nil)
+                    .select()
+                    .single()
+                    .execute()
+                    .value
+            } catch {
+                if let latestBooking = try? await getBooking(bookingId: bookingId),
+                   latestBooking.tipPaymentIntentId != nil {
+                    throw NSError(
+                        domain: "BookingService",
+                        code: -1,
+                        userInfo: [NSLocalizedDescriptionKey: "A tip has already been recorded for this booking."]
+                    )
+                }
+                throw error
+            }
             publishBookingChange(for: bookingId)
 
             if booking.pilotId != nil {
