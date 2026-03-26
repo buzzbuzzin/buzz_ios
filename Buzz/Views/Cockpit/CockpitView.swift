@@ -30,6 +30,7 @@ struct CockpitView: View {
     @State private var showRemoteID = false
     @State private var showFlightRadar = false
     @State private var showWeather = false
+    @State private var showTAF = false
     @State private var showLogs = false
     @State private var showSOP = false
     @State private var showLeaderboard = false
@@ -195,6 +196,19 @@ struct CockpitView: View {
                                         title: "Weather",
                                         icon: "cloud.sun.fill",
                                         color: .cyan
+                                    )
+                                }
+                                .buttonStyle(PlainButtonStyle())
+
+                                // TAF Card - Using fullScreenCover for stable presentation
+                                Button {
+                                    logTap("TAF", section: "Flight")
+                                    showTAF = true
+                                } label: {
+                                    CockpitGridCard(
+                                        title: "TAF",
+                                        icon: "cloud.sun.rain.fill",
+                                        color: .mint
                                     )
                                 }
                                 .buttonStyle(PlainButtonStyle())
@@ -676,6 +690,23 @@ struct CockpitView: View {
                         ToolbarItem(placement: .navigationBarLeading) {
                             Button {
                                 showWeather = false
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.title2)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    }
+            }
+        }
+        .fullScreenCover(isPresented: $showTAF) {
+            NavigationView {
+                TAFView()
+                    .environmentObject(authService)
+                    .toolbar {
+                        ToolbarItem(placement: .navigationBarLeading) {
+                            Button {
+                                showTAF = false
                             } label: {
                                 Image(systemName: "xmark.circle.fill")
                                     .font(.title2)
