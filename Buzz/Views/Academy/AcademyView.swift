@@ -144,200 +144,167 @@ struct AcademyView: View {
     
     var body: some View {
         NavigationStack {
-        if isAwaitingAuth {
-            LoadingView(message: "Loading academy...")
-        } else if authService.currentUser != nil,
-                  let userProfile = authService.userProfile,
-                  userProfile.selectedRegion == nil {
-            RegionOnboardingView()
-                .navigationBarBackButtonHidden(true)
-        } else {
-                VStack(spacing: 0) {
-                // Recurrent Training Notices Section
-                if showRecurrentNotices && !recurrentNotices.isEmpty {
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack {
-                            Text("Recurrent Training Due")
-                                .font(.headline)
-                                .fontWeight(.semibold)
-                            Spacer()
-                            Button(action: {
-                                showRecurrentNotices.toggle()
-                            }) {
-                                Image(systemName: "xmark.circle.fill")
-                                    .foregroundColor(.secondary)
-                            }
-                            .accessibilityLabel("Dismiss recurrent training notices")
-                            .frame(minWidth: 44, minHeight: 44)
-                            .contentShape(Rectangle())
-                        }
-                        .padding(.horizontal)
-                        .padding(.top, 8)
-                        
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 12) {
-                                ForEach(recurrentNotices) { notice in
-                                    RecurrentTrainingCard(notice: notice)
-                                }
-                            }
-                            .padding(.horizontal)
-                            .padding(.bottom, 8)
-                        }
-                    }
-                    .background(Color(.systemGray6))
-                }
-                
-                // UAS Pilot Course Promotion Section
-                // Show promotion card for UAS Pilot Course (only if not dismissed and no subscription)
-                if let uasCourse = courses.first(where: { 
-                    $0.id.uuidString.lowercased() == "a1b2c3d4-e5f6-7890-abcd-ef1234567890" ||
-                    $0.title.lowercased().contains("uas pilot")
-                }), !hasSubscription && !isPromotionCardDismissed {
-                    UASPilotCoursePromotionCard(
-                        course: uasCourse,
-                        hasSubscription: hasSubscription,
-                        onDismiss: {
-                            isPromotionCardDismissed = true
-                        }
-                    )
-                    .padding(.horizontal)
-                    .padding(.vertical, 8)
-                    .background(Color(.systemGray6))
-                }
-
-                // // Region Filter
-                // ScrollView(.horizontal, showsIndicators: false) {
-                //     HStack(spacing: 12) {
-                //         // All Regions Button
-                //         RegionChip(
-                //             title: "All Regions",
-                //             icon: "🌐",
-                //             isSelected: selectedRegion == nil
-                //         ) {
-                //             selectedRegion = nil
-                //         }
-                //
-                //         ForEach(allRegions, id: \.self) { region in
-                //             RegionChip(
-                //                 title: region.rawValue,
-                //                 icon: region.icon,
-                //                 isSelected: selectedRegion == region || (selectedRegion == nil && region == userSelectedRegion)
-                //             ) {
-                //                 selectedRegion = region
-                //             }
-                //         }
-                //     }
-                //     .padding(.horizontal)
-                //     .padding(.vertical, 8)
-                // }
-                // .background(Color(.systemGray6))
-                
-                // Provider Filter
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 12) {
-                        // All Providers Button
-                        ProviderChip(
-                            title: "All Providers",
-                            icon: "square.grid.2x2",
-                            isSelected: selectedProvider == nil
-                        ) {
-                            selectedProvider = nil
-                            selectedCategory = nil // Reset category when changing provider
-                        }
-                        
-                        ForEach(allProviders, id: \.self) { provider in
-                            ProviderChip(
-                                title: provider.rawValue,
-                                icon: provider.icon,
-                                isSelected: selectedProvider == provider,
-                                color: provider.color
-                            ) {
-                                selectedProvider = provider
-                                // Reset category when changing to a non-Buzz provider
-                                if provider != .buzz {
-                                    selectedCategory = nil
-                                }
-                            }
-                        }
-                    }
-                    .padding(.horizontal)
-                    .padding(.vertical, 8)
-                }
-                .background(Color(.systemGray6))
-                
-                // Category Filter - Only show when Buzz is selected as provider
-                if selectedProvider == .buzz {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 12) {
-                            // All Categories Button
-                            CategoryChip(
-                                title: "All",
-                                icon: "square.grid.2x2",
-                                isSelected: selectedCategory == nil
-                            ) {
-                                selectedCategory = nil
-                            }
-                            
-                            ForEach(allCategories, id: \.self) { category in
-                                CategoryChip(
-                                    title: category.rawValue,
-                                    icon: category.icon,
-                                    isSelected: selectedCategory == category
-                                ) {
-                                    selectedCategory = category
-                                }
-                            }
-                        }
-                        .padding(.horizontal)
-                        .padding(.vertical, 12)
-                    }
-                    .background(Color(.systemGray6))
-                }
-                
-                // Courses List (always present to keep navigation state stable)
-                ZStack {
+            Group {
+                if isAwaitingAuth {
+                    LoadingView(message: "Loading academy...")
+                } else if authService.currentUser != nil,
+                          let userProfile = authService.userProfile,
+                          userProfile.selectedRegion == nil {
+                    RegionOnboardingView()
+                        .navigationBarBackButtonHidden(true)
+                } else {
+                    ZStack {
                     List {
-                        ForEach(filteredCourses) { course in
-                            let missingPrerequisites = getMissingPrerequisites(for: course)
-                            let isLocked = !missingPrerequisites.isEmpty
-                            
-                            if isLocked {
-                                // Show locked course card (not tappable)
-                                CourseCard(
-                                    course: courses.first(where: { $0.id == course.id }) ?? course,
-                                    isLocked: true,
-                                    missingPrerequisites: missingPrerequisites
-                                )
-                                .accessibilityHint("Course is locked. Complete prerequisites to unlock.")
-                            } else {
-                                NavigationLink(destination: CourseDetailView(
-                                    course: courses.first(where: { $0.id == course.id }) ?? course,
-                                    onEnrollmentChange: {
-                                        toggleEnrollment(for: course.id)
-                                        // Reload courses from backend to ensure sync
-                                        Task {
-                                            await loadCourses()
+                        // Recurrent Training Notices Section
+                        if showRecurrentNotices && !recurrentNotices.isEmpty {
+                            Section {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    HStack {
+                                        Text("Recurrent Training Due")
+                                            .font(.headline)
+                                            .fontWeight(.semibold)
+                                        Spacer()
+                                        Button(action: {
+                                            showRecurrentNotices.toggle()
+                                        }) {
+                                            Image(systemName: "xmark.circle.fill")
+                                                .foregroundColor(.secondary)
+                                        }
+                                        .accessibilityLabel("Dismiss recurrent training notices")
+                                        .frame(minWidth: 44, minHeight: 44)
+                                        .contentShape(Rectangle())
+                                    }
+
+                                    ScrollView(.horizontal, showsIndicators: false) {
+                                        HStack(spacing: 12) {
+                                            ForEach(recurrentNotices) { notice in
+                                                RecurrentTrainingCard(notice: notice)
+                                            }
                                         }
                                     }
-                                )) {
-                                    CourseCard(course: courses.first(where: { $0.id == course.id }) ?? course)
                                 }
-                                .accessibilityHint("Double tap to view course details")
+                            }
+                            .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                            .listRowBackground(Color(.systemGray6))
+                        }
+
+                        // UAS Pilot Course Promotion Section
+                        if let uasCourse = courses.first(where: {
+                            $0.id.uuidString.lowercased() == "a1b2c3d4-e5f6-7890-abcd-ef1234567890" ||
+                            $0.title.lowercased().contains("uas pilot")
+                        }), !hasSubscription && !isPromotionCardDismissed {
+                            Section {
+                                UASPilotCoursePromotionCard(
+                                    course: uasCourse,
+                                    hasSubscription: hasSubscription,
+                                    onDismiss: {
+                                        isPromotionCardDismissed = true
+                                    }
+                                )
+                            }
+                            .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                            .listRowBackground(Color(.systemGray6))
+                        }
+
+                        // Provider Filter
+                        Section {
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 12) {
+                                    // All Providers Button
+                                    ProviderChip(
+                                        title: "All Providers",
+                                        icon: "square.grid.2x2",
+                                        isSelected: selectedProvider == nil
+                                    ) {
+                                        selectedProvider = nil
+                                        selectedCategory = nil
+                                    }
+
+                                    ForEach(allProviders, id: \.self) { provider in
+                                        ProviderChip(
+                                            title: provider.rawValue,
+                                            icon: provider.icon,
+                                            isSelected: selectedProvider == provider,
+                                            color: provider.color
+                                        ) {
+                                            selectedProvider = provider
+                                            if provider != .buzz {
+                                                selectedCategory = nil
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Category Filter - Only show when Buzz is selected as provider
+                            if selectedProvider == .buzz {
+                                ScrollView(.horizontal, showsIndicators: false) {
+                                    HStack(spacing: 12) {
+                                        CategoryChip(
+                                            title: "All",
+                                            icon: "square.grid.2x2",
+                                            isSelected: selectedCategory == nil
+                                        ) {
+                                            selectedCategory = nil
+                                        }
+
+                                        ForEach(allCategories, id: \.self) { category in
+                                            CategoryChip(
+                                                title: category.rawValue,
+                                                icon: category.icon,
+                                                isSelected: selectedCategory == category
+                                            ) {
+                                                selectedCategory = category
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                        .listRowBackground(Color(.systemGray6))
+
+                        // Courses
+                        Section {
+                            ForEach(filteredCourses) { course in
+                                let missingPrerequisites = getMissingPrerequisites(for: course)
+                                let isLocked = !missingPrerequisites.isEmpty
+
+                                if isLocked {
+                                    CourseCard(
+                                        course: courses.first(where: { $0.id == course.id }) ?? course,
+                                        isLocked: true,
+                                        missingPrerequisites: missingPrerequisites
+                                    )
+                                    .accessibilityHint("Course is locked. Complete prerequisites to unlock.")
+                                } else {
+                                    NavigationLink(destination: CourseDetailView(
+                                        course: courses.first(where: { $0.id == course.id }) ?? course,
+                                        onEnrollmentChange: {
+                                            toggleEnrollment(for: course.id)
+                                            Task {
+                                                await loadCourses()
+                                            }
+                                        }
+                                    )) {
+                                        CourseCard(course: courses.first(where: { $0.id == course.id }) ?? course)
+                                    }
+                                    .accessibilityHint("Double tap to view course details")
+                                }
                             }
                         }
                     }
                     .listStyle(PlainListStyle())
-                    .opacity(filteredCourses.isEmpty ? 0.01 : 1)
-                    .allowsHitTesting(!filteredCourses.isEmpty)
-                    
+
                     if isLoading || isPreparingAcademy {
                         LoadingView(message: "Loading courses...")
-                    } else if filteredCourses.isEmpty {
+                    } else if filteredCourses.isEmpty && !courses.isEmpty {
                         EmptyStateView(
                             icon: "book.closed",
                             title: "No Courses Available",
                             message: "Check back soon for new training courses"
                         )
+                    }
                     }
                 }
             }
@@ -393,7 +360,6 @@ struct AcademyView: View {
                 await refreshAcademy()
             }
         }
-    }
     }
 
     private func refreshAcademy() async {
