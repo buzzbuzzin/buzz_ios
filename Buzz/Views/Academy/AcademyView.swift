@@ -142,8 +142,8 @@ struct AcademyView: View {
         }
     }
     
-    @ViewBuilder
     var body: some View {
+        NavigationStack {
         if isAwaitingAuth {
             LoadingView(message: "Loading academy...")
         } else if authService.currentUser != nil,
@@ -152,7 +152,6 @@ struct AcademyView: View {
             RegionOnboardingView()
                 .navigationBarBackButtonHidden(true)
         } else {
-            NavigationStack {
                 VStack(spacing: 0) {
                 // Recurrent Training Notices Section
                 if showRecurrentNotices && !recurrentNotices.isEmpty {

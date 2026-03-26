@@ -29,6 +29,7 @@ struct FlightHourClaimView: View {
     @State private var showErrorAlert = false
     @State private var errorMessage = ""
     @State private var showHistory = true
+    @State private var isSubmitting = false
 
     var body: some View {
         ScrollView {
@@ -50,14 +51,13 @@ struct FlightHourClaimView: View {
             Button("Submit") {
                 submitClaim()
             }
+            .disabled(isSubmitting || claimService.isSaving)
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("Submit a claim for \(claimedFlights) flights and \(claimedHours) hours? This will be reviewed by an admin.")
         }
         .alert("Claim Submitted", isPresented: $showSuccessAlert) {
-            Button("OK") {
-                resetForm()
-            }
+            Button("OK") {}
         } message: {
             Text("Your flight hour claim has been submitted and is pending review.")
         }
@@ -233,7 +233,7 @@ struct FlightHourClaimView: View {
                     ProgressView()
                         .tint(.white)
                 }
-                Text(claimService.isSaving ? "Submitting..." : "Submit Claim")
+                Text((isSubmitting || claimService.isSaving) ? "Submitting..." : "Submit Claim")
                     .fontWeight(.semibold)
             }
             .foregroundColor(.white)
@@ -242,7 +242,7 @@ struct FlightHourClaimView: View {
             .background(isFormValid ? Color.orange : Color.gray)
             .cornerRadius(12)
         }
-        .disabled(!isFormValid || claimService.isSaving)
+        .disabled(!isFormValid || isSubmitting || claimService.isSaving)
         .padding(.horizontal)
     }
 
@@ -292,6 +292,8 @@ struct FlightHourClaimView: View {
     }
 
     private func submitClaim() {
+        guard !isSubmitting, !claimService.isSaving else { return }
+
         guard let userId = authService.currentUser?.id,
               let hours = Double(claimedHours) else {
             errorMessage = "Invalid form data"
@@ -299,7 +301,10 @@ struct FlightHourClaimView: View {
             return
         }
 
+        isSubmitting = true
         Task {
+            defer { isSubmitting = false }
+
             do {
                 try await claimService.submitClaim(
                     pilotId: userId,
@@ -308,6 +313,7 @@ struct FlightHourClaimView: View {
                     notes: notes.isEmpty ? nil : notes,
                     evidenceImages: selectedImages
                 )
+                resetForm()
                 showSuccessAlert = true
                 await claimService.fetchClaims(pilotId: userId)
             } catch {

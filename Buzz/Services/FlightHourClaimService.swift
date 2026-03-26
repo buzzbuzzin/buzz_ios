@@ -10,6 +10,17 @@ import Supabase
 import UIKit
 import Combine
 
+enum FlightHourClaimError: LocalizedError {
+    case alreadySubmitting
+
+    var errorDescription: String? {
+        switch self {
+        case .alreadySubmitting:
+            return "A flight hour claim is already being submitted."
+        }
+    }
+}
+
 @MainActor
 class FlightHourClaimService: ObservableObject {
     @Published var claims: [FlightHourClaim] = []
@@ -54,6 +65,8 @@ class FlightHourClaimService: ObservableObject {
     ) async throws {
         if DemoModeManager.shared.isDemoModeEnabled { return }
 
+        guard !isSaving else { throw FlightHourClaimError.alreadySubmitting }
+
         guard claimedFlights > 0, claimedHours > 0 else {
             throw NSError(
                 domain: "FlightHourClaimService",
@@ -66,8 +79,16 @@ class FlightHourClaimService: ObservableObject {
         defer { isSaving = false }
         errorMessage = nil
 
+        // Prepare all evidence data before inserting the claim row,
+        // so we don't leave an orphaned claim if image conversion fails.
+        var evidenceDataList: [(data: Data, index: Int)] = []
+        for (index, image) in evidenceImages.enumerated() {
+            guard let imageData = image.jpegData(compressionQuality: 0.8) else { continue }
+            evidenceDataList.append((data: imageData, index: index))
+        }
+
         do {
-            // First insert the claim to get its ID
+            // Insert the claim to get its ID
             let claimInsert = FlightHourClaimInsert(
                 pilotId: pilotId,
                 claimedFlights: claimedFlights,
@@ -84,19 +105,17 @@ class FlightHourClaimService: ObservableObject {
                 .execute()
                 .value
 
-            // Upload evidence files if any
+            // Upload evidence files
             var uploadedPaths: [String] = []
 
-            for (index, image) in evidenceImages.enumerated() {
-                guard let imageData = image.jpegData(compressionQuality: 0.8) else { continue }
-
-                let filePath = "\(pilotId.uuidString)/\(insertedClaim.id.uuidString)/evidence_\(index).jpg"
+            for item in evidenceDataList {
+                let filePath = "\(pilotId.uuidString.lowercased())/\(insertedClaim.id.uuidString.lowercased())/evidence_\(item.index).jpg"
 
                 try await supabase.storage
                     .from("flight-hour-claims")
                     .upload(
                         path: filePath,
-                        file: imageData,
+                        file: item.data,
                         options: FileOptions(contentType: "image/jpeg")
                     )
 
