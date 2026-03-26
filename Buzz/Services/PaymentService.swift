@@ -200,7 +200,7 @@ class PaymentService: ObservableObject {
     }
     
     // MARK: - Create Transfer
-    
+
     /// Creates a transfer to the pilot's connected account when booking is completed
     func createTransfer(
         bookingId: UUID,
@@ -233,6 +233,48 @@ class PaymentService: ObservableObject {
             
             isLoading = false
             return response
+        } catch {
+            isLoading = false
+            errorMessage = error.localizedDescription
+            throw error
+        }
+    }
+
+    // MARK: - Payment Intent Details
+
+    /// Retrieves the latest charge ID for a PaymentIntent the current user owns.
+    func getChargeId(paymentIntentId: String) async throws -> String {
+        isLoading = true
+        errorMessage = nil
+
+        do {
+            struct ChargeRequest: Codable {
+                let payment_intent_id: String
+            }
+
+            struct ChargeResponse: Codable {
+                let chargeId: String?
+
+                enum CodingKeys: String, CodingKey {
+                    case chargeId = "charge_id"
+                }
+            }
+
+            let response: ChargeResponse = try await supabase.functions
+                .invoke("get-charge-id", options: FunctionInvokeOptions(
+                    body: ChargeRequest(payment_intent_id: paymentIntentId)
+                ))
+
+            guard let chargeId = response.chargeId else {
+                throw NSError(
+                    domain: "PaymentService",
+                    code: -1,
+                    userInfo: [NSLocalizedDescriptionKey: "Could not retrieve charge ID"]
+                )
+            }
+
+            isLoading = false
+            return chargeId
         } catch {
             isLoading = false
             errorMessage = error.localizedDescription
@@ -497,4 +539,3 @@ enum PaymentError: Error {
     case noWindow
     case invalidConfiguration
 }
-

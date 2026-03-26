@@ -187,6 +187,9 @@ struct Booking: Codable, Identifiable, Hashable {
     var paymentIntentId: String?
     var transferId: String?
     var chargeId: String?
+    var tipPaymentIntentId: String? = nil
+    var tipChargeId: String? = nil
+    var tipTransferId: String? = nil
     var customerCompleted: Bool? // Customer has marked booking as finished
     var pilotCompleted: Bool? // Pilot has marked booking as finished
     var completedAt: Date? // Timestamp when booking was officially completed
@@ -229,6 +232,9 @@ struct Booking: Codable, Identifiable, Hashable {
         case paymentIntentId = "payment_intent_id"
         case transferId = "transfer_id"
         case chargeId = "charge_id"
+        case tipPaymentIntentId = "tip_payment_intent_id"
+        case tipChargeId = "tip_charge_id"
+        case tipTransferId = "tip_transfer_id"
         case customerCompleted = "customer_completed"
         case pilotCompleted = "pilot_completed"
         case completedAt = "completed_at"
@@ -256,6 +262,30 @@ struct Booking: Codable, Identifiable, Hashable {
     /// Returns true if this is an automotive booking that uses the crew system
     var isAutomotiveCrewBooking: Bool {
         specialization == .automotive
+    }
+
+    var hasSettledTransfer: Bool {
+        guard let transferId, transferId != "pending" else { return false }
+        return true
+    }
+
+    var hasSettledTipTransfer: Bool {
+        guard let tipTransferId, tipTransferId != "pending" else { return false }
+        return true
+    }
+
+    var settledBasePayoutAmount: Decimal {
+        hasSettledTransfer ? paymentAmount : 0
+    }
+
+    /// Legacy bookings have tipAmount but no tipChargeId/tipTransferId (tip was
+    /// included in the base transfer). Only gate on the new tip-transfer pipeline
+    /// when the booking was processed through it.
+    var settledTipAmount: Decimal {
+        if tipChargeId == nil && tipTransferId == nil {
+            return tipAmount ?? 0
+        }
+        return hasSettledTipTransfer ? (tipAmount ?? 0) : 0
     }
     
     /// Returns true if this is a Search & Rescue booking that uses the crew system
@@ -459,4 +489,3 @@ enum DisputeReason: String, Codable {
         }
     }
 }
-

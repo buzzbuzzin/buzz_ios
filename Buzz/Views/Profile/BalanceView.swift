@@ -219,12 +219,12 @@ struct BalanceView: View {
                                 Spacer()
                                 
                                 VStack(alignment: .trailing, spacing: 4) {
-                                    Text(String(format: "$%.2f", NSDecimalNumber(decimal: booking.paymentAmount).doubleValue))
+                                    Text(String(format: "$%.2f", NSDecimalNumber(decimal: booking.settledBasePayoutAmount).doubleValue))
                                         .font(.subheadline)
                                         .fontWeight(.semibold)
                                         .foregroundColor(.green)
                                     
-                                    if let tip = booking.tipAmount, tip > 0 {
+                                    if booking.settledTipAmount > 0, let tip = booking.tipAmount {
                                         Text(String(format: "+$%.2f tip", NSDecimalNumber(decimal: tip).doubleValue))
                                             .font(.caption)
                                             .foregroundColor(.pink)
@@ -275,7 +275,7 @@ struct BalanceView: View {
                 let monthlyOtherEarnings = bookingService.myBookings
                     .filter { $0.status == .completed && $0.specialization != .automotive && isInSelectedMonth($0.completedAt ?? $0.createdAt) }
                     .reduce(Decimal(0)) { total, booking in
-                        total + booking.paymentAmount + (booking.tipAmount ?? 0)
+                        total + booking.settledBasePayoutAmount + booking.settledTipAmount
                     }
                 
                 let monthlyTotalEarnings = monthlyAutomotiveEarnings + monthlyOtherEarnings
@@ -524,5 +524,3 @@ extension Calendar {
         return self.date(byAdding: components, to: startOfMonth(for: date)) ?? date
     }
 }
-
-

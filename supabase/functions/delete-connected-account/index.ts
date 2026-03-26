@@ -12,19 +12,11 @@
 // }
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3"
+import { corsHeaders, jsonResponse, requireAuthUser, requireMatchingUserId, requireOwnedStripeAccount, serviceSupabase } from "../_shared/auth.ts"
 
 const stripeSecretKey = Deno.env.get("STRIPE_SECRET_KEY")
 if (!stripeSecretKey) {
   throw new Error("STRIPE_SECRET_KEY environment variable is not set")
-}
-
-const supabaseUrl = Deno.env.get("SUPABASE_URL")!
-const supabaseServiceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 }
 
 serve(async (req) => {
@@ -34,52 +26,24 @@ serve(async (req) => {
   }
 
   try {
+    const auth = await requireAuthUser(req)
+    if (auth.response) {
+      return auth.response
+    }
+
     const { account_id, user_id } = await req.json()
-
-    if (!account_id) {
-      return new Response(
-        JSON.stringify({ error: "account_id is required" }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      )
+    const userCheck = requireMatchingUserId(auth.user.id, user_id)
+    if (userCheck.response) {
+      return userCheck.response
     }
 
-    if (!user_id) {
-      return new Response(
-        JSON.stringify({ error: "user_id is required" }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      )
-    }
-
-    // Verify the user owns this account
-    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey)
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("stripe_account_id")
-      .eq("id", user_id)
-      .single()
-
-    if (profileError) {
-      throw new Error(`Failed to verify account ownership: ${profileError.message}`)
-    }
-
-    if (profile.stripe_account_id !== account_id) {
-      return new Response(
-        JSON.stringify({ error: "Account does not belong to this user" }),
-        {
-          status: 403,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      )
+    const accountCheck = await requireOwnedStripeAccount(userCheck.userId, account_id)
+    if (accountCheck.response) {
+      return accountCheck.response
     }
 
     // Delete the Stripe account
-    const stripeResponse = await fetch(`https://api.stripe.com/v1/accounts/${account_id}`, {
+    const stripeResponse = await fetch(`https://api.stripe.com/v1/accounts/${accountCheck.accountId}`, {
       method: "DELETE",
       headers: {
         "Authorization": `Bearer ${stripeSecretKey}`,
@@ -94,39 +58,27 @@ serve(async (req) => {
     const deleteResult = await stripeResponse.json()
 
     // Remove stripe_account_id from user's profile
-    const { error: updateError } = await supabase
+    const { error: updateError } = await serviceSupabase
       .from("profiles")
       .update({ stripe_account_id: null })
-      .eq("id", user_id)
+      .eq("id", userCheck.userId)
 
     if (updateError) {
       console.error("Failed to clear stripe_account_id from profile:", updateError)
       // Log error but don't fail - the Stripe account is already deleted
     }
 
-    return new Response(
-      JSON.stringify({
+    return jsonResponse({
         success: true,
         deleted: deleteResult.deleted,
         id: deleteResult.id,
         message: "Payment account removed successfully"
-      }),
-      {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
-    )
+      })
   } catch (error: any) {
     console.error("Error deleting connected account:", error)
-    return new Response(
-      JSON.stringify({ 
+    return jsonResponse({
         error: error.message || "Failed to delete account",
         details: error.toString()
-      }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
-    )
+      }, 500)
   }
 })
-

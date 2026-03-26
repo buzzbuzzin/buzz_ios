@@ -3,6 +3,8 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import Stripe from "https://esm.sh/stripe@14.21.0?target=deno"
+import { corsHeaders, jsonResponse, requireAuthUser } from "../_shared/auth.ts"
+import { paymentIntentBelongsToUser } from "../_shared/stripeOwnership.ts"
 
 const stripeSecretKey = Deno.env.get("STRIPE_SECRET_KEY")
 if (!stripeSecretKey) {
@@ -13,59 +15,44 @@ const stripe = new Stripe(stripeSecretKey, {
   httpClient: Stripe.createFetchHttpClient(),
 })
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-}
-
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders })
   }
 
   try {
+    const auth = await requireAuthUser(req)
+    if (auth.response) {
+      return auth.response
+    }
+
     const { payment_intent_id } = await req.json()
 
     if (!payment_intent_id) {
-      return new Response(
-        JSON.stringify({ error: "Missing payment_intent_id" }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      )
+      return jsonResponse({ error: "Missing payment_intent_id" }, 400)
     }
 
     // Retrieve PaymentIntent
     const paymentIntent = await stripe.paymentIntents.retrieve(payment_intent_id)
+    const isAuthorized = await paymentIntentBelongsToUser(stripe, paymentIntent, auth.user.id)
+    if (!isAuthorized) {
+      return jsonResponse({ error: "Unauthorized: payment intent does not belong to authenticated user" }, 403)
+    }
 
     // Get charge ID from latest_charge
     const chargeId = typeof paymentIntent.latest_charge === "string" 
       ? paymentIntent.latest_charge 
       : paymentIntent.latest_charge?.id
 
-    return new Response(
-      JSON.stringify({
+    return jsonResponse({
         payment_intent_id: paymentIntent.id,
         charge_id: chargeId,
         status: paymentIntent.status,
         amount: paymentIntent.amount,
         currency: paymentIntent.currency,
-      }),
-      {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: 200,
-      }
-    )
+      })
   } catch (error: any) {
     console.error("Error retrieving payment intent:", error)
-    return new Response(
-      JSON.stringify({ error: error.message }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
-    )
+    return jsonResponse({ error: error.message }, 500)
   }
 })
-

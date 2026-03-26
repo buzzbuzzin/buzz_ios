@@ -1183,7 +1183,7 @@ struct CreateBookingView: View {
             switch paymentResult {
             case .completed:
                 // Payment successful, get charge_id from PaymentIntent
-                let chargeId = try await getChargeId(from: paymentIntentResponse.paymentIntentId)
+                let chargeId = try await paymentService.getChargeId(paymentIntentId: paymentIntentResponse.paymentIntentId)
                 
                 // Combine date with start time
                 let calendar = Calendar.current
@@ -1278,20 +1278,6 @@ struct CreateBookingView: View {
         }
     }
     
-    private func getChargeId(from paymentIntentId: String) async throws -> String {
-        let supabase = SupabaseClient.shared.client
-        
-        struct PaymentIntentDetails: Codable {
-            let charge_id: String
-        }
-        
-        let response: PaymentIntentDetails = try await supabase.functions
-            .invoke("get-payment-intent", options: FunctionInvokeOptions(
-                body: ["payment_intent_id": paymentIntentId]
-            ))
-        
-        return response.charge_id
-    }
 }
 
 // MARK: - Customer Booking Detail View
@@ -1299,6 +1285,7 @@ struct CreateBookingView: View {
 struct CustomerBookingDetailView: View {
     @EnvironmentObject var authService: AuthService
     @StateObject private var bookingService = BookingService()
+    @StateObject private var paymentService = PaymentService()
     @StateObject private var ratingService = RatingService()
     @StateObject private var profileService = ProfileService()
     @StateObject private var reportService = TicketReportService()
@@ -1824,6 +1811,7 @@ struct CustomerBookingDetailView: View {
                 onRatingSubmitted: { rating, comment, tip in
                     submitRating(rating: rating, comment: comment, tip: tip)
                 },
+                allowsTip: currentBooking.specialization != .automotive && currentBooking.specialization != .searchRescue,
                 customTitle: currentBooking.status == .completed ? "Booking is completed" : nil,
                 paymentAmount: currentBooking.paymentAmount,
                 userRating: pilotRating
@@ -1944,6 +1932,45 @@ struct CustomerBookingDetailView: View {
         
         Task {
             do {
+                if let tipAmount = tip, tipAmount > 0,
+                   currentBooking.tipPaymentIntentId == nil {
+                    guard currentBooking.specialization != .automotive,
+                          currentBooking.specialization != .searchRescue else {
+                        throw NSError(
+                            domain: "CustomerBookingDetailView",
+                            code: -1,
+                            userInfo: [NSLocalizedDescriptionKey: "Tips are not supported for this booking type."]
+                        )
+                    }
+
+                    let paymentIntentResponse = try await paymentService.createPaymentIntent(
+                        amount: tipAmount,
+                        customerId: currentUser.id,
+                        transferGroup: "booking_tip_\(currentBooking.id.uuidString)"
+                    )
+
+                    let paymentResult = try await paymentService.presentPaymentSheet(
+                        paymentIntentClientSecret: paymentIntentResponse.clientSecret,
+                        customerId: paymentIntentResponse.customerId,
+                        customerEphemeralKeySecret: paymentIntentResponse.ephemeralKeySecret
+                    )
+
+                    switch paymentResult {
+                    case .completed:
+                        let chargeId = try await paymentService.getChargeId(paymentIntentId: paymentIntentResponse.paymentIntentId)
+                        try await bookingService.recordPaidTip(
+                            bookingId: currentBooking.id,
+                            tipAmount: tipAmount,
+                            paymentIntentId: paymentIntentResponse.paymentIntentId,
+                            chargeId: chargeId
+                        )
+                    case .cancelled:
+                        return
+                    case .failed(let error):
+                        throw error
+                    }
+                }
+
                 // Submit rating
                 try await ratingService.submitRating(
                     bookingId: currentBooking.id,
@@ -1952,15 +1979,6 @@ struct CustomerBookingDetailView: View {
                     rating: rating,
                     comment: comment
                 )
-                
-                // Add tip if provided
-                if let tipAmount = tip {
-                    try await bookingService.addTip(bookingId: currentBooking.id, tipAmount: tipAmount)
-                    
-                    // If booking is already completed, we need to create a transfer for the tip
-                    // For now, tip is stored and will be included in balance display
-                    // In production, you might want to create an additional transfer
-                }
                 
                 // Mark as rated
                 try await bookingService.markRatingStatus(

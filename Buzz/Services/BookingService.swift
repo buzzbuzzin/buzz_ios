@@ -1507,89 +1507,11 @@ class BookingService: ObservableObject {
     // MARK: - Add Tip and Update Balance
     
     func addTipAndUpdateBalance(bookingId: UUID, tipAmount: Decimal) async throws {
-        isLoading = true
-        errorMessage = nil
-        
-        do {
-            // Add tip to booking (without setting isLoading since we're managing it here)
-            let updateData: [String: AnyJSON] = [
-                "tip_amount": .double(NSDecimalNumber(decimal: tipAmount).doubleValue)
-            ]
-            try await supabase
-                .from("bookings")
-                .update(updateData)
-                .eq("id", value: bookingId.uuidString)
-                .execute()
-            publishBookingChange(for: bookingId)
-            
-            // Get booking to find pilot
-            let booking: Booking = try await supabase
-                .from("bookings")
-                .select()
-                .eq("id", value: bookingId.uuidString)
-                .single()
-                .execute()
-                .value
-            
-            // If booking is already completed and has a charge, create additional transfer for tip
-            // Otherwise, tip will be included in the completion transfer
-            if booking.status == .completed,
-               let chargeId = booking.chargeId,
-               let pilotId = booking.pilotId {
-                // Create additional transfer for tip (can use same charge_id or transfer from platform balance)
-                struct TransferRequest: Codable {
-                    let booking_id: String
-                    let amount: Int
-                    let currency: String
-                    let charge_id: String?
-                }
-                
-                struct TransferResponse: Codable {
-                    let transferId: String?
-                    let isAutomotive: Bool?
-                    
-                    enum CodingKeys: String, CodingKey {
-                        case transferId = "transfer_id"
-                        case isAutomotive = "is_automotive"
-                    }
-                }
-                
-                let transferRequest = TransferRequest(
-                    booking_id: bookingId.uuidString,
-                    amount: Int(NSDecimalNumber(decimal: tipAmount * 100).intValue),
-                    currency: "usd",
-                    charge_id: chargeId // Optional - if provided, links to charge; otherwise transfers from platform balance
-                )
-                
-                // Create transfer for tip
-                let transferResponse: TransferResponse = try await supabase.functions
-                    .invoke("create-transfer", options: FunctionInvokeOptions(
-                        body: transferRequest
-                    ))
-                
-                // Note: Transfer ID is stored in booking, but for tips we might want to track separately
-                // For now, the tip transfer is created and funds go to pilot's Stripe account
-            }
-
-            // Notify pilot about the tip
-            if !skipNetworkCalls, let pilotId = booking.pilotId {
-                Task {
-                    let customerProfile = try? await backend.fetchUserProfile(userId: booking.customerId)
-                    let customerName = customerProfile?.callSign ?? "Customer"
-                    await notificationManager.notifyTipReceived(
-                        bookingId: bookingId,
-                        tipAmount: tipAmount,
-                        customerName: customerName
-                    )
-                }
-            }
-
-            isLoading = false
-        } catch {
-            isLoading = false
-            errorMessage = error.localizedDescription
-            throw error
-        }
+        throw NSError(
+            domain: "BookingService",
+            code: -1,
+            userInfo: [NSLocalizedDescriptionKey: "Unsafe tip flow disabled. Use recordPaidTip after a successful payment instead."]
+        )
     }
 
     // MARK: - Search & Rescue Completion Methods
@@ -1844,18 +1766,108 @@ class BookingService: ObservableObject {
     // MARK: - Add Tip to Booking
     
     func addTip(bookingId: UUID, tipAmount: Decimal) async throws {
+        throw NSError(
+            domain: "BookingService",
+            code: -1,
+            userInfo: [NSLocalizedDescriptionKey: "Unsafe tip flow disabled. Use recordPaidTip after a successful payment instead."]
+        )
+    }
+
+    // MARK: - Record Paid Tip
+
+    func recordPaidTip(
+        bookingId: UUID,
+        tipAmount: Decimal,
+        paymentIntentId: String,
+        chargeId: String
+    ) async throws {
         isLoading = true
         errorMessage = nil
         
         do {
+            let booking: Booking = try await supabase
+                .from("bookings")
+                .select()
+                .eq("id", value: bookingId.uuidString)
+                .single()
+                .execute()
+                .value
+
+            guard booking.status == .completed else {
+                throw NSError(
+                    domain: "BookingService",
+                    code: -1,
+                    userInfo: [NSLocalizedDescriptionKey: "Tips can only be added after the booking is completed."]
+                )
+            }
+
+            if booking.specialization == .automotive || booking.specialization == .searchRescue {
+                throw NSError(
+                    domain: "BookingService",
+                    code: -1,
+                    userInfo: [NSLocalizedDescriptionKey: "Tips are only supported for single-pilot bookings."]
+                )
+            }
+
+            if booking.tipPaymentIntentId != nil {
+                throw NSError(
+                    domain: "BookingService",
+                    code: -1,
+                    userInfo: [NSLocalizedDescriptionKey: "A tip has already been recorded for this booking."]
+                )
+            }
+
             let updateData: [String: AnyJSON] = [
-                "tip_amount": .double(NSDecimalNumber(decimal: tipAmount).doubleValue)
+                "tip_amount": .double(NSDecimalNumber(decimal: tipAmount).doubleValue),
+                "tip_payment_intent_id": .string(paymentIntentId),
+                "tip_charge_id": .string(chargeId)
             ]
             try await supabase
                 .from("bookings")
                 .update(updateData)
                 .eq("id", value: bookingId.uuidString)
                 .execute()
+            publishBookingChange(for: bookingId)
+
+            if booking.pilotId != nil {
+                struct TipTransferRequest: Codable {
+                    let booking_id: String
+                    let charge_id: String
+                    let currency: String
+                    let transfer_type: String
+                }
+
+                do {
+                    let request = TipTransferRequest(
+                        booking_id: bookingId.uuidString,
+                        charge_id: chargeId,
+                        currency: "usd",
+                        transfer_type: "tip"
+                    )
+
+                    let _: TransferResponse = try await supabase.functions
+                        .invoke("create-transfer", options: FunctionInvokeOptions(body: request))
+                } catch {
+                    // The customer has already paid and the tip is recorded in the DB
+                    // (tip_payment_intent_id / tip_charge_id). The transfer to the pilot
+                    // failed and will need manual reconciliation or a retry job
+                    // (tip_charge_id IS NOT NULL AND tip_transfer_id IS NULL).
+                    print("[WARNING] Tip transfer failed for booking \(bookingId). Tip is recorded but payout is pending: \(error)")
+                    errorMessage = "Tip paid successfully but the payout to the pilot is pending. It will be processed shortly."
+                }
+
+                if !skipNetworkCalls {
+                    Task {
+                        let customerProfile = try? await backend.fetchUserProfile(userId: booking.customerId)
+                        let customerName = customerProfile?.callSign ?? "Customer"
+                        await notificationManager.notifyTipReceived(
+                            bookingId: bookingId,
+                            tipAmount: tipAmount,
+                            customerName: customerName
+                        )
+                    }
+                }
+            }
             
             isLoading = false
         } catch {

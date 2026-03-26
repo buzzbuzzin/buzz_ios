@@ -13,25 +13,11 @@
 // }
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
+import { corsHeaders, jsonResponse, requireAuthUser, requireMatchingUserId, serviceSupabase } from "../_shared/auth.ts"
 
 const stripeSecretKey = Deno.env.get("STRIPE_SECRET_KEY")
 if (!stripeSecretKey) {
   throw new Error("STRIPE_SECRET_KEY environment variable is not set")
-}
-
-const supabaseUrl = Deno.env.get("SUPABASE_URL")
-const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")
-
-if (!supabaseUrl || !supabaseServiceKey) {
-  throw new Error("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY environment variables must be set")
-}
-
-const supabase = createClient(supabaseUrl, supabaseServiceKey)
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 }
 
 serve(async (req) => {
@@ -41,60 +27,50 @@ serve(async (req) => {
   }
 
   try {
+    const auth = await requireAuthUser(req)
+    if (auth.response) {
+      return auth.response
+    }
+
     const body = await req.json()
     const { user_id, email, country = "US" } = body
 
-    if (!user_id) {
-      return new Response(
-        JSON.stringify({ error: "user_id is required" }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      )
+    const userCheck = requireMatchingUserId(auth.user.id, user_id)
+    if (userCheck.response) {
+      return userCheck.response
     }
 
-    console.log("Creating connected account for user:", user_id)
+    const userId = userCheck.userId
+    console.log("Creating connected account for user:", userId)
 
     // Check if user already has a connected account
-    const { data: profile, error: profileError } = await supabase
+    const { data: profile, error: profileError } = await serviceSupabase
       .from("profiles")
       .select("stripe_account_id")
-      .eq("id", user_id)
+      .eq("id", userId)
       .single()
 
     if (profileError) {
       console.error("Error fetching profile:", profileError)
-      return new Response(
-        JSON.stringify({ 
+      return jsonResponse({
           error: "Failed to fetch user profile",
           details: profileError.message 
-        }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      )
+        }, 500)
     }
 
     if (profile?.stripe_account_id) {
       console.log("Account already exists:", profile.stripe_account_id)
-      return new Response(
-        JSON.stringify({
-          account_id: profile.stripe_account_id,
-          already_exists: true,
-        }),
-        {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      )
+      return jsonResponse({
+        account_id: profile.stripe_account_id,
+        already_exists: true,
+      })
     }
 
     // Get user profile to prefill information
-    const { data: userProfile, error: userProfileError } = await supabase
+    const { data: userProfile, error: userProfileError } = await serviceSupabase
       .from("profiles")
       .select("first_name, last_name, email")
-      .eq("id", user_id)
+      .eq("id", userId)
       .single()
 
     if (userProfileError) {
@@ -102,15 +78,9 @@ serve(async (req) => {
       // Continue anyway - we can still create account with provided email
     }
 
-    const accountEmail = email || userProfile?.email
+    const accountEmail = email || auth.user.email || userProfile?.email
     if (!accountEmail) {
-      return new Response(
-        JSON.stringify({ error: "Email is required to create Stripe account" }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      )
+      return jsonResponse({ error: "Email is required to create Stripe account" }, 400)
     }
 
     console.log("Creating Stripe Express account...")
@@ -133,7 +103,7 @@ serve(async (req) => {
         "business_type": "individual",
         "business_profile[product_description]": "Drone pilot services including aerial photography, videography, inspections, and mapping",
         "business_profile[mcc]": "7333", // Photographic services - general
-        "metadata[user_id]": user_id,
+        "metadata[user_id]": userId,
       })
       
       // Add individual information if available
@@ -182,38 +152,28 @@ serve(async (req) => {
     console.log("Stripe account created:", account.id)
 
     // Update profile with Stripe account ID
-    const { error: updateError } = await supabase
+    const { error: updateError } = await serviceSupabase
       .from("profiles")
       .update({ stripe_account_id: account.id })
-      .eq("id", user_id)
+      .eq("id", userId)
 
     if (updateError) {
       console.error("Error updating profile with stripe_account_id:", updateError)
       // Continue anyway - account was created, but log the error
       // Return success but include a warning
-      return new Response(
-        JSON.stringify({
-          account_id: account.id,
-          already_exists: false,
-          warning: "Account created but failed to update profile. Please contact support.",
-        }),
-        {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      )
+      return jsonResponse({
+        account_id: account.id,
+        already_exists: false,
+        warning: "Account created but failed to update profile. Please contact support.",
+      })
     }
 
     console.log("Profile updated successfully")
 
-    return new Response(
-      JSON.stringify({
-        account_id: account.id,
-        already_exists: false,
-      }),
-      {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
-    )
+    return jsonResponse({
+      account_id: account.id,
+      already_exists: false,
+    })
   } catch (error: any) {
     console.error("Error creating connected account:", error)
     console.error("Error stack:", error.stack)
@@ -223,16 +183,9 @@ serve(async (req) => {
     const errorMessage = error.message || "Failed to create connected account"
     const errorDetails = error.type ? `Stripe ${error.type}: ${errorMessage}` : errorMessage
     
-    return new Response(
-      JSON.stringify({ 
+    return jsonResponse({
         error: errorDetails,
         type: error.type || "unknown_error"
-      }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
-    )
+      }, 500)
   }
 })
-

@@ -14,6 +14,7 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import Stripe from "https://esm.sh/stripe@14.21.0?target=deno"
+import { corsHeaders, jsonResponse, requireAuthUser, requireOwnedStripeAccount } from "../_shared/auth.ts"
 
 const stripeSecretKey = Deno.env.get("STRIPE_SECRET_KEY")
 if (!stripeSecretKey) {
@@ -24,11 +25,6 @@ const stripe = new Stripe(stripeSecretKey, {
   httpClient: Stripe.createFetchHttpClient(),
 })
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-}
-
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
@@ -36,43 +32,30 @@ serve(async (req) => {
   }
 
   try {
-    const { account_id, refresh_url, return_url } = await req.json()
+    const auth = await requireAuthUser(req)
+    if (auth.response) {
+      return auth.response
+    }
 
-    if (!account_id) {
-      return new Response(
-        JSON.stringify({ error: "account_id is required" }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      )
+    const { account_id, refresh_url, return_url } = await req.json()
+    const accountCheck = await requireOwnedStripeAccount(auth.user.id, account_id)
+    if (accountCheck.response) {
+      return accountCheck.response
     }
 
     // Create account link for onboarding
     const accountLink = await stripe.accountLinks.create({
-      account: account_id,
+      account: accountCheck.accountId,
       refresh_url: refresh_url || "https://yourapp.com/reauth",
       return_url: return_url || "https://yourapp.com/return",
       type: "account_onboarding",
     })
 
-    return new Response(
-      JSON.stringify({
-        url: accountLink.url,
-      }),
-      {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
-    )
+    return jsonResponse({
+      url: accountLink.url,
+    })
   } catch (error: any) {
     console.error("Error creating account link:", error)
-    return new Response(
-      JSON.stringify({ error: error.message || "Failed to create account link" }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
-    )
+    return jsonResponse({ error: error.message || "Failed to create account link" }, 500)
   }
 })
-

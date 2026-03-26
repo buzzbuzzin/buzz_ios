@@ -11,6 +11,7 @@ struct RatingView: View {
     let userName: String
     let isPilotRatingCustomer: Bool
     let onRatingSubmitted: (Int, String?, Decimal?) -> Void
+    let allowsTip: Bool
     let customTitle: String? // Optional custom title (e.g., "Booking is completed")
     let paymentAmount: Decimal? // Payment amount for calculating tip amounts (only for customers rating pilots)
     let userRating: Double? // Optional user rating to display (e.g., 4.99)
@@ -25,10 +26,19 @@ struct RatingView: View {
     // Predefined tip percentages
     private let tipPercentages: [Int] = [5, 10, 15]
     
-    init(userName: String, isPilotRatingCustomer: Bool, onRatingSubmitted: @escaping (Int, String?, Decimal?) -> Void, customTitle: String? = nil, paymentAmount: Decimal? = nil, userRating: Double? = nil) {
+    init(
+        userName: String,
+        isPilotRatingCustomer: Bool,
+        onRatingSubmitted: @escaping (Int, String?, Decimal?) -> Void,
+        allowsTip: Bool = true,
+        customTitle: String? = nil,
+        paymentAmount: Decimal? = nil,
+        userRating: Double? = nil
+    ) {
         self.userName = userName
         self.isPilotRatingCustomer = isPilotRatingCustomer
         self.onRatingSubmitted = onRatingSubmitted
+        self.allowsTip = allowsTip
         self.customTitle = customTitle
         self.paymentAmount = paymentAmount
         self.userRating = userRating
@@ -50,7 +60,7 @@ struct RatingView: View {
                     .padding(.top, 20)
                     
                     // Tip Section (Only for customers rating pilots)
-                    if !isPilotRatingCustomer, let paymentAmount = paymentAmount {
+                    if !isPilotRatingCustomer, allowsTip, let paymentAmount = paymentAmount {
                         VStack(alignment: .leading, spacing: 16) {
                             Text("Add a tip for \(userName)")
                                 .font(.headline)
@@ -362,4 +372,3 @@ struct StarRatingView: View {
         .accessibilityLabel("Rating: \(String(format: "%.1f", rating)) out of \(maxRating) stars")
     }
 }
-

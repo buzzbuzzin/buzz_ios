@@ -86,6 +86,13 @@ serve(async (req) => {
     }
 
     // Idempotency: if transaction already has a payment_intent_id, validate and return it
+    if (transaction.payment_intent_id === "pending") {
+      return new Response(
+        JSON.stringify({ error: "Transaction is already being processed by another request, please retry" }),
+        { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      )
+    }
+
     if (transaction.payment_intent_id) {
       const existingPI = await stripe.paymentIntents.retrieve(transaction.payment_intent_id)
       // If the PaymentIntent is in a failed/canceled state, fall through to create a new one
@@ -145,77 +152,126 @@ serve(async (req) => {
     const amountCents = Math.round(Number(transaction.amount) * 100)
     const platformFeeCents = Math.round(amountCents * PLATFORM_FEE_PERCENTAGE)
     const sellerPayoutCents = amountCents - platformFeeCents
+    const previousPaymentIntentId = transaction.payment_intent_id
 
-    // Create or retrieve Stripe customer using verified user.id
-    let customerId: string
-    const existingCustomers = await stripe.customers.search({
-      query: `metadata['user_id']:'${user.id}'`,
-    })
+    const restoreClaim = async () => {
+      const { error: restoreError } = await supabase
+        .from("marketplace_transactions")
+        .update({
+          payment_intent_id: previousPaymentIntentId,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", transaction_id)
+        .eq("payment_intent_id", "pending")
 
-    if (existingCustomers.data.length > 0) {
-      customerId = existingCustomers.data[0].id
-    } else {
-      const newCustomer = await stripe.customers.create({
-        metadata: { user_id: user.id },
-      })
-      customerId = newCustomer.id
+      if (restoreError) {
+        console.error("Failed to restore marketplace transaction claim:", restoreError)
+      }
     }
 
-    // Create ephemeral key
-    let ephemeralKeySecret: string | undefined
+    let paymentIntent: Stripe.PaymentIntent | null = null
+
     try {
-      const ephemeralKey = await stripe.ephemeralKeys.create(
-        { customer: customerId },
-        { apiVersion: "2024-11-20.acacia" }
-      )
-      ephemeralKeySecret = ephemeralKey.secret
-    } catch (error) {
-      console.log("Could not create ephemeral key:", error)
-    }
-
-    // Create PaymentIntent with marketplace metadata
-    // Currency is hardcoded server-side to "usd" — do not accept from client
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount: amountCents,
-      currency: "usd",
-      customer: customerId,
-      transfer_group: `marketplace_${transaction_id}`,
-      metadata: {
-        marketplace_transaction_id: transaction_id,
-        seller_id: transaction.seller_id,
-        platform_fee_cents: platformFeeCents.toString(),
-        seller_payout_cents: sellerPayoutCents.toString(),
-        buyer_id: user.id, // Use verified user.id, not client-supplied value
-      },
-      automatic_payment_methods: {
-        enabled: true,
-      },
-    })
-
-    // Store payment_intent_id and calculated fees on the transaction.
-    // Do NOT mark status as 'paid' here — status should only change to 'paid'
-    // via webhook when payment_intent.succeeded fires.
-    await supabase
-      .from("marketplace_transactions")
-      .update({
-        payment_intent_id: paymentIntent.id,
-        platform_fee: (platformFeeCents / 100).toFixed(2),
-        seller_payout: (sellerPayoutCents / 100).toFixed(2),
-        updated_at: new Date().toISOString(),
+      // Create or retrieve Stripe customer using verified user.id
+      let customerId: string
+      const existingCustomers = await stripe.customers.search({
+        query: `metadata['user_id']:'${user.id}'`,
       })
-      .eq("id", transaction_id)
 
-    return new Response(
-      JSON.stringify({
-        client_secret: paymentIntent.client_secret,
-        payment_intent_id: paymentIntent.id,
-        customer_id: customerId,
-        ephemeral_key_secret: ephemeralKeySecret,
-        platform_fee: platformFeeCents,
-        seller_payout: sellerPayoutCents,
-      }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
-    )
+      if (existingCustomers.data.length > 0) {
+        customerId = existingCustomers.data[0].id
+      } else {
+        const newCustomer = await stripe.customers.create({
+          metadata: { user_id: user.id },
+        })
+        customerId = newCustomer.id
+      }
+
+      // Create ephemeral key
+      let ephemeralKeySecret: string | undefined
+      try {
+        const ephemeralKey = await stripe.ephemeralKeys.create(
+          { customer: customerId },
+          { apiVersion: "2024-11-20.acacia" }
+        )
+        ephemeralKeySecret = ephemeralKey.secret
+      } catch (error) {
+        console.log("Could not create ephemeral key:", error)
+      }
+
+      // Create PaymentIntent with marketplace metadata
+      // Currency is hardcoded server-side to "usd" — do not accept from client
+      paymentIntent = await stripe.paymentIntents.create({
+        amount: amountCents,
+        currency: "usd",
+        customer: customerId,
+        transfer_group: `marketplace_${transaction_id}`,
+        metadata: {
+          marketplace_transaction_id: transaction_id,
+          seller_id: transaction.seller_id,
+          platform_fee_cents: platformFeeCents.toString(),
+          seller_payout_cents: sellerPayoutCents.toString(),
+          buyer_id: user.id, // Use verified user.id, not client-supplied value
+        },
+        automatic_payment_methods: {
+          enabled: true,
+        },
+      })
+
+      // Store payment_intent_id and calculated fees on the transaction.
+      // Do NOT mark status as 'paid' here — status should only change to 'paid'
+      // via webhook when payment_intent.succeeded fires.
+      const { error: finalizeError } = await supabase
+        .from("marketplace_transactions")
+        .update({
+          payment_intent_id: paymentIntent.id,
+          platform_fee: (platformFeeCents / 100).toFixed(2),
+          seller_payout: (sellerPayoutCents / 100).toFixed(2),
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", transaction_id)
+        .eq("payment_intent_id", "pending")
+
+      if (finalizeError) {
+        console.error("Failed to finalize marketplace payment intent:", finalizeError)
+
+        try {
+          await stripe.paymentIntents.cancel(paymentIntent.id)
+        } catch (cancelError) {
+          console.error("Failed to cancel orphaned marketplace PaymentIntent:", cancelError)
+        }
+
+        await restoreClaim()
+
+        return new Response(
+          JSON.stringify({ error: "Failed to persist marketplace payment intent. Please retry." }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
+        )
+      }
+
+      return new Response(
+        JSON.stringify({
+          client_secret: paymentIntent.client_secret,
+          payment_intent_id: paymentIntent.id,
+          customer_id: customerId,
+          ephemeral_key_secret: ephemeralKeySecret,
+          platform_fee: platformFeeCents,
+          seller_payout: sellerPayoutCents,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+      )
+    } catch (error) {
+      if (paymentIntent) {
+        try {
+          await stripe.paymentIntents.cancel(paymentIntent.id)
+        } catch (cancelError) {
+          console.error("Failed to cancel marketplace PaymentIntent after error:", cancelError)
+        }
+      }
+
+      await restoreClaim()
+      throw error
+    }
   } catch (error: any) {
     console.error("Error creating marketplace payment:", error)
     return new Response(

@@ -3,6 +3,8 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import Stripe from "https://esm.sh/stripe@14.21.0?target=deno"
+import { corsHeaders, jsonResponse, requireAuthUser } from "../_shared/auth.ts"
+import { paymentIntentBelongsToUser } from "../_shared/stripeOwnership.ts"
 
 const stripeSecretKey = Deno.env.get("STRIPE_SECRET_KEY")
 if (!stripeSecretKey) {
@@ -13,11 +15,6 @@ const stripe = new Stripe(stripeSecretKey, {
   httpClient: Stripe.createFetchHttpClient(),
 })
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-}
-
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
@@ -25,57 +22,41 @@ serve(async (req) => {
   }
 
   try {
+    const auth = await requireAuthUser(req)
+    if (auth.response) {
+      return auth.response
+    }
+
     const { payment_intent_id } = await req.json()
 
     if (!payment_intent_id) {
-      return new Response(
-        JSON.stringify({ error: "Missing required field: payment_intent_id" }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      )
+      return jsonResponse({ error: "Missing required field: payment_intent_id" }, 400)
     }
 
     // Retrieve the payment intent to get the charge ID
     const paymentIntent = await stripe.paymentIntents.retrieve(payment_intent_id)
+    const isAuthorized = await paymentIntentBelongsToUser(stripe, paymentIntent, auth.user.id)
+    if (!isAuthorized) {
+      return jsonResponse({ error: "Unauthorized: payment intent does not belong to authenticated user" }, 403)
+    }
 
     // The latest charge is stored in the payment intent
     const chargeId = paymentIntent.latest_charge as string | null
 
     if (!chargeId) {
-      return new Response(
-        JSON.stringify({ 
+      return jsonResponse({
           error: "Payment intent has no associated charge",
           status: paymentIntent.status
-        }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      )
+        }, 400)
     }
 
-    return new Response(
-      JSON.stringify({
+    return jsonResponse({
         charge_id: chargeId,
         payment_intent_id: paymentIntent.id,
         status: paymentIntent.status,
-      }),
-      {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: 200,
-      }
-    )
+      })
   } catch (error: any) {
     console.error("Error getting charge ID:", error)
-    return new Response(
-      JSON.stringify({ error: error.message }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
-    )
+    return jsonResponse({ error: error.message }, 500)
   }
 })
-

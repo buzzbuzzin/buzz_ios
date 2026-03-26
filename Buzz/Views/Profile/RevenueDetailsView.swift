@@ -162,10 +162,10 @@ struct RevenueDetailsView: View {
             
             for (month, bookings) in groupedByMonth {
                 let monthBasePay = bookings.reduce(Decimal(0)) { sum, booking in
-                    sum + booking.paymentAmount
+                    sum + booking.settledBasePayoutAmount
                 }
                 let monthTips = bookings.reduce(Decimal(0)) { sum, booking in
-                    sum + (booking.tipAmount ?? 0)
+                    sum + booking.settledTipAmount
                 }
                 let monthRevenue = monthBasePay + monthTips
                 total += monthRevenue
@@ -247,4 +247,3 @@ struct RevenueDetailsView: View {
         }
     }
 }
-

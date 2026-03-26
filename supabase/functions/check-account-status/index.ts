@@ -11,15 +11,11 @@
 // }
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { corsHeaders, jsonResponse, requireAuthUser, requireOwnedStripeAccount } from "../_shared/auth.ts"
 
 const stripeSecretKey = Deno.env.get("STRIPE_SECRET_KEY")
 if (!stripeSecretKey) {
   throw new Error("STRIPE_SECRET_KEY environment variable is not set")
-}
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 }
 
 serve(async (req) => {
@@ -29,20 +25,19 @@ serve(async (req) => {
   }
 
   try {
-    const { account_id } = await req.json()
+    const auth = await requireAuthUser(req)
+    if (auth.response) {
+      return auth.response
+    }
 
-    if (!account_id) {
-      return new Response(
-        JSON.stringify({ error: "account_id is required" }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      )
+    const { account_id } = await req.json()
+    const accountCheck = await requireOwnedStripeAccount(auth.user.id, account_id)
+    if (accountCheck.response) {
+      return accountCheck.response
     }
 
     // Retrieve account details from Stripe using direct HTTP call
-    const stripeResponse = await fetch(`https://api.stripe.com/v1/accounts/${account_id}`, {
+    const stripeResponse = await fetch(`https://api.stripe.com/v1/accounts/${accountCheck.accountId}`, {
       method: "GET",
       headers: {
         "Authorization": `Bearer ${stripeSecretKey}`,
@@ -71,8 +66,7 @@ serve(async (req) => {
       status = "restricted"
     }
 
-    return new Response(
-      JSON.stringify({
+    return jsonResponse({
         account_id: account.id,
         status: status,
         details_submitted: account.details_submitted,
@@ -82,20 +76,9 @@ serve(async (req) => {
           currently_due: account.requirements.currently_due,
           disabled_reason: account.requirements.disabled_reason,
         } : null,
-      }),
-      {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
-    )
+      })
   } catch (error: any) {
     console.error("Error checking account status:", error)
-    return new Response(
-      JSON.stringify({ error: error.message || "Failed to check account status" }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
-    )
+    return jsonResponse({ error: error.message || "Failed to check account status" }, 500)
   }
 })
-

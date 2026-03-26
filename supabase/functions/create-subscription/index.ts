@@ -4,6 +4,8 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import Stripe from "https://esm.sh/stripe@14.21.0?target=deno"
+import { corsHeaders, jsonResponse, requireAuthUser, requireMatchingUserId } from "../_shared/auth.ts"
+import { findOrCreateCustomerForUser } from "../_shared/stripeOwnership.ts"
 
 const stripeSecretKey = Deno.env.get("STRIPE_SECRET_KEY")
 if (!stripeSecretKey) {
@@ -14,11 +16,6 @@ const stripe = new Stripe(stripeSecretKey, {
   httpClient: Stripe.createFetchHttpClient(),
 })
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-}
-
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
@@ -26,34 +23,24 @@ serve(async (req) => {
   }
 
   try {
+    const auth = await requireAuthUser(req)
+    if (auth.response) {
+      return auth.response
+    }
+
     const { customer_id, price_id } = await req.json()
+    const userCheck = requireMatchingUserId(auth.user.id, customer_id)
+    if (userCheck.response) {
+      return userCheck.response
+    }
 
     // Validate required fields
-    if (!customer_id || !price_id) {
-      return new Response(
-        JSON.stringify({ error: "Missing required fields: customer_id, price_id" }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      )
+    if (!price_id) {
+      return jsonResponse({ error: "Missing required field: price_id" }, 400)
     }
 
-    // Get or create Stripe customer
-    let stripeCustomerId: string
-    const existingCustomers = await stripe.customers.search({
-      query: `metadata['user_id']:'${customer_id}'`,
-    })
-    
-    if (existingCustomers.data.length > 0) {
-      stripeCustomerId = existingCustomers.data[0].id
-    } else {
-      // Create new Stripe customer with our UUID in metadata
-      const newCustomer = await stripe.customers.create({
-        metadata: { user_id: customer_id },
-      })
-      stripeCustomerId = newCustomer.id
-    }
+    const userId = userCheck.userId
+    const stripeCustomerId = await findOrCreateCustomerForUser(stripe, userId)
 
     // Create ephemeral key for customer (required for PaymentSheet to show "Save payment details" checkbox)
     let ephemeralKeySecret: string | undefined
@@ -67,23 +54,11 @@ serve(async (req) => {
       console.error("Could not create ephemeral key:", error)
       // Return error instead of continuing silently
       // Ephemeral key is required for PaymentSheet to show "Save payment details" checkbox
-      return new Response(
-        JSON.stringify({ error: "Failed to create ephemeral key for customer" }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      )
+      return jsonResponse({ error: "Failed to create ephemeral key for customer" }, 500)
     }
     
     if (!ephemeralKeySecret) {
-      return new Response(
-        JSON.stringify({ error: "Ephemeral key secret is missing" }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      )
+      return jsonResponse({ error: "Ephemeral key secret is missing" }, 500)
     }
 
     // Create subscription with default_incomplete payment behavior
@@ -94,6 +69,7 @@ serve(async (req) => {
     const subscription = await stripe.subscriptions.create({
       customer: stripeCustomerId,
       items: [{ price: price_id }],
+      metadata: { user_id: userId },
       payment_behavior: "default_incomplete",
       payment_settings: { save_default_payment_method: "on_subscription" },
       expand: ["latest_invoice.payment_intent"],
@@ -111,27 +87,15 @@ serve(async (req) => {
     // Store subscription in database (you'll need to create a subscriptions table)
     // For now, we'll return the subscription info
 
-    return new Response(
-      JSON.stringify({
+    return jsonResponse({
         subscription_id: subscription.id,
         client_secret: clientSecret,
         customer_id: stripeCustomerId,
         ephemeral_key_secret: ephemeralKeySecret,
         status: subscription.status,
-      }),
-      {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
-    )
+      })
   } catch (error) {
     console.error("Error creating subscription:", error)
-    return new Response(
-      JSON.stringify({ error: error.message }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
-    )
+    return jsonResponse({ error: error.message }, 500)
   }
 })
-
