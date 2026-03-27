@@ -13,15 +13,16 @@ import Combine
 struct ChartsView: View {
     @Binding var isPresented: Bool
     @StateObject private var locationManager = ChartsLocationManager()
+    @StateObject private var overlayManager = ChartsOverlayManager()
     @State private var region = MKCoordinateRegion(
         center: LocationHelper.shared.defaultSimulatorLocation,
         span: MKCoordinateSpan(latitudeDelta: 0.5, longitudeDelta: 0.5)
     )
     @State private var currentZoomLevel: Int = 10
-    @State private var centerRequestCount: Int = 0  // Increment to request centering
+    @State private var centerRequestCount: Int = 0
     @State private var cacheStatus: String = ""
-    @State private var overlayReloadID = UUID()
-    
+    @State private var tileReloadRequestCount: Int = 0
+
     var body: some View {
         ZStack {
             // VFR Sectional Map
@@ -29,11 +30,23 @@ struct ChartsView: View {
                 region: $region,
                 currentZoomLevel: $currentZoomLevel,
                 centerRequestCount: $centerRequestCount,
-                userLocation: locationManager.currentLocation
+                tileReloadRequestCount: $tileReloadRequestCount,
+                userLocation: locationManager.currentLocation,
+                metarAnnotations: overlayManager.showMETAROverlay ? overlayManager.metarAnnotations : [],
+                airspacePolygons: overlayManager.showAirspaceOverlay ? overlayManager.airspacePolygons : [],
+                queryPin: overlayManager.queryPin,
+                onRegionChanged: { newRegion in
+                    overlayManager.onRegionChanged(region: newRegion)
+                },
+                onAnnotationSelected: { annotation in
+                    Task { await overlayManager.selectStation(annotation) }
+                },
+                onLongPress: { coordinate in
+                    Task { await overlayManager.performLocationQuery(coordinate: coordinate) }
+                }
             )
-            .id(overlayReloadID)
             .ignoresSafeArea(edges: .top)
-            
+
             // Overlay Controls
             VStack {
                 // Header
@@ -50,20 +63,20 @@ struct ChartsView: View {
                             .clipShape(Circle())
                             .shadow(radius: 2)
                     }
-                    
+
                     VStack(alignment: .leading, spacing: 4) {
                         Text("VFR Sectional Charts")
                             .font(.title2)
                             .fontWeight(.bold)
-                        
+
                         Text("FAA Aviation Charts")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
-                    
+
                     Spacer()
-                    
-                    HStack(spacing: 12) {
+
+                    HStack(spacing: 8) {
                         // Zoom Level Indicator
                         Text("Z\(currentZoomLevel)")
                             .font(.caption)
@@ -74,7 +87,7 @@ struct ChartsView: View {
                             .background(Color(.systemBackground))
                             .clipShape(Capsule())
                             .shadow(radius: 2)
-                        
+
                         // My Location Button
                         Button(action: {
                             centerOnUserLocation()
@@ -91,19 +104,40 @@ struct ChartsView: View {
                 }
                 .padding()
                 .background(Color(.systemBackground).opacity(0.95))
-                
+
                 // Zoom Warning (when outside valid range)
                 if currentZoomLevel < 8 || currentZoomLevel > 12 {
                     ZoomWarningCard(currentZoom: currentZoomLevel)
                         .padding(.horizontal)
                         .transition(.move(edge: .top).combined(with: .opacity))
                 }
-                
+
                 Spacer()
-                
-                // Chart Info Card
-                ChartInfoCard(cacheStatus: cacheStatus)
+
+                // Bottom Card: Query result only (no persistent info card)
+                if overlayManager.queryResult != nil || overlayManager.isQueryLoading {
+                    LocationQueryCard(
+                        result: overlayManager.queryResult ?? placeholderQueryResult,
+                        isLoading: overlayManager.isQueryLoading,
+                        onDismiss: { overlayManager.dismissQuery() }
+                    )
                     .padding()
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+            }
+
+            // Floating overlay toggles (top-right, below header)
+            VStack {
+                Spacer().frame(height: 100) // offset below header
+                HStack {
+                    Spacer()
+                    ChartsOverlayToolbar(
+                        showMETAROverlay: $overlayManager.showMETAROverlay,
+                        showAirspaceOverlay: $overlayManager.showAirspaceOverlay
+                    )
+                    .padding(.trailing, 12)
+                }
+                Spacer()
             }
         }
         .navigationTitle("Charts")
@@ -127,7 +161,7 @@ struct ChartsView: View {
                 let didInvalidate = await cache.checkForUpdates()
                 await MainActor.run {
                     if didInvalidate {
-                        overlayReloadID = UUID()
+                        tileReloadRequestCount += 1
                         cacheStatus = "Updated: new FAA edition"
                     } else {
                         cacheStatus = cache.cacheSizeDescription
@@ -149,8 +183,45 @@ struct ChartsView: View {
                 }
             }
         }
+        .sheet(isPresented: $overlayManager.showMETARDetail) {
+            if overlayManager.isStationDetailLoading {
+                NavigationStack {
+                    ProgressView("Refreshing weather...")
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .navigationTitle("Weather")
+                        .navigationBarTitleDisplayMode(.inline)
+                        .toolbar {
+                            ToolbarItem(placement: .topBarTrailing) {
+                                Button("Done") { overlayManager.dismissMETARDetail() }
+                            }
+                        }
+                }
+            } else if let metar = overlayManager.selectedMETAR {
+                METARDetailSheet(
+                    metar: metar,
+                    taf: overlayManager.selectedTAF,
+                    onDismiss: { overlayManager.dismissMETARDetail() }
+                )
+                .presentationDetents([.medium, .large])
+            } else {
+                NavigationStack {
+                    ContentUnavailableView(
+                        "Weather Unavailable",
+                        systemImage: "cloud.slash",
+                        description: Text("Unable to load the latest weather for this station.")
+                    )
+                    .navigationTitle("Weather")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .topBarTrailing) {
+                            Button("Done") { overlayManager.dismissMETARDetail() }
+                        }
+                    }
+                }
+            }
+        }
     }
-    
+
     private var zoomLevelColor: Color {
         if currentZoomLevel >= 8 && currentZoomLevel <= 12 {
             return .green
@@ -158,25 +229,36 @@ struct ChartsView: View {
             return .orange
         }
     }
-    
+
     private func centerOnUserLocation() {
         if let userLocation = locationManager.currentLocation {
-            // Update region and request centering
             region = MKCoordinateRegion(
                 center: userLocation,
                 span: MKCoordinateSpan(latitudeDelta: 0.2, longitudeDelta: 0.2)
             )
-            centerRequestCount += 1  // Trigger explicit centering
+            centerRequestCount += 1
             return
         }
-        
-        // Request permission if not determined
+
         if locationManager.authorizationStatus == .notDetermined {
             locationManager.requestPermission()
         }
-        
-        // Start location updates
+
         locationManager.startLocationUpdates()
+    }
+
+    /// Placeholder result used while loading
+    private var placeholderQueryResult: LocationQueryResult {
+        LocationQueryResult(
+            coordinate: CLLocationCoordinate2D(latitude: 0, longitude: 0),
+            formattedCoordinate: "...",
+            airspaceClass: .unknown,
+            laancCeiling: nil,
+            hasLAANCCoverage: false,
+            authorizationStatus: .pending,
+            nearestMETAR: nil,
+            distanceToNearestMETAR: nil
+        )
     }
 }
 
@@ -185,119 +267,290 @@ struct ChartsView: View {
 struct VFRMapView: UIViewRepresentable {
     @Binding var region: MKCoordinateRegion
     @Binding var currentZoomLevel: Int
-    @Binding var centerRequestCount: Int  // Increment to explicitly request centering
+    @Binding var centerRequestCount: Int
+    @Binding var tileReloadRequestCount: Int
     var userLocation: CLLocationCoordinate2D?
-    
+
+    // Overlay data
+    var metarAnnotations: [METARStationAnnotation]
+    var airspacePolygons: [AirspaceOverlayPolygon]
+    var queryPin: QueryPinAnnotation?
+
+    // Callbacks
+    var onRegionChanged: ((MKCoordinateRegion) -> Void)?
+    var onAnnotationSelected: ((METARStationAnnotation) -> Void)?
+    var onLongPress: ((CLLocationCoordinate2D) -> Void)?
+
     // Zoom level constraints for FAA VFR Sectional tiles
     static let minZoom = 8
     static let maxZoom = 12
-    
-    // Corresponding span deltas for zoom levels
-    // Formula: longitudeDelta = 360.0 / pow(2, zoomLevel)
-    static let minSpanDelta: Double = 360.0 / pow(2, Double(maxZoom)) // ~0.088 for Z12
-    static let maxSpanDelta: Double = 360.0 / pow(2, Double(minZoom)) // ~1.406 for Z8
-    
+
+    static let minSpanDelta: Double = 360.0 / pow(2, Double(maxZoom))
+    static let maxSpanDelta: Double = 360.0 / pow(2, Double(minZoom))
+
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
     }
-    
+
     func makeUIView(context: Context) -> MKMapView {
         let mapView = MKMapView()
         mapView.delegate = context.coordinator
         mapView.showsUserLocation = true
         mapView.showsCompass = true
         mapView.showsScale = true
-        
+
         // Add VFR Sectional tile overlay
         let overlay = VFRTileOverlay()
         mapView.addOverlay(overlay, level: .aboveLabels)
-        
+
         // Set initial region
         mapView.setRegion(region, animated: false)
-        
-        // Store reference for programmatic updates
+
+        // Add long-press gesture recognizer
+        let longPress = UILongPressGestureRecognizer(
+            target: context.coordinator,
+            action: #selector(Coordinator.handleLongPress(_:))
+        )
+        longPress.minimumPressDuration = 0.5
+        mapView.addGestureRecognizer(longPress)
+
+        // Store reference
         context.coordinator.mapView = mapView
-        
+
         return mapView
     }
-    
+
     func updateUIView(_ mapView: MKMapView, context: Context) {
-        // Check if user explicitly requested centering (via "My Location" button)
-        if centerRequestCount > context.coordinator.lastCenterRequestCount {
-            context.coordinator.lastCenterRequestCount = centerRequestCount
-            context.coordinator.hasUserInteracted = false  // Reset to allow this center
-            context.coordinator.isProgrammaticChange = true
+        let coordinator = context.coordinator
+
+        // Update callbacks
+        coordinator.onRegionChanged = onRegionChanged
+        coordinator.onAnnotationSelected = onAnnotationSelected
+        coordinator.onLongPress = onLongPress
+
+        // Handle tile reload (edition change)
+        if tileReloadRequestCount > coordinator.lastTileReloadCount {
+            coordinator.lastTileReloadCount = tileReloadRequestCount
+            // Remove old tile overlay and add fresh one
+            let tileOverlays = mapView.overlays.filter { $0 is VFRTileOverlay }
+            mapView.removeOverlays(tileOverlays)
+            mapView.insertOverlay(VFRTileOverlay(), at: 0, level: .aboveLabels)
+        }
+
+        // Handle centering request
+        if centerRequestCount > coordinator.lastCenterRequestCount {
+            coordinator.lastCenterRequestCount = centerRequestCount
+            coordinator.hasUserInteracted = false
+            coordinator.isProgrammaticChange = true
             mapView.setRegion(region, animated: true)
             return
         }
-        
-        // Skip if user has already interacted with the map (panning/zooming)
-        // This prevents GPS updates from resetting the map position
-        guard context.coordinator.shouldAcceptProgrammaticUpdate && !context.coordinator.hasUserInteracted else { return }
-        
+
+        // Skip if user has already interacted
+        guard coordinator.shouldAcceptProgrammaticUpdate && !coordinator.hasUserInteracted else {
+            // Still update overlays even if not re-centering
+            updateAnnotations(mapView, context: context)
+            updateAirspacePolygons(mapView, context: context)
+            updateQueryPin(mapView, context: context)
+            return
+        }
+
         let centerDelta = abs(mapView.region.center.latitude - region.center.latitude) +
                           abs(mapView.region.center.longitude - region.center.longitude)
-        
+
         if centerDelta > 0.01 {
-            context.coordinator.isProgrammaticChange = true
+            coordinator.isProgrammaticChange = true
             mapView.setRegion(region, animated: true)
         }
+
+        // Update overlays
+        updateAnnotations(mapView, context: context)
+        updateAirspacePolygons(mapView, context: context)
+        updateQueryPin(mapView, context: context)
     }
-    
+
+    // MARK: - Annotation Diffing
+
+    private func updateAnnotations(_ mapView: MKMapView, context: Context) {
+        let existing = Set(mapView.annotations.compactMap { $0 as? METARStationAnnotation })
+        let desired = Set(metarAnnotations)
+
+        let toRemove = existing.subtracting(desired)
+        let toAdd = desired.subtracting(existing)
+
+        if !toRemove.isEmpty {
+            mapView.removeAnnotations(Array(toRemove))
+        }
+        if !toAdd.isEmpty {
+            mapView.addAnnotations(Array(toAdd))
+        }
+    }
+
+    private func updateAirspacePolygons(_ mapView: MKMapView, context: Context) {
+        let existingPolygons = mapView.overlays.compactMap { $0 as? AirspaceOverlayPolygon }
+        let desiredCount = airspacePolygons.count
+
+        // Simple diff: if count or content changed, replace all
+        if existingPolygons.count != desiredCount || context.coordinator.airspacePolygonsNeedUpdate {
+            mapView.removeOverlays(existingPolygons)
+            for polygon in airspacePolygons {
+                mapView.addOverlay(polygon, level: .aboveLabels)
+            }
+            context.coordinator.airspacePolygonsNeedUpdate = false
+        }
+    }
+
+    private func updateQueryPin(_ mapView: MKMapView, context: Context) {
+        let existingPins = mapView.annotations.compactMap { $0 as? QueryPinAnnotation }
+
+        if let newPin = queryPin {
+            // Check if pin coordinate changed
+            let needsUpdate = existingPins.isEmpty ||
+                existingPins.first.map {
+                    abs($0.coordinate.latitude - newPin.coordinate.latitude) > 0.0001 ||
+                    abs($0.coordinate.longitude - newPin.coordinate.longitude) > 0.0001
+                } ?? true
+
+            if needsUpdate {
+                mapView.removeAnnotations(existingPins)
+                mapView.addAnnotation(newPin)
+            }
+        } else if !existingPins.isEmpty {
+            mapView.removeAnnotations(existingPins)
+        }
+    }
+
+    // MARK: - Coordinator
+
     class Coordinator: NSObject, MKMapViewDelegate {
         var parent: VFRMapView
         weak var mapView: MKMapView?
         var isProgrammaticChange = false
         var shouldAcceptProgrammaticUpdate = true
         private var isConstrainingZoom = false
-        var hasUserInteracted = false  // Track if user has panned/zoomed
-        var lastCenterRequestCount = 0  // Track explicit center requests
-        
+        var hasUserInteracted = false
+        var lastCenterRequestCount = 0
+        var lastTileReloadCount = 0
+        var airspacePolygonsNeedUpdate = true
+
+        // Callbacks
+        var onRegionChanged: ((MKCoordinateRegion) -> Void)?
+        var onAnnotationSelected: ((METARStationAnnotation) -> Void)?
+        var onLongPress: ((CLLocationCoordinate2D) -> Void)?
+
         init(_ parent: VFRMapView) {
             self.parent = parent
         }
-        
+
+        // MARK: - Overlay Renderer
+
         func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
             if let tileOverlay = overlay as? MKTileOverlay {
                 return MKTileOverlayRenderer(tileOverlay: tileOverlay)
             }
+
+            if let airspacePolygon = overlay as? AirspaceOverlayPolygon {
+                let renderer = MKPolygonRenderer(polygon: airspacePolygon)
+
+                switch airspacePolygon.airspaceClass {
+                case .classB:
+                    renderer.fillColor = UIColor.systemBlue.withAlphaComponent(0.12)
+                    renderer.strokeColor = UIColor.systemBlue.withAlphaComponent(0.7)
+                    renderer.lineWidth = 2.0
+                case .classC:
+                    renderer.fillColor = UIColor.systemPurple.withAlphaComponent(0.12)
+                    renderer.strokeColor = UIColor.systemPurple.withAlphaComponent(0.7)
+                    renderer.lineWidth = 2.0
+                case .classD:
+                    renderer.fillColor = UIColor.systemBlue.withAlphaComponent(0.08)
+                    renderer.strokeColor = UIColor.systemBlue.withAlphaComponent(0.5)
+                    renderer.lineWidth = 1.5
+                    renderer.lineDashPattern = [8, 4]
+                case .classE:
+                    renderer.fillColor = UIColor.systemPurple.withAlphaComponent(0.08)
+                    renderer.strokeColor = UIColor.systemPurple.withAlphaComponent(0.5)
+                    renderer.lineWidth = 1.5
+                    renderer.lineDashPattern = [8, 4]
+                default:
+                    renderer.fillColor = UIColor.gray.withAlphaComponent(0.05)
+                    renderer.strokeColor = UIColor.gray.withAlphaComponent(0.3)
+                    renderer.lineWidth = 1.0
+                }
+
+                return renderer
+            }
+
             return MKOverlayRenderer(overlay: overlay)
         }
-        
+
+        // MARK: - Annotation View
+
+        func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
+            if let metarAnnotation = annotation as? METARStationAnnotation {
+                return METARAnnotationHelper.createMETARAnnotationView(for: metarAnnotation, in: mapView)
+            }
+
+            if let queryAnnotation = annotation as? QueryPinAnnotation {
+                return METARAnnotationHelper.createQueryPinView(for: queryAnnotation, in: mapView)
+            }
+
+            return nil // Default for user location
+        }
+
+        // MARK: - Annotation Selection
+
+        func mapView(_ mapView: MKMapView, didSelect annotation: MKAnnotation) {
+            if let metarAnnotation = annotation as? METARStationAnnotation {
+                mapView.deselectAnnotation(annotation, animated: false)
+                onAnnotationSelected?(metarAnnotation)
+            }
+        }
+
+        // MARK: - Long Press
+
+        @objc func handleLongPress(_ gesture: UILongPressGestureRecognizer) {
+            guard gesture.state == .began, let mapView = mapView else { return }
+            let point = gesture.location(in: mapView)
+            let coordinate = mapView.convert(point, toCoordinateFrom: mapView)
+            onLongPress?(coordinate)
+        }
+
+        // MARK: - Region Change
+
         func mapView(_ mapView: MKMapView, regionWillChangeAnimated animated: Bool) {
-            // Disable programmatic updates while user is interacting
             if !isProgrammaticChange {
                 shouldAcceptProgrammaticUpdate = false
             }
         }
-        
+
         func mapView(_ mapView: MKMapView, regionDidChangeAnimated animated: Bool) {
-            // Re-enable programmatic updates
             shouldAcceptProgrammaticUpdate = true
-            
-            // Reset programmatic change flag
+
             let wasProgrammatic = isProgrammaticChange
             isProgrammaticChange = false
-            
-            // Mark that user has interacted with the map (panning/zooming)
+
             if !wasProgrammatic && !isConstrainingZoom {
                 hasUserInteracted = true
             }
-            
+
             // Calculate current zoom level
             let currentZoom = calculateZoomLevel(for: mapView)
-            
-            // Update zoom level display
+
             DispatchQueue.main.async {
                 self.parent.currentZoomLevel = currentZoom
             }
-            
-            // Constrain zoom if outside valid range (and not already constraining to avoid loop)
+
+            // Notify overlay manager of region change
+            onRegionChanged?(mapView.region)
+
+            // Track if airspace polygons need refresh on next updateUIView
+            airspacePolygonsNeedUpdate = true
+
+            // Constrain zoom if outside valid range
             if !isConstrainingZoom && !wasProgrammatic {
                 let spanDelta = mapView.region.span.longitudeDelta
-                
+
                 if spanDelta < VFRMapView.minSpanDelta {
-                    // User zoomed in too much (beyond Z12) - snap back to Z12
                     isConstrainingZoom = true
                     let constrainedRegion = MKCoordinateRegion(
                         center: mapView.region.center,
@@ -307,13 +560,11 @@ struct VFRMapView: UIViewRepresentable {
                         )
                     )
                     mapView.setRegion(constrainedRegion, animated: true)
-                    
-                    // Reset flag after animation completes
+
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                         self.isConstrainingZoom = false
                     }
                 } else if spanDelta > VFRMapView.maxSpanDelta {
-                    // User zoomed out too much (beyond Z8) - snap back to Z8
                     isConstrainingZoom = true
                     let constrainedRegion = MKCoordinateRegion(
                         center: mapView.region.center,
@@ -323,18 +574,15 @@ struct VFRMapView: UIViewRepresentable {
                         )
                     )
                     mapView.setRegion(constrainedRegion, animated: true)
-                    
-                    // Reset flag after animation completes
+
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                         self.isConstrainingZoom = false
                     }
                 }
             }
         }
-        
+
         private func calculateZoomLevel(for mapView: MKMapView) -> Int {
-            // Calculate zoom level based on the visible span
-            // This approximation works for Web Mercator projection
             let longitudeDelta = mapView.region.span.longitudeDelta
             let zoomLevel = Int(round(log2(360.0 / longitudeDelta)))
             return max(0, min(20, zoomLevel))
@@ -348,26 +596,21 @@ class VFRTileOverlay: MKTileOverlay {
     private let cache = VFRChartCacheService.shared
 
     init() {
-        // FAA VFR Sectional tile service URL template
-        // ArcGIS uses /tile/z/y/x format
         let template = "https://tiles.arcgis.com/tiles/ssFJjBXIUyZDrSYZ/arcgis/rest/services/VFR_Sectional/MapServer/tile/{z}/{y}/{x}"
         super.init(urlTemplate: template)
 
-        // Configure tile overlay
-        self.minimumZ = 8  // Valid zoom range for reliable tile loading
-        self.maximumZ = 12 // Limit to Z12 to ensure tiles are always available
+        self.minimumZ = 8
+        self.maximumZ = 12
         self.tileSize = CGSize(width: 256, height: 256)
-        self.canReplaceMapContent = false // Show base map underneath
+        self.canReplaceMapContent = false
     }
 
     override func loadTile(at path: MKTileOverlayPath, result: @escaping (Data?, Error?) -> Void) {
-        // Check disk cache first
         if let cachedData = cache.cachedTile(z: path.z, y: path.y, x: path.x) {
             result(cachedData, nil)
             return
         }
 
-        // Fetch from network and persist to disk cache
         super.loadTile(at: path) { [weak self] data, error in
             if let data = data, error == nil {
                 self?.cache.cacheTile(data: data, z: path.z, y: path.y, x: path.x)
@@ -381,23 +624,23 @@ class VFRTileOverlay: MKTileOverlay {
 
 struct ZoomWarningCard: View {
     let currentZoom: Int
-    
+
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: "exclamationmark.triangle.fill")
                 .font(.title3)
                 .foregroundColor(.white)
-            
+
             VStack(alignment: .leading, spacing: 4) {
                 Text("Zoom Level Outside Range")
                     .font(.headline)
                     .foregroundColor(.white)
-                
+
                 Text(currentZoom < 8 ? "Zoom in to see chart details (Z8-12)" : "Zoom out for better coverage (Z8-12)")
                     .font(.subheadline)
                     .foregroundColor(.white.opacity(0.9))
             }
-            
+
             Spacer()
         }
         .padding()
@@ -424,7 +667,7 @@ struct ChartInfoCard: View {
                     .foregroundColor(.primary)
 
                 if cacheStatus.isEmpty || cacheStatus == "Empty" {
-                    Text("Official aviation charts • Auto-updated with FAA editions")
+                    Text("Official aviation charts \u{2022} Auto-updated with FAA editions")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 } else {
@@ -448,34 +691,31 @@ struct ChartInfoCard: View {
 class ChartsLocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     private let manager = CLLocationManager()
     private let locationHelper = LocationHelper.shared
-    
+
     @Published var authorizationStatus: CLAuthorizationStatus = .notDetermined
     @Published var currentLocation: CLLocationCoordinate2D?
-    
+
     override init() {
         super.init()
         manager.delegate = self
         manager.desiredAccuracy = kCLLocationAccuracyBest
         authorizationStatus = manager.authorizationStatus
-        
-        // Set default location for simulator if running in simulator
+
         if locationHelper.isRunningInSimulator {
             currentLocation = locationHelper.defaultSimulatorLocation
         }
     }
-    
+
     func requestPermission() {
         manager.requestWhenInUseAuthorization()
     }
-    
+
     func startLocationUpdates() {
-        // In simulator, use default location if no GPS available
         if locationHelper.isRunningInSimulator && currentLocation == nil {
             currentLocation = locationHelper.defaultSimulatorLocation
         }
-        
+
         guard authorizationStatus == .authorizedWhenInUse || authorizationStatus == .authorizedAlways else {
-            // In simulator, still provide default location even without permission
             if locationHelper.isRunningInSimulator && currentLocation == nil {
                 currentLocation = locationHelper.defaultSimulatorLocation
             }
@@ -483,37 +723,34 @@ class ChartsLocationManager: NSObject, ObservableObject, CLLocationManagerDelega
         }
         manager.startUpdatingLocation()
     }
-    
+
     func stopLocationUpdates() {
         manager.stopUpdatingLocation()
     }
-    
+
     // MARK: - CLLocationManagerDelegate
-    
+
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         authorizationStatus = manager.authorizationStatus
-        
-        // If permission was just granted, start location updates
+
         if authorizationStatus == .authorizedWhenInUse || authorizationStatus == .authorizedAlways {
             startLocationUpdates()
         }
-        
-        // In simulator, set default location if permission not granted
+
         if locationHelper.isRunningInSimulator &&
            (authorizationStatus == .denied || authorizationStatus == .notDetermined) {
             currentLocation = locationHelper.defaultSimulatorLocation
         }
     }
-    
+
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         guard let location = locations.last else { return }
         currentLocation = location.coordinate
     }
-    
+
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
         print("Charts location manager error: \(error.localizedDescription)")
-        
-        // In simulator, fallback to default location on error
+
         if locationHelper.isRunningInSimulator && currentLocation == nil {
             currentLocation = locationHelper.defaultSimulatorLocation
         }

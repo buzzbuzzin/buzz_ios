@@ -20,7 +20,11 @@ class METARService: ObservableObject {
     // Cache to avoid excessive API calls
     private var lastFetchTime: Date?
     private var lastFetchCoordinate: CLLocationCoordinate2D?
+    private var lastFetchRadiusDegrees: Double?
+    private var lastFetchMaxResults: Int?
     private var inFlightCoordinate: CLLocationCoordinate2D?
+    private var inFlightRadiusDegrees: Double?
+    private var inFlightMaxResults: Int?
     private let cacheValiditySeconds: TimeInterval = 300 // 5 minutes
     
     // MARK: - Fetch METARs Near Location
@@ -32,35 +36,55 @@ class METARService: ObservableObject {
     /// - Returns: Array of METAR reports sorted by distance
     func fetchMETARsNearLocation(
         coordinate: CLLocationCoordinate2D,
-        radiusDegrees: Double = 0.5
+        radiusDegrees: Double = 0.5,
+        maxResults: Int = 5,
+        forceRefresh: Bool = false
     ) async throws -> [METAR] {
         // Check cache validity
-        if let lastTime = lastFetchTime,
+        if !forceRefresh,
+           let lastTime = lastFetchTime,
            let lastCoord = lastFetchCoordinate,
+           let lastRadius = lastFetchRadiusDegrees,
+           let lastMaxResults = lastFetchMaxResults,
            Date().timeIntervalSince(lastTime) < cacheValiditySeconds {
             let latDiff = abs(lastCoord.latitude - coordinate.latitude)
             let lonDiff = abs(lastCoord.longitude - coordinate.longitude)
-            if latDiff < 0.01 && lonDiff < 0.01 && !nearbyMETARs.isEmpty {
+            let radiusDiff = abs(lastRadius - radiusDegrees)
+            if latDiff < 0.01 &&
+                lonDiff < 0.01 &&
+                radiusDiff < 0.001 &&
+                lastMaxResults == maxResults &&
+                !nearbyMETARs.isEmpty {
                 return nearbyMETARs
             }
         }
 
         // Prevent duplicate concurrent requests for the same location
         if isLoading,
-           let requestedCoord = inFlightCoordinate {
+           let requestedCoord = inFlightCoordinate,
+           let requestedRadius = inFlightRadiusDegrees,
+           let requestedMaxResults = inFlightMaxResults {
             let latDiff = abs(requestedCoord.latitude - coordinate.latitude)
             let lonDiff = abs(requestedCoord.longitude - coordinate.longitude)
-            if latDiff < 0.01 && lonDiff < 0.01 {
+            let radiusDiff = abs(requestedRadius - radiusDegrees)
+            if latDiff < 0.01 &&
+                lonDiff < 0.01 &&
+                radiusDiff < 0.001 &&
+                requestedMaxResults == maxResults {
                 return nearbyMETARs
             }
         }
 
         isLoading = true
         inFlightCoordinate = coordinate
+        inFlightRadiusDegrees = radiusDegrees
+        inFlightMaxResults = maxResults
         errorMessage = nil
         defer {
             isLoading = false
             inFlightCoordinate = nil
+            inFlightRadiusDegrees = nil
+            inFlightMaxResults = nil
         }
 
         do {
@@ -93,6 +117,8 @@ class METARService: ObservableObject {
                 nearbyMETARs = []
                 lastFetchTime = Date()
                 lastFetchCoordinate = coordinate
+                lastFetchRadiusDegrees = radiusDegrees
+                lastFetchMaxResults = maxResults
                 return []
             }
             
@@ -103,14 +129,16 @@ class METARService: ObservableObject {
             // Parse the JSON response
             let metars = try parseMETARResponse(data: data, userCoordinate: coordinate)
             
-            // Sort by distance and limit to closest 5
+            // Sort by distance and limit to closest results
             let sortedMETARs = metars
                 .sorted { $0.distance(from: coordinate) < $1.distance(from: coordinate) }
-                .prefix(5)
+                .prefix(maxResults)
             
             nearbyMETARs = Array(sortedMETARs)
             lastFetchTime = Date()
             lastFetchCoordinate = coordinate
+            lastFetchRadiusDegrees = radiusDegrees
+            lastFetchMaxResults = maxResults
 
             return nearbyMETARs
 
@@ -218,6 +246,8 @@ class METARService: ObservableObject {
     func clearCache(keepDisplayedMETARs: Bool = true) {
         lastFetchTime = nil
         lastFetchCoordinate = nil
+        lastFetchRadiusDegrees = nil
+        lastFetchMaxResults = nil
         errorMessage = nil
         if !keepDisplayedMETARs {
             nearbyMETARs = []

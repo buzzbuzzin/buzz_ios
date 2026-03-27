@@ -20,7 +20,9 @@ class TAFService: ObservableObject {
     // Cache to avoid excessive API calls
     private var lastFetchTime: Date?
     private var lastFetchCoordinate: CLLocationCoordinate2D?
+    private var lastFetchRadiusDegrees: Double?
     private var inFlightCoordinate: CLLocationCoordinate2D?
+    private var inFlightRadiusDegrees: Double?
     private let cacheValiditySeconds: TimeInterval = 300 // 5 minutes
 
     // MARK: - Fetch TAFs Near Location
@@ -32,34 +34,45 @@ class TAFService: ObservableObject {
     /// - Returns: Array of TAF reports sorted by distance
     func fetchTAFsNearLocation(
         coordinate: CLLocationCoordinate2D,
-        radiusDegrees: Double = 0.5
+        radiusDegrees: Double = 0.5,
+        forceRefresh: Bool = false
     ) async throws -> [TAF] {
         // Check cache validity
-        if let lastTime = lastFetchTime,
+        if !forceRefresh,
+           let lastTime = lastFetchTime,
            let lastCoord = lastFetchCoordinate,
+           let lastRadius = lastFetchRadiusDegrees,
            Date().timeIntervalSince(lastTime) < cacheValiditySeconds {
             let latDiff = abs(lastCoord.latitude - coordinate.latitude)
             let lonDiff = abs(lastCoord.longitude - coordinate.longitude)
-            if latDiff < 0.01 && lonDiff < 0.01 && !nearbyTAFs.isEmpty {
+            let radiusDiff = abs(lastRadius - radiusDegrees)
+            if latDiff < 0.01 &&
+                lonDiff < 0.01 &&
+                radiusDiff < 0.001 &&
+                !nearbyTAFs.isEmpty {
                 return nearbyTAFs
             }
         }
 
         if isLoading,
-           let requestedCoord = inFlightCoordinate {
+           let requestedCoord = inFlightCoordinate,
+           let requestedRadius = inFlightRadiusDegrees {
             let latDiff = abs(requestedCoord.latitude - coordinate.latitude)
             let lonDiff = abs(requestedCoord.longitude - coordinate.longitude)
-            if latDiff < 0.01 && lonDiff < 0.01 {
+            let radiusDiff = abs(requestedRadius - radiusDegrees)
+            if latDiff < 0.01 && lonDiff < 0.01 && radiusDiff < 0.001 {
                 return nearbyTAFs
             }
         }
 
         isLoading = true
         inFlightCoordinate = coordinate
+        inFlightRadiusDegrees = radiusDegrees
         errorMessage = nil
         defer {
             isLoading = false
             inFlightCoordinate = nil
+            inFlightRadiusDegrees = nil
         }
 
         do {
@@ -92,6 +105,7 @@ class TAFService: ObservableObject {
                 nearbyTAFs = []
                 lastFetchTime = Date()
                 lastFetchCoordinate = coordinate
+                lastFetchRadiusDegrees = radiusDegrees
                 return []
             }
 
@@ -110,6 +124,7 @@ class TAFService: ObservableObject {
             nearbyTAFs = Array(sortedTAFs)
             lastFetchTime = Date()
             lastFetchCoordinate = coordinate
+            lastFetchRadiusDegrees = radiusDegrees
 
             return nearbyTAFs
 
@@ -235,7 +250,7 @@ class TAFService: ObservableObject {
     func clearCache(keepDisplayedTAFs: Bool = true) {
         lastFetchTime = nil
         lastFetchCoordinate = nil
-        inFlightCoordinate = nil
+        lastFetchRadiusDegrees = nil
         errorMessage = nil
         if !keepDisplayedTAFs {
             nearbyTAFs = []
