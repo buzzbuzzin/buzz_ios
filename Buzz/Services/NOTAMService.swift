@@ -22,6 +22,7 @@ class NOTAMService: ObservableObject {
     // Cache to avoid excessive API calls
     private var lastFetchTime: Date?
     private var lastFetchCoordinate: CLLocationCoordinate2D?
+    private var inFlightCoordinate: CLLocationCoordinate2D?
     private let cacheValiditySeconds: TimeInterval = 300 // 5 minutes
     
     // MARK: - Fetch NOTAMs Near Location
@@ -39,17 +40,31 @@ class NOTAMService: ObservableObject {
         if let lastTime = lastFetchTime,
            let lastCoord = lastFetchCoordinate,
            Date().timeIntervalSince(lastTime) < cacheValiditySeconds {
-            // Check if coordinate is roughly the same (within 0.01 degrees)
             let latDiff = abs(lastCoord.latitude - coordinate.latitude)
             let lonDiff = abs(lastCoord.longitude - coordinate.longitude)
             if latDiff < 0.01 && lonDiff < 0.01 && !nearbyNOTAMs.isEmpty {
                 return nearbyNOTAMs
             }
         }
-        
+
+        // Prevent duplicate concurrent requests for the same location
+        if isLoading,
+           let requestedCoord = inFlightCoordinate {
+            let latDiff = abs(requestedCoord.latitude - coordinate.latitude)
+            let lonDiff = abs(requestedCoord.longitude - coordinate.longitude)
+            if latDiff < 0.01 && lonDiff < 0.01 {
+                return nearbyNOTAMs
+            }
+        }
+
         isLoading = true
+        inFlightCoordinate = coordinate
         errorMessage = nil
-        
+        defer {
+            isLoading = false
+            inFlightCoordinate = nil
+        }
+
         do {
             struct NOTAMRequest: Codable {
                 let latitude: Double
@@ -93,19 +108,15 @@ class NOTAMService: ObservableObject {
             nearbyAirports = response.airports
             lastFetchTime = Date()
             lastFetchCoordinate = coordinate
-            isLoading = false
-            
+
             return nearbyNOTAMs
-            
+
         } catch let error as DecodingError {
-            isLoading = false
             let message = "Failed to parse NOTAM data: \(error.localizedDescription)"
             errorMessage = message
             print("NOTAM decoding error: \(error)")
             throw NOTAMError.parsingError
         } catch {
-            isLoading = false
-            
             // Handle cancellation gracefully
             let nsError = error as NSError
             if nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled {
@@ -139,12 +150,17 @@ class NOTAMService: ObservableObject {
         }
     }
     
-    /// Clear the cache to force a fresh fetch
-    func clearCache() {
+    /// Clear the fetch cache to force a fresh request.
+    /// By default this preserves the currently displayed NOTAMs so pull-to-refresh
+    /// does not blank the UI before replacement data arrives.
+    func clearCache(keepDisplayedNOTAMs: Bool = true) {
         lastFetchTime = nil
         lastFetchCoordinate = nil
-        nearbyNOTAMs = []
-        nearbyAirports = []
+        errorMessage = nil
+        if !keepDisplayedNOTAMs {
+            nearbyNOTAMs = []
+            nearbyAirports = []
+        }
     }
     
     // MARK: - Private Helpers

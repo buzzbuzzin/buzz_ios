@@ -57,6 +57,7 @@ struct NOTAMView: View {
             await loadNOTAMData()
         }
         .refreshable {
+            guard !notamService.isLoading else { return }
             notamService.clearCache()
             await loadNOTAMData()
         }

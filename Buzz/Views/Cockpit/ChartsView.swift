@@ -19,6 +19,8 @@ struct ChartsView: View {
     )
     @State private var currentZoomLevel: Int = 10
     @State private var centerRequestCount: Int = 0  // Increment to request centering
+    @State private var cacheStatus: String = ""
+    @State private var overlayReloadID = UUID()
     
     var body: some View {
         ZStack {
@@ -29,6 +31,7 @@ struct ChartsView: View {
                 centerRequestCount: $centerRequestCount,
                 userLocation: locationManager.currentLocation
             )
+            .id(overlayReloadID)
             .ignoresSafeArea(edges: .top)
             
             // Overlay Controls
@@ -99,7 +102,7 @@ struct ChartsView: View {
                 Spacer()
                 
                 // Chart Info Card
-                ChartInfoCard()
+                ChartInfoCard(cacheStatus: cacheStatus)
                     .padding()
             }
         }
@@ -108,13 +111,28 @@ struct ChartsView: View {
         .onAppear {
             locationManager.requestPermission()
             locationManager.startLocationUpdates()
-            
+
             // Center on user location when available
             if let location = locationManager.currentLocation {
                 region = MKCoordinateRegion(
                     center: location,
                     span: MKCoordinateSpan(latitudeDelta: 0.5, longitudeDelta: 0.5)
                 )
+            }
+
+            // Check for new FAA chart editions and update cache status
+            let cache = VFRChartCacheService.shared
+            cacheStatus = cache.cacheSizeDescription
+            Task {
+                let didInvalidate = await cache.checkForUpdates()
+                await MainActor.run {
+                    if didInvalidate {
+                        overlayReloadID = UUID()
+                        cacheStatus = "Updated: new FAA edition"
+                    } else {
+                        cacheStatus = cache.cacheSizeDescription
+                    }
+                }
             }
         }
         .onDisappear {
@@ -327,17 +345,35 @@ struct VFRMapView: UIViewRepresentable {
 // MARK: - VFR Tile Overlay
 
 class VFRTileOverlay: MKTileOverlay {
+    private let cache = VFRChartCacheService.shared
+
     init() {
         // FAA VFR Sectional tile service URL template
         // ArcGIS uses /tile/z/y/x format
         let template = "https://tiles.arcgis.com/tiles/ssFJjBXIUyZDrSYZ/arcgis/rest/services/VFR_Sectional/MapServer/tile/{z}/{y}/{x}"
         super.init(urlTemplate: template)
-        
+
         // Configure tile overlay
         self.minimumZ = 8  // Valid zoom range for reliable tile loading
         self.maximumZ = 12 // Limit to Z12 to ensure tiles are always available
         self.tileSize = CGSize(width: 256, height: 256)
         self.canReplaceMapContent = false // Show base map underneath
+    }
+
+    override func loadTile(at path: MKTileOverlayPath, result: @escaping (Data?, Error?) -> Void) {
+        // Check disk cache first
+        if let cachedData = cache.cachedTile(z: path.z, y: path.y, x: path.x) {
+            result(cachedData, nil)
+            return
+        }
+
+        // Fetch from network and persist to disk cache
+        super.loadTile(at: path) { [weak self] data, error in
+            if let data = data, error == nil {
+                self?.cache.cacheTile(data: data, z: path.z, y: path.y, x: path.x)
+            }
+            result(data, error)
+        }
     }
 }
 
@@ -373,23 +409,31 @@ struct ZoomWarningCard: View {
 // MARK: - Chart Info Card
 
 struct ChartInfoCard: View {
+    var cacheStatus: String = ""
+
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: "info.circle.fill")
                 .font(.title3)
                 .foregroundColor(.blue)
-            
+
             VStack(alignment: .leading, spacing: 4) {
                 Text("FAA VFR Sectional")
                     .font(.subheadline)
                     .fontWeight(.medium)
                     .foregroundColor(.primary)
-                
-                Text("Official aviation charts • Updated regularly")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+
+                if cacheStatus.isEmpty || cacheStatus == "Empty" {
+                    Text("Official aviation charts • Auto-updated with FAA editions")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                } else {
+                    Text("Cached: \(cacheStatus)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
             }
-            
+
             Spacer()
         }
         .padding()
