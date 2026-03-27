@@ -10,6 +10,7 @@ import SwiftUI
 struct UpdatePopupView: View {
     @ObservedObject var updateService: AppUpdateService
     @Binding var isPresented: Bool
+    private let changelogURL = URL(string: "https://www.buzzbuzzin.com/changelog")
 
     var body: some View {
         ZStack {
@@ -42,6 +43,19 @@ struct UpdatePopupView: View {
                     .foregroundColor(.secondary)
                     .padding(.horizontal, 20)
                     .lineSpacing(4)
+
+                if let changelogURL {
+                    VStack(spacing: 6) {
+                        Text("For detailed change logs about the new version, you can click the link below.")
+                            .font(.footnote)
+                            .multilineTextAlignment(.center)
+                            .foregroundColor(.secondary)
+
+                        Link("https://www.buzzbuzzin.com/changelog", destination: changelogURL)
+                            .font(.footnote)
+                    }
+                    .padding(.horizontal, 20)
+                }
 
                 // Version info (if available)
                 if let latestVersion = updateService.latestVersion {
