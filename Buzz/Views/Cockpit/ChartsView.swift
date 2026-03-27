@@ -9,8 +9,10 @@ import SwiftUI
 import MapKit
 import CoreLocation
 import Combine
+import UIKit
 
 struct ChartsView: View {
+    @Environment(\.openURL) private var openURL
     @Binding var isPresented: Bool
     @StateObject private var locationManager = ChartsLocationManager()
     @StateObject private var overlayManager = ChartsOverlayManager()
@@ -22,6 +24,9 @@ struct ChartsView: View {
     @State private var centerRequestCount: Int = 0
     @State private var cacheStatus: String = ""
     @State private var tileReloadRequestCount: Int = 0
+    @State private var pendingCenterOnUserLocation = false
+    @State private var locationStatusMessage: String?
+    @State private var locationAlert: ChartsAlertContent?
 
     var body: some View {
         ZStack {
@@ -100,6 +105,8 @@ struct ChartsView: View {
                                 .clipShape(Circle())
                                 .shadow(radius: 2)
                         }
+                        .accessibilityLabel("Center on my location")
+                        .accessibilityHint("Centers the chart on your current position.")
                     }
                 }
                 .padding()
@@ -112,6 +119,29 @@ struct ChartsView: View {
                         .transition(.move(edge: .top).combined(with: .opacity))
                 }
 
+                if let overlayMessage = overlayManager.overlayErrorMessage {
+                    ChartsStatusBanner(
+                        systemImage: "exclamationmark.triangle.fill",
+                        message: overlayMessage,
+                        tint: .orange,
+                        actionTitle: "Retry",
+                        action: { overlayManager.retryVisibleOverlays() },
+                        onDismiss: { overlayManager.overlayErrorMessage = nil }
+                    )
+                    .padding(.horizontal)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                }
+
+                if let locationStatusMessage {
+                    ChartsStatusBanner(
+                        systemImage: "location.fill",
+                        message: locationStatusMessage,
+                        tint: .blue
+                    )
+                    .padding(.horizontal)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                }
+
                 Spacer()
 
                 // Bottom Card: Query result only (no persistent info card)
@@ -119,6 +149,7 @@ struct ChartsView: View {
                     LocationQueryCard(
                         result: overlayManager.queryResult ?? placeholderQueryResult,
                         isLoading: overlayManager.isQueryLoading,
+                        errorMessage: overlayManager.queryErrorMessage,
                         onDismiss: { overlayManager.dismissQuery() }
                     )
                     .padding()
@@ -173,8 +204,25 @@ struct ChartsView: View {
             locationManager.stopLocationUpdates()
         }
         .onReceive(locationManager.$currentLocation) { newLocation in
+            guard let location = newLocation else { return }
+
+            let shouldCenterOnPendingRequest = pendingCenterOnUserLocation
+            locationStatusMessage = nil
+            pendingCenterOnUserLocation = false
+
+            if shouldCenterOnPendingRequest {
+                withAnimation(.easeInOut(duration: 0.5)) {
+                    region = MKCoordinateRegion(
+                        center: location,
+                        span: MKCoordinateSpan(latitudeDelta: 0.2, longitudeDelta: 0.2)
+                    )
+                }
+                centerRequestCount += 1
+                return
+            }
+
             // Center on first location update if we haven't moved yet
-            if let location = newLocation, region.center.latitude == LocationHelper.shared.defaultSimulatorLocation.latitude {
+            if region.center.latitude == LocationHelper.shared.defaultSimulatorLocation.latitude {
                 withAnimation(.easeInOut(duration: 0.5)) {
                     region = MKCoordinateRegion(
                         center: location,
@@ -182,6 +230,29 @@ struct ChartsView: View {
                     )
                 }
             }
+        }
+        .onReceive(locationManager.$authorizationStatus) { status in
+            guard pendingCenterOnUserLocation else { return }
+
+            if status == .denied || status == .restricted {
+                pendingCenterOnUserLocation = false
+                locationStatusMessage = nil
+                locationAlert = ChartsAlertContent(
+                    title: "Location Access Needed",
+                    message: "Enable location access in Settings to center the chart on your current position.",
+                    showsSettingsAction: true
+                )
+            }
+        }
+        .onReceive(locationManager.$lastErrorMessage.compactMap { $0 }) { message in
+            guard pendingCenterOnUserLocation else { return }
+            pendingCenterOnUserLocation = false
+            locationStatusMessage = nil
+            locationAlert = ChartsAlertContent(
+                title: "Location Unavailable",
+                message: message,
+                showsSettingsAction: false
+            )
         }
         .sheet(isPresented: $overlayManager.showMETARDetail) {
             if overlayManager.isStationDetailLoading {
@@ -220,6 +291,25 @@ struct ChartsView: View {
                 }
             }
         }
+        .alert(item: $locationAlert) { alert in
+            if alert.showsSettingsAction {
+                return Alert(
+                    title: Text(alert.title),
+                    message: Text(alert.message),
+                    primaryButton: .default(Text("Open Settings")) {
+                        guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+                        openURL(url)
+                    },
+                    secondaryButton: .cancel()
+                )
+            }
+
+            return Alert(
+                title: Text(alert.title),
+                message: Text(alert.message),
+                dismissButton: .default(Text("OK"))
+            )
+        }
     }
 
     private var zoomLevelColor: Color {
@@ -232,6 +322,8 @@ struct ChartsView: View {
 
     private func centerOnUserLocation() {
         if let userLocation = locationManager.currentLocation {
+            pendingCenterOnUserLocation = false
+            locationStatusMessage = nil
             region = MKCoordinateRegion(
                 center: userLocation,
                 span: MKCoordinateSpan(latitudeDelta: 0.2, longitudeDelta: 0.2)
@@ -240,8 +332,22 @@ struct ChartsView: View {
             return
         }
 
+        pendingCenterOnUserLocation = true
+
         if locationManager.authorizationStatus == .notDetermined {
+            locationStatusMessage = "Allow location access to center on your current position."
             locationManager.requestPermission()
+        } else if locationManager.authorizationStatus == .denied || locationManager.authorizationStatus == .restricted {
+            pendingCenterOnUserLocation = false
+            locationStatusMessage = nil
+            locationAlert = ChartsAlertContent(
+                title: "Location Access Needed",
+                message: "Enable location access in Settings to center the chart on your current position.",
+                showsSettingsAction: true
+            )
+            return
+        } else {
+            locationStatusMessage = "Finding your current position..."
         }
 
         locationManager.startLocationUpdates()
@@ -260,6 +366,13 @@ struct ChartsView: View {
             distanceToNearestMETAR: nil
         )
     }
+}
+
+private struct ChartsAlertContent: Identifiable {
+    let id = UUID()
+    let title: String
+    let message: String
+    let showsSettingsAction: Bool
 }
 
 // MARK: - VFR Map View (UIViewRepresentable)
@@ -649,6 +762,46 @@ struct ZoomWarningCard: View {
     }
 }
 
+struct ChartsStatusBanner: View {
+    let systemImage: String
+    let message: String
+    let tint: Color
+    var actionTitle: String? = nil
+    var action: (() -> Void)? = nil
+    var onDismiss: (() -> Void)? = nil
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: systemImage)
+                .font(.headline)
+                .foregroundColor(tint)
+
+            Text(message)
+                .font(.subheadline)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Spacer(minLength: 8)
+
+            if let actionTitle, let action {
+                Button(actionTitle, action: action)
+                    .font(.caption.weight(.semibold))
+            }
+
+            if let onDismiss {
+                Button(action: onDismiss) {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundColor(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(12)
+        .background(Color(.systemBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .shadow(color: Color.black.opacity(0.12), radius: 4, x: 0, y: 2)
+    }
+}
+
 // MARK: - Chart Info Card
 
 struct ChartInfoCard: View {
@@ -694,6 +847,7 @@ class ChartsLocationManager: NSObject, ObservableObject, CLLocationManagerDelega
 
     @Published var authorizationStatus: CLAuthorizationStatus = .notDetermined
     @Published var currentLocation: CLLocationCoordinate2D?
+    @Published var lastErrorMessage: String?
 
     override init() {
         super.init()
@@ -711,6 +865,8 @@ class ChartsLocationManager: NSObject, ObservableObject, CLLocationManagerDelega
     }
 
     func startLocationUpdates() {
+        lastErrorMessage = nil
+
         if locationHelper.isRunningInSimulator && currentLocation == nil {
             currentLocation = locationHelper.defaultSimulatorLocation
         }
@@ -745,11 +901,13 @@ class ChartsLocationManager: NSObject, ObservableObject, CLLocationManagerDelega
 
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         guard let location = locations.last else { return }
+        lastErrorMessage = nil
         currentLocation = location.coordinate
     }
 
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
         print("Charts location manager error: \(error.localizedDescription)")
+        lastErrorMessage = "Unable to determine your current location. Please try again."
 
         if locationHelper.isRunningInSimulator && currentLocation == nil {
             currentLocation = locationHelper.defaultSimulatorLocation

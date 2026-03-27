@@ -11,6 +11,18 @@ import Combine
 
 // MARK: - ArcGIS Response Models
 
+struct AirspaceQuerySnapshot: Equatable {
+    let airspaceClass: AirspaceClass
+    let laancGridCeiling: Int?
+    let hasLAANCCoverage: Bool
+
+    static let unavailable = AirspaceQuerySnapshot(
+        airspaceClass: .unknown,
+        laancGridCeiling: nil,
+        hasLAANCCoverage: false
+    )
+}
+
 struct ArcGISQueryResponse: Codable {
     let features: [ArcGISFeature]
 }
@@ -94,6 +106,7 @@ class ArcGISAirspaceService: ObservableObject {
     // Cache
     private var lastFetchCoordinate: CLLocationCoordinate2D?
     private var lastFetchTime: Date?
+    private var cachedSnapshot: AirspaceQuerySnapshot?
     private let cacheValiditySeconds: TimeInterval = 300 // 5 minutes
 
     // MARK: - Public Methods
@@ -102,49 +115,43 @@ class ArcGISAirspaceService: ObservableObject {
     /// Step 1: Query UASFM (LAANC grid) first for ceiling
     /// Step 2: If no UASFM data, query Class Airspace to determine if manual auth needed
     func fetchAirspaceData(coordinate: CLLocationCoordinate2D) async {
-        // Check cache
-        if let lastCoord = lastFetchCoordinate,
-           let lastTime = lastFetchTime,
-           Date().timeIntervalSince(lastTime) < cacheValiditySeconds,
-           abs(lastCoord.latitude - coordinate.latitude) < 0.0001,
-           abs(lastCoord.longitude - coordinate.longitude) < 0.0001 {
-            return // Use cached data
-        }
-
         isLoading = true
         errorMessage = nil
 
         do {
-            // STEP 1: Query UASFM (LAANC grid) first
-            let fetchedCeiling = try await fetchLAANCGridCeiling(coordinate: coordinate)
-
-            if let ceiling = fetchedCeiling {
-                // UASFM hit - we have LAANC coverage at this location
-                self.laancGridCeiling = ceiling
-                self.hasLAANCCoverage = true
-
-                // Still fetch airspace class for display purposes
-                let fetchedAirspaceClass = try await fetchAirspaceClass(coordinate: coordinate)
-                self.airspaceClass = fetchedAirspaceClass
-            } else {
-                // STEP 2: No UASFM data - check Class Airspace
-                self.laancGridCeiling = nil
-                self.hasLAANCCoverage = false
-
-                let fetchedAirspaceClass = try await fetchAirspaceClass(coordinate: coordinate)
-                self.airspaceClass = fetchedAirspaceClass
-            }
-
-            // Update cache
-            lastFetchCoordinate = coordinate
-            lastFetchTime = Date()
-
+            let snapshot = try await fetchAirspaceSnapshot(coordinate: coordinate, persistResult: true)
+            apply(snapshot: snapshot)
             isLoading = false
         } catch {
+            apply(snapshot: .unavailable)
+            authorizationStatus = .pending
             isLoading = false
             errorMessage = error.localizedDescription
             print("ArcGIS fetch error: \(error.localizedDescription)")
         }
+    }
+
+    func fetchAirspaceSnapshot(
+        coordinate: CLLocationCoordinate2D,
+        persistResult: Bool = false
+    ) async throws -> AirspaceQuerySnapshot {
+        if let cachedSnapshot, isCacheValid(for: coordinate) {
+            return cachedSnapshot
+        }
+
+        let fetchedCeiling = try await fetchLAANCGridCeiling(coordinate: coordinate)
+        let fetchedAirspaceClass = try await fetchAirspaceClass(coordinate: coordinate)
+        let snapshot = AirspaceQuerySnapshot(
+            airspaceClass: fetchedAirspaceClass,
+            laancGridCeiling: fetchedCeiling,
+            hasLAANCCoverage: fetchedCeiling != nil
+        )
+
+        if persistResult {
+            cache(snapshot: snapshot, coordinate: coordinate)
+        }
+
+        return snapshot
     }
 
     /// Fetch airspace class for given coordinates
@@ -307,6 +314,33 @@ class ArcGISAirspaceService: ObservableObject {
     }
 
     // MARK: - Private Helpers
+
+    private func isCacheValid(for coordinate: CLLocationCoordinate2D) -> Bool {
+        guard let lastCoord = lastFetchCoordinate,
+              let lastTime = lastFetchTime,
+              let cachedSnapshot else {
+            return false
+        }
+
+        let isFresh = Date().timeIntervalSince(lastTime) < cacheValiditySeconds
+        let isSameCoordinate =
+            abs(lastCoord.latitude - coordinate.latitude) < 0.0001 &&
+            abs(lastCoord.longitude - coordinate.longitude) < 0.0001
+
+        return isFresh && isSameCoordinate && cachedSnapshot != .unavailable
+    }
+
+    private func cache(snapshot: AirspaceQuerySnapshot, coordinate: CLLocationCoordinate2D) {
+        cachedSnapshot = snapshot
+        lastFetchCoordinate = coordinate
+        lastFetchTime = Date()
+    }
+
+    private func apply(snapshot: AirspaceQuerySnapshot) {
+        airspaceClass = snapshot.airspaceClass
+        laancGridCeiling = snapshot.laancGridCeiling
+        hasLAANCCoverage = snapshot.hasLAANCCoverage
+    }
 
     private func parseAirspaceClass(_ value: String) -> AirspaceClass {
         let uppercased = value.uppercased()

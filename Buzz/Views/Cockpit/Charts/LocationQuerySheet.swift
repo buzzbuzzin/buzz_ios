@@ -43,6 +43,7 @@ struct LocationQueryResult: Identifiable {
 struct LocationQueryCard: View {
     let result: LocationQueryResult
     let isLoading: Bool
+    let errorMessage: String?
     let onDismiss: () -> Void
 
     var body: some View {
@@ -81,23 +82,39 @@ struct LocationQueryCard: View {
                         .foregroundColor(.secondary)
                     Text(result.formattedCoordinate)
                         .font(.system(.caption, design: .monospaced))
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
 
                 // Info grid
-                HStack(spacing: 12) {
-                    // Airspace class
-                    infoPill(
-                        label: "Airspace",
-                        value: airspaceDisplayText,
-                        color: airspaceColor
-                    )
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 12) {
+                        infoPill(
+                            label: "Airspace",
+                            value: airspaceDisplayText,
+                            color: airspaceColor
+                        )
 
-                    // LAANC
-                    infoPill(
-                        label: "LAANC",
-                        value: laancDisplayText,
-                        color: laancColor
-                    )
+                        infoPill(
+                            label: "LAANC",
+                            value: laancDisplayText,
+                            color: laancColor
+                        )
+                    }
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        infoPill(
+                            label: "Airspace",
+                            value: airspaceDisplayText,
+                            color: airspaceColor
+                        )
+
+                        infoPill(
+                            label: "LAANC",
+                            value: laancDisplayText,
+                            color: laancColor
+                        )
+                    }
                 }
 
                 // Nearest METAR
@@ -121,6 +138,13 @@ struct LocationQueryCard: View {
                                 .foregroundColor(.secondary)
                         }
                     }
+                }
+
+                if let errorMessage, !errorMessage.isEmpty {
+                    Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundColor(.orange)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
         }

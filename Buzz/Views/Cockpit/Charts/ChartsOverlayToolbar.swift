@@ -15,13 +15,15 @@ struct ChartsOverlayToolbar: View {
         VStack(spacing: 6) {
             OverlayToggleButton(
                 icon: "cloud.sun.fill",
-                label: "WX",
+                title: "Weather",
+                accessibilityHint: "Shows nearby METAR weather stations on the chart.",
                 isActive: $showMETAROverlay
             )
 
             OverlayToggleButton(
                 icon: "square.dashed",
-                label: "AS",
+                title: "Airspace",
+                accessibilityHint: "Shows controlled airspace boundaries on the chart.",
                 isActive: $showAirspaceOverlay
             )
         }
@@ -32,7 +34,8 @@ struct ChartsOverlayToolbar: View {
 
 private struct OverlayToggleButton: View {
     let icon: String
-    let label: String
+    let title: String
+    let accessibilityHint: String
     @Binding var isActive: Bool
 
     var body: some View {
@@ -43,15 +46,22 @@ private struct OverlayToggleButton: View {
         } label: {
             VStack(spacing: 2) {
                 Image(systemName: icon)
-                    .font(.caption)
-                Text(label)
-                    .font(.system(size: 8, weight: .semibold))
+                    .font(.caption.weight(.semibold))
+                Text(title)
+                    .font(.system(size: 9, weight: .semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
             }
             .foregroundColor(isActive ? .white : .secondary)
-            .frame(width: 36, height: 36)
+            .frame(minWidth: 58, minHeight: 46)
             .background(isActive ? Color.blue : Color(.systemBackground))
             .clipShape(RoundedRectangle(cornerRadius: 8))
             .shadow(radius: 2)
         }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(title)
+        .accessibilityValue(isActive ? "On" : "Off")
+        .accessibilityHint(accessibilityHint)
     }
 }

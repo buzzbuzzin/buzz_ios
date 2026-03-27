@@ -32,6 +32,7 @@ struct TAFView: View {
             await loadTAFData()
         }
         .refreshable {
+            guard !tafService.isLoading else { return }
             tafService.clearCache()
             await loadTAFData()
         }
