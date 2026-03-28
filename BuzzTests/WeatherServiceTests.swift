@@ -523,4 +523,93 @@ struct WeatherServiceTests {
         #expect(weather.temperatureMin == 62.0)
         #expect(weather.temperatureMax == 78.0)
     }
+
+    @Test func normalizedICAOCode_uppercasesAndTrimsToFourCharacters() {
+        #expect(" kjfk ".normalizedICAOCode == "KJFK")
+        #expect("c y y z".normalizedICAOCode == "CYYZ")
+        #expect("egll123".normalizedICAOCode == "EGLL")
+    }
+
+    @Test func aviationWeatherAirportDisplayName_prefersNameAndRegion() {
+        let airport = AviationWeatherAirportInfo(
+            icaoId: "KJFK",
+            iataId: "JFK",
+            faaId: "JFK",
+            name: "NEW YORK/JOHN F KENNEDY INTL ",
+            state: "NY",
+            country: "US",
+            lat: 40.6399,
+            lon: -73.7787,
+            elev: 4
+        )
+
+        #expect(airport.displayName == "NEW YORK/JOHN F KENNEDY INTL, NY")
+        #expect(airport.coordinate?.latitude == 40.6399)
+        #expect(airport.coordinate?.longitude == -73.7787)
+    }
+
+    @Test func metarSelectFreshestResponses_keepsNewestObservationPerStation() {
+        let responses = [
+            METARAPIResponse(
+                icaoId: "KITH",
+                name: "Ithaca",
+                rawOb: "old",
+                reportTime: "2026-03-28T03:00:00.000Z",
+                lat: 42.49,
+                lon: -76.45,
+                temp: nil,
+                dewp: nil,
+                wdir: nil,
+                wspd: nil,
+                wgst: nil,
+                visib: nil,
+                altim: nil,
+                fltCat: nil,
+                clouds: nil,
+                wxString: nil
+            ),
+            METARAPIResponse(
+                icaoId: "KITH",
+                name: "Ithaca",
+                rawOb: "new",
+                reportTime: "2026-03-28T04:00:00.000Z",
+                lat: 42.49,
+                lon: -76.45,
+                temp: nil,
+                dewp: nil,
+                wdir: nil,
+                wspd: nil,
+                wgst: nil,
+                visib: nil,
+                altim: nil,
+                fltCat: nil,
+                clouds: nil,
+                wxString: nil
+            ),
+            METARAPIResponse(
+                icaoId: "KSYR",
+                name: "Syracuse",
+                rawOb: "syr",
+                reportTime: "2026-03-28T04:00:00.000Z",
+                lat: 43.11,
+                lon: -76.10,
+                temp: nil,
+                dewp: nil,
+                wdir: nil,
+                wspd: nil,
+                wgst: nil,
+                visib: nil,
+                altim: nil,
+                fltCat: nil,
+                clouds: nil,
+                wxString: nil
+            )
+        ]
+
+        let freshest = METARService.selectFreshestResponses(responses)
+
+        #expect(freshest.count == 2)
+        #expect(freshest.first(where: { $0.icaoId == "KITH" })?.rawOb == "new")
+        #expect(freshest.first(where: { $0.icaoId == "KSYR" })?.rawOb == "syr")
+    }
 }

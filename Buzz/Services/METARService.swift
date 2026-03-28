@@ -169,7 +169,7 @@ class METARService: ObservableObject {
         }
         
         // Convert API responses to METAR models
-        return metarResponses.compactMap { response -> METAR? in
+        return Self.selectFreshestResponses(metarResponses).compactMap { response -> METAR? in
             guard let stationId = response.icaoId,
                   let rawText = response.rawOb else {
                 return nil
@@ -252,6 +252,32 @@ class METARService: ObservableObject {
         if !keepDisplayedMETARs {
             nearbyMETARs = []
         }
+    }
+
+    static func selectFreshestResponses(_ responses: [METARAPIResponse]) -> [METARAPIResponse] {
+        let groupedResponses = Dictionary(grouping: responses) { response in
+            response.icaoId ?? UUID().uuidString
+        }
+
+        return groupedResponses.values.compactMap { stationResponses in
+            stationResponses.max { lhs, rhs in
+                parseReportTime(lhs.reportTime) < parseReportTime(rhs.reportTime)
+            }
+        }
+    }
+
+    private static func parseReportTime(_ reportTimeString: String?) -> Date {
+        guard let reportTimeString, !reportTimeString.isEmpty else { return .distantPast }
+
+        let formatterWithFractionalSeconds = ISO8601DateFormatter()
+        formatterWithFractionalSeconds.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let parsedDate = formatterWithFractionalSeconds.date(from: reportTimeString) {
+            return parsedDate
+        }
+
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter.date(from: reportTimeString) ?? .distantPast
     }
 }
 

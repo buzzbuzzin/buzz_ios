@@ -557,6 +557,10 @@ struct ConditionMetric: View {
 struct METARSectionView: View {
     @ObservedObject var metarService: METARService
     let userCoordinate: CLLocationCoordinate2D?
+    var title: String = "Nearby METAR Reports"
+    var helperText: String? = nil
+    var loadingMessage: String = "Loading aviation weather..."
+    var emptyStateTitle: String = "No nearby airports found"
     
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -565,38 +569,58 @@ struct METARSectionView: View {
                 Image(systemName: "airplane.departure")
                     .font(.title3)
                     .foregroundColor(.blue)
-                Text("Nearby METAR Reports")
-                    .font(.headline)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(title)
+                        .font(.headline)
+                    if let helperText {
+                        Text(helperText)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
                 Spacer()
             }
             
-            if metarService.isLoading {
-                HStack {
-                    Spacer()
-                    ProgressView()
-                    Text("Loading aviation weather...")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                    Spacer()
+            if metarService.nearbyMETARs.isEmpty {
+                if metarService.isLoading {
+                    HStack {
+                        Spacer()
+                        ProgressView()
+                        Text(loadingMessage)
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                        Spacer()
+                    }
+                    .padding(.vertical, 20)
+                } else {
+                    VStack(spacing: 8) {
+                        Image(systemName: "airplane.circle")
+                            .font(.system(size: 32))
+                            .foregroundColor(.secondary)
+                        Text(emptyStateTitle)
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                        if let error = metarService.errorMessage {
+                            Text(error)
+                                .font(.caption)
+                                .foregroundColor(.red)
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 20)
                 }
-                .padding(.vertical, 20)
-            } else if metarService.nearbyMETARs.isEmpty {
-                VStack(spacing: 8) {
-                    Image(systemName: "airplane.circle")
-                        .font(.system(size: 32))
-                        .foregroundColor(.secondary)
-                    Text("No nearby airports found")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                    if let error = metarService.errorMessage {
-                        Text(error)
+            } else {
+                if metarService.isLoading {
+                    HStack(spacing: 8) {
+                        ProgressView()
+                            .controlSize(.small)
+                        Text("Refreshing aviation weather...")
                             .font(.caption)
-                            .foregroundColor(.red)
+                            .foregroundColor(.secondary)
+                        Spacer()
                     }
                 }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 20)
-            } else {
+
                 ForEach(metarService.nearbyMETARs) { metar in
                     METARCard(metar: metar, userCoordinate: userCoordinate)
                 }

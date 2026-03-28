@@ -11,29 +11,76 @@ import Auth
 
 struct TAFView: View {
     @EnvironmentObject var authService: AuthService
-    @StateObject private var tafService = TAFService()
+    @StateObject private var nearbyTAFService = TAFService()
+    @StateObject private var searchedTAFService = TAFService()
     @StateObject private var locationManager = WeatherLocationManager()
+    private let airportLookupService = AviationWeatherAirportLookupService()
+
+    @State private var airportSearchQuery = ""
+    @State private var activeAirport: AviationWeatherAirportInfo?
+    @State private var searchErrorMessage: String?
+    @State private var isSearchingAirport = false
 
     private var locationObservationKey: String? {
         guard let location = locationManager.currentLocation else { return nil }
         return String(format: "%.6f,%.6f", location.latitude, location.longitude)
     }
 
+    private var airportSearchBinding: Binding<String> {
+        Binding(
+            get: { airportSearchQuery },
+            set: { airportSearchQuery = $0.normalizedICAOCode }
+        )
+    }
+
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
-                TAFSectionView(tafService: tafService, userCoordinate: locationManager.currentLocation)
+                AirportWeatherSearchCard(
+                    airportCode: airportSearchBinding,
+                    activeAirport: activeAirport,
+                    isSearching: isSearchingAirport,
+                    errorMessage: searchErrorMessage,
+                    onSearch: {
+                        Task {
+                            await searchForAirport()
+                        }
+                    },
+                    onClear: {
+                        clearAirportSearch()
+                    }
+                )
+
+                if let activeAirport, let searchCoordinate = activeAirport.coordinate {
+                    TAFSectionView(
+                        tafService: searchedTAFService,
+                        userCoordinate: searchCoordinate,
+                        title: "TAF Around \(activeAirport.icaoId)",
+                        helperText: "Search results centered on \(activeAirport.displayName). Distances are measured from this airport.",
+                        loadingMessage: "Loading searched TAF reports...",
+                        emptyStateTitle: "No TAF forecasts found around \(activeAirport.icaoId)"
+                    )
+                }
+
+                TAFSectionView(
+                    tafService: nearbyTAFService,
+                    userCoordinate: locationManager.currentLocation
+                )
             }
             .padding()
         }
+        .scrollDismissesKeyboard(.interactively)
         .navigationTitle("TAF")
         .navigationBarTitleDisplayMode(.inline)
         .task {
-            await loadTAFData()
+            await refreshAllData()
         }
         .refreshable {
-            guard !tafService.isLoading else { return }
-            await loadTAFData(forceRefresh: true)
+            guard !nearbyTAFService.isLoading, !searchedTAFService.isLoading, !isSearchingAirport else { return }
+            await refreshAllData(forceRefresh: true)
+        }
+        .onChange(of: airportSearchQuery) { _, newValue in
+            handleAirportSearchQueryChange(newValue)
         }
         .onChange(of: locationObservationKey) { _, newKey in
             if newKey != nil {
@@ -44,7 +91,23 @@ struct TAFView: View {
         }
     }
 
-    private func loadTAFData(forceRefresh: Bool = false) async {
+    private func refreshAllData(forceRefresh: Bool = false) async {
+        await loadNearbyTAFs(forceRefresh: forceRefresh)
+
+        if let activeAirport,
+           let searchCoordinate = activeAirport.coordinate {
+            await loadSearchTAFs(
+                for: activeAirport,
+                coordinate: searchCoordinate,
+                forceRefresh: forceRefresh
+            )
+        }
+    }
+
+    private func loadNearbyTAFs(forceRefresh: Bool = false) async {
+        guard let userProfile = authService.userProfile,
+              userProfile.userType == .pilot else { return }
+
         if locationManager.authorizationStatus == .notDetermined {
             locationManager.requestPermission()
         }
@@ -53,13 +116,6 @@ struct TAFView: View {
             locationManager.startLocationUpdates()
             try? await Task.sleep(nanoseconds: 500_000_000)
         }
-
-        await loadNearbyTAFs(forceRefresh: forceRefresh)
-    }
-
-    private func loadNearbyTAFs(forceRefresh: Bool = false) async {
-        guard let userProfile = authService.userProfile,
-              userProfile.userType == .pilot else { return }
 
         var deviceLocation: CLLocationCoordinate2D? = locationManager.currentLocation
         if deviceLocation == nil {
@@ -73,19 +129,98 @@ struct TAFView: View {
         }
 
         guard let location = deviceLocation else {
-            tafService.errorMessage = "Location unavailable. Enable location access to load nearby TAFs."
+            nearbyTAFService.errorMessage = "Location unavailable. Enable location access to load nearby TAFs."
             print("Unable to get device location for TAF")
             return
         }
 
         do {
-            _ = try await tafService.fetchTAFsNearLocation(
+            _ = try await nearbyTAFService.fetchTAFsNearLocation(
                 coordinate: location,
                 forceRefresh: forceRefresh
             )
         } catch {
             print("Error fetching nearby TAFs: \(error.localizedDescription)")
         }
+    }
+
+    private func loadSearchTAFs(
+        for airport: AviationWeatherAirportInfo,
+        coordinate: CLLocationCoordinate2D,
+        forceRefresh: Bool = false
+    ) async {
+        guard let userProfile = authService.userProfile,
+              userProfile.userType == .pilot else { return }
+
+        do {
+            _ = try await searchedTAFService.fetchTAFsNearLocation(
+                coordinate: coordinate,
+                forceRefresh: forceRefresh
+            )
+        } catch {
+            searchedTAFService.errorMessage = "Unable to load TAF around \(airport.icaoId)."
+            print("Error fetching searched TAFs: \(error.localizedDescription)")
+        }
+    }
+
+    private func searchForAirport() async {
+        guard !isSearchingAirport else { return }
+
+        let normalizedCode = airportSearchQuery.normalizedICAOCode
+        guard normalizedCode.count == 4 else {
+            searchErrorMessage = AviationWeatherAirportLookupError.invalidICAOCode.errorDescription
+            return
+        }
+
+        isSearchingAirport = true
+        searchErrorMessage = nil
+        defer { isSearchingAirport = false }
+
+        do {
+            let previousAirportCode = activeAirport?.icaoId
+            if previousAirportCode != normalizedCode {
+                clearAirportResults()
+            }
+
+            let airport = try await airportLookupService.fetchAirport(
+                icaoCode: normalizedCode,
+                forceRefresh: true
+            )
+            guard let coordinate = airport.coordinate else {
+                throw AviationWeatherAirportLookupError.missingCoordinates(airport.icaoId)
+            }
+
+            airportSearchQuery = airport.icaoId
+            activeAirport = airport
+            await loadSearchTAFs(
+                for: airport,
+                coordinate: coordinate,
+                forceRefresh: true
+            )
+        } catch {
+            searchErrorMessage = error.localizedDescription
+        }
+    }
+
+    private func handleAirportSearchQueryChange(_ newValue: String) {
+        if searchErrorMessage != nil {
+            searchErrorMessage = nil
+        }
+
+        if newValue.isEmpty {
+            clearAirportSearch()
+        }
+    }
+
+    private func clearAirportResults() {
+        activeAirport = nil
+        searchedTAFService.clearCache(keepDisplayedTAFs: false)
+    }
+
+    private func clearAirportSearch() {
+        airportSearchQuery = ""
+        searchErrorMessage = nil
+        clearAirportResults()
     }
 }
 
@@ -94,6 +229,10 @@ struct TAFView: View {
 struct TAFSectionView: View {
     @ObservedObject var tafService: TAFService
     let userCoordinate: CLLocationCoordinate2D?
+    var title: String = "Nearby TAF Forecasts"
+    var helperText: String? = nil
+    var loadingMessage: String = "Loading TAF data..."
+    var emptyStateTitle: String = "No nearby TAF forecasts found"
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -101,8 +240,15 @@ struct TAFSectionView: View {
                 Image(systemName: "text.document.fill")
                     .font(.title3)
                     .foregroundColor(.blue)
-                Text("Nearby TAF Forecasts")
-                    .font(.headline)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(title)
+                        .font(.headline)
+                    if let helperText {
+                        Text(helperText)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
                 Spacer()
             }
 
@@ -111,7 +257,7 @@ struct TAFSectionView: View {
                     HStack {
                         Spacer()
                         ProgressView()
-                        Text("Loading TAF data...")
+                        Text(loadingMessage)
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                         Spacer()
@@ -122,7 +268,7 @@ struct TAFSectionView: View {
                         Image(systemName: "doc.text.magnifyingglass")
                             .font(.system(size: 32))
                             .foregroundColor(.secondary)
-                        Text("No nearby TAF forecasts found")
+                        Text(emptyStateTitle)
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                         if let error = tafService.errorMessage {
