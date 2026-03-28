@@ -38,6 +38,9 @@ struct ChartsView: View {
                 tileReloadRequestCount: $tileReloadRequestCount,
                 userLocation: locationManager.currentLocation,
                 metarAnnotations: overlayManager.showMETAROverlay ? overlayManager.metarAnnotations : [],
+                pirepAnnotations: overlayManager.showPIREPOverlay ? overlayManager.pirepAnnotations : [],
+                gairmetAdvisories: overlayManager.showGairmetOverlay ? overlayManager.gairmetAdvisories : [],
+                sigmetAdvisories: overlayManager.showSigmetOverlay ? overlayManager.sigmetAdvisories : [],
                 airspacePolygons: overlayManager.showAirspaceOverlay ? overlayManager.airspacePolygons : [],
                 queryPin: overlayManager.queryPin,
                 onRegionChanged: { newRegion in
@@ -45,6 +48,9 @@ struct ChartsView: View {
                 },
                 onAnnotationSelected: { annotation in
                     Task { await overlayManager.selectStation(annotation) }
+                },
+                onPIREPSelected: { annotation in
+                    overlayManager.selectPIREP(annotation)
                 },
                 onLongPress: { coordinate in
                     Task { await overlayManager.performLocationQuery(coordinate: coordinate) }
@@ -145,15 +151,29 @@ struct ChartsView: View {
                 Spacer()
 
                 // Bottom Card: Query result only (no persistent info card)
-                if overlayManager.queryResult != nil || overlayManager.isQueryLoading {
-                    LocationQueryCard(
-                        result: overlayManager.queryResult ?? placeholderQueryResult,
-                        isLoading: overlayManager.isQueryLoading,
-                        errorMessage: overlayManager.queryErrorMessage,
-                        onDismiss: { overlayManager.dismissQuery() }
+                VStack(spacing: 10) {
+                    ChartsWeatherSummaryCard(
+                        pireps: overlayManager.pirepAnnotations.map(\.pirep),
+                        gairmets: overlayManager.gairmetAdvisories,
+                        sigmets: overlayManager.sigmetAdvisories,
+                        showPIREPOverlay: overlayManager.showPIREPOverlay,
+                        showGairmetOverlay: overlayManager.showGairmetOverlay,
+                        showSigmetOverlay: overlayManager.showSigmetOverlay,
+                        selectedGairmetForecastHour: $overlayManager.selectedGairmetForecastHour
                     )
-                    .padding()
+                    .padding(.horizontal)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
+
+                    if overlayManager.queryResult != nil || overlayManager.isQueryLoading {
+                        LocationQueryCard(
+                            result: overlayManager.queryResult ?? placeholderQueryResult,
+                            isLoading: overlayManager.isQueryLoading,
+                            errorMessage: overlayManager.queryErrorMessage,
+                            onDismiss: { overlayManager.dismissQuery() }
+                        )
+                        .padding(.horizontal)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                    }
                 }
             }
 
@@ -164,6 +184,9 @@ struct ChartsView: View {
                     Spacer()
                     ChartsOverlayToolbar(
                         showMETAROverlay: $overlayManager.showMETAROverlay,
+                        showPIREPOverlay: $overlayManager.showPIREPOverlay,
+                        showGairmetOverlay: $overlayManager.showGairmetOverlay,
+                        showSigmetOverlay: $overlayManager.showSigmetOverlay,
                         showAirspaceOverlay: $overlayManager.showAirspaceOverlay
                     )
                     .padding(.trailing, 12)
@@ -291,6 +314,13 @@ struct ChartsView: View {
                 }
             }
         }
+        .sheet(item: $overlayManager.selectedPIREP) { pirep in
+            PIREPDetailSheet(
+                pirep: pirep,
+                onDismiss: { overlayManager.dismissPIREPDetail() }
+            )
+            .presentationDetents([.medium, .large])
+        }
         .alert(item: $locationAlert) { alert in
             if alert.showsSettingsAction {
                 return Alert(
@@ -363,7 +393,9 @@ struct ChartsView: View {
             hasLAANCCoverage: false,
             authorizationStatus: .pending,
             nearestMETAR: nil,
-            distanceToNearestMETAR: nil
+            distanceToNearestMETAR: nil,
+            nearestPIREP: nil,
+            distanceToNearestPIREP: nil
         )
     }
 }
@@ -386,12 +418,16 @@ struct VFRMapView: UIViewRepresentable {
 
     // Overlay data
     var metarAnnotations: [METARStationAnnotation]
+    var pirepAnnotations: [PIREPAnnotation]
+    var gairmetAdvisories: [GAIRMETAdvisory]
+    var sigmetAdvisories: [SIGMETAdvisory]
     var airspacePolygons: [AirspaceOverlayPolygon]
     var queryPin: QueryPinAnnotation?
 
     // Callbacks
     var onRegionChanged: ((MKCoordinateRegion) -> Void)?
     var onAnnotationSelected: ((METARStationAnnotation) -> Void)?
+    var onPIREPSelected: ((PIREPAnnotation) -> Void)?
     var onLongPress: ((CLLocationCoordinate2D) -> Void)?
 
     // Zoom level constraints for FAA VFR Sectional tiles
@@ -439,6 +475,7 @@ struct VFRMapView: UIViewRepresentable {
         // Update callbacks
         coordinator.onRegionChanged = onRegionChanged
         coordinator.onAnnotationSelected = onAnnotationSelected
+        coordinator.onPIREPSelected = onPIREPSelected
         coordinator.onLongPress = onLongPress
 
         // Handle tile reload (edition change)
@@ -463,6 +500,9 @@ struct VFRMapView: UIViewRepresentable {
         guard coordinator.shouldAcceptProgrammaticUpdate && !coordinator.hasUserInteracted else {
             // Still update overlays even if not re-centering
             updateAnnotations(mapView, context: context)
+            updatePIREPAnnotations(mapView)
+            updateGAIRMETOverlays(mapView)
+            updateSIGMETOverlays(mapView)
             updateAirspacePolygons(mapView, context: context)
             updateQueryPin(mapView, context: context)
             return
@@ -478,6 +518,9 @@ struct VFRMapView: UIViewRepresentable {
 
         // Update overlays
         updateAnnotations(mapView, context: context)
+        updatePIREPAnnotations(mapView)
+        updateGAIRMETOverlays(mapView)
+        updateSIGMETOverlays(mapView)
         updateAirspacePolygons(mapView, context: context)
         updateQueryPin(mapView, context: context)
     }
@@ -496,6 +539,83 @@ struct VFRMapView: UIViewRepresentable {
         }
         if !toAdd.isEmpty {
             mapView.addAnnotations(Array(toAdd))
+        }
+    }
+
+    private func updatePIREPAnnotations(_ mapView: MKMapView) {
+        let existing = Set(mapView.annotations.compactMap { $0 as? PIREPAnnotation })
+        let desired = Set(pirepAnnotations)
+
+        let toRemove = existing.subtracting(desired)
+        let toAdd = desired.subtracting(existing)
+
+        if !toRemove.isEmpty {
+            mapView.removeAnnotations(Array(toRemove))
+        }
+        if !toAdd.isEmpty {
+            mapView.addAnnotations(Array(toAdd))
+        }
+    }
+
+    private func updateGAIRMETOverlays(_ mapView: MKMapView) {
+        let existingIDs = Set(mapView.overlays.compactMap { overlay -> String? in
+            if let polygon = overlay as? MKPolygon, polygon.gairmetAdvisory != nil {
+                return polygon.weatherOverlayID
+            }
+            if let polyline = overlay as? MKPolyline, polyline.gairmetAdvisory != nil {
+                return polyline.weatherOverlayID
+            }
+            return nil
+        })
+        let desiredIDs = Set(gairmetAdvisories.map(\.id))
+
+        guard existingIDs != desiredIDs else { return }
+
+        let existing = mapView.overlays.filter { overlay in
+            if let polygon = overlay as? MKPolygon { return polygon.gairmetAdvisory != nil }
+            if let polyline = overlay as? MKPolyline { return polyline.gairmetAdvisory != nil }
+            return false
+        }
+        if !existing.isEmpty {
+            mapView.removeOverlays(existing)
+        }
+
+        for advisory in gairmetAdvisories {
+            switch advisory.geometryType {
+            case .area:
+                if let overlay = GAIRMETOverlayFactory.makePolygon(for: advisory) {
+                    mapView.addOverlay(overlay, level: .aboveLabels)
+                }
+            case .line:
+                if let overlay = GAIRMETOverlayFactory.makePolyline(for: advisory) {
+                    mapView.addOverlay(overlay, level: .aboveLabels)
+                }
+            default:
+                continue
+            }
+        }
+    }
+
+    private func updateSIGMETOverlays(_ mapView: MKMapView) {
+        let existingIDs = Set(mapView.overlays.compactMap { overlay -> String? in
+            (overlay as? MKPolygon)?.sigmetAdvisory != nil ? (overlay as? MKPolygon)?.weatherOverlayID : nil
+        })
+        let desiredIDs = Set(sigmetAdvisories.map(\.id))
+
+        guard existingIDs != desiredIDs else { return }
+
+        let existing = mapView.overlays.filter { overlay in
+            if let polygon = overlay as? MKPolygon { return polygon.sigmetAdvisory != nil }
+            return false
+        }
+        if !existing.isEmpty {
+            mapView.removeOverlays(existing)
+        }
+
+        for advisory in sigmetAdvisories {
+            if let overlay = SIGMETOverlayFactory.makePolygon(for: advisory) {
+                mapView.addOverlay(overlay, level: .aboveLabels)
+            }
         }
     }
 
@@ -549,6 +669,7 @@ struct VFRMapView: UIViewRepresentable {
         // Callbacks
         var onRegionChanged: ((MKCoordinateRegion) -> Void)?
         var onAnnotationSelected: ((METARStationAnnotation) -> Void)?
+        var onPIREPSelected: ((PIREPAnnotation) -> Void)?
         var onLongPress: ((CLLocationCoordinate2D) -> Void)?
 
         init(_ parent: VFRMapView) {
@@ -560,6 +681,29 @@ struct VFRMapView: UIViewRepresentable {
         func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
             if let tileOverlay = overlay as? MKTileOverlay {
                 return MKTileOverlayRenderer(tileOverlay: tileOverlay)
+            }
+
+            if let polygon = overlay as? MKPolygon, let advisory = polygon.gairmetAdvisory {
+                let renderer = MKPolygonRenderer(polygon: polygon)
+                configure(renderer, for: advisory.hazard)
+                return renderer
+            }
+
+            if let polyline = overlay as? MKPolyline, let advisory = polyline.gairmetAdvisory {
+                let renderer = MKPolylineRenderer(polyline: polyline)
+                renderer.strokeColor = gairmetStrokeColor(for: advisory.hazard)
+                renderer.lineWidth = advisory.hazard == .freezingLevel || advisory.hazard == .multipleFreezingLevels ? 2.5 : 2.0
+                renderer.lineDashPattern = [8, 5]
+                return renderer
+            }
+
+            if let polygon = overlay as? MKPolygon, let advisory = polygon.sigmetAdvisory {
+                let renderer = MKPolygonRenderer(polygon: polygon)
+                renderer.fillColor = UIColor.systemRed.withAlphaComponent(0.16)
+                renderer.strokeColor = UIColor.systemRed.withAlphaComponent(0.8)
+                renderer.lineWidth = 2.5
+                renderer.lineDashPattern = advisory.hazard == .convective ? nil : [8, 4]
+                return renderer
             }
 
             if let airspacePolygon = overlay as? AirspaceOverlayPolygon {
@@ -603,6 +747,10 @@ struct VFRMapView: UIViewRepresentable {
                 return METARAnnotationHelper.createMETARAnnotationView(for: metarAnnotation, in: mapView)
             }
 
+            if let pirepAnnotation = annotation as? PIREPAnnotation {
+                return ChartsWeatherOverlayHelper.createPIREPAnnotationView(for: pirepAnnotation, in: mapView)
+            }
+
             if let queryAnnotation = annotation as? QueryPinAnnotation {
                 return METARAnnotationHelper.createQueryPinView(for: queryAnnotation, in: mapView)
             }
@@ -616,6 +764,9 @@ struct VFRMapView: UIViewRepresentable {
             if let metarAnnotation = annotation as? METARStationAnnotation {
                 mapView.deselectAnnotation(annotation, animated: false)
                 onAnnotationSelected?(metarAnnotation)
+            } else if let pirepAnnotation = annotation as? PIREPAnnotation {
+                mapView.deselectAnnotation(annotation, animated: false)
+                onPIREPSelected?(pirepAnnotation)
             }
         }
 
@@ -699,6 +850,49 @@ struct VFRMapView: UIViewRepresentable {
             let longitudeDelta = mapView.region.span.longitudeDelta
             let zoomLevel = Int(round(log2(360.0 / longitudeDelta)))
             return max(0, min(20, zoomLevel))
+        }
+
+        private func configure(_ renderer: MKPolygonRenderer, for hazard: GAIRMETHazard) {
+            switch hazard {
+            case .ifr:
+                renderer.fillColor = UIColor.systemBlue.withAlphaComponent(0.12)
+                renderer.strokeColor = UIColor.systemBlue.withAlphaComponent(0.75)
+            case .mountainObscuration:
+                renderer.fillColor = UIColor.systemGray.withAlphaComponent(0.14)
+                renderer.strokeColor = UIColor.systemGray.withAlphaComponent(0.8)
+            case .icing:
+                renderer.fillColor = UIColor.systemTeal.withAlphaComponent(0.16)
+                renderer.strokeColor = UIColor.systemTeal.withAlphaComponent(0.85)
+            case .turbulenceLow, .turbulenceHigh:
+                renderer.fillColor = UIColor.systemOrange.withAlphaComponent(0.16)
+                renderer.strokeColor = UIColor.systemOrange.withAlphaComponent(0.85)
+            case .lowLevelWindShear, .surfaceWind:
+                renderer.fillColor = UIColor.systemYellow.withAlphaComponent(0.15)
+                renderer.strokeColor = UIColor.systemYellow.withAlphaComponent(0.8)
+            case .freezingLevel, .multipleFreezingLevels, .unknown:
+                renderer.fillColor = UIColor.systemCyan.withAlphaComponent(0.1)
+                renderer.strokeColor = UIColor.systemCyan.withAlphaComponent(0.75)
+            }
+            renderer.lineWidth = 2.0
+        }
+
+        private func gairmetStrokeColor(for hazard: GAIRMETHazard) -> UIColor {
+            switch hazard {
+            case .freezingLevel, .multipleFreezingLevels:
+                return UIColor.systemCyan.withAlphaComponent(0.9)
+            case .turbulenceLow, .turbulenceHigh:
+                return UIColor.systemOrange.withAlphaComponent(0.85)
+            case .icing:
+                return UIColor.systemTeal.withAlphaComponent(0.85)
+            case .ifr:
+                return UIColor.systemBlue.withAlphaComponent(0.85)
+            case .mountainObscuration:
+                return UIColor.systemGray.withAlphaComponent(0.85)
+            case .lowLevelWindShear, .surfaceWind:
+                return UIColor.systemYellow.withAlphaComponent(0.8)
+            case .unknown:
+                return UIColor.systemCyan.withAlphaComponent(0.85)
+            }
         }
     }
 }

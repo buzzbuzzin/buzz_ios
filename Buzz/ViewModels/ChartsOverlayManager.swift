@@ -2,7 +2,7 @@
 //  ChartsOverlayManager.swift
 //  Buzz
 //
-//  Manages overlay state, toggles, and fetch coordination for VFR charts
+//  Manages overlay state, toggles, and fetch coordination for VFR charts.
 //
 
 import Foundation
@@ -30,6 +30,32 @@ protocol ChartsTAFProviding: AnyObject {
 }
 
 @MainActor
+protocol ChartsPIREPProviding: AnyObject {
+    func fetchPIREPsNearLocation(
+        coordinate: CLLocationCoordinate2D,
+        radiusDegrees: Double,
+        maxResults: Int,
+        forceRefresh: Bool
+    ) async throws -> [PIREP]
+}
+
+@MainActor
+protocol ChartsGAIRMETProviding: AnyObject {
+    func fetchAdvisories(
+        for region: MKCoordinateRegion,
+        forceRefresh: Bool
+    ) async throws -> [GAIRMETAdvisory]
+}
+
+@MainActor
+protocol ChartsSIGMETProviding: AnyObject {
+    func fetchAdvisories(
+        for region: MKCoordinateRegion,
+        forceRefresh: Bool
+    ) async throws -> [SIGMETAdvisory]
+}
+
+@MainActor
 protocol ChartsAirspaceQueryProviding: AnyObject {
     func fetchAirspaceSnapshot(
         coordinate: CLLocationCoordinate2D,
@@ -51,13 +77,14 @@ protocol ChartsAirspaceGeometryProviding: AnyObject {
 
 extension METARService: ChartsMETARProviding {}
 extension TAFService: ChartsTAFProviding {}
+extension PIREPService: ChartsPIREPProviding {}
+extension GAIRMETService: ChartsGAIRMETProviding {}
+extension SIGMETService: ChartsSIGMETProviding {}
 extension ArcGISAirspaceService: ChartsAirspaceQueryProviding {}
 extension ArcGISAirspaceGeometryService: ChartsAirspaceGeometryProviding {}
 
 @MainActor
 final class ChartsOverlayManager: ObservableObject {
-    // MARK: - Toggle State
-
     @Published var showMETAROverlay = true {
         didSet {
             if showMETAROverlay, let region = lastKnownRegion {
@@ -66,6 +93,43 @@ final class ChartsOverlayManager: ObservableObject {
             } else if !showMETAROverlay {
                 metarFetchTask?.cancel()
                 metarAnnotations = []
+            }
+        }
+    }
+
+    @Published var showPIREPOverlay = false {
+        didSet {
+            if showPIREPOverlay, let region = lastKnownRegion {
+                overlayErrorMessage = nil
+                enqueuePIREPFetch(for: region)
+            } else if !showPIREPOverlay {
+                pirepFetchTask?.cancel()
+                pirepAnnotations = []
+            }
+        }
+    }
+
+    @Published var showGairmetOverlay = false {
+        didSet {
+            if showGairmetOverlay, let region = lastKnownRegion {
+                overlayErrorMessage = nil
+                enqueueGAIRMETFetch(for: region)
+            } else if !showGairmetOverlay {
+                gairmetFetchTask?.cancel()
+                allGairmetAdvisories = []
+                gairmetAdvisories = []
+            }
+        }
+    }
+
+    @Published var showSigmetOverlay = false {
+        didSet {
+            if showSigmetOverlay, let region = lastKnownRegion {
+                overlayErrorMessage = nil
+                enqueueSIGMETFetch(for: region)
+            } else if !showSigmetOverlay {
+                sigmetFetchTask?.cancel()
+                sigmetAdvisories = []
             }
         }
     }
@@ -82,19 +146,23 @@ final class ChartsOverlayManager: ObservableObject {
         }
     }
 
-    // MARK: - METAR Data
+    @Published var selectedGairmetForecastHour = 0 {
+        didSet {
+            applyGairmetForecastSelection()
+        }
+    }
 
     @Published var metarAnnotations: [METARStationAnnotation] = []
+    @Published var pirepAnnotations: [PIREPAnnotation] = []
     @Published var selectedMETAR: METAR?
     @Published var selectedTAF: TAF?
+    @Published var selectedPIREP: PIREP?
     @Published var showMETARDetail = false
     @Published var isStationDetailLoading = false
 
-    // MARK: - Airspace Data
-
+    @Published var gairmetAdvisories: [GAIRMETAdvisory] = []
+    @Published var sigmetAdvisories: [SIGMETAdvisory] = []
     @Published var airspacePolygons: [AirspaceOverlayPolygon] = []
-
-    // MARK: - Long-Press Query
 
     @Published var queryPin: QueryPinAnnotation?
     @Published var queryResult: LocationQueryResult?
@@ -102,16 +170,16 @@ final class ChartsOverlayManager: ObservableObject {
     @Published var queryErrorMessage: String?
     @Published var overlayErrorMessage: String?
 
-    // MARK: - Services
-
     private let overlayMETARService: ChartsMETARProviding
     private let queryMETARService: ChartsMETARProviding
     private let detailMETARService: ChartsMETARProviding
     private let detailTAFService: ChartsTAFProviding
+    private let overlayPIREPService: ChartsPIREPProviding
+    private let queryPIREPService: ChartsPIREPProviding
+    private let gairmetService: ChartsGAIRMETProviding
+    private let sigmetService: ChartsSIGMETProviding
     private let airspaceService: ChartsAirspaceQueryProviding
     private let airspaceGeometryService: ChartsAirspaceGeometryProviding
-
-    // MARK: - Debounce
 
     private let regionChangeDebounceInterval: TimeInterval
     private var regionChangeWorkItem: DispatchWorkItem?
@@ -119,15 +187,26 @@ final class ChartsOverlayManager: ObservableObject {
     private var activeStationSelectionID: UUID?
     private var activeLocationQueryID: UUID?
     private var activeMETARFetchID: UUID?
+    private var activePIREPFetchID: UUID?
+    private var activeGAIRMETFetchID: UUID?
+    private var activeSIGMETFetchID: UUID?
     private var activeAirspaceFetchID: UUID?
     private var metarFetchTask: Task<Void, Never>?
+    private var pirepFetchTask: Task<Void, Never>?
+    private var gairmetFetchTask: Task<Void, Never>?
+    private var sigmetFetchTask: Task<Void, Never>?
     private var airspaceFetchTask: Task<Void, Never>?
+    private var allGairmetAdvisories: [GAIRMETAdvisory] = []
 
     init(
         overlayMETARService: ChartsMETARProviding? = nil,
         queryMETARService: ChartsMETARProviding? = nil,
         detailMETARService: ChartsMETARProviding? = nil,
         detailTAFService: ChartsTAFProviding? = nil,
+        overlayPIREPService: ChartsPIREPProviding? = nil,
+        queryPIREPService: ChartsPIREPProviding? = nil,
+        gairmetService: ChartsGAIRMETProviding? = nil,
+        sigmetService: ChartsSIGMETProviding? = nil,
         airspaceService: ChartsAirspaceQueryProviding? = nil,
         airspaceGeometryService: ChartsAirspaceGeometryProviding? = nil,
         regionChangeDebounceInterval: TimeInterval = 0.5
@@ -136,6 +215,10 @@ final class ChartsOverlayManager: ObservableObject {
         self.queryMETARService = queryMETARService ?? METARService()
         self.detailMETARService = detailMETARService ?? METARService()
         self.detailTAFService = detailTAFService ?? TAFService()
+        self.overlayPIREPService = overlayPIREPService ?? PIREPService()
+        self.queryPIREPService = queryPIREPService ?? PIREPService()
+        self.gairmetService = gairmetService ?? GAIRMETService()
+        self.sigmetService = sigmetService ?? SIGMETService()
         self.airspaceService = airspaceService ?? ArcGISAirspaceService()
         self.airspaceGeometryService = airspaceGeometryService ?? ArcGISAirspaceGeometryService()
         self.regionChangeDebounceInterval = regionChangeDebounceInterval
@@ -144,10 +227,11 @@ final class ChartsOverlayManager: ObservableObject {
     deinit {
         regionChangeWorkItem?.cancel()
         metarFetchTask?.cancel()
+        pirepFetchTask?.cancel()
+        gairmetFetchTask?.cancel()
+        sigmetFetchTask?.cancel()
         airspaceFetchTask?.cancel()
     }
-
-    // MARK: - Region Change Handler
 
     func onRegionChanged(region: MKCoordinateRegion) {
         lastKnownRegion = region
@@ -155,13 +239,24 @@ final class ChartsOverlayManager: ObservableObject {
         regionChangeWorkItem?.cancel()
 
         let workItem = DispatchWorkItem { [weak self] in
-            guard let self else { return }
-            self.overlayErrorMessage = nil
-            if self.showMETAROverlay {
-                self.enqueueMETARFetch(for: region)
-            }
-            if self.showAirspaceOverlay {
-                self.enqueueAirspaceFetch(for: region)
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.overlayErrorMessage = nil
+                if self.showMETAROverlay {
+                    self.enqueueMETARFetch(for: region)
+                }
+                if self.showPIREPOverlay {
+                    self.enqueuePIREPFetch(for: region)
+                }
+                if self.showGairmetOverlay {
+                    self.enqueueGAIRMETFetch(for: region)
+                }
+                if self.showSigmetOverlay {
+                    self.enqueueSIGMETFetch(for: region)
+                }
+                if self.showAirspaceOverlay {
+                    self.enqueueAirspaceFetch(for: region)
+                }
             }
         }
 
@@ -169,30 +264,44 @@ final class ChartsOverlayManager: ObservableObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + regionChangeDebounceInterval, execute: workItem)
     }
 
-    // MARK: - METAR Fetching
-
     func retryVisibleOverlays() {
         guard let region = lastKnownRegion else { return }
         overlayErrorMessage = nil
 
         if showMETAROverlay {
-            enqueueMETARFetch(for: region)
+            enqueueMETARFetch(for: region, forceRefresh: true)
+        }
+        if showPIREPOverlay {
+            enqueuePIREPFetch(for: region, forceRefresh: true)
+        }
+        if showGairmetOverlay {
+            enqueueGAIRMETFetch(for: region, forceRefresh: true)
+        }
+        if showSigmetOverlay {
+            enqueueSIGMETFetch(for: region, forceRefresh: true)
         }
         if showAirspaceOverlay {
             enqueueAirspaceFetch(for: region)
         }
     }
 
-    private func enqueueMETARFetch(for region: MKCoordinateRegion) {
+    private func enqueueMETARFetch(
+        for region: MKCoordinateRegion,
+        forceRefresh: Bool = false
+    ) {
         let requestID = UUID()
         activeMETARFetchID = requestID
         metarFetchTask?.cancel()
         metarFetchTask = Task { [weak self] in
-            await self?.fetchMETARsForRegion(region, requestID: requestID)
+            await self?.fetchMETARsForRegion(region, requestID: requestID, forceRefresh: forceRefresh)
         }
     }
 
-    private func fetchMETARsForRegion(_ region: MKCoordinateRegion, requestID: UUID) async {
+    private func fetchMETARsForRegion(
+        _ region: MKCoordinateRegion,
+        requestID: UUID,
+        forceRefresh: Bool
+    ) async {
         let radiusDegrees = max(region.span.latitudeDelta, region.span.longitudeDelta) / 2
 
         do {
@@ -200,7 +309,7 @@ final class ChartsOverlayManager: ObservableObject {
                 coordinate: region.center,
                 radiusDegrees: radiusDegrees,
                 maxResults: 20,
-                forceRefresh: false
+                forceRefresh: forceRefresh
             )
 
             guard !Task.isCancelled,
@@ -209,16 +318,11 @@ final class ChartsOverlayManager: ObservableObject {
                 return
             }
 
-            // Create annotations, avoiding duplicates by station ID
             var seen = Set<String>()
-            var annotations: [METARStationAnnotation] = []
-            for metar in metars {
-                if seen.insert(metar.stationId).inserted {
-                    annotations.append(METARStationAnnotation(metar: metar))
-                }
+            metarAnnotations = metars.compactMap { metar in
+                guard seen.insert(metar.stationId).inserted else { return nil }
+                return METARStationAnnotation(metar: metar)
             }
-
-            metarAnnotations = annotations
         } catch {
             guard !Task.isCancelled, activeMETARFetchID == requestID else { return }
             print("Charts METAR fetch error: \(error.localizedDescription)")
@@ -226,7 +330,50 @@ final class ChartsOverlayManager: ObservableObject {
         }
     }
 
-    // MARK: - Station Selection
+    private func enqueuePIREPFetch(
+        for region: MKCoordinateRegion,
+        forceRefresh: Bool = false
+    ) {
+        let requestID = UUID()
+        activePIREPFetchID = requestID
+        pirepFetchTask?.cancel()
+        pirepFetchTask = Task { [weak self] in
+            await self?.fetchPIREPsForRegion(region, requestID: requestID, forceRefresh: forceRefresh)
+        }
+    }
+
+    private func fetchPIREPsForRegion(
+        _ region: MKCoordinateRegion,
+        requestID: UUID,
+        forceRefresh: Bool
+    ) async {
+        let radiusDegrees = max(region.span.latitudeDelta, region.span.longitudeDelta) / 2
+
+        do {
+            let reports = try await overlayPIREPService.fetchPIREPsNearLocation(
+                coordinate: region.center,
+                radiusDegrees: radiusDegrees,
+                maxResults: 30,
+                forceRefresh: forceRefresh
+            )
+
+            guard !Task.isCancelled,
+                  activePIREPFetchID == requestID,
+                  showPIREPOverlay else {
+                return
+            }
+
+            var seen = Set<String>()
+            pirepAnnotations = reports.compactMap { report in
+                guard seen.insert(report.id).inserted else { return nil }
+                return PIREPAnnotation(pirep: report)
+            }
+        } catch {
+            guard !Task.isCancelled, activePIREPFetchID == requestID else { return }
+            print("Charts PIREP fetch error: \(error.localizedDescription)")
+            overlayErrorMessage = "Some chart overlays could not be refreshed. Check your connection and try again."
+        }
+    }
 
     func selectStation(_ annotation: METARStationAnnotation) async {
         let requestID = UUID()
@@ -259,6 +406,10 @@ final class ChartsOverlayManager: ObservableObject {
         }
     }
 
+    func selectPIREP(_ annotation: PIREPAnnotation) {
+        selectedPIREP = annotation.pirep
+    }
+
     func dismissMETARDetail() {
         activeStationSelectionID = nil
         showMETARDetail = false
@@ -267,7 +418,80 @@ final class ChartsOverlayManager: ObservableObject {
         selectedTAF = nil
     }
 
-    // MARK: - Airspace Fetching
+    func dismissPIREPDetail() {
+        selectedPIREP = nil
+    }
+
+    private func enqueueGAIRMETFetch(
+        for region: MKCoordinateRegion,
+        forceRefresh: Bool = false
+    ) {
+        let requestID = UUID()
+        activeGAIRMETFetchID = requestID
+        gairmetFetchTask?.cancel()
+        gairmetFetchTask = Task { [weak self] in
+            await self?.fetchGAIRMETsForRegion(region, requestID: requestID, forceRefresh: forceRefresh)
+        }
+    }
+
+    private func fetchGAIRMETsForRegion(
+        _ region: MKCoordinateRegion,
+        requestID: UUID,
+        forceRefresh: Bool
+    ) async {
+        do {
+            let advisories = try await gairmetService.fetchAdvisories(for: region, forceRefresh: forceRefresh)
+            guard !Task.isCancelled,
+                  activeGAIRMETFetchID == requestID,
+                  showGairmetOverlay else {
+                return
+            }
+
+            allGairmetAdvisories = advisories
+            applyGairmetForecastSelection()
+        } catch {
+            guard !Task.isCancelled, activeGAIRMETFetchID == requestID else { return }
+            print("Charts G-AIRMET fetch error: \(error.localizedDescription)")
+            overlayErrorMessage = "Some chart overlays could not be refreshed. Check your connection and try again."
+        }
+    }
+
+    private func applyGairmetForecastSelection() {
+        gairmetAdvisories = allGairmetAdvisories.filter { $0.forecastHour == selectedGairmetForecastHour }
+    }
+
+    private func enqueueSIGMETFetch(
+        for region: MKCoordinateRegion,
+        forceRefresh: Bool = false
+    ) {
+        let requestID = UUID()
+        activeSIGMETFetchID = requestID
+        sigmetFetchTask?.cancel()
+        sigmetFetchTask = Task { [weak self] in
+            await self?.fetchSIGMETsForRegion(region, requestID: requestID, forceRefresh: forceRefresh)
+        }
+    }
+
+    private func fetchSIGMETsForRegion(
+        _ region: MKCoordinateRegion,
+        requestID: UUID,
+        forceRefresh: Bool
+    ) async {
+        do {
+            let advisories = try await sigmetService.fetchAdvisories(for: region, forceRefresh: forceRefresh)
+            guard !Task.isCancelled,
+                  activeSIGMETFetchID == requestID,
+                  showSigmetOverlay else {
+                return
+            }
+
+            sigmetAdvisories = advisories
+        } catch {
+            guard !Task.isCancelled, activeSIGMETFetchID == requestID else { return }
+            print("Charts SIGMET fetch error: \(error.localizedDescription)")
+            overlayErrorMessage = "Some chart overlays could not be refreshed. Check your connection and try again."
+        }
+    }
 
     private func enqueueAirspaceFetch(for region: MKCoordinateRegion) {
         let requestID = UUID()
@@ -279,7 +503,6 @@ final class ChartsOverlayManager: ObservableObject {
     }
 
     private func fetchAirspaceForRegion(_ region: MKCoordinateRegion, requestID: UUID) async {
-        // Only fetch at Z9+ (skip when too zoomed out for useful polygons)
         let zoomLevel = Int(round(log2(360.0 / region.span.longitudeDelta)))
         guard zoomLevel >= 9 else {
             guard activeAirspaceFetchID == requestID else { return }
@@ -302,8 +525,6 @@ final class ChartsOverlayManager: ObservableObject {
         }
     }
 
-    // MARK: - Long-Press Location Query
-
     func performLocationQuery(coordinate: CLLocationCoordinate2D) async {
         let requestID = UUID()
         activeLocationQueryID = requestID
@@ -314,8 +535,13 @@ final class ChartsOverlayManager: ObservableObject {
 
         async let airspaceResult = fetchAirspaceSnapshotForQuery(coordinate: coordinate)
         async let nearestMETARResult = fetchNearestMETARForQuery(coordinate: coordinate)
+        async let nearestPIREPResult = fetchNearestPIREPForQuery(coordinate: coordinate)
 
-        let (resolvedAirspace, resolvedMETAR) = await (airspaceResult, nearestMETARResult)
+        let (resolvedAirspace, resolvedMETAR, resolvedPIREP) = await (
+            airspaceResult,
+            nearestMETARResult,
+            nearestPIREPResult
+        )
 
         guard activeLocationQueryID == requestID else { return }
 
@@ -341,6 +567,16 @@ final class ChartsOverlayManager: ObservableObject {
             queryErrors.append("Nearby weather data is unavailable right now.")
         }
 
+        let nearestPIREP: PIREP?
+        switch resolvedPIREP {
+        case .success(let value):
+            nearestPIREP = value
+        case .failure(let error):
+            print("Charts query PIREP error: \(error.localizedDescription)")
+            nearestPIREP = nil
+            queryErrors.append("Nearby pilot reports are unavailable right now.")
+        }
+
         let authStatus = airspaceService.calculateAuthorizationStatus(
             requestedAltitude: 400,
             laancCeiling: snapshot.laancGridCeiling,
@@ -356,7 +592,9 @@ final class ChartsOverlayManager: ObservableObject {
             hasLAANCCoverage: snapshot.hasLAANCCoverage,
             authorizationStatus: authStatus,
             nearestMETAR: nearestMETAR,
-            distanceToNearestMETAR: nearestMETAR?.formattedDistance(from: coordinate)
+            distanceToNearestMETAR: nearestMETAR?.formattedDistance(from: coordinate),
+            nearestPIREP: nearestPIREP,
+            distanceToNearestPIREP: nearestPIREP?.formattedDistance(from: coordinate)
         )
 
         queryErrorMessage = queryErrors.isEmpty ? nil : queryErrors.joined(separator: " ")
@@ -370,8 +608,6 @@ final class ChartsOverlayManager: ObservableObject {
         isQueryLoading = false
         queryErrorMessage = nil
     }
-
-    // MARK: - Station Detail Refresh
 
     private func fetchFreshMETAR(for station: METAR) async -> METAR? {
         do {
@@ -435,6 +671,22 @@ final class ChartsOverlayManager: ObservableObject {
                 forceRefresh: false
             )
             return .success(metars.first)
+        } catch {
+            return .failure(error)
+        }
+    }
+
+    private func fetchNearestPIREPForQuery(
+        coordinate: CLLocationCoordinate2D
+    ) async -> Result<PIREP?, Error> {
+        do {
+            let reports = try await queryPIREPService.fetchPIREPsNearLocation(
+                coordinate: coordinate,
+                radiusDegrees: 0.5,
+                maxResults: 1,
+                forceRefresh: false
+            )
+            return .success(reports.first)
         } catch {
             return .failure(error)
         }

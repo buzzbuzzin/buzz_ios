@@ -2,22 +2,46 @@
 //  ChartsOverlayToolbar.swift
 //  Buzz
 //
-//  Toggle buttons for METAR/Airspace overlays on VFR charts
+//  Toggle buttons for chart overlays on VFR charts.
 //
 
 import SwiftUI
 
 struct ChartsOverlayToolbar: View {
     @Binding var showMETAROverlay: Bool
+    @Binding var showPIREPOverlay: Bool
+    @Binding var showGairmetOverlay: Bool
+    @Binding var showSigmetOverlay: Bool
     @Binding var showAirspaceOverlay: Bool
 
     var body: some View {
         VStack(spacing: 6) {
             OverlayToggleButton(
                 icon: "cloud.sun.fill",
-                title: "Weather",
+                title: "METAR",
                 accessibilityHint: "Shows nearby METAR weather stations on the chart.",
                 isActive: $showMETAROverlay
+            )
+
+            OverlayToggleButton(
+                icon: "wind",
+                title: "PIREP",
+                accessibilityHint: "Shows recent pilot reports on the chart.",
+                isActive: $showPIREPOverlay
+            )
+
+            OverlayToggleButton(
+                icon: "cloud.fog.fill",
+                title: "G-AIRMET",
+                accessibilityHint: "Shows G-AIRMET forecast hazards on the chart.",
+                isActive: $showGairmetOverlay
+            )
+
+            OverlayToggleButton(
+                icon: "exclamationmark.triangle.fill",
+                title: "SIGMET",
+                accessibilityHint: "Shows active SIGMET hazard polygons on the chart.",
+                isActive: $showSigmetOverlay
             )
 
             OverlayToggleButton(
@@ -48,12 +72,12 @@ private struct OverlayToggleButton: View {
                 Image(systemName: icon)
                     .font(.caption.weight(.semibold))
                 Text(title)
-                    .font(.system(size: 9, weight: .semibold))
+                    .font(.system(size: 8, weight: .semibold))
                     .lineLimit(1)
                     .minimumScaleFactor(0.75)
             }
             .foregroundColor(isActive ? .white : .secondary)
-            .frame(minWidth: 58, minHeight: 46)
+            .frame(minWidth: 64, minHeight: 46)
             .background(isActive ? Color.blue : Color(.systemBackground))
             .clipShape(RoundedRectangle(cornerRadius: 8))
             .shadow(radius: 2)

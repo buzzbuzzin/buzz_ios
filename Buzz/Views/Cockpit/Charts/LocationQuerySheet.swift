@@ -20,6 +20,8 @@ struct LocationQueryResult: Identifiable {
     let authorizationStatus: LAANCAuthorizationStatus
     let nearestMETAR: METAR?
     let distanceToNearestMETAR: String?
+    let nearestPIREP: PIREP?
+    let distanceToNearestPIREP: String?
 
     static func formatDMS(_ coordinate: CLLocationCoordinate2D) -> String {
         let latDeg = Int(abs(coordinate.latitude))
@@ -133,6 +135,29 @@ struct LocationQueryCard: View {
                             .foregroundColor(.secondary)
 
                         if let dist = result.distanceToNearestMETAR {
+                            Text("(\(dist))")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+
+                if let pirep = result.nearestPIREP {
+                    HStack(spacing: 8) {
+                        Image(systemName: pirep.dominantHazard.systemImage)
+                            .font(.caption)
+                            .foregroundColor(Color(ChartsWeatherOverlayHelper.pirepTintColor(for: pirep.dominantHazard)))
+
+                        Text("Nearest PIREP")
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+
+                        Text(pirep.hazardSummary)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .lineLimit(1)
+
+                        if let dist = result.distanceToNearestPIREP {
                             Text("(\(dist))")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
