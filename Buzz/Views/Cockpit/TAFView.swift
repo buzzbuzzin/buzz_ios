@@ -33,8 +33,7 @@ struct TAFView: View {
         }
         .refreshable {
             guard !tafService.isLoading else { return }
-            tafService.clearCache()
-            await loadTAFData()
+            await loadTAFData(forceRefresh: true)
         }
         .onChange(of: locationObservationKey) { _, newKey in
             if newKey != nil {
@@ -45,7 +44,7 @@ struct TAFView: View {
         }
     }
 
-    private func loadTAFData() async {
+    private func loadTAFData(forceRefresh: Bool = false) async {
         if locationManager.authorizationStatus == .notDetermined {
             locationManager.requestPermission()
         }
@@ -55,10 +54,10 @@ struct TAFView: View {
             try? await Task.sleep(nanoseconds: 500_000_000)
         }
 
-        await loadNearbyTAFs()
+        await loadNearbyTAFs(forceRefresh: forceRefresh)
     }
 
-    private func loadNearbyTAFs() async {
+    private func loadNearbyTAFs(forceRefresh: Bool = false) async {
         guard let userProfile = authService.userProfile,
               userProfile.userType == .pilot else { return }
 
@@ -80,7 +79,10 @@ struct TAFView: View {
         }
 
         do {
-            _ = try await tafService.fetchTAFsNearLocation(coordinate: location)
+            _ = try await tafService.fetchTAFsNearLocation(
+                coordinate: location,
+                forceRefresh: forceRefresh
+            )
         } catch {
             print("Error fetching nearby TAFs: \(error.localizedDescription)")
         }

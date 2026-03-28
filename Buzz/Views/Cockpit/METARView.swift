@@ -28,7 +28,7 @@ struct METARView: View {
             await loadMETARData()
         }
         .refreshable {
-            await loadMETARData()
+            await loadMETARData(forceRefresh: true)
         }
         .onChange(of: locationManager.currentLocation?.latitude) { _, _ in
             if locationManager.currentLocation != nil {
@@ -46,7 +46,7 @@ struct METARView: View {
         }
     }
     
-    private func loadMETARData() async {
+    private func loadMETARData(forceRefresh: Bool = false) async {
         // Request location permission if needed
         if locationManager.authorizationStatus == .notDetermined {
             locationManager.requestPermission()
@@ -60,10 +60,10 @@ struct METARView: View {
         }
         
         // Load nearby METARs
-        await loadNearbyMETARs()
+        await loadNearbyMETARs(forceRefresh: forceRefresh)
     }
     
-    private func loadNearbyMETARs() async {
+    private func loadNearbyMETARs(forceRefresh: Bool = false) async {
         guard let userProfile = authService.userProfile,
               userProfile.userType == .pilot else { return }
         
@@ -85,7 +85,10 @@ struct METARView: View {
         }
         
         do {
-            _ = try await metarService.fetchMETARsNearLocation(coordinate: location)
+            _ = try await metarService.fetchMETARsNearLocation(
+                coordinate: location,
+                forceRefresh: forceRefresh
+            )
         } catch {
             print("Error fetching nearby METARs: \(error.localizedDescription)")
         }
