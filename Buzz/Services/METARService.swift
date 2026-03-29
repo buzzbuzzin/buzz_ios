@@ -254,7 +254,7 @@ class METARService: ObservableObject {
         }
     }
 
-    static func selectFreshestResponses(_ responses: [METARAPIResponse]) -> [METARAPIResponse] {
+    nonisolated static func selectFreshestResponses(_ responses: [METARAPIResponse]) -> [METARAPIResponse] {
         let groupedResponses = Dictionary(grouping: responses) { response in
             response.icaoId ?? UUID().uuidString
         }
@@ -266,7 +266,7 @@ class METARService: ObservableObject {
         }
     }
 
-    private static func parseReportTime(_ reportTimeString: String?) -> Date {
+    nonisolated private static func parseReportTime(_ reportTimeString: String?) -> Date {
         guard let reportTimeString, !reportTimeString.isEmpty else { return .distantPast }
 
         let formatterWithFractionalSeconds = ISO8601DateFormatter()

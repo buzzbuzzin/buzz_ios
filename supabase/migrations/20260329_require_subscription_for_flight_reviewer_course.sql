@@ -49,6 +49,11 @@ BEGIN
         RETURN true;
     END IF;
 
+    -- Flight Reviewer course requires subscription — skip section-level fallback
+    IF normalized_course_title LIKE '%flight reviewer%' THEN
+        RETURN false;
+    END IF;
+
     SELECT EXISTS (
         SELECT 1
         FROM public.course_sections cs

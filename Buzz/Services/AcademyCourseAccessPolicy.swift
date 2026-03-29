@@ -75,6 +75,11 @@ enum AcademyCourseAccessPolicy {
             return true
         }
 
+        // Flight Reviewer course requires subscription — skip section-level fallback
+        if title.contains("flight reviewer") {
+            return false
+        }
+
         let hasUnlockedFlightReviewOrRocASection = sectionSnapshots.contains { section in
             guard !section.requiresSubscription else {
                 return false

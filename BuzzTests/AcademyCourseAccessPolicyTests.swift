@@ -48,6 +48,24 @@ final class AcademyCourseAccessPolicyTests: XCTestCase {
         XCTAssertTrue(requiresSubscription)
     }
 
+    func testRequiresSubscriptionToEnroll_flightReviewerCourseNotExemptedBySections() {
+        let requiresSubscription = AcademyCourseAccessPolicy.requiresSubscriptionToEnroll(
+            courseTitle: "Become A Flight Reviewer",
+            provider: "Buzz",
+            externalUrl: nil,
+            sectionSnapshots: [
+                CourseSectionAccessSnapshot(
+                    courseId: UUID(),
+                    name: "Flight Review Basics",
+                    examType: "flight_review",
+                    requiresSubscription: false
+                )
+            ]
+        )
+
+        XCTAssertTrue(requiresSubscription)
+    }
+
     func testRequiresSubscriptionToEnroll_paidBuzzCourseRequiresSubscription() {
         let requiresSubscription = AcademyCourseAccessPolicy.requiresSubscriptionToEnroll(
             courseTitle: "Advanced Drone Pilot",
