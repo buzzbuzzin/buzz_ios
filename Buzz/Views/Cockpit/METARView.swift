@@ -14,7 +14,7 @@ struct METARView: View {
     @StateObject private var nearbyMETARService = METARService()
     @StateObject private var searchedMETARService = METARService()
     @StateObject private var locationManager = WeatherLocationManager()
-    private let airportLookupService = AviationWeatherAirportLookupService()
+    @State private var airportLookupService = AviationWeatherAirportLookupService()
 
     @State private var airportSearchQuery = ""
     @State private var activeAirport: AviationWeatherAirportInfo?
@@ -188,7 +188,7 @@ struct METARView: View {
 
             let airport = try await airportLookupService.fetchAirport(
                 icaoCode: normalizedCode,
-                forceRefresh: true
+                forceRefresh: false
             )
             guard let coordinate = airport.coordinate else {
                 throw AviationWeatherAirportLookupError.missingCoordinates(airport.icaoId)

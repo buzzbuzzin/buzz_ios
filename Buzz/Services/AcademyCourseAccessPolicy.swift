@@ -71,7 +71,7 @@ enum AcademyCourseAccessPolicy {
     ) -> Bool {
         let title = normalized(courseTitle)
 
-        if ["uas pilot", "rpas pilot", "roc a"].contains(title) || title.contains("flight reviewer") {
+        if ["uas pilot", "rpas pilot", "roc a"].contains(title) {
             return true
         }
 

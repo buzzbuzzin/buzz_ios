@@ -14,7 +14,7 @@ struct TAFView: View {
     @StateObject private var nearbyTAFService = TAFService()
     @StateObject private var searchedTAFService = TAFService()
     @StateObject private var locationManager = WeatherLocationManager()
-    private let airportLookupService = AviationWeatherAirportLookupService()
+    @State private var airportLookupService = AviationWeatherAirportLookupService()
 
     @State private var airportSearchQuery = ""
     @State private var activeAirport: AviationWeatherAirportInfo?
@@ -184,7 +184,7 @@ struct TAFView: View {
 
             let airport = try await airportLookupService.fetchAirport(
                 icaoCode: normalizedCode,
-                forceRefresh: true
+                forceRefresh: false
             )
             guard let coordinate = airport.coordinate else {
                 throw AviationWeatherAirportLookupError.missingCoordinates(airport.icaoId)
