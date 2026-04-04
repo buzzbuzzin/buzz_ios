@@ -7,6 +7,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 const supabaseUrl = Deno.env.get("SUPABASE_URL") as string
 const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") as string
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY")
+// Test account emails — skip sending emails for these users
+const TEST_ACCOUNT_EMAILS = ["apptest@buzzbuzzin.com"]
 // Use Resend's test sender if domain not yet verified in Resend
 const FROM_EMAIL = "onboarding@resend.dev"
 const FROM_NAME = "Buzz Academy"
@@ -49,6 +51,15 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ error: "Missing required fields: to_email, subject, body_text" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      )
+    }
+
+    // Skip email for test accounts
+    if (TEST_ACCOUNT_EMAILS.includes(to_email)) {
+      console.log(`Skipping TC affiliation email for test account: ${to_email}`)
+      return new Response(
+        JSON.stringify({ success: true, message: "Skipped — test account" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       )
     }
 

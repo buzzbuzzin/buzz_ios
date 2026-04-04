@@ -6,6 +6,9 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts"
 
 // SMTP Configuration - uses main Supabase SMTP settings
+// Test account emails — skip sending emails for these users
+const TEST_ACCOUNT_EMAILS = ["apptest@buzzbuzzin.com"]
+
 const SMTP_HOST = Deno.env.get("SMTP_HOST") || "mail.buzzbuzzin.com"
 const SMTP_PORT = parseInt(Deno.env.get("SMTP_PORT") || "465")
 const SMTP_USERNAME = Deno.env.get("SMTP_USERNAME") || "noreply@buzzbuzzin.com"
@@ -175,15 +178,6 @@ serve(async (req) => {
       )
     }
 
-    // Check if SMTP password is configured
-    if (!SMTP_PASSWORD) {
-      console.log("SMTP_PASSWORD not configured")
-      return new Response(
-        JSON.stringify({ error: "Email service not configured" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      )
-    }
-
     // Generate 6-digit token
     const verificationToken = generateToken()
 
@@ -207,6 +201,31 @@ serve(async (req) => {
       console.error("Error inserting token:", insertError)
       return new Response(
         JSON.stringify({ error: "Failed to create verification token" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      )
+    }
+
+    // Skip sending email for test accounts (token is still stored for verification tests)
+    if (TEST_ACCOUNT_EMAILS.includes(data.old_email) || TEST_ACCOUNT_EMAILS.includes(data.new_email)) {
+      console.log(`Skipping email change token email for test account`)
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: "Skipped — test account (token stored)",
+          expires_at: expiresAt.toISOString(),
+        }),
+        {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 200,
+        }
+      )
+    }
+
+    // Check if SMTP password is configured
+    if (!SMTP_PASSWORD) {
+      console.log("SMTP_PASSWORD not configured")
+      return new Response(
+        JSON.stringify({ error: "Email service not configured" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       )
     }

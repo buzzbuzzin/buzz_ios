@@ -5,6 +5,9 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 
+// Test account emails — skip notifications for these users
+const TEST_ACCOUNT_EMAILS = ["apptest@buzzbuzzin.com"]
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -181,8 +184,13 @@ serve(async (req) => {
       }
     }
 
-    // Send push notification to pilot for all status transitions
-    {
+    // Send notifications to pilot for all status transitions (skip for test accounts)
+    const { data: pilotAuth } = await supabase.auth.admin.getUserById(approvalRequest.pilot_id)
+    const isTestAccount = pilotAuth?.user?.email && TEST_ACCOUNT_EMAILS.includes(pilotAuth.user.email)
+
+    if (isTestAccount) {
+      console.log(`Skipping notifications for test account: ${pilotAuth.user.email}`)
+    } else {
       const licenseType = approvalRequest.license_type || "License"
       const licenseId = approvalRequest.license_id
       let notifTitle: string

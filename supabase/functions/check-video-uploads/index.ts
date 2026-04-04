@@ -7,6 +7,9 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 
+// Test account emails — skip notifications for these users
+const TEST_ACCOUNT_EMAILS = ["apptest@buzzbuzzin.com"]
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -130,8 +133,14 @@ serve(async (req) => {
     let failCount = 0
 
     for (const pilot of pilots) {
+      // Skip test accounts
+      if (TEST_ACCOUNT_EMAILS.includes(pilot.pilot_email)) {
+        console.log(`Skipping video upload reminder for test account: ${pilot.pilot_email}`)
+        continue
+      }
+
       console.log(`Processing pilot ${pilot.pilot_id} for booking ${pilot.booking_id} (${Math.floor(pilot.hours_since_completion)}h since completion)`)
-      
+
       // Send push notification
       const pushResult = await sendPushNotification(
         supabaseUrl,

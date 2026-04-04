@@ -9,6 +9,9 @@ const supabaseUrl = Deno.env.get("SUPABASE_URL") as string
 const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") as string
 
 // SMTP Configuration - uses EXAM_EMAIL_ prefix to avoid conflicts with other SMTP configs
+// Test account emails — skip sending emails for these users
+const TEST_ACCOUNT_EMAILS = ["apptest@buzzbuzzin.com"]
+
 const SMTP_HOST = Deno.env.get("EXAM_EMAIL_HOST") || "mail.buzzacademy.world"
 const SMTP_PORT = parseInt(Deno.env.get("EXAM_EMAIL_PORT") || "465")
 const SMTP_USERNAME = Deno.env.get("EXAM_EMAIL_USERNAME") || "hello@buzzacademy.world"
@@ -237,6 +240,21 @@ serve(async (req) => {
         {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      )
+    }
+
+    // Skip email for test accounts
+    if (TEST_ACCOUNT_EMAILS.includes(data.pilot_email)) {
+      console.log(`Skipping exam confirmation email for test account: ${data.pilot_email}`)
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: "Skipped — test account",
+        }),
+        {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 200,
         }
       )
     }

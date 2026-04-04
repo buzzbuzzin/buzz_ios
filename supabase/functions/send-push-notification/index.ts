@@ -5,6 +5,9 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 import { create, getNumericDate } from "https://deno.land/x/djwt@v3.0.1/mod.ts"
 
+// Test account emails — skip notifications for these users
+const TEST_ACCOUNT_EMAILS = ["apptest@buzzbuzzin.com"]
+
 // APNs Configuration
 const APNS_KEY_ID = Deno.env.get("APNS_KEY_ID") // Apple Push Notification Key ID
 const APNS_TEAM_ID = Deno.env.get("APNS_TEAM_ID") // Apple Developer Team ID
@@ -202,6 +205,20 @@ serve(async (req) => {
         persistSession: false,
       },
     })
+
+    // Skip notifications for test accounts
+    const { data: targetUser } = await supabase.auth.admin.getUserById(data.user_id)
+    if (targetUser?.user?.email && TEST_ACCOUNT_EMAILS.includes(targetUser.user.email)) {
+      console.log(`Skipping push notification for test account: ${targetUser.user.email}`)
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: "Skipped — test account",
+          sent: 0,
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      )
+    }
 
     // Get device tokens for the user
     const { data: tokens, error: tokensError } = await supabase
