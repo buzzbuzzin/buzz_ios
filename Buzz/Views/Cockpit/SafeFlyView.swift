@@ -25,15 +25,26 @@ struct SafeFlyView: View {
         ScrollView {
             LazyVStack(spacing: 24, pinnedViews: [.sectionHeaders]) {
                 // Current Status Summary
-                if let firstHour = safeFlyService.hourlyForecasts.first {
-                    CurrentStatusCard(
-                        hour: firstHour,
-                        locationString: safeFlyService.currentLocationString,
-                        thresholds: safeFlyService.thresholds,
-                        measurementSystem: measurementSystem,
-                        sunrise: safeFlyService.dayGroups.first?.sunrise,
-                        sunset: safeFlyService.dayGroups.first?.sunset
+                TimelineView(.periodic(from: .now, by: 60)) { context in
+                    let currentHour = SafeFlyTimeline.currentHour(
+                        in: safeFlyService.hourlyForecasts,
+                        now: context.date
                     )
+                    let currentDayGroup = SafeFlyTimeline.currentDayGroup(
+                        in: safeFlyService.dayGroups,
+                        currentHour: currentHour
+                    )
+
+                    if let currentHour = currentHour {
+                        CurrentStatusCard(
+                            hour: currentHour,
+                            locationString: safeFlyService.currentLocationString,
+                            thresholds: safeFlyService.thresholds,
+                            measurementSystem: measurementSystem,
+                            sunrise: currentDayGroup?.sunrise,
+                            sunset: currentDayGroup?.sunset
+                        )
+                    }
                 }
 
                 // View Toggle

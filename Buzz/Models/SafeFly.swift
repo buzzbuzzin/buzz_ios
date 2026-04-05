@@ -174,6 +174,28 @@ struct SafeFlyDayGroup: Identifiable {
     }
 }
 
+enum SafeFlyTimeline {
+    static func currentHour(in hours: [SafeFlyHour], now: Date = Date()) -> SafeFlyHour? {
+        let elapsedHours = hours.filter { $0.time <= now }
+        return elapsedHours.max(by: { $0.time < $1.time })
+            ?? hours.min(by: { $0.time < $1.time })
+    }
+
+    static func currentDayGroup(
+        in dayGroups: [SafeFlyDayGroup],
+        currentHour: SafeFlyHour?,
+        calendar: Calendar = .current
+    ) -> SafeFlyDayGroup? {
+        guard let currentHour else {
+            return dayGroups.min(by: { $0.date < $1.date })
+        }
+
+        return dayGroups.first(where: {
+            calendar.isDate($0.date, inSameDayAs: currentHour.time)
+        }) ?? dayGroups.min(by: { $0.date < $1.date })
+    }
+}
+
 // MARK: - Dewpoint Extension
 
 extension HourlyForecast {

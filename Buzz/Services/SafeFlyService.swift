@@ -23,6 +23,7 @@ class SafeFlyService: ObservableObject {
 
     private let baseURL = "https://api.weather.gov"
     private let noaaSpaceWeatherURL = "https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json"
+    private let noaaForecastURL = "https://services.swpc.noaa.gov/products/noaa-planetary-k-index-forecast.json"
     private let openMeteoURL = "https://api.open-meteo.com/v1/forecast"
 
     // Cache
@@ -261,23 +262,32 @@ class SafeFlyService: ObservableObject {
     // MARK: - Fetch KP Index from NOAA
 
     private func fetchKPIndex() async throws -> KPIndexData? {
-        guard let url = URL(string: noaaSpaceWeatherURL) else {
-            return nil
-        }
+        // Try primary (observed) endpoint first, then fall back to forecast endpoint.
+        // The forecast feed includes future predicted rows, so the parser selects the latest current reading.
+        for urlString in [noaaSpaceWeatherURL, noaaForecastURL] {
+            guard let url = URL(string: urlString) else { continue }
 
-        var request = URLRequest(url: url)
-        request.setValue("Buzz/1.0", forHTTPHeaderField: "User-Agent")
-        request.timeoutInterval = 10
+            var request = URLRequest(url: url)
+            request.setValue("Buzz/1.0", forHTTPHeaderField: "User-Agent")
+            request.timeoutInterval = 10
 
-        do {
-            let (data, _) = try await URLSession.shared.data(for: request)
-            // Parse NOAA JSON array format
-            return parseKPIndexResponse(data)
-        } catch {
-            // KP index is optional, don't fail the whole request
-            print("Could not fetch KP index: \(error.localizedDescription)")
-            return nil
+            do {
+                let (data, response) = try await URLSession.shared.data(for: request)
+                guard let httpResponse = response as? HTTPURLResponse,
+                      httpResponse.statusCode == 200 else {
+                    print("KP index: endpoint \(urlString) returned non-200 status")
+                    continue
+                }
+                if let result = NOAAKPParser.parse(data) {
+                    return result
+                }
+                print("KP index: parse produced no valid value from \(urlString)")
+            } catch {
+                print("KP index: fetch failed for \(urlString): \(error.localizedDescription)")
+            }
         }
+        print("KP index: all endpoints exhausted, returning nil")
+        return nil
     }
 
     // MARK: - Safety Evaluation
@@ -617,31 +627,114 @@ class SafeFlyService: ObservableObject {
         return 50
     }
 
-    private func parseKPIndexResponse(_ data: Data) -> KPIndexData? {
-        // NOAA returns array of arrays: [["time_tag", "Kp", "a_running", ...], ...]
-        // First row is headers, subsequent rows are data
-        guard let jsonArray = try? JSONSerialization.jsonObject(with: data) as? [[Any]],
-              jsonArray.count > 1,
-              let lastRow = jsonArray.last,
-              lastRow.count >= 2 else {
+}
+
+enum NOAAKPParser {
+    private struct Reading {
+        let timestamp: Date
+        let kpValue: Double
+        let gScore: String?
+        let isPredicted: Bool
+    }
+
+    private static let timestampFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
+        return formatter
+    }()
+
+    static func parse(_ data: Data, now: Date = Date()) -> KPIndexData? {
+        if let jsonArray = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]],
+           let reading = selectReading(from: jsonArray, now: now) {
+            return KPIndexData(
+                timestamp: reading.timestamp,
+                kpValue: reading.kpValue,
+                gScore: reading.gScore
+            )
+        }
+
+        if let jsonArray = try? JSONSerialization.jsonObject(with: data) as? [[Any]],
+           jsonArray.count > 1,
+           let reading = selectLegacyReading(from: jsonArray, now: now) {
+            return KPIndexData(
+                timestamp: reading.timestamp,
+                kpValue: reading.kpValue,
+                gScore: nil
+            )
+        }
+
+        print("KP Index: Unable to parse NOAA response format")
+        return nil
+    }
+
+    private static func selectReading(from rows: [[String: Any]], now: Date) -> Reading? {
+        let readings = rows.compactMap(parseReading).filter { $0.kpValue >= 0 }.sorted { $0.timestamp < $1.timestamp }
+        guard !readings.isEmpty else { return nil }
+
+        let nonPredictedReadings = readings.filter { !$0.isPredicted }
+        if let currentReading = latestReading(in: nonPredictedReadings, now: now) {
+            return currentReading
+        }
+
+        return latestReading(in: readings, now: now)
+    }
+
+    private static func selectLegacyReading(from rows: [[Any]], now: Date) -> Reading? {
+        let readings = rows
+            .dropFirst()
+            .compactMap(parseLegacyReading)
+            .filter { $0.kpValue >= 0 }
+            .sorted { $0.timestamp < $1.timestamp }
+
+        return latestReading(in: readings, now: now)
+    }
+
+    private static func latestReading(in readings: [Reading], now: Date) -> Reading? {
+        guard !readings.isEmpty else { return nil }
+        return readings.last(where: { $0.timestamp <= now }) ?? readings.last
+    }
+
+    private static func parseReading(_ row: [String: Any]) -> Reading? {
+        guard let timeTag = row["time_tag"] as? String,
+              let timestamp = timestampFormatter.date(from: timeTag),
+              let kpValue = parseKPValue(row["Kp"] ?? row["kp"]) else {
             return nil
         }
 
-        // Parse KP value (index 1 in the array)
-        var kpValue: Double = 0
-        if let kpString = lastRow[1] as? String, let kp = Double(kpString) {
-            kpValue = kp
-        } else if let kp = lastRow[1] as? Double {
-            kpValue = kp
-        } else if let kp = lastRow[1] as? Int {
-            kpValue = Double(kp)
+        let observedState = (row["observed"] as? String)?.lowercased()
+        return Reading(
+            timestamp: timestamp,
+            kpValue: kpValue,
+            gScore: row["noaa_scale"] as? String,
+            isPredicted: observedState == "predicted"
+        )
+    }
+
+    private static func parseLegacyReading(_ row: [Any]) -> Reading? {
+        guard row.count >= 2,
+              let timeTag = row[0] as? String,
+              let timestamp = timestampFormatter.date(from: timeTag),
+              let kpValue = parseKPValue(row[1]) else {
+            return nil
         }
 
-        return KPIndexData(
-            timestamp: Date(),
-            kpValue: kpValue,
-            gScore: nil
-        )
+        return Reading(timestamp: timestamp, kpValue: kpValue, gScore: nil, isPredicted: false)
+    }
+
+    private static func parseKPValue(_ rawValue: Any?) -> Double? {
+        switch rawValue {
+        case let kp as Double:
+            return kp
+        case let kp as Int:
+            return Double(kp)
+        case let kp as String:
+            return Double(kp)
+        default:
+            return nil
+        }
     }
 }
 

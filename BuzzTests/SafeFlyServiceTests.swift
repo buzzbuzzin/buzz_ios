@@ -5,6 +5,15 @@ import Testing
 
 struct SafeFlyServiceTests {
 
+    private func utcDate(_ value: String) -> Date {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
+        return formatter.date(from: value)!
+    }
+
     // MARK: - OpenMeteoHourlyData Decoding: All New Fields Present
 
     @Test func openMeteoHourlyData_decodesAllFields() throws {
@@ -534,6 +543,123 @@ struct SafeFlyServiceTests {
             let diff = abs(miles - testCase.expectedMilesApprox)
             #expect(diff < 0.01, "Expected ~\(testCase.expectedMilesApprox) miles for \(testCase.meters)m, got \(miles)")
         }
+    }
+
+    // MARK: - NOAA KP Parsing
+
+    @Test func noaaKPParser_parsesObservedEndpointObjectPayload() {
+        let json = """
+        [
+          {"time_tag":"2026-04-03T15:00:00","Kp":6.67,"a_running":111,"station_count":8},
+          {"time_tag":"2026-04-03T18:00:00","Kp":5.67,"a_running":67,"station_count":8}
+        ]
+        """.data(using: .utf8)!
+
+        let now = utcDate("2026-04-03T19:20:00")
+        let parsed = NOAAKPParser.parse(json, now: now)
+
+        #expect(parsed != nil)
+        #expect(parsed?.kpValue == 5.67)
+        #expect(parsed?.gScore == nil)
+        #expect(parsed?.timestamp == utcDate("2026-04-03T18:00:00"))
+    }
+
+    @Test func noaaKPParser_prefersLatestNonPredictedForecastReading() {
+        let json = """
+        [
+          {"time_tag":"2026-04-04T18:00:00","kp":3.67,"observed":"observed","noaa_scale":null},
+          {"time_tag":"2026-04-04T21:00:00","kp":5.67,"observed":"estimated","noaa_scale":"G2"},
+          {"time_tag":"2026-04-05T00:00:00","kp":3.67,"observed":"predicted","noaa_scale":null}
+        ]
+        """.data(using: .utf8)!
+
+        let now = utcDate("2026-04-04T22:30:00")
+        let parsed = NOAAKPParser.parse(json, now: now)
+
+        #expect(parsed != nil)
+        #expect(parsed?.kpValue == 5.67)
+        #expect(parsed?.gScore == "G2")
+        #expect(parsed?.timestamp == utcDate("2026-04-04T21:00:00"))
+    }
+
+    // MARK: - Canadian Timeline Selection
+
+    @MainActor
+    @Test func safeFlyTimeline_selectsCurrentTorontoHourInsteadOfMidnight() {
+        let service = SafeFlyService()
+        let toronto = TimeZone(identifier: "America/Toronto")!
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = toronto
+
+        let startOfDay = calendar.date(from: DateComponents(
+            timeZone: toronto,
+            year: 2026,
+            month: 4,
+            day: 3,
+            hour: 0
+        ))!
+
+        let openMeteoData: [Date: OpenMeteoHourlyEntry] = Dictionary(
+            uniqueKeysWithValues: (0..<24).map { hourOffset in
+                let hourDate = calendar.date(byAdding: .hour, value: hourOffset, to: startOfDay)!
+                return (
+                    hourDate,
+                    OpenMeteoHourlyEntry(
+                        gust: 14,
+                        visibility: 9.8,
+                        temperature: Double(40 + hourOffset),
+                        windSpeed: 10,
+                        windDirection: 210,
+                        precipitation: 0,
+                        cloudCover: 30,
+                        weatherCode: 1,
+                        humidity: 50
+                    )
+                )
+            }
+        )
+
+        let forecasts = service.buildHourlyForecastFromOpenMeteo(openMeteoData)
+        let hours = forecasts.map { forecast in
+            SafeFlyHour(
+                time: forecast.time,
+                forecast: forecast,
+                kpIndex: 2.0,
+                visibility: forecast.visibility,
+                safetyStatus: .good,
+                violations: []
+            )
+        }
+
+        let currentDay = SafeFlyDayGroup(
+            date: calendar.startOfDay(for: hours[0].time),
+            sunrise: nil,
+            sunset: nil,
+            solarNoon: nil,
+            hours: hours
+        )
+
+        let now = calendar.date(from: DateComponents(
+            timeZone: toronto,
+            year: 2026,
+            month: 4,
+            day: 3,
+            hour: 15,
+            minute: 45
+        ))!
+
+        let currentHour = SafeFlyTimeline.currentHour(in: hours, now: now)
+        let currentDayGroup = SafeFlyTimeline.currentDayGroup(
+            in: [currentDay],
+            currentHour: currentHour,
+            calendar: calendar
+        )
+
+        #expect(currentHour != nil)
+        #expect(calendar.component(.hour, from: currentHour!.time) == 15)
+        #expect(calendar.component(.day, from: currentHour!.time) == 3)
+        #expect(currentDayGroup != nil)
+        #expect(calendar.component(.day, from: currentDayGroup!.date) == 3)
     }
 
     // MARK: - TAF Safety and Freshness
