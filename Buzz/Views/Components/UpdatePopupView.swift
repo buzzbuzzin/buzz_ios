@@ -10,8 +10,7 @@ import SwiftUI
 struct UpdatePopupView: View {
     @ObservedObject var updateService: AppUpdateService
     @Binding var isPresented: Bool
-    private let changelogURL = URL(string: "https://www.buzzbuzzin.com/changelog")
-    
+
     private var currentVersion: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "Unknown"
     }
@@ -51,7 +50,6 @@ struct UpdatePopupView: View {
                 VStack(spacing: 22) {
                     heroSection
                     highlightsSection
-                    footerSection
 
                     VStack(spacing: 10) {
                         Button {
@@ -201,22 +199,6 @@ struct UpdatePopupView: View {
         .overlay {
             RoundedRectangle(cornerRadius: 20, style: .continuous)
                 .strokeBorder(Color.primary.opacity(0.05), lineWidth: 1)
-        }
-    }
-    
-    @ViewBuilder
-    private var footerSection: some View {
-        if let changelogURL {
-            HStack(spacing: 6) {
-                Text("Want the details?")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-
-                Link("Read the changelog", destination: changelogURL)
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(.blue)
-            }
-            .multilineTextAlignment(.center)
         }
     }
     
