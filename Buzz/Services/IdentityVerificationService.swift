@@ -84,142 +84,28 @@ class IdentityVerificationService: ObservableObject {
         }
     }
     
-    /// Handles verification result and updates database
+    /// Handles the Stripe Identity sheet result.
+    ///
+    /// The database is authoritative: `create-verification-session` has already
+    /// written a 'pending' row via the service role, and `stripe-webhook` will
+    /// transition it to 'verified' / 'rejected' when Stripe finishes processing.
+    /// The client just refreshes its local view of the row.
     func handleVerificationResult(_ result: IdentityVerificationSheet.VerificationFlowResult, userId: UUID, sessionId: String?) async throws {
-        if case .flowCompleted = result {
-            // Flow completed - but we need to check actual verification status
-            // Stripe processes verification asynchronously, so we check the status
-            guard let sessionId = sessionId else {
-                // If no session ID, mark as pending
-                try await updateVerificationStatus(
-                    userId: userId,
-                    status: .pending,
-                    stripeSessionId: nil
-                )
-                try await fetchGovernmentID(userId: userId)
-                return
-            }
-            
-            // Check the actual verification status from Stripe
-            let actualStatus = try await checkVerificationStatus(sessionId: sessionId)
-            
-            // Update database with actual verification status
-            try await updateVerificationStatus(
-                userId: userId,
-                status: actualStatus,
-                stripeSessionId: sessionId
-            )
-            
-            // Reload government ID
+        switch result {
+        case .flowCompleted:
             try await fetchGovernmentID(userId: userId)
-            
-        } else if case .flowCanceled = result {
-            // User canceled - no action needed
+        case .flowCanceled:
             return
-        } else if case .flowFailed(let error) = result {
-            // Verification flow failed
+        case .flowFailed(let error):
             errorMessage = error.localizedDescription
-            
-            // Mark as rejected if we have a session ID
-            if let sessionId = sessionId {
-                try await updateVerificationStatus(
-                    userId: userId,
-                    status: .rejected,
-                    stripeSessionId: sessionId
-                )
-                try await fetchGovernmentID(userId: userId)
-            }
-            
+            try? await fetchGovernmentID(userId: userId)
             throw error
-        } else {
+        @unknown default:
             throw NSError(
                 domain: "IdentityVerificationError",
                 code: -1,
                 userInfo: [NSLocalizedDescriptionKey: "Unknown verification result"]
             )
-        }
-    }
-    
-    /// Checks the actual verification status from Stripe
-    private func checkVerificationStatus(sessionId: String) async throws -> VerificationStatus {
-        struct VerificationStatusResponse: Codable {
-            let status: String
-            let stripe_status: String?
-            let verified_at: Int?
-            let last_error: ErrorInfo?
-            
-            struct ErrorInfo: Codable {
-                let type: String?
-                let code: String?
-                let reason: String?
-            }
-        }
-        
-        let requestBody: [String: AnyJSON] = [
-            "session_id": .string(sessionId)
-        ]
-        
-        let response: VerificationStatusResponse = try await supabase.functions
-            .invoke(
-                "check-verification-status",
-                options: FunctionInvokeOptions(
-                    body: requestBody
-                )
-            )
-        
-        // Map Stripe status to our VerificationStatus enum
-        switch response.status {
-        case "verified":
-            return .verified
-        case "rejected":
-            return .rejected
-        default:
-            return .pending
-        }
-    }
-    
-    /// Updates verification status in database
-    private func updateVerificationStatus(userId: UUID, status: VerificationStatus, stripeSessionId: String?) async throws {
-        var updateData: [String: AnyJSON] = [
-            "verification_status": .string(status.rawValue)
-        ]
-        
-        if let sessionId = stripeSessionId {
-            updateData["stripe_session_id"] = .string(sessionId)
-        }
-        
-        // Check if record exists
-        let existingIDs: [GovernmentID] = try await supabase
-            .from("government_ids")
-            .select()
-            .eq("user_id", value: userId.uuidString)
-            .execute()
-            .value
-        
-        if existingIDs.isEmpty {
-            // Create new record
-            var newRecord: [String: AnyJSON] = [
-                "id": .string(UUID().uuidString),
-                "user_id": .string(userId.uuidString),
-                "verification_status": .string(status.rawValue),
-                "uploaded_at": .string(ISO8601DateFormatter().string(from: Date()))
-            ]
-            
-            if let sessionId = stripeSessionId {
-                newRecord["stripe_session_id"] = .string(sessionId)
-            }
-            
-            try await supabase
-                .from("government_ids")
-                .insert(newRecord)
-                .execute()
-        } else {
-            // Update existing record
-            try await supabase
-                .from("government_ids")
-                .update(updateData)
-                .eq("user_id", value: userId.uuidString)
-                .execute()
         }
     }
     
@@ -288,38 +174,24 @@ class IdentityVerificationService: ObservableObject {
     }
     
     // MARK: - Check Verification Status
-    
-    /// Checks if the user's identity is verified.
-    /// Priority: government_ids record (verified status) takes precedence.
-    /// Fallback: profiles.is_verified column (manual override for debugging).
+
+    /// Non-throwing convenience: returns false on any error.
     func isIdentityVerified(userId: UUID) async -> Bool {
-        do {
-            // First, check government_ids table
-            let ids: [GovernmentID] = try await supabase
-                .from("government_ids")
-                .select()
-                .eq("user_id", value: userId.uuidString)
-                .limit(1)
-                .execute()
-                .value
+        (try? await checkIdentityVerified(userId: userId)) ?? false
+    }
 
-            if let id = ids.first {
-                return id.verificationStatus == .verified
-            }
+    /// Throwing variant so callers (VerificationGate) can distinguish
+    /// "not verified" from "network error" and preserve last-known state on error.
+    func checkIdentityVerified(userId: UUID) async throws -> Bool {
+        let ids: [GovernmentID] = try await supabase
+            .from("government_ids")
+            .select()
+            .eq("user_id", value: userId.uuidString)
+            .limit(1)
+            .execute()
+            .value
 
-            // No government_ids record — fall back to profiles.is_verified
-            let profile: UserProfile = try await supabase
-                .from("profiles")
-                .select()
-                .eq("id", value: userId.uuidString)
-                .single()
-                .execute()
-                .value
-
-            return profile.isVerified ?? false
-        } catch {
-            return false
-        }
+        return ids.first?.verificationStatus == .verified
     }
     
     // MARK: - Get Government ID

@@ -54,6 +54,36 @@ serve(async (req) => {
       )
     }
 
+    // Identity verification gate. booking_crew RLS only permits service-role
+    // inserts, so this function is the only entry point for crew joins —
+    // mirror the bookings RLS verification requirement here. Stripe-webhook
+    // is the authoritative writer of verification_status (see migration
+    // 20260416_lock_verification_status_to_service_role.sql).
+    const { data: govId, error: govErr } = await supabase
+      .from("government_ids")
+      .select("verification_status")
+      .eq("user_id", pilot_id)
+      .maybeSingle()
+
+    if (govErr) {
+      console.error("[join-automotive-booking] government_ids lookup error:", govErr)
+      return new Response(
+        JSON.stringify({ error: "Unable to verify identity status. Try again." }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      )
+    }
+
+    if (!govId || govId.verification_status !== "verified") {
+      return new Response(
+        JSON.stringify({
+          error: "Identity verification required. Please complete government-ID verification in your Account settings before joining crew missions.",
+          code: "identity_not_verified",
+          verification_status: govId?.verification_status ?? "missing",
+        }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      )
+    }
+
     // Get booking details including required_minimum_rank
     const { data: booking, error: bookingError } = await supabase
       .from("bookings")

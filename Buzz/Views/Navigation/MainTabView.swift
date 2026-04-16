@@ -35,6 +35,7 @@ struct PilotTabView: View {
     @StateObject private var bookingService = BookingService()
     @StateObject private var locationManager = BookingMapLocationManager()
     @StateObject private var beaconService = BeaconService()
+    @StateObject private var verificationGate = VerificationGate()
     @State private var hasNearbyBeaconMissions = false
     @State private var selectedTab = 0
     @State private var showConversations = false
@@ -42,29 +43,30 @@ struct PilotTabView: View {
     @State private var deepLinkedBooking: Booking?
     @State private var deepLinkErrorMessage: String?
     @State private var showDeepLinkError = false
+    @State private var showVerificationSheet = false
 
     var body: some View {
         TabView(selection: $selectedTab) {
-            PilotBookingListView()
+            gated("Missions") { PilotBookingListView() }
                 .tabItem {
                     Label("Missions", systemImage: "drone.fill")
                 }
                 .tag(0)
 
-            MyFlightsView()
+            gated("My Flights") { MyFlightsView() }
                 .tabItem {
                     Label("My Flights", systemImage: "list.bullet")
                 }
                 .tag(1)
 
-            CockpitView()
+            gated("Cockpit") { CockpitView() }
                 .tabItem {
                     Label("Cockpit", systemImage: "airplane.circle.fill")
                 }
                 .tag(2)
                 .badge(hasNearbyBeaconMissions ? 1 : 0)
 
-            AcademyView()
+            gated("Academy") { AcademyView() }
                 .tabItem {
                     Label("Academy", systemImage: "book.fill")
                 }
@@ -76,12 +78,32 @@ struct PilotTabView: View {
                 }
                 .tag(4)
         }
+        .task(id: authService.activeUserId) {
+            await verificationGate.refresh(userId: authService.activeUserId)
+        }
+        .sheet(isPresented: $showVerificationSheet, onDismiss: {
+            Task {
+                await verificationGate.refresh(userId: authService.activeUserId)
+                handlePendingDeepLinkIfNeeded()
+            }
+        }) {
+            NavigationStack { GovernmentIDView() }
+                .environmentObject(authService)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
+            Task { await verificationGate.refresh(userId: authService.activeUserId) }
+        }
         .onAppear {
             handlePendingDeepLinkIfNeeded()
         }
         .onChange(of: deepLinkManager.pendingDestination) { _, destination in
             guard let destination = destination else { return }
             handleDeepLinkDestination(destination)
+        }
+        .onChange(of: verificationGate.state) { _, newState in
+            if newState == .verified {
+                handlePendingDeepLinkIfNeeded()
+            }
         }
         .sheet(isPresented: $showConversations, onDismiss: {
             deepLinkConversationId = nil
@@ -131,6 +153,21 @@ struct PilotTabView: View {
         }
     }
     
+    @ViewBuilder
+    private func gated<Content: View>(_ tabTitle: String,
+                                       @ViewBuilder content: () -> Content) -> some View {
+        switch verificationGate.state {
+        case .verified:
+            content()
+        case .unverified:
+            VerificationLockView(tabTitle: tabTitle) {
+                showVerificationSheet = true
+            }
+        case .loading:
+            LoadingView(message: "Checking verification…")
+        }
+    }
+
     private func checkForNearbyBeaconMissions() async {
         // Only show beacon notifications for enrolled and available volunteers
         guard authService.userProfile?.isBeaconVolunteer == true,
@@ -185,6 +222,27 @@ struct PilotTabView: View {
     }
 
     private func handleDeepLinkDestination(_ destination: DeepLinkDestination) {
+        // Profile/Account is never gated — handle it up front.
+        switch destination {
+        case .profile:
+            selectedTab = 4
+            deepLinkManager.pendingDestination = nil
+            return
+        case .licenseManagement:
+            selectedTab = 4
+            return
+        default:
+            break
+        }
+
+        // Everything else requires a verified identity. Keep the destination
+        // pending and prompt for verification; once verified, state change
+        // will re-invoke handlePendingDeepLinkIfNeeded().
+        guard verificationGate.state == .verified else {
+            showVerificationSheet = true
+            return
+        }
+
         switch destination {
         case .jobs:
             selectedTab = 0
@@ -196,18 +254,14 @@ struct PilotTabView: View {
             // These live inside CockpitView fullScreenCovers — switch to Cockpit tab
             // and let CockpitView handle the rest
             selectedTab = 2
-        case .profile:
-            selectedTab = 4
-            deepLinkManager.pendingDestination = nil
-        case .licenseManagement:
-            // Switch to Profile tab; PilotProfileView observes the deep link and extracts licenseId
-            selectedTab = 4
         case .messages(let conversationId):
             // Open conversations list and target the specific conversation when possible
             selectedTab = 0
             deepLinkConversationId = conversationId
             showConversations = true
             deepLinkManager.pendingDestination = nil
+        case .profile, .licenseManagement:
+            break // handled above
         }
     }
 
@@ -230,22 +284,24 @@ struct PilotTabView: View {
 struct CustomerTabView: View {
     @EnvironmentObject var authService: AuthService
     @EnvironmentObject var deepLinkManager: DeepLinkManager
+    @StateObject private var verificationGate = VerificationGate()
     @State private var selectedTab = 0
     @State private var showConversations = false
     @State private var deepLinkConversationId: UUID?
     @State private var deepLinkedBooking: Booking?
     @State private var deepLinkErrorMessage: String?
     @State private var showDeepLinkError = false
+    @State private var showVerificationSheet = false
 
     var body: some View {
         TabView(selection: $selectedTab) {
-            CustomerBookingView()
+            gated("Home") { CustomerBookingView() }
                 .tabItem {
                     Label("Home", systemImage: "house.fill")
                 }
                 .tag(0)
 
-            CustomerActivityView()
+            gated("History") { CustomerActivityView() }
                 .tabItem {
                     Label("History", systemImage: "clock.fill")
                 }
@@ -257,12 +313,32 @@ struct CustomerTabView: View {
                 }
                 .tag(2)
         }
+        .task(id: authService.activeUserId) {
+            await verificationGate.refresh(userId: authService.activeUserId)
+        }
+        .sheet(isPresented: $showVerificationSheet, onDismiss: {
+            Task {
+                await verificationGate.refresh(userId: authService.activeUserId)
+                handlePendingDeepLinkIfNeeded()
+            }
+        }) {
+            NavigationStack { GovernmentIDView() }
+                .environmentObject(authService)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
+            Task { await verificationGate.refresh(userId: authService.activeUserId) }
+        }
         .onAppear {
             handlePendingDeepLinkIfNeeded()
         }
         .onChange(of: deepLinkManager.pendingDestination) { _, destination in
             guard let destination = destination else { return }
             handleDeepLinkDestination(destination)
+        }
+        .onChange(of: verificationGate.state) { _, newState in
+            if newState == .verified {
+                handlePendingDeepLinkIfNeeded()
+            }
         }
         .sheet(isPresented: $showConversations, onDismiss: {
             deepLinkConversationId = nil
@@ -291,12 +367,40 @@ struct CustomerTabView: View {
         }
     }
 
+    @ViewBuilder
+    private func gated<Content: View>(_ tabTitle: String,
+                                       @ViewBuilder content: () -> Content) -> some View {
+        switch verificationGate.state {
+        case .verified:
+            content()
+        case .unverified:
+            VerificationLockView(tabTitle: tabTitle) {
+                showVerificationSheet = true
+            }
+        case .loading:
+            LoadingView(message: "Checking verification…")
+        }
+    }
+
     private func handlePendingDeepLinkIfNeeded() {
         guard let destination = deepLinkManager.pendingDestination else { return }
         handleDeepLinkDestination(destination)
     }
 
     private func handleDeepLinkDestination(_ destination: DeepLinkDestination) {
+        // Profile/Account is never gated — handle it up front.
+        if case .profile = destination {
+            selectedTab = 2
+            deepLinkManager.pendingDestination = nil
+            return
+        }
+
+        // Gated destinations — hold the link and prompt for verification.
+        guard verificationGate.state == .verified else {
+            showVerificationSheet = true
+            return
+        }
+
         switch destination {
         case .bookingDetail(let bookingId):
             selectedTab = 0
@@ -307,8 +411,7 @@ struct CustomerTabView: View {
             showConversations = true
             deepLinkManager.pendingDestination = nil
         case .profile:
-            selectedTab = 2
-            deepLinkManager.pendingDestination = nil
+            break // handled above
         default:
             // If user type is still loading, keep the destination for the eventual correct tab host.
             if authService.userProfile?.userType == .customer {

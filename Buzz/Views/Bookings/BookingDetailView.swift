@@ -16,7 +16,6 @@ struct BookingDetailView: View {
     @StateObject private var rankingService = RankingService()
     @StateObject private var ratingService = RatingService()
     @StateObject private var profileService = ProfileService()
-    @StateObject private var identityService = IdentityVerificationService()
     @StateObject private var reportService = TicketReportService()
     @Environment(\.dismiss) var dismiss
     
@@ -31,8 +30,6 @@ struct BookingDetailView: View {
     @State private var customerRating: Double? = nil
     @State private var showMessageSheet = false
     @State private var showCopyConfirmation = false
-    @State private var isIdentityVerified = false
-    @State private var showVerificationRequiredAlert = false
     @State private var showDirectionsSheet = false
     @State private var showFinishBookingAlert = false
     @State private var showCompletionConfirmation = false
@@ -685,116 +682,91 @@ struct BookingDetailView: View {
                             // Check if pilot is already in crew (for automotive bookings)
                             let isAlreadyInCrew = crewInfo?.crew?.contains(where: { $0.pilotId == authService.currentUser?.id }) ?? false
                             
-                            if isIdentityVerified {
-                                if currentBooking.isAutomotiveCrewBooking {
-                                    // Automotive booking - show Join Crew button
-                                    if isAlreadyInCrew {
-                                        VStack(spacing: 8) {
-                                            HStack {
-                                                Image(systemName: "checkmark.circle.fill")
-                                                    .foregroundColor(.green)
-                                                Text("You've joined this crew")
-                                                    .fontWeight(.semibold)
-                                            }
-                                            .foregroundColor(.green)
-                                            .padding()
-                                            .frame(maxWidth: .infinity)
-                                            .background(Color.green.opacity(0.1))
-                                            .cornerRadius(12)
-                                            .padding(.horizontal)
-                                            .accessibilityElement(children: .combine)
-                                            .accessibilityLabel("You have joined this crew")
-
-                                            if let crew = crewInfo {
-                                                Text("Waiting for \(crew.maxCrew - crew.crewCount) more pilot(s) to join")
-                                                    .font(.caption)
-                                                    .foregroundColor(.secondary)
-                                            }
+                            if currentBooking.isAutomotiveCrewBooking {
+                                // Automotive booking - show Join Crew button
+                                if isAlreadyInCrew {
+                                    VStack(spacing: 8) {
+                                        HStack {
+                                            Image(systemName: "checkmark.circle.fill")
+                                                .foregroundColor(.green)
+                                            Text("You've joined this crew")
+                                                .fontWeight(.semibold)
                                         }
-                                    } else {
-                                        CustomButton(
-                                            title: "Join Crew",
-                                            action: { showJoinCrewAlert = true },
-                                            isLoading: bookingService.isLoading
-                                        )
+                                        .foregroundColor(.green)
+                                        .padding()
+                                        .frame(maxWidth: .infinity)
+                                        .background(Color.green.opacity(0.1))
+                                        .cornerRadius(12)
                                         .padding(.horizontal)
-                                        
-                                        // Show crew requirements info
-                                        VStack(spacing: 4) {
-                                            Text("Automotive bookings require a crew of 4 pilots")
-                                                .font(.caption)
-                                                .foregroundColor(.secondary)
-                                            Text("At least one Lieutenant or above must lead")
+                                        .accessibilityElement(children: .combine)
+                                        .accessibilityLabel("You have joined this crew")
+
+                                        if let crew = crewInfo {
+                                            Text("Waiting for \(crew.maxCrew - crew.crewCount) more pilot(s) to join")
                                                 .font(.caption)
                                                 .foregroundColor(.secondary)
                                         }
-                                        .padding(.horizontal)
-                                    }
-                                } else if currentBooking.isSearchRescueCrewBooking {
-                                    // S&R crew booking
-                                    if isAlreadyInCrew {
-                                        VStack(spacing: 8) {
-                                            HStack {
-                                                Image(systemName: "checkmark.circle.fill")
-                                                    .foregroundColor(.green)
-                                                Text("You've joined this mission")
-                                                    .fontWeight(.semibold)
-                                            }
-                                            .foregroundColor(.green)
-                                            .padding()
-                                            .frame(maxWidth: .infinity)
-                                            .background(Color.green.opacity(0.1))
-                                            .cornerRadius(12)
-                                            .padding(.horizontal)
-                                            .accessibilityElement(children: .combine)
-                                            .accessibilityLabel("You have joined this mission")
-
-                                            if let crew = crewInfo {
-                                                Text("Waiting for \(crew.maxCrew - crew.crewCount) more pilot(s) to join")
-                                                    .font(.caption)
-                                                    .foregroundColor(.secondary)
-                                            }
-                                        }
-                                    } else {
-                                        CustomButton(
-                                            title: "Join Mission",
-                                            action: { showJoinCrewAlert = true },
-                                            isLoading: bookingService.isLoading
-                                        )
-                                        .padding(.horizontal)
                                     }
                                 } else {
-                                    // Non-crew booking - regular accept
                                     CustomButton(
-                                        title: "Accept Mission",
-                                        action: { showAcceptAlert = true },
+                                        title: "Join Crew",
+                                        action: { showJoinCrewAlert = true },
+                                        isLoading: bookingService.isLoading
+                                    )
+                                    .padding(.horizontal)
+
+                                    // Show crew requirements info
+                                    VStack(spacing: 4) {
+                                        Text("Automotive bookings require a crew of 4 pilots")
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                        Text("At least one Lieutenant or above must lead")
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                    }
+                                    .padding(.horizontal)
+                                }
+                            } else if currentBooking.isSearchRescueCrewBooking {
+                                // S&R crew booking
+                                if isAlreadyInCrew {
+                                    VStack(spacing: 8) {
+                                        HStack {
+                                            Image(systemName: "checkmark.circle.fill")
+                                                .foregroundColor(.green)
+                                            Text("You've joined this mission")
+                                                .fontWeight(.semibold)
+                                        }
+                                        .foregroundColor(.green)
+                                        .padding()
+                                        .frame(maxWidth: .infinity)
+                                        .background(Color.green.opacity(0.1))
+                                        .cornerRadius(12)
+                                        .padding(.horizontal)
+                                        .accessibilityElement(children: .combine)
+                                        .accessibilityLabel("You have joined this mission")
+
+                                        if let crew = crewInfo {
+                                            Text("Waiting for \(crew.maxCrew - crew.crewCount) more pilot(s) to join")
+                                                .font(.caption)
+                                                .foregroundColor(.secondary)
+                                        }
+                                    }
+                                } else {
+                                    CustomButton(
+                                        title: "Join Mission",
+                                        action: { showJoinCrewAlert = true },
                                         isLoading: bookingService.isLoading
                                     )
                                     .padding(.horizontal)
                                 }
                             } else {
-                                VStack(spacing: 8) {
-                                    CustomButton(
-                                        title: currentBooking.isCrewBooking ? (currentBooking.isSearchRescueCrewBooking ? "Join Mission" : "Join Crew") : "Accept Mission",
-                                        action: { showVerificationRequiredAlert = true },
-                                        isLoading: false
-                                    )
-                                    .padding(.horizontal)
-                                    .disabled(true)
-                                    .opacity(0.6)
-                                    
-                                    HStack(spacing: 6) {
-                                        Image(systemName: "exclamationmark.triangle.fill")
-                                            .foregroundColor(.orange)
-                                            .font(.caption)
-                                        Text("Identity verification required to accept missions")
-                                            .font(.caption)
-                                            .foregroundColor(.orange)
-                                    }
-                                    .padding(.horizontal)
-                                    .accessibilityElement(children: .combine)
-                                    .accessibilityLabel("Warning: Identity verification required to accept missions")
-                                }
+                                // Non-crew booking - regular accept
+                                CustomButton(
+                                    title: "Accept Mission",
+                                    action: { showAcceptAlert = true },
+                                    isLoading: bookingService.isLoading
+                                )
+                                .padding(.horizontal)
                             }
                         } else if (currentBooking.status == .accepted || currentBooking.status == .staffed) && currentBooking.pilotId == authService.currentUser?.id {
                             // Start Job button - transitions to in_progress
@@ -991,14 +963,6 @@ struct BookingDetailView: View {
         } message: {
             Text(errorMessage)
         }
-        .alert("Verification Required", isPresented: $showVerificationRequiredAlert) {
-            Button("Go to Settings", role: .none) {
-                // Navigate to profile/settings - user will need to manually navigate
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("You must verify your identity before accepting bookings. Please complete identity verification in your Profile settings.")
-        }
         .alert(currentBooking.isSearchRescueCrewBooking ? "Join Mission" : "Join Crew", isPresented: $showJoinCrewAlert) {
             Button("Cancel", role: .cancel) {}
             Button("Join") {
@@ -1082,7 +1046,6 @@ struct BookingDetailView: View {
         }
         .task {
             await loadCustomerProfile()
-            await checkIdentityVerification()
             await refreshBooking()
             if currentBooking.isCrewBooking {
                 await loadCrewInfo()
@@ -1090,12 +1053,7 @@ struct BookingDetailView: View {
         }
         // Bug fix: removed duplicate .onAppear refreshBooking() — .task already calls it
     }
-    
-    private func checkIdentityVerification() async {
-        guard let userId = authService.currentUser?.id else { return }
-        isIdentityVerified = await identityService.isIdentityVerified(userId: userId)
-    }
-    
+
     private func refreshBooking() async {
         do {
             let updatedBooking = try await bookingService.getBooking(bookingId: booking.id)

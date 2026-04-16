@@ -867,9 +867,6 @@ struct CourseDetailView: View {
     @ObservedObject private var entitlementManager = EntitlementManager.shared
     @StateObject private var badgeService = BadgeService()
     @StateObject private var academyService = AcademyService()
-    @StateObject private var identityService = IdentityVerificationService()
-    @State private var isIdentityVerified = false
-    @State private var showVerificationRequiredAlert = false
 
     init(course: TrainingCourse, onEnrollmentChange: @escaping () -> Void) {
         self.course = course
@@ -1066,11 +1063,7 @@ struct CourseDetailView: View {
                         if let externalUrl = course.externalUrl, !externalUrl.isEmpty {
                             // External course - show "Go to Course" button with confirmation
                             Button(action: {
-                                if isIdentityVerified {
-                                    showExternalCourseConfirmation = true
-                                } else {
-                                    showVerificationRequiredAlert = true
-                                }
+                                showExternalCourseConfirmation = true
                             }) {
                                 Text("Go to Course")
                                     .font(.headline)
@@ -1105,12 +1098,8 @@ struct CourseDetailView: View {
                         } else {
                             // Buzz course - show "Enroll Now" button
                             Button(action: {
-                                if isIdentityVerified {
-                                    Task {
-                                        await enrollInCourse()
-                                    }
-                                } else {
-                                    showVerificationRequiredAlert = true
+                                Task {
+                                    await enrollInCourse()
                                 }
                             }) {
                                 Text("Enroll Now")
@@ -1173,28 +1162,16 @@ struct CourseDetailView: View {
         } message: {
             Text("You are going to a third-party website to take the course. This is not covered by the Buzz Academy subscription.")
         }
-        .alert("Verification Required", isPresented: $showVerificationRequiredAlert) {
-            Button("Go to Settings", role: .none) { }
-            Button("Cancel", role: .cancel) { }
-        } message: {
-            Text("You must verify your identity before enrolling in courses. Please complete identity verification in your Profile settings under Personal Info.")
-        }
         .sheet(isPresented: $showSubscriptionSheet) {
             if let currentUser = authService.currentUser {
                 CourseSubscriptionView(course: course, pilotId: currentUser.id)
             }
         }
         .task {
-            await checkIdentityVerification()
             if let currentUser = authService.currentUser {
                 _ = await storeKitManager.checkAllSubscriptions(pilotId: currentUser.id)
             }
         }
-    }
-
-    private func checkIdentityVerification() async {
-        guard let userId = authService.currentUser?.id else { return }
-        isIdentityVerified = await identityService.isIdentityVerified(userId: userId)
     }
 
     private func enrollInCourse() async {

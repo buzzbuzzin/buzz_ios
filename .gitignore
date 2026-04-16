@@ -95,3 +95,12 @@ Config.swift
 # macOS
 .DS_Store
 
+# skills
+.agents
+.claude
+.codebuddy
+.factory
+.qoder
+.qwen
+.windsurf
+
