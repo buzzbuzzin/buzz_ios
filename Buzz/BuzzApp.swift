@@ -85,13 +85,27 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         }
     }
     
-    /// Handle remote notification received while app is in foreground or background
+    /// Handle remote notification received while app is in foreground or background.
+    /// iOS tracks `.newData` vs `.noData` / `.failed` reports to decide how much
+    /// background-fetch budget to grant in the future — always returning `.noData`
+    /// immediately wastes silent-push opportunities. Currently Buzz only sends alert
+    /// pushes (no content-available), but route through a handler so we can distinguish
+    /// silent vs alert pushes and let the NotificationManager refresh relevant state.
     func application(
         _ application: UIApplication,
         didReceiveRemoteNotification userInfo: [AnyHashable: Any],
         fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void
     ) {
-        completionHandler(.noData)
+        // Give ourselves a short window to do any payload-driven work. If nothing
+        // actionable is in the payload we still report `.noData` honestly.
+        let aps = userInfo["aps"] as? [AnyHashable: Any]
+        let isSilentPush = (aps?["content-available"] as? Int) == 1
+        Task { @MainActor in
+            // For both alert and silent pushes, refresh device-token bookkeeping so
+            // a token rotation (if any) can reach the backend. This is cheap and safe.
+            await NotificationManager.shared.syncDeviceTokenIfNeeded()
+            completionHandler(isSilentPush ? .newData : .noData)
+        }
     }
 }
 

@@ -26,31 +26,39 @@ class PaymentService: ObservableObject {
         amount: Decimal,
         currency: String = "usd",
         customerId: UUID,
-        transferGroup: String
+        transferGroup: String,
+        idempotencyKey: String? = nil
     ) async throws -> PaymentIntentResponse {
         isLoading = true
         errorMessage = nil
-        
+
         do {
             struct PaymentIntentRequest: Codable {
                 let amount: Int
                 let currency: String
                 let customer_id: String
                 let transfer_group: String
+                let idempotency_key: String?
             }
-            
+
             let request = PaymentIntentRequest(
                 amount: Int((NSDecimalNumber(decimal: amount * 100).doubleValue).rounded()),
                 currency: currency,
                 customer_id: customerId.uuidString,
-                transfer_group: transferGroup
+                transfer_group: transferGroup,
+                // If caller doesn't provide one, derive a stable key from the transfer
+                // group so two rapid taps of "Pay" re-use the same Stripe PaymentIntent
+                // instead of creating a second charge. Client-side `isLoading` guards
+                // cover the common case, but the idempotency key makes the contract
+                // enforceable end-to-end.
+                idempotency_key: idempotencyKey ?? "pi_\(transferGroup)"
             )
-            
+
             let response: PaymentIntentResponse = try await supabase.functions
                 .invoke("create-payment-intent", options: FunctionInvokeOptions(
                     body: request
                 ))
-            
+
             isLoading = false
             return response
         } catch {
@@ -59,20 +67,21 @@ class PaymentService: ObservableObject {
             throw error
         }
     }
-    
+
     // MARK: - Create Payment Intent with Credits
-    
+
     /// Creates a PaymentIntent with optional referral credits applied
     func createPaymentIntentWithCredits(
         amount: Decimal,
         creditsToUse: Decimal = 0,
         currency: String = "usd",
         customerId: UUID,
-        transferGroup: String
+        transferGroup: String,
+        idempotencyKey: String? = nil
     ) async throws -> PaymentIntentResponse {
         isLoading = true
         errorMessage = nil
-        
+
         do {
             struct PaymentIntentWithCreditsRequest: Codable {
                 let amount: Int
@@ -80,21 +89,23 @@ class PaymentService: ObservableObject {
                 let currency: String
                 let customer_id: String
                 let transfer_group: String
+                let idempotency_key: String?
             }
-            
+
             let request = PaymentIntentWithCreditsRequest(
                 amount: Int((NSDecimalNumber(decimal: amount * 100).doubleValue).rounded()),
                 credits_to_use: NSDecimalNumber(decimal: creditsToUse).doubleValue,
                 currency: currency,
                 customer_id: customerId.uuidString,
-                transfer_group: transferGroup
+                transfer_group: transferGroup,
+                idempotency_key: idempotencyKey ?? "pi_\(transferGroup)"
             )
-            
+
             let response: PaymentIntentResponse = try await supabase.functions
                 .invoke("create-payment-intent", options: FunctionInvokeOptions(
                     body: request
                 ))
-            
+
             isLoading = false
             return response
         } catch {

@@ -72,21 +72,33 @@ struct PilotPostsListView: View {
                                 onLike: {
                                     guard let userId = authService.activeUserId else { return }
                                     Task {
-                                        try? await hangerTalkService.toggleLike(postId: postWithAuthor.id, userId: userId)
+                                        do {
+                                            try await hangerTalkService.toggleLike(postId: postWithAuthor.id, userId: userId)
+                                        } catch {
+                                            print("toggleLike failed: \(error.localizedDescription)")
+                                        }
                                         await refreshPosts()
                                     }
                                 },
                                 onRepost: {
                                     guard let userId = authService.activeUserId else { return }
                                     Task {
-                                        try? await hangerTalkService.toggleRepost(postId: postWithAuthor.id, userId: userId)
+                                        do {
+                                            try await hangerTalkService.toggleRepost(postId: postWithAuthor.id, userId: userId)
+                                        } catch {
+                                            print("toggleRepost failed: \(error.localizedDescription)")
+                                        }
                                         await refreshPosts()
                                     }
                                 },
                                 onBookmark: {
                                     guard let userId = authService.activeUserId else { return }
                                     Task {
-                                        try? await hangerTalkService.toggleBookmark(postId: postWithAuthor.id, userId: userId)
+                                        do {
+                                            try await hangerTalkService.toggleBookmark(postId: postWithAuthor.id, userId: userId)
+                                        } catch {
+                                            print("toggleBookmark failed: \(error.localizedDescription)")
+                                        }
                                         await refreshPosts()
                                     }
                                 },

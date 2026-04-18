@@ -1393,16 +1393,64 @@ class BookingService: ObservableObject {
             
             // If both have completed, finalize the booking
             if customerCompleted && pilotCompleted {
+                // Guard against closing a paid booking without a payout path. A paid
+                // booking (paymentAmount > 0, not voluntary, not automotive crew which
+                // is paid out separately by the crew endpoint) must have a charge
+                // captured BEFORE we let either side mark completion — otherwise we'd
+                // silently close the booking with the pilot never receiving the funds.
+                let isVoluntary = booking.isVoluntary == true
+                let isCrewPaidSeparately = booking.isAutomotiveCrewBooking || booking.isSearchRescueCrewBooking
+                let requiresPayment = !isVoluntary
+                    && !isCrewPaidSeparately
+                    && booking.paymentAmount > 0
+                if requiresPayment && booking.chargeId == nil {
+                    isLoading = false
+                    errorMessage = "Payment has not been collected for this booking — completion is blocked until the charge is captured."
+                    throw NSError(
+                        domain: "BookingService",
+                        code: 409,
+                        userInfo: [NSLocalizedDescriptionKey: "Payment has not been collected for this booking. Please contact support to resolve the payment before marking it complete."]
+                    )
+                }
+
                 updateData["status"] = .string(BookingStatus.completed.rawValue)
                 // Set completed_at timestamp when booking is officially completed
                 updateData["completed_at"] = .string(ISO8601DateFormatter().string(from: Date()))
-                
+
                 // If booking has a charge_id but no transfer_id, trigger transfer
                 // Transfer goes directly to Stripe account, balance is managed by Stripe
                 if let chargeId = booking.chargeId, booking.transferId == nil, let pilotId = booking.pilotId {
+                    // Verify the pilot's Stripe Connect account is active before attempting
+                    // a transfer. If onboarding is incomplete, the transfer edge function
+                    // errors out silently (from the user's perspective) and the booking
+                    // gets marked completed with no payout — money stuck on the platform.
+                    // Fail fast here so the customer doesn't accidentally close the booking.
+                    let connect = StripeConnectService()
+                    let pilotAccountId = try? await connect.getAccountId(userId: pilotId)
+                    if let accountId = pilotAccountId, !accountId.isEmpty {
+                        let status = try? await connect.checkAccountStatus(accountId: accountId)
+                        if status != .active {
+                            isLoading = false
+                            errorMessage = "Pilot's payout account isn't active — completion blocked until the pilot finishes Stripe onboarding."
+                            throw NSError(
+                                domain: "BookingService",
+                                code: 409,
+                                userInfo: [NSLocalizedDescriptionKey: "This pilot has not completed Stripe onboarding, so we can't transfer the payout yet. Please ask the pilot to finish setup in their profile before marking this booking complete."]
+                            )
+                        }
+                    } else {
+                        isLoading = false
+                        errorMessage = "Pilot has no Stripe payout account — cannot complete booking."
+                        throw NSError(
+                            domain: "BookingService",
+                            code: 409,
+                            userInfo: [NSLocalizedDescriptionKey: "This pilot doesn't have a Stripe payout account configured. Please ask them to set one up before marking this booking complete."]
+                        )
+                    }
+
                     // Get payment amount (including tip)
                     let totalAmount = booking.paymentAmount + (booking.tipAmount ?? 0)
-                    
+
                     // Call transfer function
                     struct TransferRequest: Codable {
                         let booking_id: String
@@ -1529,8 +1577,14 @@ class BookingService: ObservableObject {
             .execute()
     }
     
-    /// Complete a Search & Rescue mission with payment
-    /// This is called after the customer has paid for the mission
+    /// Complete a Search & Rescue mission with payment (CUSTOMER side only).
+    ///
+    /// The customer is paying and acknowledging completion from their side. A pilot
+    /// must independently confirm via `confirmSearchRescuePilotCompletion` before the
+    /// transfer fires and the booking transitions to `completed`. The old behavior
+    /// was to unconditionally set both `customer_completed` and `pilot_completed`
+    /// true here, which meant a customer could unilaterally force a payout (at any
+    /// hours/amount) without pilot agreement — a fraud vector for either side.
     func completeSearchRescuePayment(
         bookingId: UUID,
         paymentIntentId: String,
@@ -1540,64 +1594,53 @@ class BookingService: ObservableObject {
     ) async throws {
         isLoading = true
         errorMessage = nil
-        
+
         do {
-            // Get charge ID from payment intent
+            // Get charge ID from payment intent — we persist it so the pilot-side
+            // confirmation step can drive the transfer without a second capture.
             let chargeId = try await getChargeIdFromPaymentIntent(paymentIntentId: paymentIntentId)
-            
-            // Update booking with payment info and mark as completed
+
+            // Customer side: record payment + customer acknowledgement + agreed hours.
+            // Status intentionally stays in its current (in-progress) value — it moves
+            // to `completed` only when a pilot independently confirms.
             let updateData: [String: AnyJSON] = [
-                "status": .string(BookingStatus.completed.rawValue),
-                "completed_at": .string(ISO8601DateFormatter().string(from: Date())),
                 "customer_completed": .bool(true),
-                "pilot_completed": .bool(true),
                 "final_hours_worked": .double(hoursWorked),
                 "payment_amount": .double(NSDecimalNumber(decimal: totalAmount).doubleValue),
                 "payment_intent_id": .string(paymentIntentId),
                 "charge_id": .string(chargeId)
             ]
-            
+
             try await backend.updateBooking(id: bookingId, values: updateData)
 
-            // Trigger transfer to pilots
-            struct TransferRequest: Codable {
-                let booking_id: String
-                let amount: Int
-                let currency: String
-                let charge_id: String
-            }
-            
-            let transferRequest = TransferRequest(
-                booking_id: bookingId.uuidString,
-                amount: Int(NSDecimalNumber(decimal: totalAmount * 100).intValue),
-                currency: "usd",
-                charge_id: chargeId
-            )
-            
-            // Trigger transfer to pilots (we don't need to capture the response)
-            try await supabase.functions
-                .invoke("create-transfer", options: FunctionInvokeOptions(
-                    body: transferRequest
-                ))
-            
-            // Update flight hours for all participating pilots
-            let crewMemberships = try await backend.fetchBookingCrew(bookingId: bookingId)
-
-            let rankingService = RankingService()
-            for crewMember in crewMemberships {
-                try? await rankingService.updateFlightHours(pilotId: crewMember.pilotId, additionalHours: hoursWorked)
-            }
-
-            // Notify crew about mission completion and payout
-            if !skipNetworkCalls {
-                let perPilotPayout = pilotCount > 0 ? totalAmount / Decimal(pilotCount) : totalAmount
-                let missionType = (try? await backend.fetchBooking(id: bookingId))?.specialization?.displayName ?? "Search & Rescue"
-                Task {
-                    await notificationManager.notifyBeaconResolved(bookingId: bookingId, missionType: missionType)
-                    for crewMember in crewMemberships {
-                        await notificationManager.notifyPayoutConfirmation(bookingId: bookingId, payoutAmount: perPilotPayout)
-                    }
+            // Notify assigned crew that payment is in and they can confirm on their end.
+            // Pilots who are subscribed to booking updates will also see the state
+            // change on their next refresh even if the push fails.
+            do {
+                let crew = try await backend.fetchBookingCrew(bookingId: bookingId)
+                for member in crew {
+                    await NotificationManager.shared.notifyPayoutConfirmation(
+                        bookingId: bookingId,
+                        payoutAmount: member.payoutAmount
+                    )
                 }
+            } catch {
+                print("completeSearchRescuePayment: failed to notify crew: \(error)")
+            }
+
+            // If a pilot has already independently confirmed completion earlier in the
+            // mission, the booking can now transition to completed — transfer and
+            // flight-hours updates run here. Otherwise we wait for a pilot to call
+            // `confirmSearchRescuePilotCompletion`.
+            let refreshed = try await backend.fetchBooking(id: bookingId)
+            if refreshed.pilotCompleted == true {
+                try await finalizeSearchRescueCompletion(
+                    bookingId: bookingId,
+                    chargeId: chargeId,
+                    totalAmount: totalAmount,
+                    hoursWorked: hoursWorked,
+                    pilotCount: pilotCount
+                )
             }
 
             isLoading = false
@@ -1606,6 +1649,88 @@ class BookingService: ObservableObject {
             errorMessage = error.localizedDescription
             throw error
         }
+    }
+
+    /// Pilot-side confirmation for a Search & Rescue booking. A pilot on the crew
+    /// explicitly acknowledges the mission is done; if the customer has already
+    /// paid (customer_completed + charge_id present) this finalizes the booking
+    /// and fires the payout transfer.
+    func confirmSearchRescuePilotCompletion(bookingId: UUID) async throws {
+        isLoading = true
+        errorMessage = nil
+        defer { isLoading = false }
+
+        let booking = try await backend.fetchBooking(id: bookingId)
+
+        // Mark pilot-side acknowledgement.
+        try await backend.updateBooking(id: bookingId, values: [
+            "pilot_completed": .bool(true)
+        ])
+
+        // Finalize only if the customer side has paid AND provided a charge to transfer.
+        if booking.customerCompleted == true, let chargeId = booking.chargeId {
+            let hoursWorked = booking.finalHoursWorked ?? booking.estimatedFlightHours ?? 0
+            let crew = (try? await backend.fetchBookingCrew(bookingId: bookingId)) ?? []
+            try await finalizeSearchRescueCompletion(
+                bookingId: bookingId,
+                chargeId: chargeId,
+                totalAmount: booking.paymentAmount,
+                hoursWorked: hoursWorked,
+                pilotCount: max(crew.count, 1)
+            )
+        }
+    }
+
+    /// Final step of an S&R completion: mark the booking completed, fire the transfer
+    /// to pilots, update pilot flight hours, and send payout notifications. Shared
+    /// between customer-payment-after-pilot-confirmed and pilot-confirm-after-payment
+    /// orderings.
+    private func finalizeSearchRescueCompletion(
+        bookingId: UUID,
+        chargeId: String,
+        totalAmount: Decimal,
+        hoursWorked: Double,
+        pilotCount: Int
+    ) async throws {
+        try await backend.updateBooking(id: bookingId, values: [
+            "status": .string(BookingStatus.completed.rawValue),
+            "completed_at": .string(ISO8601DateFormatter().string(from: Date())),
+            "pilot_completed": .bool(true)
+        ])
+
+        struct TransferRequest: Codable {
+            let booking_id: String
+            let amount: Int
+            let currency: String
+            let charge_id: String
+        }
+
+        let transferRequest = TransferRequest(
+            booking_id: bookingId.uuidString,
+            amount: Int(NSDecimalNumber(decimal: totalAmount * 100).intValue),
+            currency: "usd",
+            charge_id: chargeId
+        )
+        try await supabase.functions
+            .invoke("create-transfer", options: FunctionInvokeOptions(body: transferRequest))
+
+        let crewMemberships = (try? await backend.fetchBookingCrew(bookingId: bookingId)) ?? []
+        let rankingService = RankingService()
+        for crewMember in crewMemberships {
+            try? await rankingService.updateFlightHours(pilotId: crewMember.pilotId, additionalHours: hoursWorked)
+        }
+
+        if !skipNetworkCalls {
+            let perPilotPayout = pilotCount > 0 ? totalAmount / Decimal(pilotCount) : totalAmount
+            let missionType = (try? await backend.fetchBooking(id: bookingId))?.specialization?.displayName ?? "Search & Rescue"
+            Task {
+                await notificationManager.notifyBeaconResolved(bookingId: bookingId, missionType: missionType)
+                for _ in crewMemberships {
+                    await notificationManager.notifyPayoutConfirmation(bookingId: bookingId, payoutAmount: perPilotPayout)
+                }
+            }
+        }
+        publishBookingChange(for: bookingId)
     }
 
     /// Complete a voluntary Search & Rescue mission (no payment)
@@ -2427,6 +2552,28 @@ class BookingService: ObservableObject {
                 .update(updateData)
                 .eq("id", value: bookingId.uuidString)
                 .execute()
+
+            // If the customer had already paid, issue a refund. `create-refund` uses
+            // Stripe's `reverse_transfer: true` to claw back any funds already
+            // transferred to the pilot's Connect account in the same call, so the
+            // money returns to the customer atomically. We do this after the status
+            // update so a refund failure does not leave the booking stuck in an
+            // in-progress state — support can retry the refund manually off this
+            // already-cancelled booking.
+            if booking.chargeId != nil || booking.paymentIntentId != nil {
+                struct RefundRequest: Codable { let booking_id: String }
+                let req = RefundRequest(booking_id: bookingId.uuidString)
+                do {
+                    _ = try await supabase.functions
+                        .invoke("create-refund", options: FunctionInvokeOptions(body: req))
+                } catch {
+                    // Don't block cancellation on a failed refund call — surface it
+                    // so the UI (and any support ticket) can see the problem and the
+                    // customer can be reimbursed out-of-band.
+                    print("cancelBooking: refund call failed: \(error.localizedDescription)")
+                    errorMessage = "Booking cancelled, but the refund couldn't be issued automatically. Support has been notified."
+                }
+            }
 
             // Cancel any pending booking reminders
             NotificationManager.shared.cancelBookingReminder(bookingId: bookingId)

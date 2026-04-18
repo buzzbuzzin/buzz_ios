@@ -1019,7 +1019,9 @@ struct CreateBookingView: View {
         }
     }
     
-    /// Process payment via Stripe and then create a paid S&R booking
+    /// Process payment via Stripe and then create a paid S&R booking.
+    /// If payment succeeds but booking creation fails we auto-refund so the
+    /// customer is never left paying for a booking that doesn't exist.
     private func processPaymentAndCreateSARBooking(
         customerId: UUID,
         paymentAmount: Decimal,
@@ -1027,13 +1029,11 @@ struct CreateBookingView: View {
         hours: Double
     ) async {
         isProcessingPayment = true
-        
+
         do {
-            // Generate transfer group (using booking ID that we'll create)
             let bookingId = UUID()
             let transferGroup = "booking_\(bookingId.uuidString)"
-            
-            // Create PaymentIntent with credits if applicable
+
             let paymentIntentResponse = try await paymentService.createPaymentIntentWithCredits(
                 amount: paymentAmount,
                 creditsToUse: creditsToUse,
@@ -1041,76 +1041,82 @@ struct CreateBookingView: View {
                 customerId: customerId,
                 transferGroup: transferGroup
             )
-            
-            // Present PaymentSheet
+
             let paymentResult = try await paymentService.presentPaymentSheet(
                 paymentIntentClientSecret: paymentIntentResponse.clientSecret,
                 customerId: paymentIntentResponse.customerId,
                 customerEphemeralKeySecret: paymentIntentResponse.ephemeralKeySecret
             )
-            
+
             switch paymentResult {
             case .completed:
-                // Payment successful, now create the booking
-                let calendar = Calendar.current
-                let dateComponents = calendar.dateComponents([.year, .month, .day], from: selectedDate)
-                let startTimeComponents = calendar.dateComponents([.hour, .minute], from: startTime)
-                
-                var startDateTimeComponents = DateComponents()
-                startDateTimeComponents.year = dateComponents.year
-                startDateTimeComponents.month = dateComponents.month
-                startDateTimeComponents.day = dateComponents.day
-                startDateTimeComponents.hour = startTimeComponents.hour
-                startDateTimeComponents.minute = startTimeComponents.minute
-                
-                let startDateTime = calendar.date(from: startDateTimeComponents) ?? selectedDate
-                
-                var endDateTime: Date
-                if let providedEndTime = endTime {
-                    let endTimeComponents = calendar.dateComponents([.hour, .minute], from: providedEndTime)
-                    var endDateTimeComponents = DateComponents()
-                    endDateTimeComponents.year = dateComponents.year
-                    endDateTimeComponents.month = dateComponents.month
-                    endDateTimeComponents.day = dateComponents.day
-                    endDateTimeComponents.hour = endTimeComponents.hour
-                    endDateTimeComponents.minute = endTimeComponents.minute
-                    endDateTime = calendar.date(from: endDateTimeComponents) ?? startDateTime
-                } else {
-                    endDateTime = calendar.date(byAdding: .hour, value: Int(hours), to: startDateTime) ?? startDateTime
+                // Any throw below means the customer was charged but no booking row
+                // exists — issue a refund automatically.
+                do {
+                    let calendar = Calendar.current
+                    let dateComponents = calendar.dateComponents([.year, .month, .day], from: selectedDate)
+                    let startTimeComponents = calendar.dateComponents([.hour, .minute], from: startTime)
+
+                    var startDateTimeComponents = DateComponents()
+                    startDateTimeComponents.year = dateComponents.year
+                    startDateTimeComponents.month = dateComponents.month
+                    startDateTimeComponents.day = dateComponents.day
+                    startDateTimeComponents.hour = startTimeComponents.hour
+                    startDateTimeComponents.minute = startTimeComponents.minute
+
+                    let startDateTime = calendar.date(from: startDateTimeComponents) ?? selectedDate
+
+                    var endDateTime: Date
+                    if let providedEndTime = endTime {
+                        let endTimeComponents = calendar.dateComponents([.hour, .minute], from: providedEndTime)
+                        var endDateTimeComponents = DateComponents()
+                        endDateTimeComponents.year = dateComponents.year
+                        endDateTimeComponents.month = dateComponents.month
+                        endDateTimeComponents.day = dateComponents.day
+                        endDateTimeComponents.hour = endTimeComponents.hour
+                        endDateTimeComponents.minute = endTimeComponents.minute
+                        endDateTime = calendar.date(from: endDateTimeComponents) ?? startDateTime
+                    } else {
+                        endDateTime = calendar.date(byAdding: .hour, value: Int(hours), to: startDateTime) ?? startDateTime
+                    }
+
+                    let hourlyRate = getSearchRescueHourlyRate()
+
+                    let newBooking = try await bookingService.createSearchRescueBooking(
+                        customerId: customerId,
+                        location: location,
+                        locationName: locationName.isEmpty ? "Selected Location" : locationName,
+                        scheduledDate: startDateTime,
+                        endDate: endDateTime,
+                        description: description.isEmpty ? nil : description,
+                        isVoluntary: false,
+                        hourlyRate: hourlyRate,
+                        estimatedFlightHours: hours,
+                        assignmentType: sarAssignmentType,
+                        governmentAgency: sarGovernmentAgency,
+                        usesBeaconProgram: usesBeaconProgram,
+                        requiredMinimumRank: requiredMinimumRank,
+                        numberOfPilots: numberOfPilots
+                    )
+
+                    await MainActor.run {
+                        createdBooking = newBooking
+                        onBookingCreated?(newBooking)
+                        showSuccessAnimation = true
+                        isProcessingPayment = false
+                    }
+                } catch {
+                    await attemptRefundOrphanPayment(
+                        paymentIntentId: paymentIntentResponse.paymentIntentId,
+                        originalError: error
+                    )
                 }
-                
-                let hourlyRate = getSearchRescueHourlyRate()
-                
-                // Create Search & Rescue booking with payment info
-                let newBooking = try await bookingService.createSearchRescueBooking(
-                    customerId: customerId,
-                    location: location,
-                    locationName: locationName.isEmpty ? "Selected Location" : locationName,
-                    scheduledDate: startDateTime,
-                    endDate: endDateTime,
-                    description: description.isEmpty ? nil : description,
-                    isVoluntary: false,
-                    hourlyRate: hourlyRate,
-                    estimatedFlightHours: hours,
-                    assignmentType: sarAssignmentType,
-                    governmentAgency: sarGovernmentAgency,
-                    usesBeaconProgram: usesBeaconProgram,
-                    requiredMinimumRank: requiredMinimumRank,
-                    numberOfPilots: numberOfPilots
-                )
-                
-                await MainActor.run {
-                    createdBooking = newBooking
-                    onBookingCreated?(newBooking)
-                    showSuccessAnimation = true
-                    isProcessingPayment = false
-                }
-                
+
             case .cancelled:
                 await MainActor.run {
                     isProcessingPayment = false
                 }
-                
+
             case .failed(let error):
                 await MainActor.run {
                     errorMessage = error.localizedDescription
@@ -1124,6 +1130,31 @@ struct CreateBookingView: View {
                 showError = true
                 isProcessingPayment = false
             }
+        }
+    }
+
+    /// Called when a PaymentSheet completed but the subsequent booking creation
+    /// failed. Invokes the `create-refund` edge function by payment_intent_id so
+    /// the customer is refunded automatically, and surfaces a clear error.
+    private func attemptRefundOrphanPayment(paymentIntentId: String, originalError: Error) async {
+        struct OrphanRefundRequest: Codable { let payment_intent_id: String }
+        let req = OrphanRefundRequest(payment_intent_id: paymentIntentId)
+        var refundIssued = false
+        do {
+            _ = try await SupabaseClient.shared.client.functions
+                .invoke("create-refund", options: FunctionInvokeOptions(body: req))
+            refundIssued = true
+        } catch {
+            print("attemptRefundOrphanPayment: refund call failed: \(error.localizedDescription)")
+        }
+        await MainActor.run {
+            isProcessingPayment = false
+            if refundIssued {
+                errorMessage = "We couldn't create your booking, so your payment has been refunded. (\(originalError.localizedDescription))"
+            } else {
+                errorMessage = "We couldn't create your booking and the automatic refund also failed. Please contact support with this payment ID: \(paymentIntentId)."
+            }
+            showError = true
         }
     }
     
@@ -1159,85 +1190,93 @@ struct CreateBookingView: View {
             
             switch paymentResult {
             case .completed:
-                // Payment successful, get charge_id from PaymentIntent
-                let chargeId = try await paymentService.getChargeId(paymentIntentId: paymentIntentResponse.paymentIntentId)
-                
-                // Combine date with start time
-                let calendar = Calendar.current
-                let dateComponents = calendar.dateComponents([.year, .month, .day], from: selectedDate)
-                let startTimeComponents = calendar.dateComponents([.hour, .minute], from: startTime)
-                
-                var startDateTimeComponents = DateComponents()
-                startDateTimeComponents.year = dateComponents.year
-                startDateTimeComponents.month = dateComponents.month
-                startDateTimeComponents.day = dateComponents.day
-                startDateTimeComponents.hour = startTimeComponents.hour
-                startDateTimeComponents.minute = startTimeComponents.minute
-                
-                let startDateTime = calendar.date(from: startDateTimeComponents) ?? selectedDate
-                
-                // Use provided end time if available, otherwise calculate from start time + estimated hours
-                var endDateTime: Date
-                if let providedEndTime = endTime {
-                    let endTimeComponents = calendar.dateComponents([.hour, .minute], from: providedEndTime)
-                    var endDateTimeComponents = DateComponents()
-                    endDateTimeComponents.year = dateComponents.year
-                    endDateTimeComponents.month = dateComponents.month
-                    endDateTimeComponents.day = dateComponents.day
-                    endDateTimeComponents.hour = endTimeComponents.hour
-                    endDateTimeComponents.minute = endTimeComponents.minute
-                    endDateTime = calendar.date(from: endDateTimeComponents) ?? startDateTime
-                } else {
-                    // Calculate end time from start time + estimated hours
-                    endDateTime = calendar.date(byAdding: .hour, value: Int(hours), to: startDateTime) ?? startDateTime
-                    // Add minutes for fractional hours
-                    let fractionalHours = hours - Double(Int(hours))
-                    if fractionalHours > 0 {
-                        let minutes = Int(fractionalHours * 60)
-                        endDateTime = calendar.date(byAdding: .minute, value: minutes, to: endDateTime) ?? endDateTime
+                // Payment has settled on Stripe's side. From here on, ANY thrown error
+                // means the customer has been charged but the booking record does not
+                // yet exist — we must refund automatically so the user isn't left
+                // paying for nothing. We catch inside a nested do/catch and issue a
+                // `create-refund` call if anything fails before the booking row is in.
+                do {
+                    let chargeId = try await paymentService.getChargeId(paymentIntentId: paymentIntentResponse.paymentIntentId)
+
+                    let calendar = Calendar.current
+                    let dateComponents = calendar.dateComponents([.year, .month, .day], from: selectedDate)
+                    let startTimeComponents = calendar.dateComponents([.hour, .minute], from: startTime)
+
+                    var startDateTimeComponents = DateComponents()
+                    startDateTimeComponents.year = dateComponents.year
+                    startDateTimeComponents.month = dateComponents.month
+                    startDateTimeComponents.day = dateComponents.day
+                    startDateTimeComponents.hour = startTimeComponents.hour
+                    startDateTimeComponents.minute = startTimeComponents.minute
+
+                    let startDateTime = calendar.date(from: startDateTimeComponents) ?? selectedDate
+
+                    // Use provided end time if available, otherwise calculate from start time + estimated hours
+                    var endDateTime: Date
+                    if let providedEndTime = endTime {
+                        let endTimeComponents = calendar.dateComponents([.hour, .minute], from: providedEndTime)
+                        var endDateTimeComponents = DateComponents()
+                        endDateTimeComponents.year = dateComponents.year
+                        endDateTimeComponents.month = dateComponents.month
+                        endDateTimeComponents.day = dateComponents.day
+                        endDateTimeComponents.hour = endTimeComponents.hour
+                        endDateTimeComponents.minute = endTimeComponents.minute
+                        endDateTime = calendar.date(from: endDateTimeComponents) ?? startDateTime
+                    } else {
+                        endDateTime = calendar.date(byAdding: .hour, value: Int(hours), to: startDateTime) ?? startDateTime
+                        let fractionalHours = hours - Double(Int(hours))
+                        if fractionalHours > 0 {
+                            let minutes = Int(fractionalHours * 60)
+                            endDateTime = calendar.date(byAdding: .minute, value: minutes, to: endDateTime) ?? endDateTime
+                        }
                     }
-                }
-                
-                // Create booking with payment info
-                let newBooking = try await bookingService.createBooking(
-                    customerId: customerId,
-                    location: location,
-                    locationName: locationName.isEmpty ? "Selected Location" : locationName,
-                    scheduledDate: startDateTime,
-                    endDate: endDateTime,
-                    specialization: specialization,
-                    description: description.isEmpty ? nil : description,
-                    paymentAmount: paymentAmount,
-                    estimatedFlightHours: hours,
-                    requiredMinimumRank: requiredMinimumRank,
-                    paymentIntentId: paymentIntentResponse.paymentIntentId,
-                    chargeId: chargeId
-                )
-                
-                // Apply booking credits if used (deduct from user's balance and update booking)
-                if creditsToUse > 0 {
-                    let originalAmountCents = paymentIntentResponse.originalAmount ?? Int(NSDecimalNumber(decimal: paymentAmount * 100).intValue)
-                    let finalAmountCents = paymentIntentResponse.finalAmount ?? Int(NSDecimalNumber(decimal: (paymentAmount - creditsToUse) * 100).intValue)
-                    
-                    let _ = try await paymentService.applyBookingCredits(
-                        bookingId: newBooking.id,
+
+                    let newBooking = try await bookingService.createBooking(
                         customerId: customerId,
-                        creditsUsed: creditsToUse,
-                        originalAmount: originalAmountCents,
-                        finalAmount: finalAmountCents
+                        location: location,
+                        locationName: locationName.isEmpty ? "Selected Location" : locationName,
+                        scheduledDate: startDateTime,
+                        endDate: endDateTime,
+                        specialization: specialization,
+                        description: description.isEmpty ? nil : description,
+                        paymentAmount: paymentAmount,
+                        estimatedFlightHours: hours,
+                        requiredMinimumRank: requiredMinimumRank,
+                        paymentIntentId: paymentIntentResponse.paymentIntentId,
+                        chargeId: chargeId
                     )
+
+                    // Apply referral credits if any were used. These must run AFTER
+                    // the booking is persisted — failing here would still be a
+                    // post-booking error (not a lost-payment error), so surface it
+                    // normally rather than issuing a refund.
+                    if creditsToUse > 0 {
+                        let originalAmountCents = paymentIntentResponse.originalAmount ?? Int(NSDecimalNumber(decimal: paymentAmount * 100).intValue)
+                        let finalAmountCents = paymentIntentResponse.finalAmount ?? Int(NSDecimalNumber(decimal: (paymentAmount - creditsToUse) * 100).intValue)
+                        let _ = try await paymentService.applyBookingCredits(
+                            bookingId: newBooking.id,
+                            customerId: customerId,
+                            creditsUsed: creditsToUse,
+                            originalAmount: originalAmountCents,
+                            finalAmount: finalAmountCents
+                        )
+                    }
+
+                    isProcessingPayment = false
+                    createdBooking = newBooking
+                    onBookingCreated?(newBooking)
+                    showSuccessAnimation = true
+                    return
+                } catch {
+                    // Payment captured but booking creation/update failed — refund
+                    // automatically so the customer isn't left paying for nothing.
+                    await attemptRefundOrphanPayment(
+                        paymentIntentId: paymentIntentResponse.paymentIntentId,
+                        originalError: error
+                    )
+                    return
                 }
-                
-                isProcessingPayment = false
-                // Store the created booking for navigation
-                createdBooking = newBooking
-                // Call completion handler to notify parent
-                onBookingCreated?(newBooking)
-                // Show animated success flow
-                showSuccessAnimation = true
-                // After animation, navigate to booking detail
-                // The animation will set shouldShowBookingDetail = true
-                
+
             case .cancelled:
                 isProcessingPayment = false
                 errorMessage = "Payment was cancelled"

@@ -71,4 +71,84 @@ struct FR24FlightPosition: Codable, Identifiable {
         case destIcao = "dest_icao"
         case eta
     }
+
+    // Memberwise initializer — defining `init(from:)` below removes the
+    // compiler-synthesized memberwise init, so we restate it here for tests and
+    // demo-mode sample data.
+    init(
+        fr24Id: String,
+        lat: Double,
+        lon: Double,
+        track: Int,
+        alt: Int,
+        gspeed: Int,
+        vspeed: Int,
+        squawk: String,
+        timestamp: String,
+        source: String,
+        hex: String? = nil,
+        callsign: String? = nil,
+        flight: String? = nil,
+        type: String? = nil,
+        reg: String? = nil,
+        paintedAs: String? = nil,
+        operatingAs: String? = nil,
+        origIata: String? = nil,
+        origIcao: String? = nil,
+        destIata: String? = nil,
+        destIcao: String? = nil,
+        eta: String? = nil
+    ) {
+        self.fr24Id = fr24Id
+        self.lat = lat
+        self.lon = lon
+        self.track = track
+        self.alt = alt
+        self.gspeed = gspeed
+        self.vspeed = vspeed
+        self.squawk = squawk
+        self.timestamp = timestamp
+        self.source = source
+        self.hex = hex
+        self.callsign = callsign
+        self.flight = flight
+        self.type = type
+        self.reg = reg
+        self.paintedAs = paintedAs
+        self.operatingAs = operatingAs
+        self.origIata = origIata
+        self.origIcao = origIcao
+        self.destIata = destIata
+        self.destIcao = destIcao
+        self.eta = eta
+    }
+
+    // Custom decoder: FR24 may omit or send null for track/alt/gspeed/vspeed/squawk on
+    // parked or taxiing aircraft. A single null in these fields would drop the entire
+    // flight list, so fall back to sensible defaults instead of throwing.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        fr24Id = try c.decode(String.self, forKey: .fr24Id)
+        lat = try c.decodeIfPresent(Double.self, forKey: .lat) ?? 0
+        lon = try c.decodeIfPresent(Double.self, forKey: .lon) ?? 0
+        track = try c.decodeIfPresent(Int.self, forKey: .track) ?? 0
+        alt = try c.decodeIfPresent(Int.self, forKey: .alt) ?? 0
+        gspeed = try c.decodeIfPresent(Int.self, forKey: .gspeed) ?? 0
+        vspeed = try c.decodeIfPresent(Int.self, forKey: .vspeed) ?? 0
+        squawk = try c.decodeIfPresent(String.self, forKey: .squawk) ?? ""
+        timestamp = try c.decodeIfPresent(String.self, forKey: .timestamp) ?? ""
+        source = try c.decodeIfPresent(String.self, forKey: .source) ?? ""
+        hex = try c.decodeIfPresent(String.self, forKey: .hex)
+        callsign = try c.decodeIfPresent(String.self, forKey: .callsign)
+        flight = try c.decodeIfPresent(String.self, forKey: .flight)
+        type = try c.decodeIfPresent(String.self, forKey: .type)
+        reg = try c.decodeIfPresent(String.self, forKey: .reg)
+        paintedAs = try c.decodeIfPresent(String.self, forKey: .paintedAs)
+        operatingAs = try c.decodeIfPresent(String.self, forKey: .operatingAs)
+        origIata = try c.decodeIfPresent(String.self, forKey: .origIata)
+        origIcao = try c.decodeIfPresent(String.self, forKey: .origIcao)
+        destIata = try c.decodeIfPresent(String.self, forKey: .destIata)
+        destIcao = try c.decodeIfPresent(String.self, forKey: .destIcao)
+        eta = try c.decodeIfPresent(String.self, forKey: .eta)
+    }
 }

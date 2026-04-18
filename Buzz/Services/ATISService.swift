@@ -78,11 +78,21 @@ class ATISService: ObservableObject {
                 }
             }
             
-            // Sort by distance
-            let sortedATIS = atisResults.sorted { 
-                $0.distance(from: coordinate) < $1.distance(from: coordinate) 
+            // Only sort by distance when we actually have coordinates. The airport
+            // endpoint does not currently return lat/lon so `latitude` and `longitude`
+            // are 0 for every ATIS; sorting by distance against (0,0) is essentially
+            // random. Preserve the API-returned order (filtered by region prefix) in
+            // that case instead of showing a meaningless sort.
+            let haveRealCoords = atisResults.contains { $0.latitude != 0 || $0.longitude != 0 }
+            let sortedATIS: [ATIS]
+            if haveRealCoords {
+                sortedATIS = atisResults.sorted {
+                    $0.distance(from: coordinate) < $1.distance(from: coordinate)
+                }
+            } else {
+                sortedATIS = atisResults
             }
-            
+
             nearbyATIS = sortedATIS
             lastFetchTime = Date()
             lastFetchCoordinate = coordinate

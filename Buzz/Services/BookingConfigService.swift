@@ -19,6 +19,13 @@ class BookingConfigService: ObservableObject {
     private let supabase = SupabaseClient.shared.client
     private var hasLoadedFromServer = false
 
+    /// Reset to defaults on sign-out. Per-pilot booking config must not bleed into
+    /// the next user on the same device.
+    func resetForSignOut() {
+        config = .defaultConfig
+        hasLoadedFromServer = false
+    }
+
     func fetchConfig() async {
         if DemoModeManager.shared.isDemoModeEnabled {
             config = .defaultConfig

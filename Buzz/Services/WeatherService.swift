@@ -233,8 +233,19 @@ class WeatherService: ObservableObject {
             )
         }
         
-        // Extract temperature from observation if available, otherwise use forecast
-        let temperature = observation?.properties.temperature?.value ?? Double(currentPeriod.temperature ?? 0)
+        // Extract temperature from observation if available, otherwise use forecast.
+        // NWS /observations/latest returns temperature in Celsius (wmoUnit:degC).
+        // Convert to Fahrenheit to match the unit the rest of the app (and forecast periods) uses.
+        let temperature: Double = {
+            if let celsius = observation?.properties.temperature?.value {
+                return celsius * 9.0 / 5.0 + 32.0
+            }
+            let periodTemp = Double(currentPeriod.temperature ?? 0)
+            if currentPeriod.temperatureUnit?.uppercased() == "C" {
+                return periodTemp * 9.0 / 5.0 + 32.0
+            }
+            return periodTemp
+        }()
         
         // Get min/max from forecast periods
         var temperatureMin: Double?

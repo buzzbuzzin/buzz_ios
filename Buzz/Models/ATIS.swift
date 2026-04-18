@@ -76,8 +76,9 @@ struct ATIS: Identifiable {
         return location.distance(from: fromLocation)
     }
     
-    /// Distance formatted as a string (in miles)
-    func formattedDistance(from coordinate: CLLocationCoordinate2D) -> String {
+    /// Distance formatted as a string (in miles), or nil if this ATIS lacks real coords.
+    func formattedDistance(from coordinate: CLLocationCoordinate2D) -> String? {
+        guard latitude != 0 || longitude != 0 else { return nil }
         let meters = distance(from: coordinate)
         let miles = meters / 1609.34
         if miles < 1 {

@@ -80,8 +80,13 @@ struct WelcomeView: View {
                     }
                 }
                 
-                // After buzz_logo reaches center (1.3 + 1.0 = 2.3 seconds), wait 0.5 seconds, then navigate to AuthenticationView
+                // After buzz_logo reaches center (1.3 + 1.0 = 2.3 seconds), wait 0.5 seconds, then navigate to AuthenticationView.
+                // If the user is already authenticated (e.g., routed here via shouldDelayNavigation
+                // before the verification gate resolves), don't shove a second fullScreenCover on top
+                // of any presentation the signed-in flow has already made — SwiftUI silently drops
+                // one of the covers when two compete, which collides with the premium intro animation.
                 DispatchQueue.main.asyncAfter(deadline: .now() + 3.5) {
+                    guard !authService.isAuthenticated else { return }
                     showAuthenticationView = true
                 }
             }

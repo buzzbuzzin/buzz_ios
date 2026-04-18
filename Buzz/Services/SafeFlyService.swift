@@ -470,11 +470,14 @@ class SafeFlyService: ObservableObject {
 
     // MARK: - Sunrise/Sunset Calculation
 
-    /// Calculate sunrise, sunset, and solar noon for a given date and location
-    /// Uses simplified solar position algorithm
+    /// Calculate sunrise, sunset, and solar noon for a given date and location.
+    /// Returns absolute Dates (not tied to any timezone). The astronomical algorithm
+    /// produces minutes-past-midnight-UTC; we anchor the result to the UTC day of the
+    /// given date so the output is independent of the device's timezone.
     private func calculateSunTimes(for date: Date, coordinate: CLLocationCoordinate2D) -> (sunrise: Date?, sunset: Date?, solarNoon: Date?) {
-        let calendar = Calendar.current
-        let dayOfYear = calendar.ordinality(of: .day, in: .year, for: date) ?? 1
+        var utcCalendar = Calendar(identifier: .gregorian)
+        utcCalendar.timeZone = TimeZone(identifier: "UTC") ?? TimeZone(secondsFromGMT: 0)!
+        let dayOfYear = utcCalendar.ordinality(of: .day, in: .year, for: date) ?? 1
         let lat = coordinate.latitude
         let lon = coordinate.longitude
 
@@ -496,30 +499,24 @@ class SafeFlyService: ObservableObject {
 
         let cosHA = (cos(zenith) / (cos(latRad) * cos(decl))) - tan(latRad) * tan(decl)
 
-        // Check for polar day/night
+        // Polar day/night
         guard cosHA >= -1 && cosHA <= 1 else {
             return (nil, nil, nil)
         }
 
-        let ha = acos(cosHA) * 180 / Double.pi // Hour angle in degrees
+        let ha = acos(cosHA) * 180 / Double.pi
 
-        // Solar noon (minutes from midnight UTC)
+        // Solar noon and sunrise/sunset as minutes past midnight UTC of the reference day.
         let solarNoonMinutes = 720 - 4 * lon - eqtime
-
-        // Sunrise and sunset times (minutes from midnight UTC)
         let sunriseMinutes = solarNoonMinutes - ha * 4
         let sunsetMinutes = solarNoonMinutes + ha * 4
 
-        // Convert to local time
-        let startOfDay = calendar.startOfDay(for: date)
-
-        // Get timezone offset
-        let timezone = TimeZone.current
-        let offsetSeconds = timezone.secondsFromGMT(for: date)
-
-        let sunrise = startOfDay.addingTimeInterval(sunriseMinutes * 60 + Double(offsetSeconds))
-        let sunset = startOfDay.addingTimeInterval(sunsetMinutes * 60 + Double(offsetSeconds))
-        let solarNoon = startOfDay.addingTimeInterval(solarNoonMinutes * 60 + Double(offsetSeconds))
+        // Anchor to midnight UTC of the given date so the absolute Date is independent
+        // of the device's timezone. UI is responsible for formatting in the target tz.
+        let startOfDayUTC = utcCalendar.startOfDay(for: date)
+        let sunrise = startOfDayUTC.addingTimeInterval(sunriseMinutes * 60)
+        let sunset = startOfDayUTC.addingTimeInterval(sunsetMinutes * 60)
+        let solarNoon = startOfDayUTC.addingTimeInterval(solarNoonMinutes * 60)
 
         return (sunrise, sunset, solarNoon)
     }

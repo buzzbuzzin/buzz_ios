@@ -188,14 +188,46 @@ struct CoordinateBounds {
 
         var minLatitude = firstCoordinate.latitude
         var maxLatitude = firstCoordinate.latitude
-        var minLongitude = firstCoordinate.longitude
-        var maxLongitude = firstCoordinate.longitude
+
+        var longitudes: [Double] = [firstCoordinate.longitude]
 
         for coordinate in validCoordinates.dropFirst() {
             minLatitude = min(minLatitude, coordinate.latitude)
             maxLatitude = max(maxLatitude, coordinate.latitude)
-            minLongitude = min(minLongitude, coordinate.longitude)
-            maxLongitude = max(maxLongitude, coordinate.longitude)
+            longitudes.append(coordinate.longitude)
+        }
+
+        // Detect antimeridian wrap: sort longitudes, find the largest gap between
+        // consecutive points (treating the list as circular across ±180°). The bounds
+        // span the complement of the largest gap — if that gap is > 180°, the original
+        // longitude range naturally wraps, and we express it as minLongitude > maxLongitude.
+        let sorted = longitudes.sorted()
+        var minLongitude = sorted.first!
+        var maxLongitude = sorted.last!
+        if sorted.count > 1 {
+            var largestGap = (sorted.first! + 360.0) - sorted.last! // wrap-around gap
+            var gapStartIndex = sorted.count - 1                   // last → first
+            for i in 0..<(sorted.count - 1) {
+                let gap = sorted[i + 1] - sorted[i]
+                if gap > largestGap {
+                    largestGap = gap
+                    gapStartIndex = i
+                }
+            }
+            // If the largest gap crosses the antimeridian, the bounds wrap.
+            if gapStartIndex == sorted.count - 1 {
+                // Largest gap is sorted.last → sorted.first (crosses ±180°).
+                // This means the longitudes are contiguous from sorted.first to sorted.last
+                // and DON'T wrap — keep min/max as-is.
+                minLongitude = sorted.first!
+                maxLongitude = sorted.last!
+            } else {
+                // Largest gap is an internal gap — the longitudes wrap through the antimeridian.
+                // The actual range goes from sorted[gapStartIndex+1] up to 180°,
+                // then from -180° up to sorted[gapStartIndex].
+                minLongitude = sorted[gapStartIndex + 1]
+                maxLongitude = sorted[gapStartIndex]
+            }
         }
 
         self.init(
@@ -206,10 +238,26 @@ struct CoordinateBounds {
         )
     }
 
+    /// Returns true if this box overlaps `other`. Handles antimeridian wrap where
+    /// `minLongitude > maxLongitude` represents a range that crosses ±180°.
     func intersects(_ other: CoordinateBounds) -> Bool {
-        !(other.minLatitude > maxLatitude ||
-          other.maxLatitude < minLatitude ||
-          other.minLongitude > maxLongitude ||
-          other.maxLongitude < minLongitude)
+        // Latitudes never wrap.
+        if other.minLatitude > maxLatitude || other.maxLatitude < minLatitude {
+            return false
+        }
+        let selfWraps = minLongitude > maxLongitude
+        let otherWraps = other.minLongitude > other.maxLongitude
+        switch (selfWraps, otherWraps) {
+        case (false, false):
+            return !(other.minLongitude > maxLongitude || other.maxLongitude < minLongitude)
+        case (true, false):
+            // self covers [minLon..180] ∪ [-180..maxLon]
+            return other.maxLongitude >= minLongitude || other.minLongitude <= maxLongitude
+        case (false, true):
+            return maxLongitude >= other.minLongitude || minLongitude <= other.maxLongitude
+        case (true, true):
+            // Two wrapping ranges always overlap on some side of the antimeridian.
+            return true
+        }
     }
 }

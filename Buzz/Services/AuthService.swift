@@ -422,21 +422,35 @@ class AuthService: ObservableObject {
         userProfile = nil
         isAuthenticated = false
         clearCachedUserProfile()
+
+        // Tear down per-user in-memory state held by shared singleton services so the
+        // next user on the same device cannot briefly see the previous user's data
+        // (exam appointments, booking config, Academy Pass / Stripe entitlements,
+        // weather alerts) before their own fetch completes.
+        ExamService.shared.resetForSignOut()
+        BookingConfigService.shared.resetForSignOut()
+        NWSAlertService.shared.resetForSignOut()
+        EntitlementManager.shared.resetForSignOut()
     }
     
     // MARK: - Change Password
     
     func verifyCurrentPassword(password: String) async throws -> Bool {
-        guard let email = currentUser?.email else {
-            throw NSError(domain: "AuthError", code: -1, userInfo: [NSLocalizedDescriptionKey: "No email found"])
+        guard currentUser != nil else {
+            throw NSError(domain: "AuthError", code: -1, userInfo: [NSLocalizedDescriptionKey: "No authenticated user"])
         }
-        
+
+        // Use a server-side RPC (SECURITY DEFINER) that compares against the stored
+        // bcrypt hash in auth.users. This replaces the previous approach which called
+        // supabase.auth.signIn just to validate the password — that call issued a new
+        // session and rotated access tokens, leaving the app in an inconsistent auth
+        // state if the subsequent changePassword call failed.
         do {
-            _ = try await supabase.auth.signIn(
-                email: email,
-                password: password
-            )
-            return true
+            let isValid: Bool = try await supabase
+                .rpc("verify_user_password", params: ["p_password": password])
+                .execute()
+                .value
+            return isValid
         } catch {
             return false
         }
@@ -501,49 +515,69 @@ class AuthService: ObservableObject {
     func verifyPasswordResetOTP(email: String, token: String) async throws {
         isLoading = true
         errorMessage = nil
-        
+
+        // Password-reset OTP creates a real Supabase session on success. If another
+        // user is already signed in on this device, verifyOTP would silently overwrite
+        // their session and any subsequent writes would be attributed to the OTP user.
+        // Tear down any existing session/local state first so only the reset-flow user
+        // can reach authenticated state after the OTP is verified.
+        if isAuthenticated || currentUser != nil {
+            await NotificationManager.shared.removeDeviceToken()
+            try? await supabase.auth.signOut()
+            currentUser = nil
+            userProfile = nil
+            isAuthenticated = false
+            clearCachedUserProfile()
+        }
+
+        // While the OTP flow is in progress we hold the app on the welcome/onboarding
+        // route — we don't want the root destination to flip to `.main` just because
+        // verifyOTP set up a session under the hood.
+        shouldDelayNavigation = true
+
         do {
-            // Verify OTP - this will temporarily sign in the user
             let response = try await supabase.auth.verifyOTP(
                 email: email,
                 token: token,
                 type: .email
             )
-            
-            // User is now signed in temporarily
+
             currentUser = response.user
-            
-            // Load profile if it exists
             await loadUserProfile()
-            
+
             isLoading = false
         } catch {
             isLoading = false
+            shouldDelayNavigation = false
             errorMessage = error.localizedDescription
             throw error
         }
     }
-    
+
     func resetPasswordWithOTP(newPassword: String) async throws {
         guard currentUser != nil else {
             throw NSError(domain: "AuthError", code: -1, userInfo: [NSLocalizedDescriptionKey: "No user session found. Please verify OTP first."])
         }
-        
+
         isLoading = true
         errorMessage = nil
-        
+
         do {
             // Update password
             try await supabase.auth.update(user: UserAttributes(password: newPassword))
-            
+
             // Ensure user remains authenticated and profile is loaded
             await checkAuthStatus()
-            
-            // Mark as authenticated
+
+            // Release the navigation hold placed by verifyPasswordResetOTP — the root
+            // observer in BuzzApp will now re-prime and refresh VerificationGate in
+            // response to `isAuthenticated` flipping true.
+            shouldDelayNavigation = false
+
             if userProfile != nil {
                 isAuthenticated = true
             }
-            
+
             isLoading = false
         } catch {
             isLoading = false

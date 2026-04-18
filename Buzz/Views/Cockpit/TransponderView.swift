@@ -89,21 +89,29 @@ struct TransponderView: View {
                                 onToggleLocationTracking: { _ in },
                                 onEdit: { editedTransponder in
                                     Task {
-                                        try? await transponderService.updateTransponder(
-                                            transponderId: editedTransponder.id,
-                                            deviceName: editedTransponder.deviceName,
-                                            remoteId: editedTransponder.remoteId,
-                                            isLocationTrackingEnabled: editedTransponder.isLocationTrackingEnabled
-                                        )
+                                        do {
+                                            try await transponderService.updateTransponder(
+                                                transponderId: editedTransponder.id,
+                                                deviceName: editedTransponder.deviceName,
+                                                remoteId: editedTransponder.remoteId,
+                                                isLocationTrackingEnabled: editedTransponder.isLocationTrackingEnabled
+                                            )
+                                        } catch {
+                                            transponderService.errorMessage = "Failed to update transponder: \(error.localizedDescription)"
+                                        }
                                     }
                                 },
                                 onDelete: {
                                     Task {
                                         if let pilotId = authService.currentUser?.id {
-                                            try? await transponderService.deleteTransponder(
-                                                transponderId: transponder.id,
-                                                pilotId: pilotId
-                                            )
+                                            do {
+                                                try await transponderService.deleteTransponder(
+                                                    transponderId: transponder.id,
+                                                    pilotId: pilotId
+                                                )
+                                            } catch {
+                                                transponderService.errorMessage = "Failed to delete transponder: \(error.localizedDescription)"
+                                            }
                                         }
                                     }
                                 }

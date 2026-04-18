@@ -693,19 +693,26 @@ class HangerSpaceService: ObservableObject {
 
         await channel.subscribe()
 
-        let t1 = Task {
+        // Capture self weakly — the Tasks are stored on self, so a strong capture
+        // would create a retain cycle that prevents the service from deinitializing
+        // when the owning view is torn down (e.g., on sign-out), leaving the realtime
+        // channel and its backing network traffic alive for a "signed-out" user.
+        let t1 = Task { [weak self] in
             for await _ in participantChanges {
-                await refreshParticipants(spaceId: spaceId)
+                guard let self else { break }
+                await self.refreshParticipants(spaceId: spaceId)
             }
         }
-        let t2 = Task {
+        let t2 = Task { [weak self] in
             for await _ in spaceChanges {
-                await refreshSpaceStatus(spaceId: spaceId)
+                guard let self else { break }
+                await self.refreshSpaceStatus(spaceId: spaceId)
             }
         }
-        let t3 = Task {
+        let t3 = Task { [weak self] in
             for await _ in requestChanges {
-                await refreshSpeakerRequests(spaceId: spaceId)
+                guard let self else { break }
+                await self.refreshSpeakerRequests(spaceId: spaceId)
             }
         }
 
@@ -727,18 +734,26 @@ class HangerSpaceService: ObservableObject {
 
         await channel.subscribe()
 
-        let t1 = Task {
+        let t1 = Task { [weak self] in
             for await _ in changes {
-                await fetchLiveSpaces()
-                // Also refresh LIVE badges on post cards
-                if !cachedAuthorIds.isEmpty {
-                    await fetchLiveHostIds(authorIds: cachedAuthorIds)
+                guard let self else { break }
+                await self.fetchLiveSpaces()
+                if !self.cachedAuthorIds.isEmpty {
+                    await self.fetchLiveHostIds(authorIds: self.cachedAuthorIds)
                 }
             }
         }
 
         feedRealtimeTasks = [t1]
         self.feedRealtimeChannel = channel
+    }
+
+    deinit {
+        // Defensive: if the service is released while a realtime subscription is still
+        // active, cancel the tasks. The channel unsubscribe is async so we can't await
+        // it here, but cancelling the consumers stops the for-await loops immediately.
+        for task in realtimeTasks { task.cancel() }
+        for task in feedRealtimeTasks { task.cancel() }
     }
 
     private func cancelSpaceSubscription() async {

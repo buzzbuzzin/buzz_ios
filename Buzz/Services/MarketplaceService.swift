@@ -592,8 +592,16 @@ class MarketplaceService: ObservableObject {
                           userInfo: [NSLocalizedDescriptionKey: "Failed to create transaction"])
         }
 
-        // Mark listing as reserved
-        try? await updateListing(listingId: listingId, updates: MarketplaceListingUpdate(status: "reserved"))
+        // Mark listing as reserved. If this fails the listing will keep accepting
+        // new offers/transactions, so propagate the error — but don't lose the
+        // transaction that was already successfully created: re-fetch and return
+        // it after surfacing the listing-update failure via errorMessage.
+        do {
+            try await updateListing(listingId: listingId, updates: MarketplaceListingUpdate(status: "reserved"))
+        } catch {
+            errorMessage = "Transaction created, but failed to reserve the listing. The seller should refresh to see the latest status."
+            print("createTransaction: failed to mark listing reserved: \(error.localizedDescription)")
+        }
 
         return transaction
     }
@@ -708,8 +716,14 @@ class MarketplaceService: ObservableObject {
             options: FunctionInvokeOptions(body: payload)
         )
 
-        // Mark listing as sold
-        try? await updateListing(listingId: transaction.listingId, updates: MarketplaceListingUpdate(status: "sold"))
+        // Mark listing as sold. Don't swallow — if it fails the listing stays
+        // accepting new offers after money has already been released to the seller.
+        do {
+            try await updateListing(listingId: transaction.listingId, updates: MarketplaceListingUpdate(status: "sold"))
+        } catch {
+            errorMessage = "Funds released but the listing failed to close — refresh to reconcile. \(error.localizedDescription)"
+            print("releaseFunds: failed to mark listing sold: \(error.localizedDescription)")
+        }
     }
 
     func scheduleMeetup(
@@ -799,9 +813,15 @@ class MarketplaceService: ObservableObject {
             .execute()
             .value
 
-        // If both confirmed, mark listing as sold
+        // If both confirmed, mark listing as sold. Surface any failure so the
+        // listing doesn't silently remain `meetup_scheduled` and accept new offers.
         if updatedTransaction.status == .meetupCompleted {
-            try? await updateListing(listingId: transaction.listingId, updates: MarketplaceListingUpdate(status: "sold"))
+            do {
+                try await updateListing(listingId: transaction.listingId, updates: MarketplaceListingUpdate(status: "sold"))
+            } catch {
+                errorMessage = "Meetup confirmed, but the listing failed to close. Please refresh. \(error.localizedDescription)"
+                print("confirmMeetupComplete: failed to mark listing sold: \(error.localizedDescription)")
+            }
         }
     }
 

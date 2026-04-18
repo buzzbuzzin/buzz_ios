@@ -1389,7 +1389,11 @@ struct AvailabilityView: View {
                                 },
                                 onDelete: {
                                     Task {
-                                        try? await blockoutService.deleteBlockout(blockoutId: blockout.id)
+                                        do {
+                                            try await blockoutService.deleteBlockout(blockoutId: blockout.id)
+                                        } catch {
+                                            print("deleteBlockout failed: \(error.localizedDescription)")
+                                        }
                                     }
                                 }
                             )

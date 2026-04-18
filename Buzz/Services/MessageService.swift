@@ -874,6 +874,17 @@ class MessageService: ObservableObject {
             .eq("is_read", value: false)
             .is("deleted_at", value: nil)
             .execute()
+
+        // Mirror the server-side update into the local cache so any view binding
+        // (unread count, badge, conversation list) refreshes immediately without
+        // waiting for a full refetch.
+        for i in directMessages.indices {
+            if directMessages[i].fromUserId == fromUserId
+                && directMessages[i].toUserId == toUserId
+                && !directMessages[i].isRead {
+                directMessages[i].isRead = true
+            }
+        }
     }
 
     func markDirectMessagesAsUnread(fromUserId: UUID, toUserId: UUID) async throws {

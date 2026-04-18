@@ -25,6 +25,18 @@ class ExamService: ObservableObject {
     // Singleton for shared config access
     static let shared = ExamService()
 
+    /// Clears per-user in-memory state. Called on sign-out so a new user signing in
+    /// on the same device does not briefly see the previous user's appointments or
+    /// prerequisite status before the next fetch completes.
+    func resetForSignOut() {
+        appointments = []
+        prerequisitesStatus = nil
+        isLoading = false
+        isLoadingConfigs = false
+        errorMessage = nil
+        // examConfigs is not user-specific (maps exam type → config), safe to keep.
+    }
+
     // MARK: - Fetch Exam Configurations
 
     /// Fetches exam type configurations from the backend

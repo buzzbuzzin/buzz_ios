@@ -279,10 +279,20 @@ class EntitlementManager: ObservableObject {
     @Published var subscriptionSource: SubscriptionSource?
     @Published var isCheckingSubscription = false
     @Published var stripeSubscription: CourseSubscription?
-    
+
     private let supabase = SupabaseClient.shared.client
-    
+
     private init() {}
+
+    /// Clear per-user entitlements on sign-out so a fresh sign-in on the same device
+    /// cannot see the previous user's Academy Pass / Stripe subscription state until
+    /// the next `checkAllSubscriptionSources` call completes for the new user.
+    func resetForSignOut() {
+        hasAcademyPass = false
+        subscriptionSource = nil
+        isCheckingSubscription = false
+        stripeSubscription = nil
+    }
     
     // MARK: - Unified Subscription Check
     

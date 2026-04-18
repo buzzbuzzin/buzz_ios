@@ -141,22 +141,31 @@ class NotificationManager: NSObject, ObservableObject {
         }
     }
     
-    /// Remove the current device token from database (e.g., on logout)
+    /// Remove the current device token from database (e.g., on logout).
+    /// Must be called while the auth session is still valid (RLS restricts delete to
+    /// own rows). Caller (AuthService.signOut) invokes this before supabase.auth.signOut.
+    /// We always null the local `deviceToken` even if the DB delete fails, so a new
+    /// user signing in on the same device can re-register cleanly.
     func removeDeviceToken() async {
         guard let token = deviceToken else { return }
-        
+
+        defer {
+            // Always clear the in-memory copy — even if the DB delete failed, we don't
+            // want the signed-out user's token to leak into the next sign-in cycle.
+            self.deviceToken = nil
+        }
+
         do {
             let session = try await supabase.auth.session
             let userId = session.user.id
-            
+
             try await supabase
                 .from("device_tokens")
                 .delete()
                 .eq("user_id", value: userId.uuidString)
                 .eq("token", value: token)
                 .execute()
-            
-            self.deviceToken = nil
+
             print("Device token removed successfully")
         } catch {
             print("Error removing device token: \(error.localizedDescription)")

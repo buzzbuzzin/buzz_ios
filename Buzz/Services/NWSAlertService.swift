@@ -22,6 +22,14 @@ class NWSAlertService: ObservableObject {
     private let notificationManager = NotificationManager.shared
     private let notificationPreferencesService = NotificationPreferencesService()
 
+    /// Clear in-memory alert cache on sign-out so a new user on the same device does
+    /// not briefly see the previous user's alerts before the next fetch completes.
+    func resetForSignOut() {
+        activeAlerts = []
+        lastAlertCheckTime = nil
+        isLoading = false
+    }
+
     private static let seenAlertIDsKey = "nws_seen_alert_ids"
     private static let lastAlertNotificationTimeKey = "nws_last_alert_notification_time"
     static let backgroundTaskIdentifier = "com.buzz.app.ios.nws-alert-check"
@@ -149,6 +157,9 @@ class NWSAlertService: ObservableObject {
     }
 
     private func performBackgroundCheck(latitude: Double, longitude: Double) async {
+        // Re-read preferences from disk — the singleton's in-memory copy can be stale
+        // if the user toggled the preference while the app was backgrounded.
+        notificationPreferencesService.loadPreferences()
         guard notificationPreferencesService.preferences.weatherUpdates.system else { return }
         guard canSendNotification() else { return }
 

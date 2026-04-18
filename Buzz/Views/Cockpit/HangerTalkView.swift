@@ -218,7 +218,11 @@ struct HangerTalkView: View {
             Button("Delete", role: .destructive) {
                 if let post = postToDelete {
                     Task {
-                        try? await service.deletePost(postId: post.id)
+                        do {
+                            try await service.deletePost(postId: post.id)
+                        } catch {
+                            print("deletePost failed: \(error.localizedDescription)")
+                        }
                         await refreshCurrentTab()
                     }
                 }

@@ -179,10 +179,11 @@ struct ATISCard: View {
                 
                 Spacer()
                 
-                // Distance from user
-                if let coordinate = userCoordinate, atis.latitude != 0 {
+                // Distance from user (only shown if we have real airport coords)
+                if let coordinate = userCoordinate,
+                   let distance = atis.formattedDistance(from: coordinate) {
                     VStack(alignment: .trailing, spacing: 2) {
-                        Text(atis.formattedDistance(from: coordinate))
+                        Text(distance)
                             .font(.subheadline)
                             .fontWeight(.medium)
                         Text("away")

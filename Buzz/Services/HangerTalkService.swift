@@ -228,6 +228,9 @@ class HangerTalkService: ObservableObject {
                 .value) ?? []
 
             for follower in followers {
+                // Self-notify guard: if somehow the author follows themselves (data drift),
+                // don't push them a notification for their own post.
+                guard follower.followerId != authorId else { continue }
                 await NotificationManager.shared.notifyHangerTalkNewPost(
                     postId: post.id,
                     followerUserId: follower.followerId,

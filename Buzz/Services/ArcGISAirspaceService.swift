@@ -343,13 +343,19 @@ class ArcGISAirspaceService: ObservableObject {
     }
 
     private func parseAirspaceClass(_ value: String) -> AirspaceClass {
-        let uppercased = value.uppercased()
-        if uppercased.contains("B") { return .classB }
-        if uppercased.contains("C") { return .classC }
-        if uppercased.contains("D") { return .classD }
-        if uppercased.contains("E") { return .classE }
-        if uppercased.contains("G") { return .classG }
-        return .unknown
+        // FAA CLASS field is typically a single character ("B", "C", "D", "E", "G").
+        // Use exact matching (after trimming / uppercasing) so incidental substrings in
+        // compound type names (e.g., "CLASS_B" matching as C because it contains "C") do
+        // not misclassify airspace.
+        let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        switch normalized {
+        case "B", "BRAVO", "CLASS B", "CLASS_B": return .classB
+        case "C", "CHARLIE", "CLASS C", "CLASS_C": return .classC
+        case "D", "DELTA", "CLASS D", "CLASS_D": return .classD
+        case "E", "ECHO", "CLASS E", "CLASS_E": return .classE
+        case "G", "GOLF", "CLASS G", "CLASS_G": return .classG
+        default: return .unknown
+        }
     }
 
     private func airspaceRestrictiveness(_ airspace: AirspaceClass) -> Int {
