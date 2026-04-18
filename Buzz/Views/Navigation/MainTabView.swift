@@ -157,7 +157,11 @@ struct PilotTabView: View {
     private func gated<Content: View>(_ tabTitle: String,
                                        @ViewBuilder content: () -> Content) -> some View {
         switch verificationGate.state {
-        case .verified:
+        case .verified, .networkError:
+            // .networkError here means a transient poll failure after the
+            // root gate already authorized entry — trust root authorization
+            // rather than lock the user out on a blip. The root-level
+            // NoConnectionBannerView handles the offline UI.
             content()
         case .unverified:
             VerificationLockView(tabTitle: tabTitle) {
@@ -371,7 +375,11 @@ struct CustomerTabView: View {
     private func gated<Content: View>(_ tabTitle: String,
                                        @ViewBuilder content: () -> Content) -> some View {
         switch verificationGate.state {
-        case .verified:
+        case .verified, .networkError:
+            // .networkError here means a transient poll failure after the
+            // root gate already authorized entry — trust root authorization
+            // rather than lock the user out on a blip. The root-level
+            // NoConnectionBannerView handles the offline UI.
             content()
         case .unverified:
             VerificationLockView(tabTitle: tabTitle) {

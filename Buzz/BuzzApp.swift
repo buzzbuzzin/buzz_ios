@@ -11,6 +11,41 @@ import StripePaymentSheet
 import UserNotifications
 import BackgroundTasks
 
+enum AppRootDestination: Equatable {
+    case launch
+    case welcome
+    case verificationLoading
+    case verificationNetworkError
+    case onboarding
+    case main
+}
+
+func appRootDestination(
+    hasResolvedInitialSession: Bool,
+    isAuthenticated: Bool,
+    shouldDelayNavigation: Bool,
+    verificationState: VerificationGateState
+) -> AppRootDestination {
+    guard hasResolvedInitialSession else {
+        return .launch
+    }
+
+    guard isAuthenticated && !shouldDelayNavigation else {
+        return .welcome
+    }
+
+    switch verificationState {
+    case .loading:
+        return .verificationLoading
+    case .verified:
+        return .main
+    case .unverified:
+        return .onboarding
+    case .networkError:
+        return .verificationNetworkError
+    }
+}
+
 // MARK: - AppDelegate for Remote Notifications
 
 class AppDelegate: NSObject, UIApplicationDelegate {
@@ -64,6 +99,7 @@ class AppDelegate: NSObject, UIApplicationDelegate {
 struct BuzzApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @StateObject private var authService = AuthService()
+    @StateObject private var verificationGate = VerificationGate()
     @StateObject private var notificationManager = NotificationManager.shared
     @StateObject private var locationTrackingService = LocationTrackingService.shared
     @StateObject private var updateService = AppUpdateService()
@@ -92,20 +128,38 @@ struct BuzzApp: App {
         WindowGroup {
             ZStack {
                 Group {
-                    if !authService.hasResolvedInitialSession {
+                    switch appRootDestination(
+                        hasResolvedInitialSession: authService.hasResolvedInitialSession,
+                        isAuthenticated: authService.isAuthenticated,
+                        shouldDelayNavigation: authService.shouldDelayNavigation,
+                        verificationState: verificationGate.state
+                    ) {
+                    case .launch:
                         LaunchScreenView()
                             .transition(.opacity)
-                    } else if authService.isAuthenticated && !authService.shouldDelayNavigation {
+                    case .verificationLoading:
+                        LoadingView(message: "Checking verification…")
+                            .transition(.opacity)
+                    case .verificationNetworkError:
+                        VerificationNetworkErrorView(verificationGate: verificationGate)
+                            .environmentObject(authService)
+                            .transition(.opacity)
+                    case .main:
                         MainTabView()
                             .environmentObject(authService)
                             .transition(.opacity)
-                    } else {
+                    case .onboarding:
+                        OnboardingVerificationView(verificationGate: verificationGate)
+                            .environmentObject(authService)
+                            .transition(.opacity)
+                    case .welcome:
                         WelcomeView()
                             .environmentObject(authService)
                             .transition(.opacity)
                     }
                 }
                 .animation(.easeInOut(duration: 0.3), value: authService.isAuthenticated)
+                .animation(.easeInOut(duration: 0.3), value: verificationGate.state)
                 .preferredColorScheme(colorScheme)
 
                 // Update popup overlay
@@ -131,6 +185,8 @@ struct BuzzApp: App {
                 }
             }
             .onChange(of: authService.isAuthenticated) { _, isAuthenticated in
+                primeVerificationGate()
+
                 // Update location and track app version whenever authentication status changes
                 if isAuthenticated, let userId = authService.activeUserId {
                     Task {
@@ -142,9 +198,27 @@ struct BuzzApp: App {
                         }
                     }
                     AppVersionTrackingService.shared.trackAppVersion(userId: userId)
+                    Task { await verificationGate.refresh(userId: userId) }
                 }
             }
+            .onChange(of: authService.shouldDelayNavigation) { _, isDelaying in
+                if !isDelaying, authService.isAuthenticated {
+                    primeVerificationGate()
+                    Task { await verificationGate.refresh(userId: authService.activeUserId) }
+                }
+            }
+            .onChange(of: networkMonitor.isConnected) { _, isConnected in
+                guard isConnected,
+                      authService.isAuthenticated,
+                      verificationGate.state == .networkError else { return }
+                Task { await verificationGate.retry(userId: authService.activeUserId) }
+            }
             .onAppear {
+                primeVerificationGate()
+                if authService.isAuthenticated {
+                    Task { await verificationGate.refresh(userId: authService.activeUserId) }
+                }
+
                 // Attempt to restore the user's sign-in state
                 // Reference: https://developers.google.com/identity/sign-in/ios/sign-in#swift
                 GIDSignIn.sharedInstance.restorePreviousSignIn { user, error in
@@ -205,6 +279,11 @@ struct BuzzApp: App {
         default:
             return nil // system
         }
+    }
+
+    private func primeVerificationGate() {
+        let userId = authService.isAuthenticated ? authService.activeUserId : nil
+        verificationGate.prime(userId: userId)
     }
 }
 
