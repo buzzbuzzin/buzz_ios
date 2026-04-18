@@ -120,6 +120,7 @@ struct BuzzApp: App {
     @StateObject private var networkMonitor = NetworkMonitor.shared
     @AppStorage("appearanceMode") private var appearanceModeString: String = "system"
     @State private var showUpdatePopup = false
+    @Environment(\.scenePhase) private var scenePhase
     private let isUITestMode = ProcessInfo.processInfo.arguments.contains("UI_TESTING") || ProcessInfo.processInfo.environment["UITEST_MODE"] == "1"
 
     init() {
@@ -280,6 +281,12 @@ struct BuzzApp: App {
                 // Handle the authentication redirect URL
                 // Reference: https://developers.google.com/identity/sign-in/ios/sign-in#swift
                 GIDSignIn.sharedInstance.handle(url)
+            }
+            .onChange(of: scenePhase) { _, newPhase in
+                guard newPhase == .active,
+                      authService.isAuthenticated,
+                      let userId = authService.activeUserId else { return }
+                AppVersionTrackingService.shared.trackAppVersion(userId: userId)
             }
         }
     }
