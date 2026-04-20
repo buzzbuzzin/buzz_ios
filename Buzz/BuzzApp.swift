@@ -287,6 +287,13 @@ struct BuzzApp: App {
                       authService.isAuthenticated,
                       let userId = authService.activeUserId else { return }
                 AppVersionTrackingService.shared.trackAppVersion(userId: userId)
+                Task {
+                    do {
+                        try await locationTrackingService.updateUserLocation(userId: userId)
+                    } catch {
+                        print("Failed to update user location on scene activation: \(error.localizedDescription)")
+                    }
+                }
             }
         }
     }

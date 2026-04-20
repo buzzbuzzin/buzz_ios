@@ -224,11 +224,12 @@ class AuthService: ObservableObject {
             isLoading = false
         } catch {
             isLoading = false
-            errorMessage = error.localizedDescription
-            throw error
+            let sanitized = sanitizeAuthError(error)
+            errorMessage = sanitized.localizedDescription
+            throw sanitized
         }
     }
-    
+
     func signInWithEmail(email: String, password: String) async throws {
         isLoading = true
         errorMessage = nil
@@ -263,13 +264,14 @@ class AuthService: ObservableObject {
             isLoading = false
         } catch {
             isLoading = false
-            errorMessage = error.localizedDescription
+            let sanitized = sanitizeAuthError(error)
+            errorMessage = sanitized.localizedDescription
             shouldDelayNavigation = false
             shouldShowPremiumIntro = false
-            throw error
+            throw sanitized
         }
     }
-    
+
     // MARK: - Phone Auth
     
     func signInWithPhone(phone: String) async throws {
@@ -283,11 +285,12 @@ class AuthService: ObservableObject {
             isLoading = false
         } catch {
             isLoading = false
-            errorMessage = error.localizedDescription
-            throw error
+            let sanitized = sanitizeAuthError(error)
+            errorMessage = sanitized.localizedDescription
+            throw sanitized
         }
     }
-    
+
     func verifyOTP(phone: String, token: String, userType: UserType?, callSign: String?) async throws {
         isLoading = true
         errorMessage = nil
@@ -312,11 +315,12 @@ class AuthService: ObservableObject {
             isLoading = false
         } catch {
             isLoading = false
-            errorMessage = error.localizedDescription
-            throw error
+            let sanitized = sanitizeAuthError(error)
+            errorMessage = sanitized.localizedDescription
+            throw sanitized
         }
     }
-    
+
     // MARK: - Apple Sign In
     
     func signInWithApple(authorization: ASAuthorization, userType: UserType?, callSign: String?) async throws {
@@ -364,11 +368,12 @@ class AuthService: ObservableObject {
             isLoading = false
         } catch {
             isLoading = false
-            errorMessage = error.localizedDescription
-            throw error
+            let sanitized = sanitizeAuthError(error)
+            errorMessage = sanitized.localizedDescription
+            throw sanitized
         }
     }
-    
+
     // MARK: - Google Sign In
     
     func signInWithGoogle(userType: UserType?, callSign: String?) async throws {
@@ -408,11 +413,12 @@ class AuthService: ObservableObject {
             isLoading = false
         } catch {
             isLoading = false
-            errorMessage = error.localizedDescription
-            throw error
+            let sanitized = sanitizeAuthError(error)
+            errorMessage = sanitized.localizedDescription
+            throw sanitized
         }
     }
-    
+
     // MARK: - Sign Out
     
     func signOut() async throws {
@@ -922,6 +928,21 @@ class AuthService: ObservableObject {
 
     private func clearCachedUserProfile() {
         userDefaults.removeObject(forKey: cachedUserProfileKey)
+    }
+
+    // Masks moderation-related auth errors (banned / disabled / blocked users)
+    // behind a generic message so end users don't learn their account status.
+    private func sanitizeAuthError(_ error: Error) -> Error {
+        let message = error.localizedDescription.lowercased()
+        let moderationMarkers = ["banned", "disabled", "blocked", "suspend"]
+        guard moderationMarkers.contains(where: { message.contains($0) }) else {
+            return error
+        }
+        return NSError(
+            domain: "AuthError",
+            code: -1,
+            userInfo: [NSLocalizedDescriptionKey: "Connection error. Please try again later."]
+        )
     }
 }
 
