@@ -1181,19 +1181,33 @@ struct BookingDetailView: View {
         Task {
             do {
                 let userId = authService.currentUser?.id
+
+                // S&R crew bookings use the dedicated completion pipeline so
+                // the payout transfer and crew flight-hour updates actually
+                // run. Routing them through the generic markBookingCompletion
+                // would mark the mission completed without paying anyone.
+                if currentBooking.isSearchRescueCrewBooking {
+                    try await bookingService.confirmSearchRescuePilotCompletion(bookingId: currentBooking.id)
+                    await refreshBooking()
+                    if currentBooking.status == .completed {
+                        showCompletionSuccess = true
+                    }
+                    return
+                }
+
                 let isCompleted = try await bookingService.markBookingCompletion(bookingId: currentBooking.id, isPilot: true, userId: userId)
-                
+
                 // Refresh booking to get latest status
                 await refreshBooking()
-                
+
                 if isCompleted {
                     // Both parties confirmed, booking is completed
                     showCompletionSuccess = true
-                    
+
                     // Update pilot stats (for non-automotive bookings only)
                     // Automotive bookings update ALL crew members' stats in BookingService
                     if !currentBooking.isAutomotiveCrewBooking,
-                       let hours = currentBooking.estimatedFlightHours, 
+                       let hours = currentBooking.estimatedFlightHours,
                        let userId = userId {
                         try await rankingService.updateFlightHours(pilotId: userId, additionalHours: hours)
                     }
@@ -1207,24 +1221,36 @@ struct BookingDetailView: View {
             }
         }
     }
-    
+
     private func confirmCompletion() {
         Task {
             do {
                 let userId = authService.currentUser?.id
+
+                // See finishBooking — S&R crew must use the split completion
+                // pipeline so payouts and crew hours update correctly.
+                if currentBooking.isSearchRescueCrewBooking {
+                    try await bookingService.confirmSearchRescuePilotCompletion(bookingId: currentBooking.id)
+                    await refreshBooking()
+                    if currentBooking.status == .completed {
+                        showCompletionSuccess = true
+                    }
+                    return
+                }
+
                 let isCompleted = try await bookingService.markBookingCompletion(bookingId: currentBooking.id, isPilot: true, userId: userId)
-                
+
                 // Refresh booking to get latest status
                 await refreshBooking()
-                
+
                 if isCompleted {
                     // Both parties confirmed, booking is completed
                     showCompletionSuccess = true
-                    
+
                     // Update pilot stats (for non-automotive bookings only)
                     // Automotive bookings update ALL crew members' stats in BookingService
                     if !currentBooking.isAutomotiveCrewBooking,
-                       let hours = currentBooking.estimatedFlightHours, 
+                       let hours = currentBooking.estimatedFlightHours,
                        let userId = userId {
                         try await rankingService.updateFlightHours(pilotId: userId, additionalHours: hours)
                     }

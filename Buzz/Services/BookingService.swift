@@ -1366,7 +1366,7 @@ class BookingService: ObservableObject {
     func markBookingCompletion(bookingId: UUID, isPilot: Bool, userId: UUID? = nil) async throws -> Bool {
         isLoading = true
         errorMessage = nil
-        
+
         do {
             // Get current booking state
             let booking: Booking = try await supabase
@@ -1376,7 +1376,24 @@ class BookingService: ObservableObject {
                 .single()
                 .execute()
                 .value
-            
+
+            // Search & Rescue completions have their own split flow:
+            //   - customer pays via `completeSearchRescuePayment`
+            //   - pilot confirms via `confirmSearchRescuePilotCompletion`
+            // Both paths run `finalizeSearchRescueCompletion`, which fires the
+            // payout transfer and credits crew flight hours. Letting S&R crew
+            // bookings flow through this generic path skips the finalizer and
+            // silently marks the mission complete with no payout — block it.
+            if booking.isSearchRescueCrewBooking {
+                isLoading = false
+                errorMessage = "Search & Rescue completions must go through the mission-completion flow."
+                throw NSError(
+                    domain: "BookingService",
+                    code: 409,
+                    userInfo: [NSLocalizedDescriptionKey: "Search & Rescue missions have a dedicated completion flow. Use the \"Complete Mission\" (customer) or \"Confirm Mission\" (pilot) action on this booking."]
+                )
+            }
+
             // Update completion flag
             var updateData: [String: AnyJSON] = [:]
             if isPilot {

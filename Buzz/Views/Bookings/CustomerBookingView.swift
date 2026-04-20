@@ -1190,11 +1190,12 @@ struct CreateBookingView: View {
             
             switch paymentResult {
             case .completed:
-                // Payment has settled on Stripe's side. From here on, ANY thrown error
-                // means the customer has been charged but the booking record does not
-                // yet exist — we must refund automatically so the user isn't left
-                // paying for nothing. We catch inside a nested do/catch and issue a
-                // `create-refund` call if anything fails before the booking row is in.
+                // Payment has settled on Stripe's side. Any failure between here
+                // and the booking row being persisted means the customer has
+                // been charged but no booking exists — refund automatically.
+                // Post-booking failures (e.g. credit ledger updates) must NOT
+                // refund, or we'd leave a live booking with a refunded charge.
+                let newBooking: Booking
                 do {
                     let chargeId = try await paymentService.getChargeId(paymentIntentId: paymentIntentResponse.paymentIntentId)
 
@@ -1231,7 +1232,7 @@ struct CreateBookingView: View {
                         }
                     }
 
-                    let newBooking = try await bookingService.createBooking(
+                    newBooking = try await bookingService.createBooking(
                         customerId: customerId,
                         location: location,
                         locationName: locationName.isEmpty ? "Selected Location" : locationName,
@@ -1245,12 +1246,21 @@ struct CreateBookingView: View {
                         paymentIntentId: paymentIntentResponse.paymentIntentId,
                         chargeId: chargeId
                     )
+                } catch {
+                    // Pre-booking failure: charge is orphaned. Refund.
+                    await attemptRefundOrphanPayment(
+                        paymentIntentId: paymentIntentResponse.paymentIntentId,
+                        originalError: error
+                    )
+                    return
+                }
 
-                    // Apply referral credits if any were used. These must run AFTER
-                    // the booking is persisted — failing here would still be a
-                    // post-booking error (not a lost-payment error), so surface it
-                    // normally rather than issuing a refund.
-                    if creditsToUse > 0 {
+                // Booking row is persisted. Errors from here on are NOT
+                // lost-payment errors — surface them to the user but keep
+                // the booking. Refunding now would leave a live booking
+                // pointing at a refunded charge.
+                if creditsToUse > 0 {
+                    do {
                         let originalAmountCents = paymentIntentResponse.originalAmount ?? Int(NSDecimalNumber(decimal: paymentAmount * 100).intValue)
                         let finalAmountCents = paymentIntentResponse.finalAmount ?? Int(NSDecimalNumber(decimal: (paymentAmount - creditsToUse) * 100).intValue)
                         let _ = try await paymentService.applyBookingCredits(
@@ -1260,22 +1270,24 @@ struct CreateBookingView: View {
                             originalAmount: originalAmountCents,
                             finalAmount: finalAmountCents
                         )
+                    } catch {
+                        print("applyBookingCredits failed after booking \(newBooking.id) was created: \(error)")
+                        await MainActor.run {
+                            isProcessingPayment = false
+                            createdBooking = newBooking
+                            onBookingCreated?(newBooking)
+                            errorMessage = "Your booking was created, but we couldn't apply your credits: \(error.localizedDescription). Please contact support to reconcile."
+                            showError = true
+                        }
+                        return
                     }
-
-                    isProcessingPayment = false
-                    createdBooking = newBooking
-                    onBookingCreated?(newBooking)
-                    showSuccessAnimation = true
-                    return
-                } catch {
-                    // Payment captured but booking creation/update failed — refund
-                    // automatically so the customer isn't left paying for nothing.
-                    await attemptRefundOrphanPayment(
-                        paymentIntentId: paymentIntentResponse.paymentIntentId,
-                        originalError: error
-                    )
-                    return
                 }
+
+                isProcessingPayment = false
+                createdBooking = newBooking
+                onBookingCreated?(newBooking)
+                showSuccessAnimation = true
+                return
 
             case .cancelled:
                 isProcessingPayment = false

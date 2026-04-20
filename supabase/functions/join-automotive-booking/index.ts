@@ -11,8 +11,13 @@ const corsHeaders = {
 }
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL") || ""
+const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") || ""
 const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || ""
 
+// Service-role client — needed to insert into booking_crew (RLS allows only
+// service role) and to update bookings.status/pilot_id. All identity-sensitive
+// decisions below are gated on the authenticated caller derived from the JWT,
+// not on request-body fields.
 const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
 // Rank-based payout amounts in dollars
@@ -41,16 +46,52 @@ serve(async (req) => {
   }
 
   try {
-    const { booking_id, pilot_id } = await req.json()
+    const { booking_id, pilot_id: requestedPilotId } = await req.json()
 
     // Validate required fields
-    if (!booking_id || !pilot_id) {
+    if (!booking_id) {
       return new Response(
-        JSON.stringify({ error: "Missing required fields: booking_id, pilot_id" }),
+        JSON.stringify({ error: "Missing required field: booking_id" }),
         {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         }
+      )
+    }
+
+    // Authenticate the caller from the JWT and bind pilot_id to auth.uid().
+    // Even though verify_jwt=true means the platform rejects missing/invalid
+    // JWTs, the previous code read pilot_id straight from the request body
+    // and never cross-checked it against the authenticated user — a valid
+    // JWT from user A could join crew as user B. Derive pilot_id from the
+    // auth context so that's impossible.
+    const authHeader = req.headers.get("Authorization")
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: "Missing Authorization header" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      )
+    }
+    const userClient = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } },
+      auth: { autoRefreshToken: false, persistSession: false },
+    })
+    const { data: { user: authUser }, error: authErr } = await userClient.auth.getUser()
+    if (authErr || !authUser) {
+      return new Response(
+        JSON.stringify({ error: "Invalid or expired token" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      )
+    }
+    const pilot_id = authUser.id
+
+    // If the client supplied a pilot_id, it must match the authenticated user.
+    // We don't silently ignore a mismatch because that would mask client bugs
+    // where the UI is sending the wrong ID.
+    if (requestedPilotId && requestedPilotId !== pilot_id) {
+      return new Response(
+        JSON.stringify({ error: "Unauthorized: pilot_id does not match authenticated user" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       )
     }
 
